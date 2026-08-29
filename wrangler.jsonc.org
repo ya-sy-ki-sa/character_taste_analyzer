@@ -16,14 +16,13 @@
     "ENVIRONMENT": "local",
     "DEPLOYMENT_PROFILE": "free_validation",
     "DATASTORE_STRATEGY": "d1",
-    "LLM_PROVIDER": "openai",
-    "LLM_MODEL": "gpt-5.6-luna",
+    "LLM_PROVIDER": "workers_ai",
+    "LLM_MODEL": "@cf/openai/gpt-oss-120b",
     "LLM_FALLBACK_PROVIDER": "",
     "LLM_FALLBACK_MODEL": "",
     "OPENAI_TRANSPORT": "direct",
-    "EMBEDDING_PROVIDER": "openai",
-    "EMBEDDING_MODEL": "text-embedding-3-small",
-    "EMBEDDING_DIMENSIONS": "1536",
+    "EMBEDDING_PROVIDER": "workers_ai",
+    "EMBEDDING_MODEL": "@cf/baai/bge-m3",
     "ANALYSIS_DAILY_QUOTA": "30",
     "GENERATION_DAILY_QUOTA": "10",
     "SESSION_DAYS": "30",
@@ -41,6 +40,10 @@
       "migrations_dir": "docs/詳細設計/database"
     }
   ],
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
   "workflows": [
     {
       "name": "character-taste-analysis",
@@ -67,7 +70,6 @@
         "OPENAI_TRANSPORT": "direct",
         "EMBEDDING_PROVIDER": "fake",
         "EMBEDDING_MODEL": "fake-v1",
-        "EMBEDDING_DIMENSIONS": "1536",
         "ANALYSIS_DAILY_QUOTA": "1000",
         "GENERATION_DAILY_QUOTA": "1000",
         "SESSION_DAYS": "30",
@@ -149,9 +151,8 @@
         "LLM_FALLBACK_PROVIDER": "workers_ai",
         "LLM_FALLBACK_MODEL": "@cf/openai/gpt-oss-120b",
         "OPENAI_TRANSPORT": "direct",
-        "EMBEDDING_PROVIDER": "openai",
-        "EMBEDDING_MODEL": "text-embedding-3-small",
-        "EMBEDDING_DIMENSIONS": "1536",
+        "EMBEDDING_PROVIDER": "workers_ai",
+        "EMBEDDING_MODEL": "@cf/baai/bge-m3",
         "ANALYSIS_DAILY_QUOTA": "30",
         "GENERATION_DAILY_QUOTA": "10",
         "SESSION_DAYS": "30",
@@ -175,7 +176,7 @@
       "vectorize": [
         {
           "binding": "VECTORS",
-          "index_name": "character-taste-text-embedding-3-small-1536"
+          "index_name": "character-taste-bge-m3"
         }
       ],
       "workflows": [

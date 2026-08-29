@@ -90,7 +90,7 @@ fallbackは既定OFFとする。`LLM_FALLBACK_PROVIDER`と`LLM_FALLBACK_MODEL`�
 
 ### 2.5 Embeddingの独立選択
 
-`EmbeddingProvider`はLLMと別Portとし、`EMBEDDING_PROVIDER=openai|workers_ai|fake`で選択する。LLM Providerと同じである必要はないが、`local-manual`の既定は`workers_ai`、`local-test`/CIの既定は`fake`とする。実modelの次元数は起動時とindex作成時に検証し、不一致ならindex更新を停止する。
+`EmbeddingProvider`はLLMと別Portとし、`EMBEDDING_PROVIDER=openai|workers_ai|fake`で選択する。LLM Providerと同じである必要はないが、`local-manual`は`workers_ai`、productionはOpenAI `text-embedding-3-small`の1536次元、`local-test`/CIは`fake`を既定とする。Adapter受信時とindex作成時に次元数を検証し、不一致ならindex更新を停止する。
 
 ## 3. 共通request
 

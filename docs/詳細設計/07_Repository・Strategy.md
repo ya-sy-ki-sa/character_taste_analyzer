@@ -219,11 +219,11 @@ Adapter選択は環境変数文字列を直接各use caseで分岐せず、compo
 
 `OpenAiLlmProvider`は`OPENAI_TRANSPORT=direct|ai_gateway`を受け取る。`direct`はOpenAIへ直接接続し、`ai_gateway`はCloudflare AI Gatewayを経由する。AI GatewayはProvider IDを変えず、metadataのtransport/routeとして記録する。
 
-`LlmProviderFactory`は起動時に設定とbinding/secretの組合せを検証し、不明なProvider、必要secret欠落、未承認modelでfail fastする。fallbackには`LLM_FALLBACK_MODEL`を使い、主系と異なるProviderだけを許可する。Provider選択はdeployment/実行profile単位とし、`local-manual`は`workers_ai`、`local-test`/CIは`replay`または`fake`を明示的に注入する。ユーザーが画面からAPI keyやProviderを指定する機能は設けない。
+`LlmProviderFactory`は設定とbinding/secretの組合せを検証し、不明なProvider、必要secret欠落、未承認modelでfail fastする。fallbackには`LLM_FALLBACK_MODEL`を使い、主系と異なるProviderだけを許可する。Provider選択はdeployment/実行profile単位とし、`local-manual`は`workers_ai`、`local-test`/CIは`replay`または`fake`を明示的に注入する。ユーザーが画面からAPI keyやProviderを指定する機能は設けない。
 
 `LLM_FALLBACK_PROVIDER`が明示され、両ProviderがDD-15の固定評価とDD-04のdata policyを通過した場合のみ、`LlmProviderRouter`が一時障害に対してfallbackできる。各実呼出しは別の`model_run_metadata`として保存し、途中切替を隠さない。
 
-Embeddingは`EmbeddingProvider` factoryで独立選択する。LLMがOpenAIでEmbeddingがWorkers AI、またはその逆の構成も許可する。model変更時はVectorizeの次元数一致と再index計画を必須とする。
+Embeddingは`EmbeddingProvider` factoryでOpenAI、Workers AI、Fakeを独立選択する。ローカル標準はWorkers AIとし、productionのOpenAI Adapterは`POST /v1/embeddings`で`text-embedding-3-small`を1536次元で呼び出す。全Adapterは文書IDと入力順を保持し、応答件数、有限値、設定次元数を共通検証する。model変更時はVectorizeの次元数一致と再index計画を必須とする。
 
 ```typescript
 interface ApplicationPorts {

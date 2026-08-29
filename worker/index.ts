@@ -20,6 +20,7 @@ import {
   sessionMiddleware,
   verifyTurnstile,
 } from "./auth";
+import { createEmbeddingProvider } from "./embedding/providers";
 import { clearSessionCookie, readCookie, SESSION_COOKIE, sessionCookie } from "./lib/cookies";
 import {
   addDaysIso,
@@ -104,9 +105,19 @@ app.use("/api/v1/*", sessionMiddleware);
 app.use("/api/v1/*", rateLimitMiddleware);
 app.use("/api/v1/*", csrfMiddleware);
 
-app.get("/api/v1/health", (context) =>
-  context.json(data({ status: "ok", environment: context.env.ENVIRONMENT, llmProvider: context.env.LLM_PROVIDER })),
-);
+app.get("/api/v1/health", (context) => {
+  const embedding = createEmbeddingProvider(context.env);
+  return context.json(
+    data({
+      status: "ok",
+      environment: context.env.ENVIRONMENT,
+      llmProvider: context.env.LLM_PROVIDER,
+      embeddingProvider: embedding.providerId,
+      embeddingModel: embedding.model,
+      embeddingDimensions: embedding.dimensions,
+    }),
+  );
+});
 
 app.get("/api/v1/users", async (context) => {
   const query = normalizeUsername(context.req.query("query") ?? "");

@@ -33,7 +33,7 @@ npm run db:migrate:local
 npm run dev
 ```
 
-`http://localhost:5173`を開きます。`npm run dev`は要件どおりWorkers AIが既定で、`wrangler.jsonc`のremote AI bindingを使用します。Workers AIのquotaが尽きても入力とJob失敗理由はD1へ残り、アプリ開発を中止する必要はありません。
+`http://localhost:5173`を開きます。ローカル手動開発の標準はLLM／EmbeddingともWorkers AIで、`wrangler.jsonc`のremote AI bindingを使用します。Workers AIのquotaが尽きても入力とJob失敗理由はD1へ残ります。
 
 AI quotaを使わず全導線を確認する場合は次を使います。
 
@@ -51,12 +51,14 @@ npm run dev:offline
 
 | 値 | 用途 |
 |---|---|
-| `workers_ai` | ローカル手動確認とCloudflare運用。既定modelは`@cf/openai/gpt-oss-120b` |
+| `workers_ai` | ローカル手動確認とCloudflare運用。標準のローカルProvider |
 | `openai` | OpenAI Responses API。`store:false`とstrict JSON Schemaを使用 |
 | `replay` | ローカルE2E／CIの再現可能な応答 |
 | `fake` | 単体試験用の決定論的応答 |
 
 OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`を設定し、`LLM_PROVIDER=openai`、`LLM_MODEL`を対象modelへ変更します。`OPENAI_TRANSPORT=ai_gateway`の場合は`AI_GATEWAY_ACCOUNT_ID`と`AI_GATEWAY_GATEWAY_ID`も設定します。
+
+EmbeddingはLLMと独立した`EmbeddingProvider` Portを使います。ローカル標準はWorkers AI、productionは`EMBEDDING_PROVIDER=openai`、`EMBEDDING_MODEL=text-embedding-3-small`、`EMBEDDING_DIMENSIONS=1536`です。OpenAI、Workers AI、Fakeの各Adapterをfactoryで切り替え、返却vectorの件数・順序・有限値・次元数を共通契約で検証します。OpenAIのローカル動作確認は標準構成の変更ではなく、一時的なProvider上書きとして扱います。
 
 Providerのcapacity／429は`PROVIDER_CAPACITY_EXHAUSTED`、接続不能は`EXTERNAL_PROVIDER_UNAVAILABLE`としてJobへ保存します。retryable failureだけが、明示設定した`LLM_FALLBACK_PROVIDER`の対象です。
 
@@ -74,8 +76,8 @@ npm run smoke:e2e
 npm run test:e2e
 ```
 
-- 単体試験: Zod契約、カスタム差分の意味制約、Provider切替、Workers AI capacity保持、共通数値処理
-- DDL契約: migration 2件、62テーブル、初期統制属性94件
+- 単体試験: Zod契約、カスタム差分の意味制約、LLM／Embedding Provider切替、Workers AI capacity保持、共通数値処理
+- DDL契約: migration 3件、62テーブル、初期統制属性94件
 - API smoke: 登録→理解確認→嗜好確認→プロフィール→グラフ→生成
 - Playwright: 3方式登録画面と全主要導線、CSRF／Origin／水平権限／stored XSS、logout／session失効／account削除
 
@@ -97,8 +99,9 @@ Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全bui
 ## Cloudflareへ配置する前に
 
 1. staging／production用D1を作成し、`wrangler.jsonc`のplaceholder IDを差し替える。
-2. `AUTH_PEPPER`、必要に応じて`OPENAI_API_KEY`、`TURNSTILE_SECRET`を`wrangler secret`で登録する。
-3. 各環境の`APP_ORIGIN`を実際のHTTPS originへ設定する。
-4. `npm run db:migrate:staging`、`npm run deploy:staging`で検証してからproductionへ進める。
+2. `AUTH_PEPPER`、`OPENAI_API_KEY`、`TURNSTILE_SECRET`を`wrangler secret`で登録する。
+3. production用Vectorize index `character-taste-text-embedding-3-small-1536`を1536次元で作成する。
+4. 各環境の`APP_ORIGIN`を実際のHTTPS originへ設定する。
+5. `npm run db:migrate:staging`、`npm run deploy:staging`で検証してからproductionへ進める。
 
 既存データからのmigrationは、新規構築前提のため意図的に含めていません。
