@@ -1,0 +1,5 @@
+# Copy to .dev.vars and replace the values. Never commit .dev.vars.
+AUTH_PEPPER=replace-with-at-least-32-random-bytes
+OPENAI_API_KEY=
+TURNSTILE_SECRET=
+USE_REMOTE_AI_IN_DEV=true

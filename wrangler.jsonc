@@ -1,0 +1,153 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "character-taste-lab",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-04",
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "OPENAI_MODEL": "gpt-5.6-sol",
+    "WORKERS_AI_MODEL": "@cf/openai/gpt-oss-120b",
+    "EMBEDDING_MODEL": "@cf/baai/bge-m3",
+    "ALLOW_LOCAL_AI_FALLBACK": "true",
+    "USE_REMOTE_AI_IN_DEV": "true",
+    "ANALYSIS_DAILY_QUOTA": "30",
+    "GENERATION_DAILY_QUOTA": "10",
+    "SESSION_DAYS": "30",
+    "SESSION_RENEWAL_DAYS": "7",
+    "PUBLIC_WRITE_LIMIT_10_MIN": "1000",
+    "USER_WRITE_LIMIT_PER_MIN": "1000",
+    "IP_WRITE_LIMIT_PER_MIN": "1000",
+    "APP_ORIGIN": "http://localhost:5173"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "character-taste-lab",
+      "database_id": "replace-with-production-d1-id",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "workflows": [
+    {
+      "name": "character-taste-analysis",
+      "binding": "ANALYSIS_WORKFLOW",
+      "class_name": "AnalysisWorkflow"
+    },
+    {
+      "name": "character-taste-generation",
+      "binding": "GENERATION_WORKFLOW",
+      "class_name": "GenerationWorkflow"
+    }
+  ],
+  "env": {
+    "staging": {
+      "name": "character-taste-lab-staging",
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "ALLOW_LOCAL_AI_FALLBACK": "false",
+        "USE_REMOTE_AI_IN_DEV": "true",
+        "OPENAI_MODEL": "gpt-5.6-sol",
+        "WORKERS_AI_MODEL": "@cf/openai/gpt-oss-120b",
+        "EMBEDDING_MODEL": "@cf/baai/bge-m3",
+        "ANALYSIS_DAILY_QUOTA": "30",
+        "GENERATION_DAILY_QUOTA": "10",
+        "SESSION_DAYS": "30",
+        "SESSION_RENEWAL_DAYS": "7",
+        "PUBLIC_WRITE_LIMIT_10_MIN": "30",
+        "USER_WRITE_LIMIT_PER_MIN": "60",
+        "IP_WRITE_LIMIT_PER_MIN": "120",
+        "APP_ORIGIN": ""
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "character-taste-lab-staging",
+          "database_id": "replace-with-staging-d1-id",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "vectorize": [
+        {
+          "binding": "VECTORS",
+          "index_name": "character-taste-bge-m3-staging"
+        }
+      ],
+      "workflows": [
+        {
+          "name": "character-taste-analysis-staging",
+          "binding": "ANALYSIS_WORKFLOW",
+          "class_name": "AnalysisWorkflow"
+        },
+        {
+          "name": "character-taste-generation-staging",
+          "binding": "GENERATION_WORKFLOW",
+          "class_name": "GenerationWorkflow"
+        }
+      ]
+    },
+    "production": {
+      "name": "character-taste-lab",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ALLOW_LOCAL_AI_FALLBACK": "false",
+        "USE_REMOTE_AI_IN_DEV": "true",
+        "OPENAI_MODEL": "gpt-5.6-sol",
+        "WORKERS_AI_MODEL": "@cf/openai/gpt-oss-120b",
+        "EMBEDDING_MODEL": "@cf/baai/bge-m3",
+        "ANALYSIS_DAILY_QUOTA": "30",
+        "GENERATION_DAILY_QUOTA": "10",
+        "SESSION_DAYS": "30",
+        "SESSION_RENEWAL_DAYS": "7",
+        "PUBLIC_WRITE_LIMIT_10_MIN": "30",
+        "USER_WRITE_LIMIT_PER_MIN": "60",
+        "IP_WRITE_LIMIT_PER_MIN": "120",
+        "APP_ORIGIN": ""
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "character-taste-lab",
+          "database_id": "replace-with-production-d1-id",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "vectorize": [
+        {
+          "binding": "VECTORS",
+          "index_name": "character-taste-bge-m3"
+        }
+      ],
+      "workflows": [
+        {
+          "name": "character-taste-analysis",
+          "binding": "ANALYSIS_WORKFLOW",
+          "class_name": "AnalysisWorkflow"
+        },
+        {
+          "name": "character-taste-generation",
+          "binding": "GENERATION_WORKFLOW",
+          "class_name": "GenerationWorkflow"
+        }
+      ]
+    }
+  }
+}
