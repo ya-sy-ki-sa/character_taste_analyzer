@@ -6,6 +6,7 @@ import {
   activationSchema,
   type CharacterEntryInput,
   characterEntryInputSchema,
+  characterRecommendationResultSchema,
   correctionInputSchema,
   type FeedbackInput,
   feedbackInputSchema,
@@ -42,9 +43,18 @@ import { loadCurrentProfile } from "./repository";
 import { processAnalysis, rebuildProfileOnly } from "./services/analysis";
 import { processFeedback } from "./services/feedback";
 import { processGeneration } from "./services/generation";
-import type { AnalysisWorkflowParams, AppVariables, Env, GenerationRow, GenerationWorkflowParams } from "./types";
+import { hasRecommendationEvidence, processRecommendations } from "./services/recommendations";
+import type {
+  AnalysisWorkflowParams,
+  AppVariables,
+  Env,
+  GenerationRow,
+  GenerationWorkflowParams,
+  RecommendationRunRow,
+  RecommendationWorkflowParams,
+} from "./types";
 
-export { AnalysisWorkflow, GenerationWorkflow } from "./workflows";
+export { AnalysisWorkflow, GenerationWorkflow, RecommendationWorkflow } from "./workflows";
 
 type AppEnv = { Bindings: Env; Variables: AppVariables };
 const app = new Hono<AppEnv>();
@@ -58,6 +68,26 @@ const rotationSchema = z.object({ currentAccessKey: z.string().uuid() });
 
 function apiData<T>(data: T) {
   return { data };
+}
+
+function recommendationRunData(row: RecommendationRunRow) {
+  let result = null;
+  if (row.result_json) {
+    try {
+      const parsed = characterRecommendationResultSchema.safeParse(JSON.parse(row.result_json));
+      if (parsed.success) result = parsed.data;
+    } catch {
+      // Treat an invalid stored payload as unavailable instead of breaking the list endpoint.
+    }
+  }
+  return {
+    id: row.id,
+    profileSnapshotId: row.profile_snapshot_id,
+    status: row.status,
+    result,
+    errorCode: row.error_code,
+    createdAt: row.created_at,
+  };
 }
 
 function requireIdempotencyKey(value?: string): string {
@@ -100,6 +130,23 @@ async function startGeneration(context: Parameters<typeof requireSession>[0], pa
     await context.env.DB.prepare("UPDATE jobs SET workflow_id = ? WHERE id = ?").bind(instance.id, params.jobId).run();
   } else {
     context.executionCtx.waitUntil(processGeneration(context.env, params));
+  }
+}
+
+async function startRecommendations(
+  context: Parameters<typeof requireSession>[0],
+  params: RecommendationWorkflowParams,
+) {
+  if (context.env.RECOMMENDATION_WORKFLOW) {
+    const instance = await context.env.RECOMMENDATION_WORKFLOW.create({
+      id: `recommendation-${params.runId}`,
+      params,
+    });
+    await context.env.DB.prepare("UPDATE character_recommendation_runs SET workflow_id = ? WHERE id = ?")
+      .bind(instance.id, params.runId)
+      .run();
+  } else {
+    context.executionCtx.waitUntil(processRecommendations(context.env, params));
   }
 }
 
@@ -706,6 +753,82 @@ app.get("/api/v1/profile", async (context) => {
   return context.json(apiData({ profileSnapshotId: current.id, profile: current.profile }));
 });
 
+app.get("/api/v1/recommendations", async (context) => {
+  const session = requireSession(context);
+  const rows = await all<RecommendationRunRow>(
+    context.env.DB.prepare(`
+      SELECT * FROM character_recommendation_runs
+      WHERE user_id = ? ORDER BY created_at DESC LIMIT 20
+    `).bind(session.userId),
+  );
+  return context.json(apiData({ recommendations: rows.map(recommendationRunData) }));
+});
+
+app.post("/api/v1/recommendations", async (context) => {
+  const session = requireSession(context);
+  const idempotencyKey = requireIdempotencyKey(context.req.header("Idempotency-Key"));
+  const previous = await first<RecommendationRunRow>(
+    context.env.DB.prepare(`
+      SELECT * FROM character_recommendation_runs
+      WHERE user_id = ? AND idempotency_key = ?
+    `).bind(session.userId, idempotencyKey),
+  );
+  if (previous) return context.json(apiData({ recommendation: recommendationRunData(previous) }), 202);
+
+  const profile = await loadCurrentProfile(context.env, session.userId);
+  if (!profile || profile.profile.entryCount < 1)
+    throw new HTTPException(409, { message: "分析済みのキャラクターが1件以上必要です" });
+  if (!hasRecommendationEvidence(profile.profile))
+    throw new HTTPException(409, { message: "推薦に使える好みの傾向がまだ見つかっていません" });
+
+  await enforceQuota(context.env, session.userId, "recommendation");
+  const runId = crypto.randomUUID();
+  const now = nowIso();
+  await run(
+    context.env.DB.prepare(`
+      INSERT INTO character_recommendation_runs (
+        id, user_id, profile_snapshot_id, idempotency_key, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'queued', ?, ?)
+    `).bind(runId, session.userId, profile.id, idempotencyKey, now, now),
+  );
+  try {
+    await startRecommendations(context, { runId, userId: session.userId });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "character_recommendation_start_failed",
+        runId,
+        error: error instanceof Error ? error.name : "unknown",
+      }),
+    );
+    await context.env.DB.prepare(`
+      UPDATE character_recommendation_runs
+      SET status = 'failed', error_code = 'workflow_start_failed', updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `)
+      .bind(nowIso(), runId, session.userId)
+      .run();
+    throw new HTTPException(503, { message: "候補表示を開始できませんでした" });
+  }
+  const queued = await first<RecommendationRunRow>(
+    context.env.DB.prepare("SELECT * FROM character_recommendation_runs WHERE id = ?").bind(runId),
+  );
+  if (!queued) throw new HTTPException(500, { message: "候補表示を開始できませんでした" });
+  return context.json(apiData({ recommendation: recommendationRunData(queued) }), 202);
+});
+
+app.get("/api/v1/recommendations/:id", async (context) => {
+  const session = requireSession(context);
+  const row = await first<RecommendationRunRow>(
+    context.env.DB.prepare("SELECT * FROM character_recommendation_runs WHERE id = ? AND user_id = ?").bind(
+      context.req.param("id"),
+      session.userId,
+    ),
+  );
+  if (!row) throw new HTTPException(404, { message: "おすすめ候補が見つかりません" });
+  return context.json(apiData({ recommendation: recommendationRunData(row) }));
+});
+
 app.get("/api/v1/generations", async (context) => {
   const session = requireSession(context);
   const rows = await all<GenerationRow>(
@@ -1007,10 +1130,18 @@ app.get("/api/v1/account/export", async (context) => {
     FROM generations WHERE user_id = ? ORDER BY created_at
   `).bind(session.userId),
   );
+  const recommendations = await all<Record<string, unknown>>(
+    context.env.DB.prepare(`
+      SELECT id, profile_snapshot_id AS profileSnapshotId, result_json AS result,
+        status, error_code AS errorCode, created_at AS createdAt
+      FROM character_recommendation_runs WHERE user_id = ? ORDER BY created_at
+    `).bind(session.userId),
+  );
   for (const row of profiles) if (typeof row.profile === "string") row.profile = JSON.parse(row.profile);
   for (const row of generations) if (typeof row.result === "string") row.result = JSON.parse(row.result);
+  for (const row of recommendations) if (typeof row.result === "string") row.result = JSON.parse(row.result);
   context.header("Content-Disposition", `attachment; filename="character-taste-export-${session.userId}.json"`);
-  return context.json({ exportedAt: nowIso(), user, entries, profiles, generations });
+  return context.json({ exportedAt: nowIso(), user, entries, profiles, generations, recommendations });
 });
 
 app.delete("/api/v1/account", async (context) => {

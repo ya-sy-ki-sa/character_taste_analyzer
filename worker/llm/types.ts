@@ -1,6 +1,11 @@
 import type { z } from "zod";
 
-export type LlmTask = "trait-extraction" | "profile-summary" | "character-generation" | "feedback-extraction";
+export type LlmTask =
+  | "trait-extraction"
+  | "profile-summary"
+  | "character-generation"
+  | "character-recommendation"
+  | "feedback-extraction";
 
 export type CanonicalMessage = {
   role: "system" | "user" | "assistant";

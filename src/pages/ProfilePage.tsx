@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import type { ProfileTrait, TasteProfile } from "../../shared/schemas";
 import { api } from "../api";
+import { Recommendations } from "../components/Recommendations";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
 
 const confidenceLabels = {
@@ -150,6 +151,8 @@ export function ProfilePage() {
           />
         </Card>
       </section>
+
+      <Recommendations profileSnapshotId={profile.data.profileSnapshotId} />
 
       {data.contradictions.length > 0 && (
         <section className="section-block">

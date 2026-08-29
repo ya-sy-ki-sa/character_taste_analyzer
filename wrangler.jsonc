@@ -21,6 +21,7 @@
     "USE_REMOTE_AI_IN_DEV": "true",
     "ANALYSIS_DAILY_QUOTA": "30",
     "GENERATION_DAILY_QUOTA": "10",
+    "RECOMMENDATION_DAILY_QUOTA": "20",
     "SESSION_DAYS": "30",
     "SESSION_RENEWAL_DAYS": "7",
     "PUBLIC_WRITE_LIMIT_10_MIN": "1000",
@@ -50,6 +51,11 @@
       "name": "character-taste-generation",
       "binding": "GENERATION_WORKFLOW",
       "class_name": "GenerationWorkflow"
+    },
+    {
+      "name": "character-taste-recommendations",
+      "binding": "RECOMMENDATION_WORKFLOW",
+      "class_name": "RecommendationWorkflow"
     }
   ],
   "env": {
@@ -64,6 +70,7 @@
         "EMBEDDING_MODEL": "@cf/baai/bge-m3",
         "ANALYSIS_DAILY_QUOTA": "30",
         "GENERATION_DAILY_QUOTA": "10",
+        "RECOMMENDATION_DAILY_QUOTA": "20",
         "SESSION_DAYS": "30",
         "SESSION_RENEWAL_DAYS": "7",
         "PUBLIC_WRITE_LIMIT_10_MIN": "30",
@@ -98,6 +105,11 @@
           "name": "character-taste-generation-staging",
           "binding": "GENERATION_WORKFLOW",
           "class_name": "GenerationWorkflow"
+        },
+        {
+          "name": "character-taste-recommendations-staging",
+          "binding": "RECOMMENDATION_WORKFLOW",
+          "class_name": "RecommendationWorkflow"
         }
       ]
     },
@@ -112,6 +124,7 @@
         "EMBEDDING_MODEL": "@cf/baai/bge-m3",
         "ANALYSIS_DAILY_QUOTA": "30",
         "GENERATION_DAILY_QUOTA": "10",
+        "RECOMMENDATION_DAILY_QUOTA": "20",
         "SESSION_DAYS": "30",
         "SESSION_RENEWAL_DAYS": "7",
         "PUBLIC_WRITE_LIMIT_10_MIN": "30",
@@ -146,6 +159,11 @@
           "name": "character-taste-generation",
           "binding": "GENERATION_WORKFLOW",
           "class_name": "GenerationWorkflow"
+        },
+        {
+          "name": "character-taste-recommendations",
+          "binding": "RECOMMENDATION_WORKFLOW",
+          "class_name": "RecommendationWorkflow"
         }
       ]
     }

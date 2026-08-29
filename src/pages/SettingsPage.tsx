@@ -31,7 +31,7 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
           <div className="settings-icon">⇩</div>
           <div>
             <h2>データをエクスポート</h2>
-            <p>入力、分析プロフィール、生成履歴をJSON形式でダウンロードします。認証情報は含みません。</p>
+            <p>入力、分析プロフィール、生成・推薦履歴をJSON形式でダウンロードします。認証情報は含みません。</p>
             <button
               type="button"
               className="button button-secondary"

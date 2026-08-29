@@ -88,6 +88,12 @@ function safeSchemaName(task: string): string {
   return task.replace(/[^a-zA-Z0-9_-]/gu, "_").slice(0, 64);
 }
 
+function workersAiOptions(task: StructuredRequest<unknown>["task"]) {
+  if (task === "character-generation") return { maxTokens: 4_000, temperature: 0.75, timeoutMs: 120_000 };
+  if (task === "character-recommendation") return { maxTokens: 3_000, temperature: 0.6, timeoutMs: 90_000 };
+  return { maxTokens: 2_000, temperature: 0.2, timeoutMs: 60_000 };
+}
+
 export class OpenAiResponsesProvider implements RawStructuredLlmProvider {
   readonly id = "openai";
   readonly model: string;
@@ -189,18 +195,18 @@ export class WorkersAiProvider implements RawStructuredLlmProvider {
   async generateRaw(request: Omit<StructuredRequest<unknown>, "schema" | "localFactory">) {
     if (!this.env.AI) throw new ProviderError("Workers AI binding is not configured", "provider_unavailable");
     const startedAt = Date.now();
-    const timeoutMs = request.task === "character-generation" ? 120_000 : 60_000;
+    const options = workersAiOptions(request.task);
     const payload = await withTimeout(
       this.env.AI.run(request.model || this.model, {
         messages: request.messages,
-        max_tokens: request.task === "character-generation" ? 4_000 : 2_000,
-        temperature: request.task === "character-generation" ? 0.75 : 0.2,
+        max_tokens: options.maxTokens,
+        temperature: options.temperature,
         response_format: {
           type: "json_schema",
           json_schema: request.jsonSchema,
         },
       }),
-      timeoutMs,
+      options.timeoutMs,
       "Workers AI",
     );
     const object = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};

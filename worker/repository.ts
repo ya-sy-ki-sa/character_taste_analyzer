@@ -70,7 +70,7 @@ export async function recordModelRun(
   input: {
     id: string;
     userId: string;
-    jobId: string;
+    jobId?: string;
     task: string;
     provider: string;
     model: string;
@@ -95,7 +95,7 @@ export async function recordModelRun(
     `).bind(
       input.id,
       input.userId,
-      input.jobId,
+      input.jobId ?? null,
       input.task,
       input.provider,
       input.model,

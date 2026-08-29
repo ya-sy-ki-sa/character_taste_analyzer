@@ -210,3 +210,23 @@ export type TasteProfile = {
   clusters: ProfileCluster[];
   generatedAt: string;
 };
+
+export const characterRecommendationResultSchema = z.object({
+  selectionNote: z.string().min(1).max(500),
+  candidates: z
+    .array(
+      z.object({
+        characterName: z.string().min(1).max(120),
+        workTitle: z.string().min(1).max(160),
+        mediaType: z.string().min(1).max(40),
+        matchedTraitIds: z.array(traitIdSchema).min(1).max(6),
+        reason: z.string().min(1).max(600),
+        possibleMismatch: z.string().max(300).nullable(),
+        likelihood: z.enum(["high", "medium", "exploratory"]),
+      }),
+    )
+    .min(4)
+    .max(6),
+});
+
+export type CharacterRecommendationResult = z.infer<typeof characterRecommendationResultSchema>;

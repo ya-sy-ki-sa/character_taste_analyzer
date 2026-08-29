@@ -156,6 +156,35 @@ describe("shared structured-provider contract", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("uses the recommendation sampling budget on Workers AI", async () => {
+    const run = vi.fn().mockResolvedValue({ response: '{"summary":"推薦結果"}' });
+    await new ProviderRouter(
+      env({
+        AI: { run },
+        ENVIRONMENT: "development",
+        ALLOW_LOCAL_AI_FALLBACK: "true",
+        USE_REMOTE_AI_IN_DEV: "true",
+      }),
+    ).generateObject({ ...request(), task: "character-recommendation", localFactory: undefined });
+
+    expect(run.mock.calls[0][1]).toMatchObject({ max_tokens: 3_000, temperature: 0.6 });
+  });
+
+  it("does not invent character recommendations with the deterministic local fallback", async () => {
+    const run = vi.fn();
+    await expect(
+      new ProviderRouter(
+        env({
+          AI: { run },
+          ENVIRONMENT: "development",
+          ALLOW_LOCAL_AI_FALLBACK: "true",
+          USE_REMOTE_AI_IN_DEV: "false",
+        }),
+      ).generateObject({ ...request(), task: "character-recommendation", localFactory: undefined }),
+    ).rejects.toThrow("利用可能なLLMがありません");
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("uses deterministic local output when remote AI is explicitly disabled in development", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("remote providers must not be called"));
     const run = vi.fn().mockRejectedValue(new Error("remote providers must not be called"));

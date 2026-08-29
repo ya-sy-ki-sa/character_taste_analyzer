@@ -33,6 +33,15 @@ test("作成から分析・訂正・生成・フィードバック・削除ま�
   await page.getByRole("button", { name: "保存して分析" }).click();
   await expect(page.getByText("分析が完了し、プロフィールを更新しました。")).toBeVisible({ timeout: 120_000 });
 
+  await page.locator('.side-nav a[href="/app/profile"]').click();
+  await page.getByRole("button", { name: /候補を表示/u }).click();
+  await expect(page.locator(".recommendation-card").first()).toBeVisible({ timeout: 180_000 });
+  const recommendationCount = await page.locator(".recommendation-card").count();
+  expect(recommendationCount).toBeGreaterThanOrEqual(4);
+  expect(recommendationCount).toBeLessThanOrEqual(6);
+  await expect(page.locator(".recommendation-card .recommendation-traits").first()).toBeVisible();
+
+  await page.locator('.side-nav a[href="/app/entries"]').click();
   await page.getByRole("button", { name: /E2E架空人物/u }).click();
   await expect(page.getByRole("heading", { name: "抽出された属性と根拠" })).toBeVisible();
   const reserved = page.locator(".assertion-row").filter({ hasText: "寡黙・内向的" });

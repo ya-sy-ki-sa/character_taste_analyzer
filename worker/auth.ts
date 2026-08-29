@@ -171,13 +171,25 @@ export async function verifyTurnstile(env: Env, token: string | undefined, remot
   if (!result.success) throw new HTTPException(400, { message: "ボット確認に失敗しました" });
 }
 
-export async function enforceQuota(env: Env, userId: string, kind: "analysis" | "generation"): Promise<void> {
+export async function enforceQuota(
+  env: Env,
+  userId: string,
+  kind: "analysis" | "generation" | "recommendation",
+): Promise<void> {
   const date = new Date().toISOString().slice(0, 10);
-  const limit = boundedInteger(
-    kind === "analysis" ? env.ANALYSIS_DAILY_QUOTA : env.GENERATION_DAILY_QUOTA,
-    kind === "analysis" ? 30 : 10,
-  );
-  const column = kind === "analysis" ? "analysis_count" : "generation_count";
+  const quotas = {
+    analysis: { value: env.ANALYSIS_DAILY_QUOTA, fallback: 30, column: "analysis_count", label: "分析" },
+    generation: { value: env.GENERATION_DAILY_QUOTA, fallback: 10, column: "generation_count", label: "生成" },
+    recommendation: {
+      value: env.RECOMMENDATION_DAILY_QUOTA,
+      fallback: 20,
+      column: "recommendation_count",
+      label: "候補表示",
+    },
+  } as const;
+  const selected = quotas[kind];
+  const limit = boundedInteger(selected.value, selected.fallback);
+  const column = selected.column;
   const result = await env.DB.prepare(`
     INSERT INTO usage_daily (user_id, usage_date, ${column}) VALUES (?, ?, 1)
     ON CONFLICT(user_id, usage_date) DO UPDATE SET ${column} = ${column} + 1
@@ -189,6 +201,6 @@ export async function enforceQuota(env: Env, userId: string, kind: "analysis" | 
     await env.DB.prepare(`UPDATE usage_daily SET ${column} = ${column} - 1 WHERE user_id = ? AND usage_date = ?`)
       .bind(userId, date)
       .run();
-    throw new HTTPException(429, { message: `本日の${kind === "analysis" ? "分析" : "生成"}上限に達しました` });
+    throw new HTTPException(429, { message: `本日の${selected.label}上限に達しました` });
   }
 }

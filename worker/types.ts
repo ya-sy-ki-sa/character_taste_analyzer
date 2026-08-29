@@ -36,12 +36,18 @@ export type GenerationWorkflowParams = {
   generationId: string;
 };
 
+export type RecommendationWorkflowParams = {
+  runId: string;
+  userId: string;
+};
+
 export type Env = {
   DB: D1Database;
   AI?: AiBinding;
   VECTORS?: VectorizeBinding;
   ANALYSIS_WORKFLOW?: WorkflowBinding<AnalysisWorkflowParams>;
   GENERATION_WORKFLOW?: WorkflowBinding<GenerationWorkflowParams>;
+  RECOMMENDATION_WORKFLOW?: WorkflowBinding<RecommendationWorkflowParams>;
   ASSETS?: Fetcher;
   ENVIRONMENT: string;
   APP_ORIGIN?: string;
@@ -56,6 +62,7 @@ export type Env = {
   USE_REMOTE_AI_IN_DEV?: string;
   ANALYSIS_DAILY_QUOTA: string;
   GENERATION_DAILY_QUOTA: string;
+  RECOMMENDATION_DAILY_QUOTA?: string;
   SESSION_DAYS: string;
   SESSION_RENEWAL_DAYS?: string;
   PUBLIC_WRITE_LIMIT_10_MIN?: string;
@@ -112,6 +119,20 @@ export type GenerationRow = {
   similarity_score: number | null;
   similarity_warning: string | null;
   status: "queued" | "succeeded" | "failed";
+  created_at: string;
+  updated_at: string;
+};
+
+export type RecommendationRunRow = {
+  id: string;
+  user_id: string;
+  profile_snapshot_id: string;
+  idempotency_key: string;
+  workflow_id: string | null;
+  result_json: string | null;
+  model_run_id: string | null;
+  status: "queued" | "running" | "succeeded" | "failed";
+  error_code: string | null;
   created_at: string;
   updated_at: string;
 };

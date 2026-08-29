@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   characterEntryInputSchema,
+  characterRecommendationResultSchema,
   correctionInputSchema,
   feedbackInputSchema,
   usernameSchema,
@@ -44,5 +45,25 @@ describe("public input contracts", () => {
 
   it("rejects control characters in public usernames", () => {
     expect(usernameSchema.safeParse("公開\u0000名").success).toBe(false);
+  });
+
+  it("requires four to six structured existing-character recommendations", () => {
+    const candidate = {
+      characterName: "人物名",
+      workTitle: "作品名",
+      mediaType: "小説",
+      matchedTraitIds: ["temperament.stoic"],
+      reason: "分析傾向との一致理由です。",
+      possibleMismatch: null,
+      likelihood: "medium",
+    };
+    expect(
+      characterRecommendationResultSchema.safeParse({ selectionNote: "選定方針", candidates: Array(4).fill(candidate) })
+        .success,
+    ).toBe(true);
+    expect(
+      characterRecommendationResultSchema.safeParse({ selectionNote: "選定方針", candidates: Array(3).fill(candidate) })
+        .success,
+    ).toBe(false);
   });
 });
