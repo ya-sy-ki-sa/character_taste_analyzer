@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
+import { responseChannelCatalog, responseChannelCategories } from "../../shared/response-channels";
 import type { EntrySummary, RegistrationType, ResponseChannel } from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
@@ -76,10 +77,11 @@ type FormState = {
   workTitle: string;
   characterName: string;
   mediaType: string;
-  knownScope: string;
-  sourceText: string;
+  preferenceContext: string;
+  characterBasicInfo: string;
+  referenceMaterial: string;
   userCharacterView: string;
-  representationType: "facet" | "scene_state" | "alternate_setting" | "transformative" | "user_interpretation";
+  representationType: "user_interpretation" | "transformative" | "alternate_setting";
   customizationDescription: string;
   likedReasons: string;
   dislikedReasons: string;
@@ -92,10 +94,11 @@ const emptyForm: FormState = {
   workTitle: "",
   characterName: "",
   mediaType: "",
-  knownScope: "作品全体の基本像",
-  sourceText: "",
+  preferenceContext: "",
+  characterBasicInfo: "",
+  referenceMaterial: "",
   userCharacterView: "",
-  representationType: "facet",
+  representationType: "user_interpretation",
   customizationDescription: "",
   likedReasons: "",
   dislikedReasons: "",
@@ -103,18 +106,8 @@ const emptyForm: FormState = {
   valueStanceNote: "",
 };
 
-const channelOptions: Array<[ResponseChannel, string]> = [
-  ["person_liking", "人物として好き"],
-  ["aesthetic_liking", "見た目・声・演技が好き"],
-  ["narrative_interest", "物語を面白くする"],
-  ["fascination_with_transgression", "逸脱に惹かれる"],
-  ["root_for", "勝ってほしい"],
-  ["love_to_hate", "嫌いも含めて楽しい"],
-  ["desire_no_redemption", "改心せずにいてほしい"],
-  ["empathy", "共感する"],
-  ["admiration", "憧れる"],
-  ["curiosity", "観察したい"],
-];
+const popularChannelOptions = responseChannelCatalog.filter((item) => item.tier === "popular");
+const detailedChannelOptions = responseChannelCatalog.filter((item) => item.tier === "detail");
 
 const statusLabels: Record<string, string> = {
   submitted: "理解を解析中",
@@ -171,9 +164,6 @@ export function EntriesPage() {
           </button>
         }
       />
-      <Notice tone="info">
-        ヴィラン、非道徳、善への無関心、端役、一場面限定、二次創作も、そのまま有効な「好き」として記録します。
-      </Notice>
       {notice && <Notice tone={notice.tone}>{notice.message}</Notice>}
       {entries.isPending && <Spinner label="登録一覧を読み込んでいます" />}
       {entries.isError && <Notice tone="danger">登録一覧を読み込めませんでした。</Notice>}
@@ -264,6 +254,15 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
   const [error, setError] = useState<string>();
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const toggleResponseChannel = (value: ResponseChannel, selected: boolean) =>
+    update(
+      "responseChannels",
+      selected
+        ? form.responseChannels.includes(value)
+          ? form.responseChannels
+          : [...form.responseChannels, value]
+        : form.responseChannels.filter((item) => item !== value),
+    );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -273,8 +272,8 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
       schemaVersion: "1" as const,
       registrationType: form.registrationType,
       characterName: form.characterName,
-      knownScope: form.knownScope,
-      sourceText: form.sourceText,
+      preferenceContext: form.preferenceContext || undefined,
+      referenceMaterial: form.referenceMaterial || undefined,
       userCharacterView: form.userCharacterView || undefined,
       preference: {
         likedReasons: form.likedReasons || undefined,
@@ -285,7 +284,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
     };
     const payload =
       form.registrationType === "original"
-        ? common
+        ? { ...common, characterBasicInfo: form.characterBasicInfo }
         : form.registrationType === "existing"
           ? { ...common, workTitle: form.workTitle, mediaType: form.mediaType || undefined }
           : {
@@ -357,17 +356,31 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               />
             </label>
           )}
+          {form.registrationType === "original" && (
+            <label className="full">
+              <span>
+                キャラクター基本情報 <b>必須</b>
+              </span>
+              <textarea
+                required
+                rows={7}
+                maxLength={20000}
+                value={form.characterBasicInfo}
+                onChange={(event) => update("characterBasicInfo", event.target.value)}
+                placeholder="性格、価値観、目的、行動、他者との関係、物語上の役割など"
+              />
+              <small>このオリジナルキャラクターがどのような人物か分かる、基本的な設定を入力してください。</small>
+            </label>
+          )}
           <label className="full">
-            <span>
-              今回どの範囲を指すか <b>必須</b>
-            </span>
+            <span>特に好きな時期・場面・状態（任意）</span>
             <input
-              required
               maxLength={2000}
-              value={form.knownScope}
-              onChange={(event) => update("knownScope", event.target.value)}
-              placeholder="作品全体、第3話の場面、裏人格だけ、など"
+              value={form.preferenceContext}
+              onChange={(event) => update("preferenceContext", event.target.value)}
+              placeholder="例：記憶を失っていた時期、第7話で別人格が現れている間"
             />
+            <small>キャラクター全体ではなく、特定の時期や場面、状態に限って好きな場合に入力してください。</small>
           </label>
           {form.registrationType === "customized_existing" && (
             <>
@@ -379,11 +392,9 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
                     update("representationType", event.target.value as FormState["representationType"])
                   }
                 >
-                  <option value="facet">一面・人格</option>
-                  <option value="scene_state">一場面限定</option>
-                  <option value="alternate_setting">別設定</option>
-                  <option value="transformative">二次創作での改変</option>
                   <option value="user_interpretation">独自解釈</option>
+                  <option value="transformative">二次創作</option>
+                  <option value="alternate_setting">別設定</option>
                 </select>
               </label>
               <label className="full">
@@ -401,24 +412,25 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
             </>
           )}
           <label className="full">
-            <span>
-              {form.registrationType === "customized_existing"
-                ? "基本キャラクターを判断できる資料・説明"
-                : "キャラクターを判断できる資料・説明"}{" "}
-              <b>必須</b>
-            </span>
+            <span>解析に加えたい参考情報（任意）</span>
             <textarea
-              required
               rows={7}
               maxLength={20000}
-              value={form.sourceText}
-              onChange={(event) => update("sourceText", event.target.value)}
+              value={form.referenceMaterial}
+              onChange={(event) => update("referenceMaterial", event.target.value)}
               placeholder={
                 form.registrationType === "customized_existing"
-                  ? "改変前の基本像について、設定、行動、役割、価値観などを入力。変更点は上の差分欄へ分けます。"
-                  : "設定、行動、作中での役割、価値観、印象的な場面など。入力範囲外は補完しません。"
+                  ? "例：改変前の公式設定や人物像について、解析に加えたい情報"
+                  : form.registrationType === "original"
+                    ? "例：基本情報とは別に参照させたい設定メモや補足資料"
+                    : "例：公式プロフィールや作中描写について、解析に加えたい情報"
               }
             />
+            <small>
+              {form.registrationType === "original"
+                ? "基本情報に加えて参照させたい資料がある場合に入力してください。"
+                : "未入力でも、作品名とキャラクター名をもとにシステムが基本情報を調べます。資料がある場合は補足として入力してください。"}
+            </small>
           </label>
           <label className="full">
             <span>あなた自身のキャラクター解釈</span>
@@ -436,7 +448,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               maxLength={4000}
               value={form.likedReasons}
               onChange={(event) => update("likedReasons", event.target.value)}
-              placeholder="例：純粋な悪として改心しないところ、端役なのに一場面で空気を変えるところ"
+              placeholder="例：言葉遣い、考え方、人間関係、特定の場面での振る舞い"
             />
           </label>
           <label className="full">
@@ -448,25 +460,48 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               onChange={(event) => update("dislikedReasons", event.target.value)}
             />
           </label>
-          <fieldset className="full channel-grid">
+          <fieldset className="full channel-picker">
             <legend>どういう意味で好きか</legend>
-            {channelOptions.map(([value, label]) => (
-              <label className="check-row" key={value}>
-                <input
-                  type="checkbox"
-                  checked={form.responseChannels.includes(value)}
-                  onChange={(event) =>
-                    update(
-                      "responseChannels",
-                      event.target.checked
-                        ? [...form.responseChannels, value]
-                        : form.responseChannels.filter((item) => item !== value),
-                    )
-                  }
+            <p className="channel-picker-intro">当てはまるものを複数選べます。よく使われる項目を先に表示しています。</p>
+            <div className="channel-grid">
+              {popularChannelOptions.map((option) => (
+                <ResponseChannelOption
+                  key={option.value}
+                  option={option}
+                  selected={form.responseChannels.includes(option.value)}
+                  onChange={toggleResponseChannel}
                 />
-                <span>{label}</span>
-              </label>
-            ))}
+              ))}
+            </div>
+            <div className="channel-accordions">
+              {responseChannelCategories.map((category) => {
+                const options = detailedChannelOptions.filter((item) => item.category === category.key);
+                const selectedCount = options.filter((item) => form.responseChannels.includes(item.value)).length;
+                return (
+                  <details className="channel-accordion" key={category.key}>
+                    <summary>
+                      <span>
+                        <b>{category.label}</b>
+                        <small>{category.description}</small>
+                      </span>
+                      <span className="channel-accordion-count">
+                        {selectedCount ? `${selectedCount}件選択` : "詳細を表示"}
+                      </span>
+                    </summary>
+                    <div className="channel-grid channel-detail-grid">
+                      {options.map((option) => (
+                        <ResponseChannelOption
+                          key={option.value}
+                          option={option}
+                          selected={form.responseChannels.includes(option.value)}
+                          onChange={toggleResponseChannel}
+                        />
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
           </fieldset>
           <label className="full">
             <span>善悪・価値観について残したいニュアンス</span>
@@ -475,7 +510,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               maxLength={2000}
               value={form.valueStanceNote}
               onChange={(event) => update("valueStanceNote", event.target.value)}
-              placeholder="例：悪役としての行為を穏当化せず、悪そのものを肯定する姿勢が好き。現実で支持するという意味ではない。"
+              placeholder="例：このキャラクターの価値観や行動を、好きな理由としてどう捉えているか"
             />
           </label>
         </div>
@@ -490,6 +525,26 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
         </div>
       </form>
     </Modal>
+  );
+}
+
+function ResponseChannelOption({
+  option,
+  selected,
+  onChange,
+}: {
+  option: (typeof responseChannelCatalog)[number];
+  selected: boolean;
+  onChange(value: ResponseChannel, selected: boolean): void;
+}) {
+  return (
+    <label className="check-row channel-option">
+      <input type="checkbox" checked={selected} onChange={(event) => onChange(option.value, event.target.checked)} />
+      <span className="channel-option-copy">
+        <b>{option.label}</b>
+        <small>{option.description}</small>
+      </span>
+    </label>
   );
 }
 
@@ -643,9 +698,7 @@ function ReviewModal({ entryId, onClose, onUpdated }: { entryId: string; onClose
               )}
               {value.entry.status === "analysis_review" && (
                 <>
-                  <Notice tone="info">
-                    確認後に累積プロフィールへ反映します。善悪や役割による評価の上下は行いません。
-                  </Notice>
+                  <Notice tone="info">確認後に累積プロフィールへ反映します。</Notice>
                   <button
                     type="button"
                     className="button button-primary"

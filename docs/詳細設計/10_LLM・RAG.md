@@ -10,7 +10,7 @@ OpenAI Adapterを初期必須の実装対象とし、Workers AI Adapterを選択
 
 | operation | 入力 | 出力schema | temperature目安 |
 |---|---|---|---:|
-| `character_understanding` | 対象scope、資料fragment、ユーザー記述 | `character-understanding` | 0.1 |
+| `character_understanding` | 作品・キャラクター識別子、システム収集情報またはオリジナル基本情報、任意参考情報、ユーザー解釈 | `character-understanding` | 0.1 |
 | `customization_delta` | base/target understanding、改変記述 | 同schema内deltas | 0.0 |
 | `preference_analysis` | confirmed understanding、好きな理由、review | `preference-analysis` | 0.1 |
 | `profile_pattern_label` | 決定論的pattern data | 短いlabel/description | 0.2 |
@@ -44,7 +44,21 @@ LlmProvider
 
 OpenAIの`direct`/`ai_gateway`は通信経路の違いであり、どちらもProvider IDは`openai`とする。Gateway用URLは承認済みaccount/gateway IDからAdapterが組み立て、ユーザー入力の任意URLを使わない。
 
-### 2.2 共通metadata
+### 2.2 キャラクター基本情報の取得
+
+既成・既成（カスタム）の基本像をユーザーの説明負担へ依存させない。理解抽出前に作品名、キャラクター名、媒体・版から検索queryを組み立て、次の順で情報を収集する。
+
+1. 固定hostへ接続する`CharacterResearch` Adapterで公開情報を取得する。初期Adapterは日本語Wikipedia APIの検索・導入部取得とし、URL、title、短いexcerptを保持する
+2. OpenAI ProviderではResponses APIの組み込み`web_search`も`character_understanding`で有効にする
+3. Workers AIでは収集済み公開情報とモデル知識をstructured outputへ渡す。Workers AIのfunction calling自体は検索サービスではないため、検索実行はWorker側Adapterが担当する
+4. ユーザーの`referenceMaterial`があれば、一般情報を置き換える必須資料ではなく付加情報として同時に渡す
+5. `userCharacterView`は公開情報・参考情報から分離し、ユーザー自身の解釈として扱う
+
+オリジナルでは外部検索を行わず、必須の`characterBasicInfo`を基本像の一次入力として使用する。入力階層は既成キャラクターのシステム収集済み公開情報に対応し、`referenceMaterial`は追加資料、`userCharacterView`はユーザー自身の解釈として別々にLLMへ渡す。
+
+検索失敗はキャラクター登録自体を失敗させない。取得不能、一致なし、競合、情報不足は`sourceAssessment.systemResearch`と`limitations`へ保存し、モデル知識を使用したassertionのconfidence上限を維持する。Replay/Fakeでは外部検索を禁止し、固定fixtureだけで再現する。検索先はAdapter内の固定hostに限定し、ユーザー入力URLを直接fetchしてSSRFを生じさせない。
+
+### 2.3 共通metadata
 
 ```typescript
 interface LlmRunMetadata {
@@ -64,7 +78,7 @@ interface LlmRunMetadata {
 
 Provider固有のresponseはAdapter内で共通metadataとstructured candidateへ変換する。model aliasを指定した場合も、Providerから解決後model IDを取得できる場合は`resolvedModel`に保存する。取得できない場合はrequested valueと同値にし、その旨をeval reportに残す。
 
-### 2.3 fallback
+### 2.4 fallback
 
 fallbackは既定OFFとする。`LLM_FALLBACK_PROVIDER`と`LLM_FALLBACK_MODEL`が設定され、主系と異なるProviderであり、両Provider/modelが固定評価、保持ポリシー、利用quotaの審査を通過した場合のみ有効にする。
 
@@ -74,7 +88,7 @@ fallbackは既定OFFとする。`LLM_FALLBACK_PROVIDER`と`LLM_FALLBACK_MODEL`�
 - policy rejectは道徳判定として扱わず、別Provider利用が事前承認済みの場合だけ利用者に再試行選択を示す
 - 主系とfallbackの各呼出しに別の`model_run_metadata`を作る
 
-### 2.4 Embeddingの独立選択
+### 2.5 Embeddingの独立選択
 
 `EmbeddingProvider`はLLMと別Portとし、`EMBEDDING_PROVIDER=openai|workers_ai|fake`で選択する。LLM Providerと同じである必要はないが、`local-manual`の既定は`workers_ai`、`local-test`/CIの既定は`fake`とする。実modelの次元数は起動時とindex作成時に検証し、不一致ならindex更新を停止する。
 
@@ -179,11 +193,13 @@ LLM callをbase理解とcustom差分の最低2段階に分ける。
 
 ### 7.3 オリジナル
 
-ユーザーのcharacter sheetを一次資料として扱う。不明点を定番設定で補わず、summaryとassertionはユーザー明示範囲に限定する。
+ユーザーが必須入力した`characterBasicInfo`を基本像の一次資料として扱う。不明点を定番設定で補わず、summaryとassertionはユーザー明示範囲に限定する。任意の`referenceMaterial`や`userCharacterView`は基本情報を置き換えず、出所を分離する。
 
 ## 8. 嗜好解析
 
 入力にはconfirmed understandingと、ユーザーの好きな理由・苦手要素・response channel自己選択を渡す。
+
+response channelの値、表示名、弁別用説明は`shared/response-channels.ts`のcatalogからpromptへ展開する。ユーザー選択を優先し、未選択channelを推測する場合は自由記述に十分な根拠があるものだけに限定する。共感と同情、尊敬と願望的同一化などの近接概念を、同じ根拠から無差別に重複出力しない。
 
 LLMは次を分離して候補化する。
 

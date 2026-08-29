@@ -1,4 +1,4 @@
-import type { EntryDraft, EntrySummary } from "../../shared/schemas";
+import { type EntryDraft, type EntrySummary, entryReferenceMaterial, entryScopeText } from "../../shared/schemas";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
 import type { Env } from "../types";
@@ -48,7 +48,16 @@ export async function createEntry(
     sourceSetVersion: crypto.randomUUID(),
   };
   const now = nowIso();
-  const sourceHash = await sha256Hex(draft.sourceText);
+  const scopeText = entryScopeText(draft);
+  const characterBasicInfo = draft.registrationType === "original" ? draft.characterBasicInfo : undefined;
+  const referenceMaterial = entryReferenceMaterial(draft);
+  const providedCharacterMaterial = [
+    characterBasicInfo ? `【キャラクター基本情報】\n${characterBasicInfo}` : undefined,
+    referenceMaterial ? `【追加の参考情報】\n${referenceMaterial}` : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n\n");
+  const sourceHash = providedCharacterMaterial ? await sha256Hex(providedCharacterMaterial) : undefined;
   const statements: D1PreparedStatement[] = [];
   if (draft.registrationType !== "original" && ids.work) {
     statements.push(
@@ -93,7 +102,7 @@ export async function createEntry(
         ids.identity,
         ownerUserId,
         `基本像: ${draft.workTitle} / ${draft.characterName}`,
-        draft.sourceText.slice(0, 2000),
+        referenceMaterial?.slice(0, 2000) ?? null,
         now,
         now,
       ),
@@ -134,58 +143,60 @@ export async function createEntry(
       representationType,
       canonicality,
       scopeType,
-      draft.knownScope,
+      scopeText,
       draft.registrationType === "customized_existing" ? draft.customizationDescription : null,
-      draft.sourceText.slice(0, 2000),
+      (characterBasicInfo ?? referenceMaterial)?.slice(0, 2000) ?? null,
       now,
       now,
     ),
   );
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at) VALUES (?,?,?,'user_text','private','{}','user_supplied',1,1,?,?)`,
-    ).bind(ids.sourceDocument, ownerUserId, `${registrationTitle(draft)} 登録資料`, now, now),
-  );
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO source_document_revisions (id,source_document_id,revision_number,inline_text,mime_type,byte_size,content_hash,upload_status,extraction_status,finalized_at,created_at) VALUES (?,?,1,?,'text/plain',?,?,'finalized','ready',?,?)`,
-    ).bind(
-      ids.sourceRevision,
-      ids.sourceDocument,
-      draft.sourceText,
-      new TextEncoder().encode(draft.sourceText).byteLength,
-      sourceHash,
-      now,
-      now,
-    ),
-  );
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO source_fragments (id,source_document_revision_id,ordinal,locator_json,text_content,content_hash,token_estimate,created_at) VALUES (?,?,0,'{"type":"full_text"}',?,?,?,?)`,
-    ).bind(
-      ids.sourceFragment,
-      ids.sourceRevision,
-      draft.sourceText,
-      sourceHash,
-      Math.ceil(draft.sourceText.length / 3),
-      now,
-    ),
-  );
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO source_sets (id,owner_user_id,purpose,active_version,created_at,updated_at) VALUES (?,?,'character_understanding',1,?,?)`,
-    ).bind(ids.sourceSet, ownerUserId, now, now),
-  );
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO source_set_versions (id,source_set_id,version,content_hash,created_at) VALUES (?,?,1,?,?)`,
-    ).bind(ids.sourceSetVersion, ids.sourceSet, sourceHash, now),
-  );
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO source_set_items (source_set_version_id,source_document_revision_id,priority,usage_type) VALUES (?,?,1,'user_definition')`,
-    ).bind(ids.sourceSetVersion, ids.sourceRevision),
-  );
+  if (providedCharacterMaterial && sourceHash) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at) VALUES (?,?,?,'user_text','private','{}','user_supplied',1,1,?,?)`,
+      ).bind(ids.sourceDocument, ownerUserId, `${registrationTitle(draft)} 基本情報・参考情報`, now, now),
+    );
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO source_document_revisions (id,source_document_id,revision_number,inline_text,mime_type,byte_size,content_hash,upload_status,extraction_status,finalized_at,created_at) VALUES (?,?,1,?,'text/plain',?,?,'finalized','ready',?,?)`,
+      ).bind(
+        ids.sourceRevision,
+        ids.sourceDocument,
+        providedCharacterMaterial,
+        new TextEncoder().encode(providedCharacterMaterial).byteLength,
+        sourceHash,
+        now,
+        now,
+      ),
+    );
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO source_fragments (id,source_document_revision_id,ordinal,locator_json,text_content,content_hash,token_estimate,created_at) VALUES (?,?,0,'{"type":"full_text"}',?,?,?,?)`,
+      ).bind(
+        ids.sourceFragment,
+        ids.sourceRevision,
+        providedCharacterMaterial,
+        sourceHash,
+        Math.ceil(providedCharacterMaterial.length / 3),
+        now,
+      ),
+    );
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO source_sets (id,owner_user_id,purpose,active_version,created_at,updated_at) VALUES (?,?,'character_understanding',1,?,?)`,
+      ).bind(ids.sourceSet, ownerUserId, now, now),
+    );
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO source_set_versions (id,source_set_id,version,content_hash,created_at) VALUES (?,?,1,?,?)`,
+      ).bind(ids.sourceSetVersion, ids.sourceSet, sourceHash, now),
+    );
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO source_set_items (source_set_version_id,source_document_revision_id,priority,usage_type) VALUES (?,?,1,'user_definition')`,
+      ).bind(ids.sourceSetVersion, ids.sourceRevision),
+    );
+  }
   statements.push(
     env.DB.prepare(
       `INSERT INTO user_character_entries (id,owner_user_id,registration_type,status,active_revision_number,active_generation,draft_schema_version,draft_payload_json,draft_updated_at,revision,created_at,updated_at) VALUES (?,?,?,'submitted',1,0,'1',?,?,1,?,?)`,
@@ -206,8 +217,8 @@ export async function createEntry(
       ids.revision,
       ids.entry,
       ids.representation,
-      ids.sourceSetVersion,
-      draft.knownScope,
+      providedCharacterMaterial ? ids.sourceSetVersion : null,
+      scopeText,
       draft.userCharacterView ?? null,
       JSON.stringify(draft.preference),
       payloadJson,

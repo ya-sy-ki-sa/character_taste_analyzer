@@ -271,16 +271,24 @@ interface UpdateEntryDraftRequest {
     scopeDescription: string;
     transformationSummary?: string;
   };
-  knownScope: string;
+  preferenceContext?: string;
+  /** registrationType=originalのとき必須 */
+  characterBasicInfo?: string;
+  referenceMaterial?: string;
   familiarity?: "new" | "familiar" | "long_term";
   userCharacterView?: string;
-  originalCharacterSheet?: Record<string, unknown>;
   sourceDocumentIds: UUID[];
   preferenceInput?: Record<string, unknown>;
 }
 ```
 
 OpenAPIで共通構造を検証した後、serverがEntry aggregateの`registrationType`に対応するtype-specific Zod schemaを選んで検証する。bodyのtype指定で保存済みregistrationTypeを切り替えることはできない。上記は共通の説明用表現である。
+
+`preferenceContext`は、キャラクター全体ではなく特定の時期・場面・人格・状態に限って好きな場合の任意補足である。未指定時はキャラクター全体を対象とし、ユーザーへ解析対象範囲の指定を要求しない。
+
+`characterBasicInfo`は`registrationType=original`の場合だけ必須とする。性格、価値観、目的、行動、関係性、物語上の役割など、そのキャラクターの基本像を構成できる情報をユーザーが入力する。既成キャラクターにおける「作品名・キャラクター名・媒体からシステムが収集した公開情報」と同じ入力階層に置き、任意参考情報やユーザー自身の解釈とは混同しない。
+
+`referenceMaterial`は、ユーザーが解析へ加えたい参考情報を任意で入力する欄である。既成・既成（カスタム）の一般的な基本情報はシステム側の公開情報検索とLLMのモデル知識から収集し、この項目を必須資料として扱わない。旧`sourceText`は既存ローカルデータの読込みだけに使用する。
 
 PATCHはUserCharacterEntryのmutable draft payloadを更新し、append-only EntryRevisionはまだ作らない。`If-Match`はEntry aggregateのrevisionを比較する。
 

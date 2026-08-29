@@ -31,4 +31,24 @@ for (const file of files) {
   }
   visit(document, document);
 }
+
+const responseChannelSource = readFileSync("shared/response-channels.ts", "utf8");
+const responseChannelValues = [...responseChannelSource.matchAll(/^\s+value: "([a-z_]+)",$/gmu)].map(
+  (match) => match[1],
+);
+if (responseChannelValues.length !== 44 || new Set(responseChannelValues).size !== responseChannelValues.length) {
+  throw new Error("response channel catalog must contain 44 unique values");
+}
+const preferenceSchema = JSON.parse(readFileSync(`${root}/preference-analysis.schema.json`, "utf8"));
+const documentedChannels = preferenceSchema.$defs?.responseChannel?.enum ?? [];
+if (
+  documentedChannels.length !== responseChannelValues.length ||
+  responseChannelValues.some((value) => !documentedChannels.includes(value))
+) {
+  throw new Error("response channel catalog and preference-analysis schema are inconsistent");
+}
+const responseChannelMigration = readFileSync("docs/詳細設計/database/003_expand_response_channels.sql", "utf8");
+if (responseChannelValues.some((value) => !responseChannelMigration.includes(`'${value}'`))) {
+  throw new Error("response channel catalog and D1 migration are inconsistent");
+}
 console.log(`JSON Schema OK: ${files.length} files`);

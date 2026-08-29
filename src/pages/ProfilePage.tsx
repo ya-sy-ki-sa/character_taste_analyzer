@@ -1,23 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { responseChannelLabel } from "../../shared/response-channels";
 import type { GraphProjection, ProfileDimension, ProfileView } from "../../shared/schemas";
 import { api } from "../api";
 import { TasteGraph } from "../components/TasteGraph";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
 
 const classificationLabels = { stable: "安定傾向", emerging: "発展中", insufficient: "データ少" } as const;
-const channelLabels: Record<string, string> = {
-  person_liking: "人物として",
-  aesthetic_liking: "感覚的な好み",
-  admiration: "憧れ",
-  empathy: "共感",
-  narrative_interest: "物語上の関心",
-  fascination_with_transgression: "逸脱への魅了",
-  root_for: "勝ってほしい",
-  love_to_hate: "嫌悪を含む楽しみ",
-  desire_no_redemption: "改心しないでほしい",
-};
-
 export function ProfilePage() {
   const profile = useQuery({
     queryKey: ["profile"],
@@ -62,7 +51,7 @@ export function ProfilePage() {
       <PageHeading
         eyebrow="YOUR TASTE PROFILE"
         title="嗜好解析結果"
-        description="善悪・ヒーロー／ヴィラン・主役／端役による優劣をつけず、どこにどう惹かれるかを表示します。"
+        description="これまでの解析結果から、キャラクターのどこにどう惹かれるかを表示します。"
         action={
           <Link className="button button-primary" to="/app/generate">
             ✦ この嗜好から作成
@@ -199,8 +188,7 @@ function DimensionRow({ item, rank, negative = false }: { item: ProfileDimension
       <div className="trait-copy">
         <strong>{item.label}</strong>
         <small>
-          {item.category}・
-          {item.responseChannel ? (channelLabels[item.responseChannel] ?? item.responseChannel) : "反応経路なし"}・根拠{" "}
+          {item.category}・{item.responseChannel ? responseChannelLabel(item.responseChannel) : "反応経路なし"}・根拠{" "}
           {item.evidenceCount}件
         </small>
       </div>

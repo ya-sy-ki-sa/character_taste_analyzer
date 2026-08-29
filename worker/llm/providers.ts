@@ -209,6 +209,14 @@ class OpenAiLlmProvider extends RemoteProvider {
           store: false,
           max_output_tokens: request.maxOutputTokens,
           temperature: request.temperature,
+          ...(request.enableWebSearch
+            ? {
+                tools: [{ type: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "web_search_preview" : "web_search" }],
+                tool_choice: "auto",
+                max_tool_calls: 3,
+                include: ["web_search_call.action.sources"],
+              }
+            : {}),
           text: {
             format: {
               type: "json_schema",

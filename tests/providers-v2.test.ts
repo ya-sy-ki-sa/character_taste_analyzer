@@ -105,4 +105,24 @@ describe("explicit LLM provider routing", () => {
     expect(result.metadata.providerRequestId).toBe("resp_test");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
+
+  it("enables hosted web search only when the operation requests it", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      expect(body.tools).toEqual([{ type: "web_search" }]);
+      expect(body.tool_choice).toBe("auto");
+      expect(body.max_tool_calls).toBe(3);
+      return Response.json({ id: "resp_search", output_text: '{"value":"researched"}', usage: {} });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await createLlmProvider(
+      providerEnv({
+        LLM_PROVIDER: "openai",
+        LLM_MODEL: "gpt-5.6-sol",
+        OPENAI_API_KEY: "test-key",
+        OPENAI_TRANSPORT: "direct",
+      }),
+    ).generateStructured({ ...request, enableWebSearch: true });
+    expect(result.value.value).toBe("researched");
+  });
 });

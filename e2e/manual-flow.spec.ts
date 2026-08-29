@@ -33,10 +33,10 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await page.getByRole("button", { name: "既成（カスタム）" }).click();
   await page.getByLabel(/作品名/u).fill("UI架空作品");
   await page.getByLabel(/キャラクター名/u).fill("黒曜卿UI");
-  await page.getByLabel(/今回どの範囲/u).fill("第7章の裏人格だけ");
+  await page.getByLabel("特に好きな時期・場面・状態（任意）").fill("第7章で裏人格が現れている間");
   await page.getByLabel(/基本像からどう違うか/u).fill("善への無関心を明言し、残酷さを楽しむ裏人格だけ。改心しない。");
   await page
-    .getByLabel(/基本キャラクターを判断できる資料/u)
+    .getByLabel("解析に加えたい参考情報（任意）")
     .fill("物語のヴィランである黒曜卿は、狡猾で冷酷な策略家として主人公たちを妨害する。");
   await page
     .getByLabel("好きな理由", { exact: true })

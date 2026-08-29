@@ -58,16 +58,15 @@ const created = await request("/entries", {
     mediaType: "小説",
     representationType: "facet",
     customizationDescription: "表向きではなく、善への無関心を明言し残酷さを楽しむ裏人格だけ。最後まで改心しない。",
-    knownScope: "第7章で現れる裏人格だけ",
-    sourceText:
-      "黒曜卿は物語のヴィランである。裏人格は狡猾で冷酷、他者の苦痛を楽しみ、善悪を判断軸にしない。破壊そのものを選び、最後まで改心を拒む。一場面だけ登場する端役だが物語の方向を変える。",
+    preferenceContext: "第7章で裏人格が現れている間",
     userCharacterView: "悲しい過去で正当化されない純粋悪として解釈している。",
     preference: {
       likedReasons:
-        "ヴィランとして純粋悪で、非道徳と残酷さを穏当化せず、善への無関心を貫き、改心しないところが好き。端役なのに強烈。",
+        "ヴィランとして純粋悪で、非道徳と残酷さを穏当化せず、善への無関心を貫き、改心しないところが好き。自分にはできない反抗を代わりにしてくれる。端役なのに強烈。",
       dislikedReasons: "実は優しいという補正は苦手。",
       responseChannels: [
         "person_liking",
+        "vicarious_fulfillment",
         "fascination_with_transgression",
         "narrative_interest",
         "root_for",
@@ -94,6 +93,8 @@ const graph = (await request("/profile/graph?detail=standard")).graph;
 const snapshot = await request("/profile/snapshot-items");
 if (!profile?.dimensions.length || !graph?.nodes.length || snapshot.items.length < 1)
   throw new Error("profile or graph was not created");
+if (!profile.dimensions.some((item) => item.responseChannel === "vicarious_fulfillment"))
+  throw new Error("expanded response channel was not persisted into the profile");
 const selectedItemIds = snapshot.items.slice(0, 3).map((item) => item.id);
 const generation = await request("/generation-requests", {
   method: "POST",

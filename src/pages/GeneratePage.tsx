@@ -52,9 +52,10 @@ export function GeneratePage() {
 
   useEffect(() => {
     const items = snapshot.data?.items;
-    if (!items || Object.keys(treatments).length) return;
-    setTreatments(
-      Object.fromEntries(
+    if (!snapshot.data?.snapshot || !items?.length) return;
+    setTreatments((current) => {
+      if (Object.keys(current).length) return current;
+      return Object.fromEntries(
         items.map((item, index) => [
           item.id,
           index < 8 && item.type !== "negative_preference"
@@ -63,9 +64,9 @@ export function GeneratePage() {
               ? "prohibit"
               : "omit",
         ]),
-      ),
-    );
-  }, [snapshot.data, treatments]);
+      );
+    });
+  }, [snapshot.data]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -111,9 +112,6 @@ export function GeneratePage() {
         title="オリジナルキャラクター作成"
         description="固定した嗜好スナップショットから、使う項目と避ける項目を自分で選んで作成します。"
       />
-      <Notice tone="info">
-        悪や非道徳、善への無関心、無改心を指定しても、実は善人・悲劇的弁明・贖罪・処罰を自動では追加しません。
-      </Notice>
       {error && <Notice tone="danger">{error}</Notice>}
       {snapshot.isPending && <Spinner label="生成に使う嗜好を準備しています" />}
       {!snapshot.isPending && !snapshot.data?.snapshot && (
@@ -211,7 +209,7 @@ export function GeneratePage() {
                   maxLength={2000}
                   value={role}
                   onChange={(event) => setRole(event.target.value)}
-                  placeholder="ヴィラン、端役、一場面限定も指定可能"
+                  placeholder="物語の中での役割を入力してください"
                 />
               </label>
               <label>

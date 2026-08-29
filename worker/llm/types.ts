@@ -19,6 +19,7 @@ export type StructuredLlmRequest<T> = {
   maxOutputTokens: number;
   temperature: number;
   idempotencyKey: string;
+  enableWebSearch?: boolean;
   fakeFactory(): T;
 };
 export type LlmRunMetadata = {

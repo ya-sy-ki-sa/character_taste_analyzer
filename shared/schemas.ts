@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { type ResponseChannel, responseChannelValues } from "./response-channels";
+
+export type { ResponseChannel } from "./response-channels";
 
 function containsForbiddenControl(value: string): boolean {
   return Array.from(value).some((character) => {
@@ -39,27 +42,7 @@ export const accountDeletionSchema = z.object({ usernameConfirmation: usernameSc
 
 export const registrationTypeSchema = z.enum(["existing", "customized_existing", "original"]);
 export type RegistrationType = z.infer<typeof registrationTypeSchema>;
-export const responseChannelSchema = z.enum([
-  "aesthetic_liking",
-  "person_liking",
-  "admiration",
-  "empathy",
-  "actual_similarity",
-  "wishful_identification",
-  "narrative_identification",
-  "parasocial_closeness",
-  "protectiveness",
-  "romantic_attraction",
-  "sexual_attraction",
-  "curiosity",
-  "narrative_interest",
-  "moral_support",
-  "fascination_with_transgression",
-  "root_for",
-  "love_to_hate",
-  "desire_no_redemption",
-]);
-export type ResponseChannel = z.infer<typeof responseChannelSchema>;
+export const responseChannelSchema = z.enum(responseChannelValues);
 export const valueOrientationSchema = z.enum([
   "evil",
   "immoral",
@@ -74,13 +57,21 @@ export const valueStanceSchema = z.enum(["affirm", "accept", "indifferent", "amb
 const preferenceInputSchema = z.object({
   likedReasons: optionalText(4_000),
   dislikedReasons: optionalText(4_000),
-  responseChannels: z.array(responseChannelSchema).max(12).default([]),
+  responseChannels: z
+    .array(responseChannelSchema)
+    .max(responseChannelValues.length)
+    .refine((values) => new Set(values).size === values.length, "同じ選択肢を重複して指定できません")
+    .default([]),
   valueStanceNote: optionalText(2_000),
 });
 const commonEntry = {
   schemaVersion: z.literal("1"),
-  knownScope: text(2_000),
-  sourceText: text(20_000, "キャラクターを判断できる資料または説明を入力してください"),
+  preferenceContext: optionalText(2_000),
+  /** @deprecated 旧ローカルデータの読込み専用。新規入力にはpreferenceContextを使用する。 */
+  knownScope: optionalText(2_000),
+  referenceMaterial: optionalText(20_000),
+  /** @deprecated 旧ローカルデータの読込み専用。新規入力にはreferenceMaterialを使用する。 */
+  sourceText: optionalText(20_000),
   userCharacterView: optionalText(4_000),
   preference: preferenceInputSchema,
 };
@@ -104,6 +95,7 @@ export const originalEntryDraftSchema = z.object({
   ...commonEntry,
   registrationType: z.literal("original"),
   characterName: text(200),
+  characterBasicInfo: text(20_000, "キャラクター基本情報を入力してください"),
 });
 export const entryDraftSchema = z.discriminatedUnion("registrationType", [
   existingEntryDraftSchema,
@@ -111,6 +103,18 @@ export const entryDraftSchema = z.discriminatedUnion("registrationType", [
   originalEntryDraftSchema,
 ]);
 export type EntryDraft = z.infer<typeof entryDraftSchema>;
+
+export function entryPreferenceContext(draft: EntryDraft): string | undefined {
+  return draft.preferenceContext ?? draft.knownScope;
+}
+
+export function entryScopeText(draft: EntryDraft): string {
+  return entryPreferenceContext(draft) ?? "キャラクター全体";
+}
+
+export function entryReferenceMaterial(draft: EntryDraft): string | undefined {
+  return draft.referenceMaterial ?? draft.sourceText;
+}
 
 const sourceAssessmentSchema = z.object({
   coverage: z.enum(["sufficient", "partial", "minimal", "none"]),

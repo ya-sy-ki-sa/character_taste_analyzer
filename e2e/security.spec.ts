@@ -32,8 +32,8 @@ test("CSRF・水平権限・stored XSS・実行中削除を防御する", async 
     schemaVersion: "1" as const,
     registrationType: "original" as const,
     characterName: "安全性検証",
-    knownScope: "ユーザー入力全体",
-    sourceText: `仲間を守る責任感の強い人物。表示時の安全性も確認する。${xssMarker}`,
+    characterBasicInfo: "仲間を守る責任感の強い人物。危険な状況では自分を犠牲にして仲間を逃がす。",
+    referenceMaterial: `仲間を守る責任感の強い人物。表示時の安全性も確認する。${xssMarker}`,
     preference: { likedReasons: "責任感が好き", responseChannels: ["person_liking"] },
   };
   const entryResponse = await page.request.post("/api/v1/entries", {
@@ -76,8 +76,8 @@ test("CSRF・水平権限・stored XSS・実行中削除を防御する", async 
       schemaVersion: "1",
       registrationType: "original",
       characterName: "攻撃元",
-      knownScope: "全体",
-      sourceText: "この送信はOrigin検査によって拒否されるべき十分な長さの概要です。",
+      characterBasicInfo: "Origin検査の対象となるオリジナルキャラクターの基本情報です。",
+      referenceMaterial: "この送信はOrigin検査によって拒否されるべき十分な長さの概要です。",
       preference: { responseChannels: [] },
     },
   });
@@ -89,8 +89,8 @@ test("CSRF・水平権限・stored XSS・実行中削除を防御する", async 
       schemaVersion: "1",
       registrationType: "original",
       characterName: "CSRF検証",
-      knownScope: "全体",
-      sourceText: "この送信はCSRF検査によって拒否されるべき十分な長さの概要です。",
+      characterBasicInfo: "CSRF検査の対象となるオリジナルキャラクターの基本情報です。",
+      referenceMaterial: "この送信はCSRF検査によって拒否されるべき十分な長さの概要です。",
       preference: { responseChannels: [] },
     },
   });

@@ -1,3 +1,4 @@
+import { responseChannelLabel } from "../../shared/response-channels";
 import type { GraphProjection } from "../../shared/schemas";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
@@ -145,7 +146,7 @@ export async function rebuildGraphProjection(
       putNode({
         id: responseNode,
         type: "response_channel",
-        label: dimension.response_channel,
+        label: responseChannelLabel(dimension.response_channel),
         weight: maximum,
         attributes: {},
       });

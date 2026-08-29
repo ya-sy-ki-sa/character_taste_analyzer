@@ -1063,16 +1063,21 @@ components:
     EntryDraft:
       type: object
       additionalProperties: false
-      required: [schemaVersion, character, representation, knownScope, sourceDocumentIds]
+      required: [schemaVersion, character, representation, sourceDocumentIds]
       properties:
         schemaVersion: { const: '1' }
         work: { type: [object, 'null'] }
         character: { type: object }
         representation: { type: object }
-        knownScope: { type: string, maxLength: 2000 }
+        preferenceContext: { type: string, maxLength: 2000 }
+        characterBasicInfo:
+          type: string
+          minLength: 1
+          maxLength: 20000
+          description: registrationTypeがoriginalの場合に必須となる、ユーザー入力のキャラクター基本情報
+        referenceMaterial: { type: string, maxLength: 20000 }
         familiarity: { type: string, enum: [new, familiar, long_term] }
-        userCharacterView: { type: string, maxLength: 10000 }
-        originalCharacterSheet: { type: object }
+        userCharacterView: { type: string, maxLength: 4000 }
         sourceDocumentIds: { type: array, maxItems: 20, uniqueItems: true, items: { $ref: '#/components/schemas/Uuid' } }
         preferenceInput: { type: object }
     StartRunRequest:
