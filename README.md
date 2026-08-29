@@ -1,125 +1,103 @@
 # キャラ嗜好ラボ
 
-好きな既存・オリジナルキャラクターの記述から、根拠を追跡できる嗜好プロフィールを育て、そのプロフィールから新しい文章キャラクターを生成する日本語Webアプリです。React SPAとHono APIを1つのCloudflare Workerとして配信します。
+好きなキャラクターを登録し、キャラクター像と「どこに・どう惹かれるか」を確認可能な根拠つきデータとして累積し、その嗜好からオリジナルキャラクターを作る日本語Webアプリです。React SPAとHono APIをCloudflare Workerで配信し、D1を正本にします。
 
-## 実装済みの主な機能
+詳細な設計と実装上の決定は[詳細設計書](docs/詳細設計/README.md)を参照してください。
 
-- 公開ユーザー一覧、Unicode正規化した重複不可ユーザー名、作成後15分のpending有効化
-- 作成時に一度だけ表示するUUIDアクセスキー、30日セッション、キー変更、JSONエクスポート、全削除
-- 既存キャラとオリジナルキャラの登録・revision編集・物理削除・重複検出
-- `202 Accepted + jobId` とポーリングによる分析・生成・フィードバック再計算
-- 完全一致引用の検証、版管理した58属性、自由タグ隔離、決定論的集計、訂正イベント優先
-- 頻出属性・明示的な好き／苦手・矛盾・根拠数・信頼度を分けたプロフィール
-- 現在のプロフィールから既存作品の候補を毎回LLMで4〜6人選ぶキャラクター推薦（異作品・根拠属性・注意点付き）
-- 8件以上でBGE-M3埋め込みと正規化属性を使う決定論的k-medoidsクラスタリング
-- 忠実／バランス／意外性モード、固定プロフィールsnapshot、類似度再生成と警告
-- 5段階・属性別・強弱・自由文の任意フィードバック（未評価の生成物は根拠にしない）
-- 本番はOpenAI Responses APIを主系、開発はWorkers AIを主系とする交換可能なprovider
-- D1、Vectorize、Workflows、Turnstile、CSRF/Origin、CSP、HMAC資格情報、日次クォータ、IP/ユーザーrate limit
+## 実装済み
+
+- UUIDアクセスキーによるユーザー作成、有効化、ログイン、セッション更新、キー変更、JSONエクスポート、全削除
+- 既成、既成（カスタム）、オリジナルの3方式によるキャラクター登録
+- カスタム登録における基本像と対象像の分離、改変・限定差分の構造化抽出
+- キャラクター理解と嗜好候補の2段階確認
+- 統制属性94件、自由語、反応経路、価値スタンス、根拠を分離した保存
+- 同一キャラ・同一作品の偏りを補正する決定論的な累積嗜好プロフィール
+- GraphProjectionのサーバー生成と、Graphology・ForceAtlas2 Web Worker・Sigma.jsによるブラウザ内探索／描画
+- 固定ProfileSnapshot、項目選択、生成モード、改心／隠れた善性の方針を使うオリジナルキャラクター生成
+- Workers AI、OpenAI Responses API、Replay、Fakeの明示的なProvider切替
+- キャラクターdomainをD1 Adapterへ集約するDataStore Strategy（`DATASTORE_STRATEGY=d1`）
+- CSRF、Origin、CSP、HMAC資格情報、日次quota、IP／ユーザーrate limit、所有者認可
+
+悪、非道徳、残酷さ、善への無関心、改心しないこと、ヴィラン、端役、一場面限定も有効な嗜好として保持します。善悪、ヒーロー／ヴィラン、主役／端役を集計係数に使わず、フィクション上の好意から現実の人格や加害意図を推測しません。
 
 ## ローカル起動
 
-Node.js 22以上とnpmを使います。
+Node.js 22以上とnpmを使用します。
 
 ```bash
 npm install
 cp .dev.vars.example .dev.vars
-# .dev.vars の AUTH_PEPPER を十分に長いランダム値へ変更
+# AUTH_PEPPERを十分に長いランダム値へ変更
 npm run db:migrate:local
 npm run dev
 ```
 
-`http://localhost:5173` を開いてください。開発環境では `ALLOW_LOCAL_AI_FALLBACK=true` と `USE_REMOTE_AI_IN_DEV=true` が既定で、Workers AIを優先して使用します。分析・生成でWorkers AIを利用できない場合は、根拠付きの決定論的なローカル代替へフォールバックできます。既存キャラクター推薦は実在候補をローカルで捏造しないため、リモートLLMが利用できない場合は失敗として表示します。リモートAIを使わずに他の導線を確認したい場合は `USE_REMOTE_AI_IN_DEV=false` を設定してください。
+`http://localhost:5173`を開きます。`npm run dev`は要件どおりWorkers AIが既定で、`wrangler.jsonc`のremote AI bindingを使用します。Workers AIのquotaが尽きても入力とJob失敗理由はD1へ残り、アプリ開発を中止する必要はありません。
 
-ローカル開発のrate limitはE2Eを連続実行できる高い値にしてあります。stagingとproductionでは環境別設定の厳しい上限が適用されます。
-
-`.dev.vars` はgit対象外です。最低限次を設定します。
-
-```dotenv
-AUTH_PEPPER=32バイト以上のランダム秘密値
-OPENAI_API_KEY=
-TURNSTILE_SECRET=
-```
-
-Turnstileを画面へ表示する場合、ビルド環境に `VITE_TURNSTILE_SITE_KEY` も設定します。
-
-## AI provider
-
-ドメイン層にはSDK固有型を持ち込まず、`StructuredLlmProvider` と `EmbeddingProvider` の境界を通します。既定値は次の通りです。
-
-- OpenAI: `gpt-5.6-sol`、Responses API、strict JSON Schema、`store:false`
-- Workers AI: `@cf/openai/gpt-oss-120b`、JSON Schema応答を同じZod schemaで再検証
-- Embedding: `@cf/baai/bge-m3`、1024次元
-
-構造検証に失敗した場合は同一providerで1回だけ修復し、その後Workers AIへ切り替えます。AI Gatewayを `OPENAI_BASE_URL` に指定した場合も、リクエストごとに本文ログを無効化し、キャッシュを必ず迂回します。アプリ側へ生レスポンスや思考過程は保存しません。
-
-モデルは `wrangler.jsonc` の `OPENAI_MODEL`、`WORKERS_AI_MODEL`、`EMBEDDING_MODEL` で差し替えられます。新モデルを本番へ入れる前に固定評価セットで影運用してください。
-
-## Cloudflareリソースとデプロイ
-
-本番はWorkers Paidを前提とします。D1は作成時にAPACを指定し、stagingとproductionを別リソースにしてください。
+AI quotaを使わず全導線を確認する場合は次を使います。
 
 ```bash
-npx wrangler d1 create character-taste-lab-staging --location=apac
-npx wrangler d1 create character-taste-lab --location=apac
-npx wrangler vectorize create character-taste-bge-m3-staging --dimensions=1024 --metric=cosine
-npx wrangler vectorize create character-taste-bge-m3 --dimensions=1024 --metric=cosine
+npm run dev:offline
 ```
 
-表示されたD1 IDを `wrangler.jsonc` の各 `database_id` へ設定します。次に環境ごとのSecretsを登録します。
+`offline`環境は同じローカルD1に接続し、LLMだけをReplay、EmbeddingをFakeへ明示的に切り替えます。通常起動時に失敗をFake成功へ置き換える暗黙fallbackはありません。
 
-```bash
-npx wrangler secret put AUTH_PEPPER --env staging --config wrangler.jsonc
-npx wrangler secret put OPENAI_API_KEY --env staging --config wrangler.jsonc
-npx wrangler secret put TURNSTILE_SECRET --env staging --config wrangler.jsonc
+旧アプリのローカルD1と混ざらないよう、新版は`character-taste-lab-v2-clean-local`と専用local database IDを使います。migrationの正本は`docs/詳細設計/database`です。
 
-npx wrangler secret put AUTH_PEPPER --env production --config wrangler.jsonc
-npx wrangler secret put OPENAI_API_KEY --env production --config wrangler.jsonc
-npx wrangler secret put TURNSTILE_SECRET --env production --config wrangler.jsonc
-```
+## AI Provider
 
-AI Gatewayを使う場合は、provider-native OpenAI URLを `OPENAI_BASE_URL` として環境varsへ追加します。Gateway側ではpayload保存を無効にし、アプリの `cf-aig-collect-log-payload:false` と合わせて二重に保護してください。
+`LLM_PROVIDER`で次を明示選択します。
 
-```bash
-npm run db:migrate:staging
-npm run deploy:staging
+| 値 | 用途 |
+|---|---|
+| `workers_ai` | ローカル手動確認とCloudflare運用。既定modelは`@cf/openai/gpt-oss-120b` |
+| `openai` | OpenAI Responses API。`store:false`とstrict JSON Schemaを使用 |
+| `replay` | ローカルE2E／CIの再現可能な応答 |
+| `fake` | 単体試験用の決定論的応答 |
 
-npm run db:migrate:production
-npm run deploy:production
-```
+OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`を設定し、`LLM_PROVIDER=openai`、`LLM_MODEL`を対象modelへ変更します。`OPENAI_TRANSPORT=ai_gateway`の場合は`AI_GATEWAY_ACCOUNT_ID`と`AI_GATEWAY_GATEWAY_ID`も設定します。
 
-WorkflowsとAI bindingsは `wrangler.jsonc` に環境別で定義済みです。staging/productionの独自ドメインを使う場合は、各環境の `APP_ORIGIN` をその厳密なoriginへ設定してください。
+Providerのcapacity／429は`PROVIDER_CAPACITY_EXHAUSTED`、接続不能は`EXTERNAL_PROVIDER_UNAVAILABLE`としてJobへ保存します。retryable failureだけが、明示設定した`LLM_FALLBACK_PROVIDER`の対象です。
 
-## データと分析の原則
-
-D1が正本で、Vectorizeは再構築可能な派生インデックスです。登録時の作品名・キャラ名は識別と重複検出だけに使い、分析LLMや推薦LLMへは渡しません。分析は入力された概要・好きな点・苦手な点だけを使い、引用が原文へ完全一致しない属性を破棄します。
-
-属性の出現回数は好みと断定しません。明示嗜好は好きな点、苦手な点、訂正、生成フィードバックだけで更新します。同一キャラ・旧revisionを二重計上せず、同一作品の偏りを `1/sqrt(n)` で弱めます。ユーザー訂正は不変イベントとして残り、編集後の再分析にも再適用されます。
-
-生成には固有名詞を除いた `GenerationBrief` だけを渡し、採用する高信頼属性、補助属性、避ける属性、探索属性、根拠IDを固定します。成人向け・暴力テーマは分析できますが、生成側では露骨な性的内容を拒否・再生成します。
-
-推薦には固有名詞や原文を除いたプロフィール属性だけを渡します。LLM出力は構造検証後、同一作品、重複人物、プロフィールに存在しない根拠属性を除外し、4人未満なら結果全体を失敗にします。直近3回の表示候補だけは再選出を抑える目的で次回の推薦LLMへ渡します。
-
-## テストと公開ゲート
+## 検証
 
 ```bash
 npm run check
 npm run typecheck
 npm test
+npm run contracts
 npm run build
-npx playwright install chromium
+npm run dev:offline
+# 別terminalで
+npm run smoke:e2e
 npm run test:e2e
 ```
 
-`npm run check` はBiomeによるフォーマット、lint、import整理の差分を検査します。自動修正できる指摘は
-`npm run check:fix`、フォーマットだけを適用する場合は `npm run format` を使用してください。
+- 単体試験: Zod契約、カスタム差分の意味制約、Provider切替、Workers AI capacity保持、共通数値処理
+- DDL契約: migration 2件、62テーブル、初期統制属性94件
+- API smoke: 登録→理解確認→嗜好確認→プロフィール→グラフ→生成
+- Playwright: 3方式登録画面と全主要導線、CSRF／Origin／水平権限／stored XSS、logout／session失効／account削除
 
-単体テストは集計の再現性、欠損、頻出と嗜好の分離、重複、作品偏り、矛盾、クラスタリング、完全一致根拠、推薦候補の品質境界、両providerの修復とfallbackを検証します。Playwrightはユーザー作成からアカウント削除までの主要導線を通します。
+Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全build scriptは終了時に`dist`配下を検査し、path検証済みの秘密artifactだけを削除します。`dist`に`.dev.vars`が残るbuildは失敗として扱ってください。
 
-公開前の200件・人手二重ラベル評価はコードだけでは代替できないため、意図的に未達の公開ゲートとして残しています。[eval/README.md](eval/README.md) にデータ形式と実行方法があります。例示2件は評価器のsmoke test専用で、公開判定には使えません。
+## 現在の実装境界
 
-```bash
-npm run eval -- eval/production-200.jsonl
-```
+個人開発・デモ・少人数の無料枠検証に必要な縦断機能を先に実装しています。次は設計境界を保持した後続incrementです。
 
-全基準を満たさない限り評価コマンドは終了コード1になります。
+- R2への大容量資料upload、PDF／画像抽出
+- Vectorizeを使う生成類似度検査
+- assertion単位の訂正・却下と履歴比較UI
+- original characterの部分修正revisionとfeedbackの嗜好候補化
+- 非同期export／account deletion、Queue dispatcher、運用console
+- 大規模GraphProjectionのcursor page、IndexedDB cache、neighbor API
+
+未実装項目に必要なtable、schema、追加Adapter契約は詳細設計に含まれていますが、現在の画面で実装済みとは扱いません。キャラクターdomainのDataStore Strategy境界と初期D1 Adapterは実装済みです。
+
+## Cloudflareへ配置する前に
+
+1. staging／production用D1を作成し、`wrangler.jsonc`のplaceholder IDを差し替える。
+2. `AUTH_PEPPER`、必要に応じて`OPENAI_API_KEY`、`TURNSTILE_SECRET`を`wrangler secret`で登録する。
+3. 各環境の`APP_ORIGIN`を実際のHTTPS originへ設定する。
+4. `npm run db:migrate:staging`、`npm run deploy:staging`で検証してからproductionへ進める。
+
+既存データからのmigrationは、新規構築前提のため意図的に含めていません。

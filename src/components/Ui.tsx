@@ -129,30 +129,3 @@ export function Modal({
     </div>
   );
 }
-
-export function Rating({
-  value,
-  onChange,
-  label = "評価",
-}: {
-  value?: number;
-  onChange?(value: number): void;
-  label?: string;
-}) {
-  return (
-    <fieldset className="rating">
-      <legend className="visually-hidden">{label}</legend>
-      {[1, 2, 3, 4, 5].map((score) => (
-        <button
-          type="button"
-          key={score}
-          className={value && score <= value ? "active" : ""}
-          onClick={() => onChange?.(score)}
-          aria-label={`${score}点`}
-        >
-          ★
-        </button>
-      ))}
-    </fieldset>
-  );
-}

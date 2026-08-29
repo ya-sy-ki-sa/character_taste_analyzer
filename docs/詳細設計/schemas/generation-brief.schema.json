@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://character-taste.local/schemas/generation-brief.schema.json",
+  "title": "GenerationBrief",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "briefId",
+    "generationRequestId",
+    "profileSnapshot",
+    "mode",
+    "purpose",
+    "creativeContext",
+    "preferenceSelections",
+    "valuePolicy",
+    "constraints",
+    "nonRequirements",
+    "similarityPolicy",
+    "provenance"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "briefId": { "$ref": "#/$defs/uuid" },
+    "generationRequestId": { "$ref": "#/$defs/uuid" },
+    "profileSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "generation", "contentHash", "ontologyVersion", "algorithmVersion"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "generation": { "type": "integer", "minimum": 1 },
+        "contentHash": { "$ref": "#/$defs/sha256" },
+        "ontologyVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "algorithmVersion": { "type": "string", "minLength": 1, "maxLength": 100 }
+      }
+    },
+    "mode": { "enum": ["faithful", "balanced", "exploratory"] },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "creativeContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["world", "genre", "role", "tone", "targetDetail"],
+      "properties": {
+        "world": { "type": ["string", "null"], "maxLength": 4000 },
+        "genre": { "type": ["string", "null"], "maxLength": 200 },
+        "role": { "type": ["string", "null"], "maxLength": 2000 },
+        "tone": { "type": ["string", "null"], "maxLength": 1000 },
+        "targetDetail": { "enum": ["concise", "standard", "detailed"] }
+      }
+    },
+    "preferenceSelections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileSnapshotItemId", "stableKey", "label", "treatment", "weight", "condition", "rationale"],
+        "properties": {
+          "profileSnapshotItemId": { "$ref": "#/$defs/uuid" },
+          "stableKey": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "label": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "treatment": { "enum": ["required", "include", "weak_include", "explore", "omit", "prohibit"] },
+          "weight": { "$ref": "#/$defs/unitInterval" },
+          "condition": { "type": "object" },
+          "rationale": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "overrideText": { "type": ["string", "null"], "maxLength": 1000 }
+        }
+      }
+    },
+    "valuePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowedOrientations",
+        "requiredStances",
+        "redemption",
+        "hiddenGoodness",
+        "moralJustification",
+        "punishmentOrDefeat"
+      ],
+      "properties": {
+        "allowedOrientations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["evil", "immoral", "indifferent_to_good", "transgressive", "self_defined", "good", "mixed"]
+          }
+        },
+        "requiredStances": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["target", "stance"],
+            "properties": {
+              "target": { "type": "string", "minLength": 1, "maxLength": 1000 },
+              "stance": { "enum": ["affirm", "accept", "indifferent", "ambivalent", "reject", "unspecified"] }
+            }
+          }
+        },
+        "redemption": { "enum": ["required", "allowed", "not_required", "prohibited"] },
+        "hiddenGoodness": { "enum": ["required", "allowed", "not_required", "prohibited"] },
+        "moralJustification": { "enum": ["required", "allowed", "not_required", "prohibited"] },
+        "punishmentOrDefeat": { "enum": ["required", "allowed", "not_required", "prohibited"] }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "prohibited", "contentBoundaries", "freeInstruction"],
+      "properties": {
+        "required": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 1000 } },
+        "prohibited": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 1000 } },
+        "contentBoundaries": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 1000 } },
+        "freeInstruction": { "type": ["string", "null"], "maxLength": 4000 }
+      }
+    },
+    "nonRequirements": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+    },
+    "similarityPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["avoidNamedCharacters", "nameThreshold", "semanticThreshold", "combinationThreshold"],
+      "properties": {
+        "avoidNamedCharacters": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        },
+        "nameThreshold": { "$ref": "#/$defs/unitInterval" },
+        "semanticThreshold": { "$ref": "#/$defs/unitInterval" },
+        "combinationThreshold": { "$ref": "#/$defs/unitInterval" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selectedItemIds", "userConstraintHash", "compiledAt"],
+      "properties": {
+        "selectedItemIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        },
+        "userConstraintHash": { "$ref": "#/$defs/sha256" },
+        "compiledAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "unitInterval": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

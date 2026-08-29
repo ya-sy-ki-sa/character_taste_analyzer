@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://character-taste.local/schemas/character-understanding.schema.json",
+  "title": "CharacterUnderstandingSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "snapshotId",
+    "representationId",
+    "knownScope",
+    "status",
+    "overallConfidence",
+    "sourceAssessment",
+    "summary",
+    "assertions",
+    "customizationDeltas",
+    "uncertainties"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "snapshotId": { "$ref": "#/$defs/uuid" },
+    "representationId": { "$ref": "#/$defs/uuid" },
+    "baseSnapshotId": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+    "knownScope": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "status": {
+      "enum": ["proposed", "needs_review", "confirmed", "corrected", "provisional", "provisional_accepted"]
+    },
+    "overallConfidence": { "$ref": "#/$defs/unitInterval" },
+    "sourceAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverage", "limitations", "modelKnowledgeUsed", "retrievalDegradedReasons"],
+      "properties": {
+        "coverage": { "enum": ["sufficient", "partial", "minimal", "none"] },
+        "limitations": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 1000 } },
+        "modelKnowledgeUsed": { "type": "boolean" },
+        "retrievalDegradedReasons": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 200 } }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "narrativeRole",
+        "moralityOrientation",
+        "goals",
+        "values",
+        "behavior",
+        "relationships",
+        "expression"
+      ],
+      "properties": {
+        "identity": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "narrativeRole": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 200 } },
+        "moralityOrientation": { "type": "array", "maxItems": 20, "items": { "type": "string", "maxLength": 200 } },
+        "goals": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 500 } },
+        "values": { "type": "array", "maxItems": 30, "items": { "type": "string", "maxLength": 500 } },
+        "behavior": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 500 } },
+        "relationships": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 500 } },
+        "expression": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 500 } }
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "maxItems": 300,
+      "items": { "$ref": "#/$defs/assertion" }
+    },
+    "customizationDeltas": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/customizationDelta" }
+    },
+    "uncertainties": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic", "reason", "conflictingEvidenceIds"],
+        "properties": {
+          "topic": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "conflictingEvidenceIds": {
+            "type": "array",
+            "maxItems": 30,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "unitInterval": { "type": "number", "minimum": 0, "maximum": 1 },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion"],
+      "properties": {
+        "schemaVersion": { "const": "1" },
+        "workIds": { "type": "array", "maxItems": 20, "uniqueItems": true, "items": { "$ref": "#/$defs/uuid" } },
+        "representationIds": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        },
+        "scopeTypes": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 100 }
+        },
+        "relationshipTargets": {
+          "type": "array",
+          "maxItems": 30,
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 200 }
+        },
+        "sceneTags": {
+          "type": "array",
+          "maxItems": 30,
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 200 }
+        },
+        "freeText": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidenceId", "origin", "supportType", "confidence"],
+      "properties": {
+        "evidenceId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "sourceFragmentId": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "userInputPath": { "type": ["string", "null"], "maxLength": 500 },
+        "origin": { "enum": ["source", "user_input", "review", "model_knowledge"] },
+        "supportType": { "enum": ["supports", "contradicts", "context"] },
+        "quoteStart": { "type": ["integer", "null"], "minimum": 0 },
+        "quoteEnd": { "type": ["integer", "null"], "minimum": 0 },
+        "quoteHash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "confidence": { "$ref": "#/$defs/unitInterval" }
+      }
+    },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "rawLabel",
+        "valueText",
+        "assertionKind",
+        "scope",
+        "explicitness",
+        "confidence",
+        "evidence",
+        "status"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "attributeStableKey": { "type": ["string", "null"], "pattern": "^[a-z0-9_.-]+$", "maxLength": 150 },
+        "rawLabel": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "valueText": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "assertionKind": { "enum": ["setting", "observable_behavior", "source_interpretation", "user_interpretation"] },
+        "scope": { "$ref": "#/$defs/context" },
+        "explicitness": { "enum": ["source_explicit", "source_interpreted", "user_explicit", "model_knowledge"] },
+        "confidence": { "$ref": "#/$defs/unitInterval" },
+        "evidence": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/evidence" } },
+        "status": { "enum": ["proposed", "confirmed", "corrected", "rejected", "superseded"] }
+      }
+    },
+    "customizationDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "operation", "scope", "explicitness", "confidence", "evidence", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "baseAssertionId": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "operation": {
+          "enum": ["inherit", "add", "modify", "remove", "invert", "narrow_scope", "emphasize", "unspecified"]
+        },
+        "targetAttributeStableKey": { "type": ["string", "null"], "pattern": "^[a-z0-9_.-]+$", "maxLength": 150 },
+        "beforeValue": { "type": ["string", "null"], "maxLength": 2000 },
+        "afterValue": { "type": ["string", "null"], "maxLength": 2000 },
+        "scope": { "$ref": "#/$defs/context" },
+        "reasonText": { "type": ["string", "null"], "maxLength": 2000 },
+        "explicitness": { "enum": ["user_explicit", "inferred"] },
+        "confidence": { "$ref": "#/$defs/unitInterval" },
+        "evidence": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/evidence" } },
+        "status": { "enum": ["proposed", "confirmed", "corrected", "rejected"] }
+      }
+    }
+  }
+}

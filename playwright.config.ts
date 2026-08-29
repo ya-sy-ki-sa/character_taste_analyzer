@@ -13,7 +13,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npm run dev -- --host 127.0.0.1",
+    command: "npm run dev:offline -- --host 127.0.0.1",
     url: "http://localhost:5173/api/v1/health",
     reuseExistingServer: true,
     timeout: 120_000,

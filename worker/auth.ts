@@ -2,127 +2,108 @@ import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { readCookie, SESSION_COOKIE, sessionCookie } from "./lib/cookies";
-import { addDaysIso, constantTimeEqual, hmacHex, sha256Hex } from "./lib/crypto";
-import { first, run } from "./lib/db";
+import { addDaysIso, constantTimeEqual, hmacHex, nowIso, sha256Hex } from "./lib/crypto";
+import { first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
 import type { AppVariables, Env, Session } from "./types";
 
 type AppContext = Context<{ Bindings: Env; Variables: AppVariables }>;
-
 type SessionRow = {
+  id: string;
   user_id: string;
   username: string;
-  csrf_digest_hex: string;
+  csrf_digest: string;
+  credential_generation: number;
+  active_generation: number;
   expires_at: string;
 };
 
-export async function resolveSession(
-  env: Env,
-  cookieHeader?: string,
-  includeRevoked = false,
-): Promise<Session | undefined> {
+export async function resolveSession(env: Env, cookieHeader?: string): Promise<Session | undefined> {
   const token = readCookie(cookieHeader, SESSION_COOKIE);
   if (!token) return undefined;
   const tokenDigest = await sha256Hex(token);
   const row = await first<SessionRow>(
     env.DB.prepare(`
-    SELECT s.user_id, u.username, s.csrf_digest_hex, s.expires_at
-    FROM sessions s
-    JOIN users u ON u.id = s.user_id
-    WHERE s.token_digest_hex = ? AND (? = 1 OR s.revoked_at IS NULL)
-      AND s.expires_at > ? AND u.status = 'active'
-  `).bind(tokenDigest, includeRevoked ? 1 : 0, new Date().toISOString()),
+      SELECT s.id, s.user_id, u.username, s.csrf_digest, s.credential_generation,
+             c.key_generation AS active_generation, s.expires_at
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id
+      JOIN credentials c ON c.user_id = u.id AND c.status = 'active'
+      WHERE s.token_digest = ? AND s.revoked_at IS NULL AND s.expires_at > ?
+        AND u.status = 'active' AND u.deleted_at IS NULL
+    `).bind(tokenDigest, nowIso()),
   );
-  if (!row) return undefined;
+  if (!row || row.credential_generation !== row.active_generation) return undefined;
   const csrfToken = await hmacHex(env.AUTH_PEPPER, `csrf\u0000${token}`);
   const csrfDigest = await sha256Hex(csrfToken);
-  if (!constantTimeEqual(csrfDigest, row.csrf_digest_hex)) {
-    await run(
-      env.DB.prepare("UPDATE sessions SET revoked_at = ? WHERE token_digest_hex = ?").bind(
-        new Date().toISOString(),
-        tokenDigest,
-      ),
-    );
-    return undefined;
-  }
-  return { userId: row.user_id, username: row.username, csrfToken, expiresAt: row.expires_at };
+  if (!constantTimeEqual(csrfDigest, row.csrf_digest)) return undefined;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    username: row.username,
+    csrfToken,
+    expiresAt: row.expires_at,
+    credentialGeneration: row.credential_generation,
+  };
 }
 
 export const sessionMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVariables }>(async (context, next) => {
-  const cookieHeader = context.req.header("Cookie");
-  let session = await resolveSession(context.env, cookieHeader);
-  if (session) {
-    const sessionDays = boundedInteger(context.env.SESSION_DAYS, 30);
+  const token = readCookie(context.req.header("Cookie"), SESSION_COOKIE);
+  let session = await resolveSession(context.env, context.req.header("Cookie"));
+  if (session && token) {
+    const sessionDays = boundedInteger(context.env.SESSION_DAYS, 30, { max: 90 });
     const renewalDays = boundedInteger(context.env.SESSION_RENEWAL_DAYS, 7, { max: sessionDays });
-    const remainingMs = Date.parse(session.expiresAt) - Date.now();
-    if (remainingMs <= renewalDays * 86_400_000) {
-      const token = readCookie(cookieHeader, SESSION_COOKIE);
-      if (token) {
-        const expiresAt = addDaysIso(sessionDays);
-        await run(
-          context.env.DB.prepare(`
-          UPDATE sessions SET expires_at = ?
-          WHERE token_digest_hex = ? AND revoked_at IS NULL
-        `).bind(expiresAt, await sha256Hex(token)),
-        );
-        context.header("Set-Cookie", sessionCookie(token, sessionDays * 86_400));
-        session = { ...session, expiresAt };
-      }
+    if (Date.parse(session.expiresAt) - Date.now() <= renewalDays * 86_400_000) {
+      const expiresAt = addDaysIso(sessionDays);
+      const now = nowIso();
+      await context.env.DB.prepare(`
+        UPDATE sessions SET expires_at = ?, last_seen_at = ?
+        WHERE id = ? AND revoked_at IS NULL AND expires_at = ?
+      `)
+        .bind(expiresAt, now, session.id, session.expiresAt)
+        .run();
+      context.header("Set-Cookie", sessionCookie(token, sessionDays * 86_400));
+      session = { ...session, expiresAt };
     }
     context.set("session", session);
   }
   await next();
 });
 
-async function consumeRateLimit(env: Env, scope: string, subject: string, maximum: number, windowSeconds: number) {
-  const windowStart = Math.floor(Date.now() / 1_000 / windowSeconds) * windowSeconds;
-  const subjectDigest = await hmacHex(env.AUTH_PEPPER, `rate-limit\u0000${scope}\u0000${subject}`);
+async function consumeRateLimit(env: Env, scope: string, subject: string, maximum: number, seconds: number) {
+  const epoch = Math.floor(Date.now() / 1_000 / seconds) * seconds;
+  const bucketKey = await hmacHex(env.AUTH_PEPPER, `rate\u0000${scope}\u0000${subject}\u0000${epoch}`);
+  const startedAt = new Date(epoch * 1_000).toISOString();
+  const expiresAt = new Date((epoch + seconds * 2) * 1_000).toISOString();
   const result = await env.DB.prepare(`
-    INSERT INTO request_rate_limits (scope, subject_digest, window_start, request_count)
-    VALUES (?, ?, ?, 1)
-    ON CONFLICT(scope, subject_digest, window_start)
-    DO UPDATE SET request_count = request_count + 1
+    INSERT INTO request_rate_limits (bucket_key, window_started_at, request_count, expires_at, updated_at)
+    VALUES (?, ?, 1, ?, ?)
+    ON CONFLICT(bucket_key) DO UPDATE SET request_count = request_count + 1, updated_at = excluded.updated_at
     RETURNING request_count AS count
   `)
-    .bind(scope, subjectDigest, windowStart)
+    .bind(bucketKey, startedAt, expiresAt, nowIso())
     .first<{ count: number }>();
-  if ((result?.count ?? 0) > maximum)
-    throw new HTTPException(429, { message: "短時間にリクエストが集中しています。しばらく待ってください" });
+  if ((result?.count ?? 0) > maximum) throw new HTTPException(429, { message: "短時間にリクエストが集中しています" });
 }
 
 export const rateLimitMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVariables }>(
   async (context, next) => {
-    if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) {
-      await next();
-      return;
-    }
-    const ip = context.req.header("CF-Connecting-IP") || context.req.header("X-Real-IP") || "local-or-unknown";
+    if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) return next();
+    const ip = context.req.header("CF-Connecting-IP") || context.req.header("X-Real-IP") || "local";
     const session = context.get("session");
     if (session) {
       await Promise.all([
+        consumeRateLimit(context.env, "ip", ip, boundedInteger(context.env.IP_WRITE_LIMIT_PER_MIN, 120), 60),
         consumeRateLimit(
           context.env,
-          "authenticated-ip-minute",
-          ip,
-          boundedInteger(context.env.IP_WRITE_LIMIT_PER_MIN, 120),
-          60,
-        ),
-        consumeRateLimit(
-          context.env,
-          "authenticated-user-minute",
+          "user",
           session.userId,
           boundedInteger(context.env.USER_WRITE_LIMIT_PER_MIN, 60),
           60,
         ),
       ]);
     } else {
-      await consumeRateLimit(
-        context.env,
-        "public-ip-ten-minutes",
-        ip,
-        boundedInteger(context.env.PUBLIC_WRITE_LIMIT_10_MIN, 30),
-        600,
-      );
+      await consumeRateLimit(context.env, "public", ip, boundedInteger(context.env.PUBLIC_WRITE_LIMIT_10_MIN, 30), 600);
     }
     await next();
   },
@@ -135,28 +116,20 @@ export function requireSession(context: AppContext): Session {
 }
 
 export const csrfMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVariables }>(async (context, next) => {
-  if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) {
-    await next();
-    return;
-  }
-  // Origin checking protects both authenticated mutations and public account/login
-  // endpoints. Browsers always send Origin for cross-origin fetches and form posts.
+  if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) return next();
   const origin = context.req.header("Origin");
-  const expectedOrigin = context.env.APP_ORIGIN || new URL(context.req.url).origin;
-  if (origin && origin !== expectedOrigin) throw new HTTPException(403, { message: "許可されていない送信元です" });
+  const expected = context.env.APP_ORIGIN || new URL(context.req.url).origin;
+  if (origin && origin !== expected) throw new HTTPException(403, { message: "許可されていない送信元です" });
   const session = context.get("session");
-  if (!session) {
-    await next();
-    return;
-  }
-  const csrf = context.req.header("X-CSRF-Token");
-  if (!csrf || !constantTimeEqual(csrf, session.csrfToken)) {
-    throw new HTTPException(403, { message: "セキュリティトークンが無効です" });
+  if (session) {
+    const csrf = context.req.header("X-CSRF-Token");
+    if (!csrf || !constantTimeEqual(csrf, session.csrfToken))
+      throw new HTTPException(403, { message: "セキュリティトークンが無効です" });
   }
   await next();
 });
 
-export async function verifyTurnstile(env: Env, token: string | undefined, remoteIp?: string): Promise<void> {
+export async function verifyTurnstile(env: Env, token?: string, remoteIp?: string): Promise<void> {
   if (!env.TURNSTILE_SECRET) {
     if (env.ENVIRONMENT === "production") throw new HTTPException(503, { message: "Turnstileが設定されていません" });
     return;
@@ -171,36 +144,27 @@ export async function verifyTurnstile(env: Env, token: string | undefined, remot
   if (!result.success) throw new HTTPException(400, { message: "ボット確認に失敗しました" });
 }
 
-export async function enforceQuota(
-  env: Env,
-  userId: string,
-  kind: "analysis" | "generation" | "recommendation",
-): Promise<void> {
-  const date = new Date().toISOString().slice(0, 10);
-  const quotas = {
-    analysis: { value: env.ANALYSIS_DAILY_QUOTA, fallback: 30, column: "analysis_count", label: "分析" },
-    generation: { value: env.GENERATION_DAILY_QUOTA, fallback: 10, column: "generation_count", label: "生成" },
-    recommendation: {
-      value: env.RECOMMENDATION_DAILY_QUOTA,
-      fallback: 20,
-      column: "recommendation_count",
-      label: "候補表示",
-    },
-  } as const;
-  const selected = quotas[kind];
-  const limit = boundedInteger(selected.value, selected.fallback);
-  const column = selected.column;
+export async function enforceQuota(env: Env, userId: string, capability: "analysis" | "generation"): Promise<void> {
+  const date = nowIso().slice(0, 10);
+  const limit = boundedInteger(
+    capability === "analysis" ? env.ANALYSIS_DAILY_QUOTA : env.GENERATION_DAILY_QUOTA,
+    capability === "analysis" ? 30 : 10,
+  );
   const result = await env.DB.prepare(`
-    INSERT INTO usage_daily (user_id, usage_date, ${column}) VALUES (?, ?, 1)
-    ON CONFLICT(user_id, usage_date) DO UPDATE SET ${column} = ${column} + 1
-    RETURNING ${column} AS count
+    INSERT INTO usage_daily (usage_date, user_id, capability, accepted_count, updated_at)
+    VALUES (?, ?, ?, 1, ?)
+    ON CONFLICT(usage_date, user_id, capability)
+    DO UPDATE SET accepted_count = accepted_count + 1, updated_at = excluded.updated_at
+    RETURNING accepted_count AS count
   `)
-    .bind(userId, date)
+    .bind(date, userId, capability, nowIso())
     .first<{ count: number }>();
   if ((result?.count ?? 0) > limit) {
-    await env.DB.prepare(`UPDATE usage_daily SET ${column} = ${column} - 1 WHERE user_id = ? AND usage_date = ?`)
-      .bind(userId, date)
+    await env.DB.prepare(
+      `UPDATE usage_daily SET accepted_count = accepted_count - 1, rejected_count = rejected_count + 1 WHERE usage_date = ? AND user_id = ? AND capability = ?`,
+    )
+      .bind(date, userId, capability)
       .run();
-    throw new HTTPException(429, { message: `本日の${selected.label}上限に達しました` });
+    throw new HTTPException(429, { message: `本日の${capability === "analysis" ? "解析" : "生成"}上限に達しました` });
   }
 }

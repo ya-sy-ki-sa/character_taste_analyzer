@@ -1,0 +1,1261 @@
+openapi: 3.1.0
+info:
+  title: Character Taste Lab API
+  version: 1.0.0
+  description: >-
+    DD-03の機械可読契約。個人データの操作はcookie sessionと
+    X-CSRF-Tokenを使い、全mutationはIdempotency-Keyを必須とする。
+servers:
+  - url: /api/v1
+tags:
+  - name: Users
+  - name: Sessions
+  - name: Account
+  - name: Catalog
+  - name: Sources
+  - name: Entries
+  - name: Understanding
+  - name: Preferences
+  - name: Profile
+  - name: Graph
+  - name: Generation
+  - name: Jobs
+security:
+  - sessionCookie: []
+paths:
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      security: []
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 32 }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit100'
+      responses:
+        '200':
+          description: Active public users
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicUserListResponse' }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Users]
+      operationId: createUser
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: Pending user and one-time access key
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateUserResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /users/{userId}/activate:
+    post:
+      tags: [Users]
+      operationId: activateUser
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [accessKey]
+              properties:
+                accessKey: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /sessions:
+    post:
+      tags: [Sessions]
+      operationId: createSession
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSessionRequest' }
+      responses:
+        '200':
+          description: Session created; __Host-session is set
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Sessions]
+      operationId: deleteSession
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/OptionalCsrfToken'
+      responses:
+        '204': { description: Session revoked and cookie cleared }
+        default: { $ref: '#/components/responses/Error' }
+  /me:
+    get:
+      tags: [Sessions]
+      operationId: getMe
+      responses:
+        '200':
+          description: Current session
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /account/key-rotation:
+    post:
+      tags: [Account]
+      operationId: rotateAccessKey
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [currentAccessKey]
+              properties:
+                currentAccessKey: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: One-time new key; all sessions revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RotateKeyResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /account/exports:
+    post:
+      tags: [Account]
+      operationId: startAccountExport
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                categories:
+                  type: array
+                  uniqueItems: true
+                  items: { type: string }
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /account:
+    delete:
+      tags: [Account]
+      operationId: deleteAccount
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [usernameConfirmation]
+              properties:
+                usernameConfirmation: { type: string, minLength: 1, maxLength: 32 }
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /works:
+    get:
+      tags: [Catalog]
+      operationId: listWorks
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit100'
+      responses:
+        '200': { $ref: '#/components/responses/ListData' }
+        default: { $ref: '#/components/responses/Error' }
+  /characters:
+    get:
+      tags: [Catalog]
+      operationId: listCharacters
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - name: workId
+          in: query
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit100'
+      responses:
+        '200': { $ref: '#/components/responses/ListData' }
+        default: { $ref: '#/components/responses/Error' }
+  /sources/upload-requests:
+    post:
+      tags: [Sources]
+      operationId: createSourceUploadRequest
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SourceUploadRequest' }
+      responses:
+        '201':
+          description: Signed R2 upload ticket
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SourceUploadTicketResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /sources/{sourceId}/revisions:
+    post:
+      tags: [Sources]
+      operationId: finalizeSourceRevision
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FinalizeSourceRevisionRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/ObjectData' }
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /sources/{sourceId}:
+    get:
+      tags: [Sources]
+      operationId: getSource
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries:
+    get:
+      tags: [Entries]
+      operationId: listEntries
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: registrationType
+          in: query
+          schema: { $ref: '#/components/schemas/RegistrationType' }
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit100'
+      responses:
+        '200': { $ref: '#/components/responses/ListData' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/drafts:
+    post:
+      tags: [Entries]
+      operationId: createEntryDraft
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [registrationType]
+              properties:
+                registrationType: { $ref: '#/components/schemas/RegistrationType' }
+      responses:
+        '201': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}:
+    get:
+      tags: [Entries]
+      operationId: getEntry
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Entries]
+      operationId: deleteEntry
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        '204': { description: Draft deleted }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/draft:
+    patch:
+      tags: [Entries]
+      operationId: updateEntryDraft
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EntryDraft' }
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/submit:
+    post:
+      tags: [Entries]
+      operationId: submitEntry
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/revisions:
+    post:
+      tags: [Entries]
+      operationId: createEntryRevision
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '201': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/character-understanding-runs:
+    post:
+      tags: [Understanding]
+      operationId: startCharacterUnderstanding
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartRunRequest' }
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/character-understanding-runs/{runId}:
+    get:
+      tags: [Understanding]
+      operationId: getCharacterUnderstandingRun
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /character-understanding-snapshots/{snapshotId}:
+    get:
+      tags: [Understanding]
+      operationId: getCharacterUnderstandingSnapshot
+      parameters:
+        - $ref: '#/components/parameters/SnapshotId'
+      responses:
+        '200':
+          description: Character understanding snapshot
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/EnvelopeBase'
+                  - type: object
+                    required: [data, meta]
+                    properties:
+                      data: { $ref: '../schemas/character-understanding.schema.json' }
+        default: { $ref: '#/components/responses/Error' }
+  /character-understanding-snapshots/{snapshotId}/review:
+    post:
+      tags: [Understanding]
+      operationId: reviewCharacterUnderstandingSnapshot
+      parameters:
+        - $ref: '#/components/parameters/SnapshotId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchReviewRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /customization-deltas/{deltaId}/review:
+    post:
+      tags: [Understanding]
+      operationId: reviewCustomizationDelta
+      parameters:
+        - $ref: '#/components/parameters/DeltaId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/analysis-runs:
+    post:
+      tags: [Preferences]
+      operationId: startPreferenceAnalysis
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartRunRequest' }
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/analysis-runs/{runId}:
+    get:
+      tags: [Preferences]
+      operationId: getPreferenceAnalysisRun
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /preference-assertions/{assertionId}/review:
+    post:
+      tags: [Preferences]
+      operationId: reviewPreferenceAssertion
+      parameters:
+        - $ref: '#/components/parameters/AssertionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /value-stance-assertions/{assertionId}/review:
+    post:
+      tags: [Preferences]
+      operationId: reviewValueStanceAssertion
+      parameters:
+        - $ref: '#/components/parameters/AssertionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile/dimensions:
+    get:
+      tags: [Profile]
+      operationId: listProfileDimensions
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit200'
+        - name: polarity
+          in: query
+          schema: { type: string, enum: [positive, negative, mixed] }
+        - name: responseChannel
+          in: query
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/ListData' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile/patterns:
+    get:
+      tags: [Profile]
+      operationId: listProfilePatterns
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit200'
+      responses:
+        '200': { $ref: '#/components/responses/ListData' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile/evidence:
+    get:
+      tags: [Profile]
+      operationId: listProfileEvidence
+      parameters:
+        - name: dimensionId
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit100'
+      responses:
+        '200': { $ref: '#/components/responses/ListData' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile/history:
+    get:
+      tags: [Profile]
+      operationId: listProfileHistory
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/ListLimit100'
+      responses:
+        '200': { $ref: '#/components/responses/ListData' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile/snapshots:
+    post:
+      tags: [Profile]
+      operationId: createProfileSnapshot
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProfileSnapshotRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile/graph:
+    get:
+      tags: [Graph]
+      operationId: getProfileGraph
+      parameters:
+        - name: profileSnapshotId
+          in: query
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - name: projectionVersion
+          in: query
+          schema: { type: string }
+        - name: detail
+          in: query
+          schema: { type: string, enum: [summary, standard, expanded], default: standard }
+        - $ref: '#/components/parameters/Cursor'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 500 }
+      responses:
+        '200':
+          description: Graph projection page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GraphProjectionPageResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /profile/graph/nodes/{nodeId}/neighbors:
+    get:
+      tags: [Graph]
+      operationId: getGraphNeighbors
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - name: profileSnapshotId
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - name: depth
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 2, default: 1 }
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Neighbor graph page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GraphProjectionPageResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /generation-requests:
+    post:
+      tags: [Generation]
+      operationId: createGenerationRequest
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateGenerationRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /generation-requests/{requestId}:
+    get:
+      tags: [Generation]
+      operationId: getGenerationRequest
+      parameters:
+        - $ref: '#/components/parameters/GenerationRequestId'
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [Generation]
+      operationId: updateGenerationRequest
+      parameters:
+        - $ref: '#/components/parameters/GenerationRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateGenerationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
+  /generation-requests/{requestId}/compile-brief:
+    post:
+      tags: [Generation]
+      operationId: compileGenerationBrief
+      parameters:
+        - $ref: '#/components/parameters/GenerationRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Validated generation brief
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/EnvelopeBase'
+                  - type: object
+                    required: [data, meta]
+                    properties:
+                      data: { $ref: '../schemas/generation-brief.schema.json' }
+        default: { $ref: '#/components/responses/Error' }
+  /generation-requests/{requestId}/generate:
+    post:
+      tags: [Generation]
+      operationId: generateCharacter
+      parameters:
+        - $ref: '#/components/parameters/GenerationRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /generated-characters/{characterId}:
+    get:
+      tags: [Generation]
+      operationId: getGeneratedCharacter
+      parameters:
+        - $ref: '#/components/parameters/CharacterId'
+      responses:
+        '200':
+          description: Generated character and revision metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GeneratedCharacterResponse' }
+        default: { $ref: '#/components/responses/Error' }
+  /generated-characters/{characterId}/revisions:
+    post:
+      tags: [Generation]
+      operationId: reviseGeneratedCharacter
+      parameters:
+        - $ref: '#/components/parameters/CharacterId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviseGeneratedCharacterRequest' }
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /generated-characters/{characterId}/feedback:
+    post:
+      tags: [Generation]
+      operationId: createGeneratedCharacterFeedback
+      parameters:
+        - $ref: '#/components/parameters/CharacterId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFeedbackRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/ObjectData' }
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /generated-characters/{characterId}/feedback/{feedbackId}:
+    delete:
+      tags: [Generation]
+      operationId: deleteGeneratedCharacterFeedback
+      parameters:
+        - $ref: '#/components/parameters/CharacterId'
+        - $ref: '#/components/parameters/FeedbackId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /jobs/{jobId}:
+    get:
+      tags: [Jobs]
+      operationId: getJob
+      security:
+        - sessionCookie: []
+        - deletionStatusToken: []
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponseEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+  /jobs/{jobId}/retry:
+    post:
+      tags: [Jobs]
+      operationId: retryJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '202': { $ref: '#/components/responses/JobAccepted' }
+        default: { $ref: '#/components/responses/Error' }
+  /capacity:
+    get:
+      tags: [Jobs]
+      operationId: getCapacityStatus
+      responses:
+        '200':
+          description: User-visible capacity state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CapacityResponse' }
+        default: { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+    deletionStatusToken:
+      type: apiKey
+      in: header
+      name: X-Deletion-Status-Token
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { $ref: '#/components/schemas/Uuid' }
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 64, maxLength: 64, pattern: '^[0-9a-f]{64}$' }
+    OptionalCsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      description: Session cookieがある場合は必須。cookieがなければ省略しても204を返す。
+      schema: { type: string, minLength: 64, maxLength: 64, pattern: '^[0-9a-f]{64}$' }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: { type: string, pattern: '^"rev-[0-9]+"$' }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string, maxLength: 2048 }
+    ListLimit100:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    ListLimit200:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    UserId: { name: userId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    SourceId: { name: sourceId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    EntryId: { name: entryId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    RunId: { name: runId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    SnapshotId: { name: snapshotId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    DeltaId: { name: deltaId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    AssertionId: { name: assertionId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    NodeId: { name: nodeId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    GenerationRequestId: { name: requestId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    CharacterId: { name: characterId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    FeedbackId: { name: feedbackId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+    JobId: { name: jobId, in: path, required: true, schema: { $ref: '#/components/schemas/Uuid' } }
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ObjectData:
+      description: Object data envelope; the operation description defines the concrete DTO
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ObjectDataResponse' }
+    ListData:
+      description: Cursor-paginated list
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ListDataResponse' }
+    JobAccepted:
+      description: Asynchronous job accepted
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/JobAcceptedResponse' }
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    IsoDateTime: { type: string, format: date-time }
+    RequestMeta:
+      type: object
+      additionalProperties: false
+      required: [requestId]
+      properties:
+        requestId: { $ref: '#/components/schemas/Uuid' }
+    PageResponseMeta:
+      type: object
+      additionalProperties: false
+      required: [requestId, page]
+      properties:
+        requestId: { $ref: '#/components/schemas/Uuid' }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    PageMeta:
+      type: object
+      additionalProperties: false
+      required: [nextCursor, hasMore]
+      properties:
+        nextCursor: { type: [string, 'null'] }
+        hasMore: { type: boolean }
+    EnvelopeBase:
+      type: object
+      required: [meta]
+      properties:
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    ObjectDataResponse:
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data, meta]
+          properties:
+            data: { type: object }
+    ListDataResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data: { type: array, items: {} }
+        meta: { $ref: '#/components/schemas/PageResponseMeta' }
+    GraphProjectionPageResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data: { $ref: '../schemas/graph-projection.schema.json' }
+        meta: { $ref: '#/components/schemas/PageResponseMeta' }
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, requestId]
+          properties:
+            code: { type: string, pattern: '^[A-Z0-9_]+$' }
+            message: { type: string }
+            requestId: { $ref: '#/components/schemas/Uuid' }
+            details: { type: [object, 'null'] }
+    PublicUser:
+      type: object
+      additionalProperties: false
+      required: [id, username]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        username: { type: string, minLength: 1, maxLength: 32 }
+    PublicUserListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/PublicUser' } }
+        meta: { $ref: '#/components/schemas/PageResponseMeta' }
+    CreateUserRequest:
+      type: object
+      additionalProperties: false
+      required: [username, consentVersion, turnstileToken]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 64 }
+        consentVersion: { type: string, minLength: 1, maxLength: 50 }
+        turnstileToken: { type: string, minLength: 1, maxLength: 4096 }
+    CreateUserResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [user, accessKey, expiresAt]
+          properties:
+            user:
+              type: object
+              additionalProperties: false
+              required: [id, username, status]
+              properties:
+                id: { $ref: '#/components/schemas/Uuid' }
+                username: { type: string }
+                status: { const: pending }
+            accessKey: { $ref: '#/components/schemas/Uuid' }
+            expiresAt: { $ref: '#/components/schemas/IsoDateTime' }
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    CreateSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [userId, accessKey, turnstileToken]
+      properties:
+        userId: { $ref: '#/components/schemas/Uuid' }
+        accessKey: { $ref: '#/components/schemas/Uuid' }
+        turnstileToken: { type: string, minLength: 1, maxLength: 4096 }
+    SessionResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [user, csrfToken, expiresAt]
+          properties:
+            user: { $ref: '#/components/schemas/PublicUser' }
+            csrfToken: { type: string, pattern: '^[0-9a-f]{64}$' }
+            expiresAt: { $ref: '#/components/schemas/IsoDateTime' }
+            capacity: { $ref: '#/components/schemas/CapacityState' }
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    RotateKeyResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [accessKey, sessionsRevoked]
+          properties:
+            accessKey: { $ref: '#/components/schemas/Uuid' }
+            sessionsRevoked: { const: true }
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    SourceUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [title, fileName, mimeType, byteSize, sha256Hex, sourceType, rightsBasis, visibility]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        fileName: { type: string, minLength: 1, maxLength: 255 }
+        mimeType:
+          type: string
+          enum: [text/plain, text/markdown, application/pdf, image/png, image/jpeg, image/webp]
+        byteSize: { type: integer, minimum: 1, maximum: 10485760 }
+        sha256Hex: { type: string, pattern: '^[0-9a-f]{64}$' }
+        sourceType: { type: string, enum: [official, primary, secondary, transformative, user_text] }
+        rightsBasis: { type: string, minLength: 1, maxLength: 1000 }
+        visibility: { const: private }
+    SourceUploadTicketResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [sourceId, sourceRevisionId, objectKey, uploadUrl, method, requiredHeaders, expiresAt]
+          properties:
+            sourceId: { $ref: '#/components/schemas/Uuid' }
+            sourceRevisionId: { $ref: '#/components/schemas/Uuid' }
+            objectKey: { type: string }
+            uploadUrl: { type: string, format: uri }
+            method: { const: PUT }
+            requiredHeaders: { type: object, additionalProperties: { type: string } }
+            expiresAt: { $ref: '#/components/schemas/IsoDateTime' }
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    FinalizeSourceRevisionRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceRevisionId, objectKey, sha256Hex, byteSize, citation]
+      properties:
+        sourceRevisionId: { $ref: '#/components/schemas/Uuid' }
+        objectKey: { type: string, minLength: 1, maxLength: 1024 }
+        sha256Hex: { type: string, pattern: '^[0-9a-f]{64}$' }
+        byteSize: { type: integer, minimum: 1, maximum: 10485760 }
+        citation:
+          type: object
+          additionalProperties: false
+          required: [rightsBasis]
+          properties:
+            author: { type: string, maxLength: 200 }
+            url: { type: string, format: uri, maxLength: 2048 }
+            workTitle: { type: string, maxLength: 200 }
+            medium: { type: string, maxLength: 100 }
+            rightsHolder: { type: string, maxLength: 200 }
+            rightsBasis: { type: string, minLength: 1, maxLength: 1000 }
+    RegistrationType: { type: string, enum: [existing, customized_existing, original] }
+    EntryDraft:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, character, representation, knownScope, sourceDocumentIds]
+      properties:
+        schemaVersion: { const: '1' }
+        work: { type: [object, 'null'] }
+        character: { type: object }
+        representation: { type: object }
+        knownScope: { type: string, maxLength: 2000 }
+        familiarity: { type: string, enum: [new, familiar, long_term] }
+        userCharacterView: { type: string, maxLength: 10000 }
+        originalCharacterSheet: { type: object }
+        sourceDocumentIds: { type: array, maxItems: 20, uniqueItems: true, items: { $ref: '#/components/schemas/Uuid' } }
+        preferenceInput: { type: object }
+    StartRunRequest:
+      type: object
+      additionalProperties: false
+      required: [entryRevisionId, force]
+      properties:
+        entryRevisionId: { $ref: '#/components/schemas/Uuid' }
+        force: { type: boolean, default: false }
+    ReviewDecision: { type: string, enum: [confirm, correct, reject, conditional] }
+    ReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { $ref: '#/components/schemas/ReviewDecision' }
+        reasonText: { type: string, maxLength: 2000 }
+        condition: { type: object }
+        correction: { type: object }
+    BatchReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [reviews]
+      properties:
+        reviews:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            type: object
+            additionalProperties: false
+            required: [targetId, decision]
+            properties:
+              targetId: { $ref: '#/components/schemas/Uuid' }
+              decision: { $ref: '#/components/schemas/ReviewDecision' }
+              reasonText: { type: string, maxLength: 2000 }
+              condition: { type: object }
+              correction: { type: object }
+    CreateProfileSnapshotRequest:
+      type: object
+      additionalProperties: false
+      required: [purpose]
+      properties:
+        projectionId: { $ref: '#/components/schemas/Uuid' }
+        purpose: { type: string, enum: [generation, comparison, export] }
+    CreateGenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [profileSnapshotId, mode]
+      properties:
+        profileSnapshotId: { $ref: '#/components/schemas/Uuid' }
+        mode: { type: string, enum: [faithful, balanced, exploratory] }
+        purpose: { type: string, maxLength: 2000 }
+        world: { type: string, maxLength: 4000 }
+        genre: { type: string, maxLength: 200 }
+        role: { type: string, maxLength: 2000 }
+    UpdateGenerationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        selections: { type: array, maxItems: 200, items: { type: object } }
+        valueConstraints: { type: object }
+        contentRange: { type: object }
+        freeInstruction: { type: string, maxLength: 4000 }
+    ReviseGeneratedCharacterRequest:
+      type: object
+      additionalProperties: false
+      required: [baseRevisionId, scope, targetPointers, instruction, preservePointers]
+      properties:
+        baseRevisionId: { $ref: '#/components/schemas/Uuid' }
+        scope:
+          type: string
+          enum: [full, identity, appearance, personality, values, relationships, speech, story_role, other]
+        targetPointers:
+          type: array
+          minItems: 1
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string, pattern: '^/', maxLength: 500 }
+        instruction: { type: string, minLength: 1, maxLength: 4000 }
+        preservePointers:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, pattern: '^/', maxLength: 500 }
+    CreateFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [revisionId, sectionRatings]
+      properties:
+        revisionId: { $ref: '#/components/schemas/Uuid' }
+        overallRating: { type: integer, minimum: 1, maximum: 5 }
+        sectionRatings:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [section, rating, proposeAsPreferenceEvidence]
+            properties:
+              section: { type: string }
+              rating: { type: integer, minimum: -2, maximum: 2 }
+              attributeDefinitionId: { $ref: '#/components/schemas/Uuid' }
+              comment: { type: string, maxLength: 2000 }
+              proposeAsPreferenceEvidence: { type: boolean, default: false }
+    JobAcceptedResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [jobId, status, targetType, targetId]
+          properties:
+            jobId: { $ref: '#/components/schemas/Uuid' }
+            status: { const: queued }
+            targetType: { type: string }
+            targetId: { $ref: '#/components/schemas/Uuid' }
+            statusToken:
+              type: string
+              minLength: 43
+              maxLength: 128
+              description: account deletion受付と同一冪等requestの再送時だけ返す。
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    JobStatus:
+      type: string
+      enum: [queued, running, waiting_for_user, retrying, succeeded, failed, superseded, cancelled]
+    JobResponseEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [id, jobType, status, targetType, targetId, progress, retryable, createdAt, updatedAt]
+          properties:
+            id: { $ref: '#/components/schemas/Uuid' }
+            jobType: { type: string }
+            status: { $ref: '#/components/schemas/JobStatus' }
+            targetType: { type: string }
+            targetId: { $ref: '#/components/schemas/Uuid' }
+            progress:
+              type: object
+              required: [current, total, step]
+              properties:
+                current: { type: integer, minimum: 0 }
+                total: { type: integer, minimum: 0 }
+                step: { type: [string, 'null'] }
+            retryable: { type: boolean }
+            error: { type: [object, 'null'] }
+            result: { type: [object, 'null'] }
+            nextAttemptAt: { type: [string, 'null'], format: date-time }
+            createdAt: { $ref: '#/components/schemas/IsoDateTime' }
+            updatedAt: { $ref: '#/components/schemas/IsoDateTime' }
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    GeneratedCharacterResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [id, status, activeRevision]
+          properties:
+            id: { $ref: '#/components/schemas/Uuid' }
+            status: { type: string }
+            activeRevision: { $ref: '../schemas/generated-character.schema.json' }
+        meta: { $ref: '#/components/schemas/RequestMeta' }
+    CapacityState: { type: string, enum: [normal, warning, conservation, restricted, unavailable] }
+    CapacityResponse:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [state, stoppedOperations, updatedAt]
+          properties:
+            state: { $ref: '#/components/schemas/CapacityState' }
+            stoppedOperations: { type: array, uniqueItems: true, items: { type: string } }
+            retryAfter: { type: [string, 'null'], format: date-time }
+            updatedAt: { $ref: '#/components/schemas/IsoDateTime' }
+        meta: { $ref: '#/components/schemas/RequestMeta' }

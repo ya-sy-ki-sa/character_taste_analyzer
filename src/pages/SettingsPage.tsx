@@ -31,7 +31,7 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
           <div className="settings-icon">⇩</div>
           <div>
             <h2>データをエクスポート</h2>
-            <p>入力、分析プロフィール、生成・推薦履歴をJSON形式でダウンロードします。認証情報は含みません。</p>
+            <p>入力、分析プロフィール、生成履歴をJSON形式でダウンロードします。認証情報は含みません。</p>
             <button
               type="button"
               className="button button-secondary"
@@ -70,7 +70,7 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
           <div className="settings-icon">×</div>
           <div>
             <h2>アカウントを削除</h2>
-            <p>入力、分析、生成、フィードバック、セッションをすべて削除します。この操作は取り消せません。</p>
+            <p>入力、分析、生成、セッションをすべて削除します。この操作は取り消せません。</p>
             <button type="button" className="button button-danger" onClick={() => setDeleteOpen(true)}>
               アカウントを削除
             </button>
@@ -194,7 +194,10 @@ function DeleteModal({ user, onClose }: { user: SessionUser; onClose(): void }) 
   async function remove() {
     setSubmitting(true);
     try {
-      await api("/api/v1/account", { method: "DELETE" });
+      await api("/api/v1/account", {
+        method: "DELETE",
+        body: JSON.stringify({ usernameConfirmation: confirmation }),
+      });
       window.location.href = "/";
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "削除できませんでした");

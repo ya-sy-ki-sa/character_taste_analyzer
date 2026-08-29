@@ -1,5 +1,6 @@
 # Copy to .dev.vars and replace the values. Never commit .dev.vars.
 AUTH_PEPPER=replace-with-at-least-32-random-bytes
+DATASTORE_STRATEGY=d1
 OPENAI_API_KEY=
 TURNSTILE_SECRET=
-USE_REMOTE_AI_IN_DEV=true
+# local-manualはwrangler.jsoncのWorkers AIを使います。`npm run dev:offline`は専用のoffline環境を選び、Replay/Fakeで動きます。

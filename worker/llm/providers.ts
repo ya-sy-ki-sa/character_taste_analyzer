@@ -1,412 +1,316 @@
 import type { Env } from "../types";
 import type {
-  CanonicalMessage,
-  EmbeddingProvider,
-  JsonSchema,
-  ModelArtifact,
-  ModelUsage,
-  ProviderObjectRequest,
-  RawStructuredLlmProvider,
-  StructuredRequest,
+  LlmMessage,
+  LlmProvider,
+  LlmProviderId,
+  LlmRunMetadata,
+  StructuredLlmRequest,
+  StructuredLlmResult,
 } from "./types";
+import { LlmProviderError } from "./types";
 
-class ProviderError extends Error {
-  constructor(
-    message: string,
-    readonly code: string,
-    readonly rawText = "",
-  ) {
-    super(message);
+const ADAPTER_VERSION = "1.0.0";
+
+function extractText(payload: unknown): {
+  text: string;
+  requestId?: string;
+  usage?: Record<string, unknown>;
+  finishReason?: string;
+} {
+  const object = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  if (typeof object.response === "string")
+    return { text: object.response, usage: object.usage as Record<string, unknown> };
+  if (typeof object.output_text === "string")
+    return {
+      text: object.output_text,
+      requestId: typeof object.id === "string" ? object.id : undefined,
+      usage: object.usage as Record<string, unknown>,
+    };
+  if (Array.isArray(object.choices)) {
+    const choice = object.choices[0] as Record<string, unknown> | undefined;
+    const message = choice?.message as Record<string, unknown> | undefined;
+    if (typeof message?.content === "string")
+      return {
+        text: message.content,
+        usage: object.usage as Record<string, unknown>,
+        finishReason: typeof choice?.finish_reason === "string" ? choice.finish_reason : undefined,
+      };
   }
-}
-
-function preferLocalDevelopment(env: Env): boolean {
-  return (
-    env.ENVIRONMENT === "development" && env.ALLOW_LOCAL_AI_FALLBACK === "true" && env.USE_REMOTE_AI_IN_DEV !== "true"
-  );
-}
-
-async function withTimeout<T>(operation: Promise<T>, milliseconds: number, label: string): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      operation,
-      new Promise<T>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new ProviderError(`${label} timed out`, "timeout")), milliseconds);
-      }),
-    ]);
-  } finally {
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  if (Array.isArray(object.output)) {
+    for (const item of object.output as Array<Record<string, unknown>>) {
+      if (!Array.isArray(item.content)) continue;
+      for (const part of item.content as Array<Record<string, unknown>>) {
+        if (typeof part.text === "string")
+          return {
+            text: part.text,
+            requestId: typeof object.id === "string" ? object.id : undefined,
+            usage: object.usage as Record<string, unknown>,
+          };
+      }
+    }
   }
+  if (object.result && typeof object.result === "object") return extractText(object.result);
+  if (payload && typeof payload === "object")
+    return { text: JSON.stringify(payload), usage: object.usage as Record<string, unknown> };
+  throw new LlmProviderError("モデル応答が空です", "EXTERNAL_PROVIDER_INVALID_RESPONSE", false);
 }
 
-function extractJson(text: string): unknown {
-  const trimmed = text.trim();
-  const candidates = [trimmed];
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/iu)?.[1];
+function parseJson(text: string): unknown {
+  const candidates = [text.trim()];
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/iu)?.[1];
   if (fenced) candidates.push(fenced.trim());
-  const objectStart = trimmed.indexOf("{");
-  const objectEnd = trimmed.lastIndexOf("}");
-  if (objectStart >= 0 && objectEnd > objectStart) candidates.push(trimmed.slice(objectStart, objectEnd + 1));
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) candidates.push(text.slice(start, end + 1));
   for (const candidate of new Set(candidates)) {
     try {
       return JSON.parse(candidate);
     } catch {
-      // Try the next safe extraction strategy before requesting a model repair.
+      // Try the next bounded extraction form.
     }
   }
-  throw new ProviderError("モデルの出力をJSONとして解釈できません", "invalid_json", text);
+  throw new LlmProviderError("モデル応答をJSONとして解釈できません", "LLM_SCHEMA_INVALID", false);
 }
 
-function responseText(payload: Record<string, unknown>): string {
-  if (typeof payload.output_text === "string") return payload.output_text;
-  if (Array.isArray(payload.choices)) {
-    for (const choice of payload.choices) {
-      if (!choice || typeof choice !== "object") continue;
-      const message = (choice as { message?: unknown }).message;
-      if (!message || typeof message !== "object") continue;
-      const content = (message as { content?: unknown }).content;
-      if (typeof content === "string") return content;
-    }
-  }
-  if (Array.isArray(payload.output)) {
-    for (const item of payload.output) {
-      if (!item || typeof item !== "object") continue;
-      const content = (item as { content?: unknown }).content;
-      if (!Array.isArray(content)) continue;
-      for (const part of content) {
-        if (part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string") {
-          return (part as { text: string }).text;
-        }
-      }
-    }
-  }
-  throw new ProviderError("モデル応答にテキストがありません", "empty_response");
+function token(usage: Record<string, unknown> | undefined, ...keys: string[]): number | undefined {
+  for (const key of keys) if (typeof usage?.[key] === "number") return usage[key];
+  return undefined;
 }
 
-function safeSchemaName(task: string): string {
-  return task.replace(/[^a-zA-Z0-9_-]/gu, "_").slice(0, 64);
-}
-
-function workersAiOptions(task: StructuredRequest<unknown>["task"]) {
-  if (task === "character-generation") return { maxTokens: 4_000, temperature: 0.75, timeoutMs: 120_000 };
-  if (task === "character-recommendation") return { maxTokens: 3_000, temperature: 0.6, timeoutMs: 90_000 };
-  return { maxTokens: 2_000, temperature: 0.2, timeoutMs: 60_000 };
-}
-
-export class OpenAiResponsesProvider implements RawStructuredLlmProvider {
-  readonly id = "openai";
-  readonly model: string;
-
-  constructor(private readonly env: Env) {
-    this.model = env.OPENAI_MODEL;
-  }
-
-  isAvailable(): boolean {
-    return Boolean(this.env.OPENAI_API_KEY) && !preferLocalDevelopment(this.env);
-  }
-
-  async generateObject<T>(request: ProviderObjectRequest): Promise<ModelArtifact<T>> {
-    const result = await this.generateRaw({ ...request, jsonSchema: request.schema });
-    return {
-      value: result.value as T,
-      provider: this.id,
-      model: this.model,
-      usage: result.usage,
-      latencyMs: result.latencyMs,
-    };
-  }
-
-  async generateRaw(request: Omit<StructuredRequest<unknown>, "schema" | "localFactory">) {
-    if (!this.env.OPENAI_API_KEY) throw new ProviderError("OpenAI API key is not configured", "provider_unavailable");
-    const startedAt = Date.now();
-    const baseUrl = (this.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/u, "");
-    const response = await fetch(`${baseUrl}/responses`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-        "cf-aig-collect-log-payload": "false",
-        "cf-aig-skip-cache": "true",
-        "cf-aig-request-timeout": "60000",
-      },
-      body: JSON.stringify({
-        model: request.model || this.model,
-        input: request.messages,
-        store: false,
-        reasoning: { effort: request.task === "character-generation" ? "medium" : "low" },
-        text: {
-          format: {
-            type: "json_schema",
-            name: safeSchemaName(request.task),
-            strict: true,
-            schema: request.jsonSchema,
-          },
-        },
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
-    const payload = (await response.json()) as Record<string, unknown>;
-    if (!response.ok) {
-      const apiError =
-        payload.error && typeof payload.error === "object" ? (payload.error as Record<string, unknown>) : undefined;
-      throw new ProviderError(
-        typeof apiError?.message === "string" ? apiError.message : `OpenAI returned ${response.status}`,
-        `openai_${response.status}`,
-      );
-    }
-    const text = responseText(payload);
-    const usage = (payload.usage ?? {}) as Record<string, unknown>;
-    return {
-      value: extractJson(text),
-      rawText: text,
-      usage: {
-        inputTokens: typeof usage.input_tokens === "number" ? usage.input_tokens : undefined,
-        outputTokens: typeof usage.output_tokens === "number" ? usage.output_tokens : undefined,
-      },
-      latencyMs: Date.now() - startedAt,
-    };
-  }
-}
-
-export class WorkersAiProvider implements RawStructuredLlmProvider {
-  readonly id = "workers-ai";
-  readonly model: string;
-
-  constructor(private readonly env: Env) {
-    this.model = env.WORKERS_AI_MODEL;
-  }
-
-  isAvailable(): boolean {
-    return Boolean(this.env.AI) && !preferLocalDevelopment(this.env);
-  }
-
-  async generateObject<T>(request: ProviderObjectRequest): Promise<ModelArtifact<T>> {
-    const result = await this.generateRaw({ ...request, jsonSchema: request.schema });
-    return {
-      value: result.value as T,
-      provider: this.id,
-      model: this.model,
-      usage: result.usage,
-      latencyMs: result.latencyMs,
-    };
-  }
-
-  async generateRaw(request: Omit<StructuredRequest<unknown>, "schema" | "localFactory">) {
-    if (!this.env.AI) throw new ProviderError("Workers AI binding is not configured", "provider_unavailable");
-    const startedAt = Date.now();
-    const options = workersAiOptions(request.task);
-    const payload = await withTimeout(
-      this.env.AI.run(request.model || this.model, {
-        messages: request.messages,
-        max_tokens: options.maxTokens,
-        temperature: options.temperature,
-        response_format: {
-          type: "json_schema",
-          json_schema: request.jsonSchema,
-        },
-      }),
-      options.timeoutMs,
-      "Workers AI",
-    );
-    const object = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-    let raw: unknown = object.response ?? object.result;
-    if (raw === undefined) {
-      try {
-        raw = responseText(object);
-      } catch {
-        raw = payload;
-      }
-    }
-    const text = typeof raw === "string" ? raw : JSON.stringify(raw);
-    const usageObject = (object.usage ?? {}) as Record<string, unknown>;
-    return {
-      value: typeof raw === "object" ? raw : extractJson(text),
-      rawText: text,
-      usage: {
-        inputTokens: typeof usageObject.prompt_tokens === "number" ? usageObject.prompt_tokens : undefined,
-        outputTokens: typeof usageObject.completion_tokens === "number" ? usageObject.completion_tokens : undefined,
-      },
-      latencyMs: Date.now() - startedAt,
-    };
-  }
-}
-
-export class ProviderRouter {
-  private readonly providers: RawStructuredLlmProvider[];
-
-  constructor(private readonly env: Env) {
-    const openAi = new OpenAiResponsesProvider(env);
-    const workersAi = new WorkersAiProvider(env);
-    this.providers = env.ENVIRONMENT === "development" ? [workersAi, openAi] : [openAi, workersAi];
-  }
-
-  async generateObject<T>(request: StructuredRequest<T>): Promise<ModelArtifact<T>> {
-    const errors: string[] = [];
-    for (const provider of this.providers) {
-      if (!provider.isAvailable()) {
-        errors.push(`${provider.id}:unavailable`);
-        continue;
-      }
-      let messages = request.messages;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          const raw = await provider.generateRaw({
-            task: request.task,
-            messages,
-            jsonSchema: request.jsonSchema,
-            model: provider.model,
-            promptVersion: request.promptVersion,
-          });
-          const parsed = request.schema.safeParse(raw.value);
-          if (!parsed.success) {
-            console.warn(
-              JSON.stringify({
-                event: "llm_schema_validation_failed",
-                task: request.task,
-                provider: provider.id,
-                model: provider.model,
-                attempt: attempt + 1,
-                issues: parsed.error.issues.slice(0, 12).map((issue) => ({
-                  path: issue.path.join("."),
-                  code: issue.code,
-                  message: issue.message,
-                })),
-              }),
-            );
-            if (attempt === 0) {
-              messages = repairMessages(request.messages, raw.rawText, parsed.error.issues);
-              continue;
-            }
-            throw new ProviderError("構造化出力がスキーマを満たしません", "schema_validation", raw.rawText);
-          }
-          return {
-            value: parsed.data,
-            provider: provider.id,
-            model: provider.model,
-            usage: raw.usage,
-            latencyMs: raw.latencyMs,
-            fallbackFrom: errors.length ? [...errors] : undefined,
-          };
-        } catch (error) {
-          const code = error instanceof ProviderError ? error.code : "request_failed";
-          errors.push(`${provider.id}:${code}`);
-          console.warn(
-            JSON.stringify({
-              event: "llm_provider_attempt_failed",
-              task: request.task,
-              provider: provider.id,
-              model: provider.model,
-              attempt: attempt + 1,
-              code,
-              error: error instanceof Error ? error.name : "unknown",
-              message: error instanceof Error ? error.message.slice(0, 500) : undefined,
-            }),
-          );
-          if (attempt === 0 && error instanceof ProviderError && error.code === "invalid_json") {
-            messages = repairMessages(request.messages, error.rawText, [{ path: [], message: error.message }]);
-            continue;
-          }
-          if (attempt === 0 && error instanceof ProviderError && error.code === "schema_validation") continue;
-          break;
-        }
-      }
-    }
-
-    if (this.env.ALLOW_LOCAL_AI_FALLBACK === "true" && request.localFactory) {
-      console.warn(
-        JSON.stringify({
-          event: "llm_local_fallback",
-          task: request.task,
-          providers: errors,
-        }),
-      );
-      const startedAt = Date.now();
-      const value = await request.localFactory();
-      const parsed = request.schema.parse(value);
-      return {
-        value: parsed,
-        provider: "local-deterministic",
-        model: "local-v1",
-        usage: {},
-        latencyMs: Date.now() - startedAt,
-        fallbackFrom: errors,
-      };
-    }
-    throw new ProviderError(`利用可能なLLMがありません (${errors.join(", ")})`, "all_providers_failed");
-  }
-}
-
-function repairMessages(
-  original: CanonicalMessage[],
-  invalidOutput: string,
-  issues: Array<{ path: PropertyKey[]; message: string }>,
-): CanonicalMessage[] {
-  const issueText = issues
-    .slice(0, 12)
-    .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-    .join("\n");
+function repairMessages(messages: LlmMessage[], invalid: string, issues: string): LlmMessage[] {
   return [
-    ...original,
-    { role: "assistant", content: invalidOutput.slice(0, 8_000) },
+    ...messages,
+    { role: "assistant", content: invalid.slice(0, 8_000) },
     {
       role: "user",
-      content: `直前のJSONは次の検証エラーを含みます。事実を追加せず、同じ根拠だけを使ってJSONを修正してください。\n${issueText}`,
+      content: `直前のJSONだけを次の検証エラーに合わせて修正してください。事実を追加しないでください。\n${issues.slice(0, 3_000)}`,
     },
   ];
 }
 
-export class WorkersEmbeddingProvider implements EmbeddingProvider {
-  readonly id = "workers-ai";
-  readonly model: string;
-  readonly dimensions = 1_024;
+abstract class RemoteProvider implements LlmProvider {
+  abstract readonly providerId: LlmProviderId;
+  abstract invoke<T>(
+    request: StructuredLlmRequest<T>,
+    messages: LlmMessage[],
+  ): Promise<{ text: string; metadata: LlmRunMetadata }>;
 
-  constructor(private readonly env: Env) {
-    this.model = env.EMBEDDING_MODEL;
-  }
-
-  async embed(texts: string[]): Promise<{ vectors: number[][]; latencyMs: number }> {
-    const startedAt = Date.now();
-    if (!this.env.AI || preferLocalDevelopment(this.env)) {
-      if (this.env.ALLOW_LOCAL_AI_FALLBACK !== "true")
-        throw new ProviderError("Embedding provider is unavailable", "provider_unavailable");
-      return {
-        vectors: texts.map((text) => deterministicEmbedding(text, this.dimensions)),
-        latencyMs: Date.now() - startedAt,
-      };
+  async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
+    let messages = request.messages;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await this.invoke(request, messages);
+      const raw = parseJson(response.text);
+      const parsed = request.schema.safeParse(raw);
+      if (parsed.success) return { value: parsed.data, metadata: response.metadata };
+      if (attempt === 1)
+        throw new LlmProviderError(
+          "構造化出力が契約を満たしません",
+          "LLM_SCHEMA_INVALID",
+          false,
+          parsed.error.issues
+            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+            .join("; ")
+            .slice(0, 1_000),
+        );
+      messages = repairMessages(
+        messages,
+        response.text,
+        parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n"),
+      );
     }
-    const payload = await withTimeout(this.env.AI.run(this.model, { text: texts }), 60_000, "Workers AI embedding");
-    const object = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-    const data: unknown = Array.isArray(object.data)
-      ? object.data
-      : object.result &&
-          typeof object.result === "object" &&
-          Array.isArray((object.result as Record<string, unknown>).data)
-        ? (object.result as Record<string, unknown>).data
-        : undefined;
-    if (!Array.isArray(data) || !data.every((vector: unknown) => Array.isArray(vector)))
-      throw new ProviderError("Embedding response is invalid", "invalid_embedding");
-    return { vectors: data as number[][], latencyMs: Date.now() - startedAt };
+    throw new LlmProviderError("構造化出力に失敗しました", "LLM_SCHEMA_INVALID", false);
   }
 }
 
-function deterministicEmbedding(text: string, dimensions: number): number[] {
-  const vector = Array.from({ length: dimensions }, () => 0);
-  const normalized = text.normalize("NFKC").toLocaleLowerCase("ja-JP");
-  const grams = Array.from(normalized).flatMap((_, index, chars) => [
-    chars.slice(index, index + 2).join(""),
-    chars[index],
-  ]);
-  for (const gram of grams) {
-    let hash = 2_166_136_261;
-    for (const character of gram) {
-      hash ^= character.codePointAt(0) ?? 0;
-      hash = Math.imul(hash, 16_777_619);
-    }
-    vector[Math.abs(hash) % dimensions] += hash % 2 === 0 ? 1 : -1;
+class WorkersAiLlmProvider extends RemoteProvider {
+  readonly providerId = "workers_ai" as const;
+  constructor(
+    private readonly env: Env,
+    private readonly model: string,
+  ) {
+    super();
   }
-  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
-  return vector.map((value) => value / norm);
+
+  async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[]) {
+    if (!this.env.AI)
+      throw new LlmProviderError("Workers AI bindingがありません", "EXTERNAL_PROVIDER_UNAVAILABLE", true);
+    const started = Date.now();
+    let payload: unknown;
+    try {
+      payload = await this.env.AI.run(this.model, {
+        messages,
+        max_tokens: request.maxOutputTokens,
+        temperature: request.temperature,
+        response_format: { type: "json_schema", json_schema: request.jsonSchema },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Workers AI request failed";
+      const capacity = /429|quota|limit|capacity|daily/iu.test(message);
+      throw new LlmProviderError(
+        "解析Providerを利用できません",
+        capacity ? "PROVIDER_CAPACITY_EXHAUSTED" : "EXTERNAL_PROVIDER_UNAVAILABLE",
+        true,
+        message.slice(0, 500),
+      );
+    }
+    const normalized = extractText(payload);
+    return {
+      text: normalized.text,
+      metadata: {
+        provider: this.providerId,
+        transport: "binding" as const,
+        adapterVersion: ADAPTER_VERSION,
+        requestedModel: this.model,
+        resolvedModel: this.model,
+        inputTokens: token(normalized.usage, "prompt_tokens", "input_tokens"),
+        outputTokens: token(normalized.usage, "completion_tokens", "output_tokens"),
+        latencyMs: Date.now() - started,
+        finishReason: normalized.finishReason,
+        dataRetentionMode: "unknown" as const,
+      },
+    };
+  }
 }
 
-export type { JsonSchema, ModelUsage };
+class OpenAiLlmProvider extends RemoteProvider {
+  readonly providerId = "openai" as const;
+  constructor(
+    private readonly env: Env,
+    private readonly model: string,
+  ) {
+    super();
+  }
+
+  private endpoint(): string {
+    if (this.env.OPENAI_TRANSPORT !== "ai_gateway") return "https://api.openai.com/v1/responses";
+    if (!this.env.AI_GATEWAY_ACCOUNT_ID || !this.env.AI_GATEWAY_GATEWAY_ID)
+      throw new LlmProviderError("AI Gatewayの設定が足りません", "PROVIDER_CONFIGURATION_INVALID", false);
+    return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID)}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID)}/openai/v1/responses`;
+  }
+
+  async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[]) {
+    if (!this.env.OPENAI_API_KEY)
+      throw new LlmProviderError("OpenAI API keyがありません", "EXTERNAL_PROVIDER_UNAVAILABLE", false);
+    const started = Date.now();
+    let response: Response;
+    try {
+      response = await fetch(this.endpoint(), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": request.idempotencyKey,
+          "cf-aig-collect-log-payload": "false",
+          "cf-aig-skip-cache": "true",
+        },
+        body: JSON.stringify({
+          model: this.model,
+          input: messages,
+          store: false,
+          max_output_tokens: request.maxOutputTokens,
+          temperature: request.temperature,
+          text: {
+            format: {
+              type: "json_schema",
+              name: request.schemaName.replace(/[^a-z0-9_-]/giu, "_").slice(0, 64),
+              strict: true,
+              schema: request.jsonSchema,
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (error) {
+      throw new LlmProviderError(
+        "OpenAIへ接続できません",
+        "EXTERNAL_PROVIDER_UNAVAILABLE",
+        true,
+        error instanceof Error ? error.message.slice(0, 500) : undefined,
+      );
+    }
+    const payload = await response.json<unknown>().catch(() => ({}));
+    if (!response.ok) {
+      const capacity = response.status === 429;
+      throw new LlmProviderError(
+        "OpenAIがリクエストを処理できません",
+        capacity
+          ? "PROVIDER_CAPACITY_EXHAUSTED"
+          : response.status >= 500
+            ? "EXTERNAL_PROVIDER_UNAVAILABLE"
+            : "EXTERNAL_PROVIDER_REJECTED",
+        capacity || response.status >= 500,
+        `HTTP ${response.status}`,
+      );
+    }
+    const normalized = extractText(payload);
+    return {
+      text: normalized.text,
+      metadata: {
+        provider: this.providerId,
+        transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? ("ai_gateway" as const) : ("direct" as const),
+        adapterVersion: ADAPTER_VERSION,
+        requestedModel: this.model,
+        resolvedModel: this.model,
+        providerRequestId: normalized.requestId,
+        inputTokens: token(normalized.usage, "input_tokens"),
+        outputTokens: token(normalized.usage, "output_tokens"),
+        latencyMs: Date.now() - started,
+        finishReason: normalized.finishReason,
+        dataRetentionMode: "no_retention" as const,
+      },
+    };
+  }
+}
+
+class DeterministicProvider implements LlmProvider {
+  constructor(readonly providerId: "replay" | "fake") {}
+  async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
+    const started = Date.now();
+    const value = request.schema.parse(await request.fakeFactory());
+    return {
+      value,
+      metadata: {
+        provider: this.providerId,
+        transport: this.providerId,
+        adapterVersion: ADAPTER_VERSION,
+        requestedModel: `${this.providerId}-v1`,
+        resolvedModel: `${this.providerId}-v1`,
+        latencyMs: Date.now() - started,
+        finishReason: "stop",
+        dataRetentionMode: "no_retention",
+      },
+    };
+  }
+}
+
+function provider(env: Env, id: LlmProviderId, model: string): LlmProvider {
+  if (id === "workers_ai") return new WorkersAiLlmProvider(env, model);
+  if (id === "openai") return new OpenAiLlmProvider(env, model);
+  return new DeterministicProvider(id);
+}
+
+class LlmProviderRouter implements LlmProvider {
+  readonly providerId: LlmProviderId;
+  private readonly primary: LlmProvider;
+  private readonly fallback?: LlmProvider;
+  constructor(env: Env) {
+    this.providerId = env.LLM_PROVIDER;
+    this.primary = provider(env, env.LLM_PROVIDER, env.LLM_MODEL);
+    if (env.LLM_FALLBACK_PROVIDER && env.LLM_FALLBACK_PROVIDER !== env.LLM_PROVIDER && env.LLM_FALLBACK_MODEL) {
+      this.fallback = provider(env, env.LLM_FALLBACK_PROVIDER, env.LLM_FALLBACK_MODEL);
+    }
+  }
+  async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
+    try {
+      return await this.primary.generateStructured(request);
+    } catch (error) {
+      if (!(error instanceof LlmProviderError) || !error.retryable || !this.fallback) throw error;
+      const result = await this.fallback.generateStructured(request);
+      return { ...result, fallbackFrom: `${this.primary.providerId}:${error.code}` };
+    }
+  }
+}
+
+export function createLlmProvider(env: Env): LlmProvider {
+  return new LlmProviderRouter(env);
+}

@@ -16,7 +16,7 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
     await page.getByRole("button", { name: new RegExp(username, "u") }).click();
     await page.getByLabel("アクセスキー").fill(accessKey);
     await page.getByRole("button", { name: "ラボに入る" }).click();
-    await expect(page.getByRole("heading", { name: "分析プロフィール" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "嗜好解析結果" })).toBeVisible();
   }
 
   await login();

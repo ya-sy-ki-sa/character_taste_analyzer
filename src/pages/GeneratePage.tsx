@@ -1,91 +1,101 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
-import type { GeneratedCharacter, TasteProfile } from "../../shared/schemas";
-import { traitById } from "../../shared/taxonomy";
+import type { GeneratedCharacterCandidate, GenerationRequestInput } from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
-import { Card, EmptyState, Modal, Notice, PageHeading, Rating, Spinner } from "../components/Ui";
+import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 
-type Generation = {
-  id: string;
-  profileSnapshotId: string;
-  mode: "faithful" | "balanced" | "surprising";
-  requestNote: string | null;
-  result: GeneratedCharacter | null;
-  similarityScore: number | null;
-  similarityWarning: string | null;
-  status: "queued" | "succeeded" | "failed";
+type SnapshotItem = { id: string; type: string; stableKey: string; label: string; payload: Record<string, unknown> };
+type SnapshotResponse = { snapshot: { id: string; generation: number } | null; items: SnapshotItem[] };
+type GenerationRow = {
+  id: string | null;
+  generationRequestId: string;
+  status: string;
+  mode: GenerationRequestInput["mode"];
   createdAt: string;
+  character: GeneratedCharacterCandidate | null;
+  job: { status: string | null; errorCode: string | null };
 };
 
-type Job = { id: string; status: string; progress: number; errorCode?: string };
-
-const modes = [
-  {
-    id: "faithful" as const,
-    symbol: "◎",
-    title: "忠実",
-    ratio: "既知の好み 100%",
-    description: "確度の高い属性を中心に、安定した案を作ります。",
-  },
-  {
-    id: "balanced" as const,
-    symbol: "◐",
-    title: "バランス",
-    ratio: "既知 80% / 探索 20%",
-    description: "好みの核を守りながら、新しい要素を少し試します。",
-  },
-  {
-    id: "surprising" as const,
-    symbol: "✦",
-    title: "意外性",
-    ratio: "既知 50% / 探索 50%",
-    description: "好みから離れすぎない範囲で、予想外の案を探します。",
-  },
+const modes: Array<{ id: GenerationRequestInput["mode"]; symbol: string; title: string; description: string }> = [
+  { id: "faithful", symbol: "◎", title: "忠実", description: "選択項目を必須条件として強く反映します。" },
+  { id: "balanced", symbol: "◐", title: "バランス", description: "選択した核を保ち、少数の新しい要素を加えます。" },
+  { id: "exploratory", symbol: "✦", title: "探索", description: "禁止条件を守りつつ、意外な組合せを探します。" },
 ];
 
 export function GeneratePage() {
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<Generation["mode"]>("balanced");
-  const [requestNote, setRequestNote] = useState("");
-  const [jobId, setJobId] = useState<string>();
-  const [detailId, setDetailId] = useState<string>();
+  const [mode, setMode] = useState<GenerationRequestInput["mode"]>("balanced");
+  const [purpose, setPurpose] = useState("物語に登場する一人のキャラクターを作る");
+  const [world, setWorld] = useState("");
+  const [genre, setGenre] = useState("");
+  const [role, setRole] = useState("");
+  const [tone, setTone] = useState("");
+  const [instruction, setInstruction] = useState("");
+  const [redemption, setRedemption] = useState<GenerationRequestInput["redemption"]>("not_required");
+  const [hiddenGoodness, setHiddenGoodness] = useState<GenerationRequestInput["hiddenGoodness"]>("not_required");
+  const [treatments, setTreatments] = useState<Record<string, "include" | "prohibit" | "omit">>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
-  const profile = useQuery({
-    queryKey: ["profile"],
-    queryFn: () => api<{ profile: TasteProfile | null }>("/api/v1/profile"),
+  const [detail, setDetail] = useState<GenerationRow>();
+  const snapshot = useQuery({
+    queryKey: ["profile-snapshot-items"],
+    queryFn: () => api<SnapshotResponse>("/api/v1/profile/snapshot-items"),
   });
   const generations = useQuery({
-    queryKey: ["generations"],
-    queryFn: () => api<{ generations: Generation[] }>("/api/v1/generations"),
-  });
-  const job = useQuery({
-    queryKey: ["job", jobId],
-    queryFn: () => api<{ job: Job }>(`/api/v1/jobs/${jobId}`),
-    enabled: Boolean(jobId),
+    queryKey: ["generated-characters"],
+    queryFn: () => api<{ generations: GenerationRow[] }>("/api/v1/generated-characters"),
     refetchInterval: (query) =>
-      query.state.data && ["succeeded", "failed"].includes(query.state.data.job.status) ? false : 1_500,
+      query.state.data?.generations.some((item) => ["draft", "brief_ready", "generating"].includes(item.status))
+        ? 2_000
+        : false,
   });
 
   useEffect(() => {
-    if (!job.data || !["succeeded", "failed"].includes(job.data.job.status)) return;
-    queryClient.invalidateQueries({ queryKey: ["generations"] });
-    queryClient.invalidateQueries({ queryKey: ["profile"] });
-  }, [job.data, queryClient]);
+    const items = snapshot.data?.items;
+    if (!items || Object.keys(treatments).length) return;
+    setTreatments(
+      Object.fromEntries(
+        items.map((item, index) => [
+          item.id,
+          index < 8 && item.type !== "negative_preference"
+            ? "include"
+            : item.type === "negative_preference"
+              ? "prohibit"
+              : "omit",
+        ]),
+      ),
+    );
+  }, [snapshot.data, treatments]);
 
-  async function generate(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(undefined);
+    const selectedItemIds = Object.entries(treatments)
+      .filter(([, value]) => value === "include")
+      .map(([id]) => id);
+    const prohibitedItemIds = Object.entries(treatments)
+      .filter(([, value]) => value === "prohibit")
+      .map(([id]) => id);
     try {
-      const result = await api<{ generationId: string; job: Job }>("/api/v1/generations", {
+      await api("/api/v1/generation-requests", {
         method: "POST",
         idempotencyKey: idempotencyKey(),
-        body: JSON.stringify({ mode, requestNote: requestNote || undefined }),
+        body: JSON.stringify({
+          mode,
+          purpose,
+          world: world || undefined,
+          genre: genre || undefined,
+          role: role || undefined,
+          tone: tone || undefined,
+          freeInstruction: instruction || undefined,
+          selectedItemIds,
+          prohibitedItemIds,
+          redemption,
+          hiddenGoodness,
+        }),
       });
-      setJobId(result.job.id);
-      setDetailId(result.generationId);
-      await queryClient.invalidateQueries({ queryKey: ["generations"] });
+      await queryClient.invalidateQueries({ queryKey: ["generated-characters"] });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "生成を開始できませんでした");
     } finally {
@@ -93,338 +103,291 @@ export function GeneratePage() {
     }
   }
 
-  const ready = Boolean(profile.data?.profile?.entryCount);
+  const selectedCount = Object.values(treatments).filter((item) => item === "include").length;
   return (
     <>
       <PageHeading
-        eyebrow="CHARACTER GENERATOR"
-        title="キャラ生成"
-        description="分析済みの傾向から、特定作品を模倣しないオリジナルキャラクターを作ります。"
+        eyebrow="ORIGINAL CHARACTER STUDIO"
+        title="オリジナルキャラクター作成"
+        description="固定した嗜好スナップショットから、使う項目と避ける項目を自分で選んで作成します。"
       />
-      {!ready && !profile.isPending && (
-        <Notice tone="warning">キャラクターを1件分析すると、生成できるようになります。</Notice>
-      )}
-      {profile.data?.profile?.provisional && ready && (
-        <Notice tone="warning">
-          登録が3件未満のため、暫定的な好みから生成します。探索要素として楽しんでください。
-        </Notice>
-      )}
+      <Notice tone="info">
+        悪や非道徳、善への無関心、無改心を指定しても、実は善人・悲劇的弁明・贖罪・処罰を自動では追加しません。
+      </Notice>
       {error && <Notice tone="danger">{error}</Notice>}
-      {job.data && <GenerationJob job={job.data.job} />}
-
-      <form onSubmit={generate}>
-        <section className="generation-config">
+      {snapshot.isPending && <Spinner label="生成に使う嗜好を準備しています" />}
+      {!snapshot.isPending && !snapshot.data?.snapshot && (
+        <Card>
+          <EmptyState icon="✦" title="先に嗜好解析を確定してください">
+            確認済みの嗜好プロフィールが1世代以上必要です。
+          </EmptyState>
+        </Card>
+      )}
+      {snapshot.data?.snapshot && (
+        <form onSubmit={submit} className="generation-config">
+          <div className="section-title">
+            <div>
+              <p className="eyebrow">PROFILE SNAPSHOT</p>
+              <h2>使う嗜好を選ぶ</h2>
+            </div>
+            <small>プロフィール世代 {snapshot.data.snapshot.generation} に固定</small>
+          </div>
+          <Card className="selection-table">
+            <div className="selection-head">
+              <span>嗜好項目</span>
+              <span>扱い</span>
+            </div>
+            {snapshot.data.items.map((item) => (
+              <div className="selection-row" key={item.id}>
+                <span>
+                  <strong>{item.label}</strong>
+                  <small>
+                    {item.type} / {item.stableKey}
+                  </small>
+                </span>
+                <select
+                  value={treatments[item.id] ?? "omit"}
+                  onChange={(event) =>
+                    setTreatments((current) => ({
+                      ...current,
+                      [item.id]: event.target.value as "include" | "prohibit" | "omit",
+                    }))
+                  }
+                >
+                  <option value="include">使う</option>
+                  <option value="prohibit">入れない</option>
+                  <option value="omit">今回は使わない</option>
+                </select>
+              </div>
+            ))}
+          </Card>
           <div className="section-title">
             <div>
               <p className="eyebrow">GENERATION MODE</p>
-              <h2>どのくらい冒険しますか？</h2>
+              <h2>生成モード</h2>
             </div>
           </div>
           <div className="mode-grid">
             {modes.map((item) => (
               <button
                 type="button"
-                key={item.id}
                 className={`mode-card ${mode === item.id ? "active" : ""}`}
                 onClick={() => setMode(item.id)}
+                key={item.id}
               >
                 <span className="mode-symbol">{item.symbol}</span>
                 <span>
                   <strong>{item.title}</strong>
-                  <b>{item.ratio}</b>
                   <small>{item.description}</small>
                 </span>
               </button>
             ))}
           </div>
-          <Card className="generation-note">
-            <label>
-              <span>今回の追加リクエスト（任意）</span>
-              <textarea
-                value={requestNote}
-                onChange={(event) => setRequestNote(event.target.value)}
-                maxLength={1_000}
-                rows={3}
-                placeholder="例：現代のミステリー作品に登場できる設定。戦闘能力は不要。"
-              />
-              <small>{requestNote.length} / 1,000文字</small>
-            </label>
+          <Card className="generation-form-card">
+            <div className="form-grid">
+              <label className="full">
+                <span>
+                  作成目的 <b>必須</b>
+                </span>
+                <textarea
+                  required
+                  maxLength={2000}
+                  rows={2}
+                  value={purpose}
+                  onChange={(event) => setPurpose(event.target.value)}
+                />
+              </label>
+              <label className="full">
+                <span>世界観</span>
+                <textarea maxLength={4000} rows={3} value={world} onChange={(event) => setWorld(event.target.value)} />
+              </label>
+              <label>
+                <span>ジャンル</span>
+                <input maxLength={200} value={genre} onChange={(event) => setGenre(event.target.value)} />
+              </label>
+              <label>
+                <span>物語上の役割</span>
+                <input
+                  maxLength={2000}
+                  value={role}
+                  onChange={(event) => setRole(event.target.value)}
+                  placeholder="ヴィラン、端役、一場面限定も指定可能"
+                />
+              </label>
+              <label>
+                <span>改心・贖罪</span>
+                <select
+                  value={redemption}
+                  onChange={(event) => setRedemption(event.target.value as GenerationRequestInput["redemption"])}
+                >
+                  <option value="not_required">必要ない</option>
+                  <option value="prohibited">入れない</option>
+                  <option value="allowed">入ってもよい</option>
+                  <option value="required">必須</option>
+                </select>
+              </label>
+              <label>
+                <span>隠れた善性</span>
+                <select
+                  value={hiddenGoodness}
+                  onChange={(event) =>
+                    setHiddenGoodness(event.target.value as GenerationRequestInput["hiddenGoodness"])
+                  }
+                >
+                  <option value="not_required">必要ない</option>
+                  <option value="prohibited">入れない</option>
+                  <option value="allowed">入ってもよい</option>
+                  <option value="required">必須</option>
+                </select>
+              </label>
+              <label>
+                <span>表現トーン</span>
+                <input maxLength={1000} value={tone} onChange={(event) => setTone(event.target.value)} />
+              </label>
+              <label className="full">
+                <span>自由指示</span>
+                <textarea
+                  maxLength={4000}
+                  rows={3}
+                  value={instruction}
+                  onChange={(event) => setInstruction(event.target.value)}
+                />
+              </label>
+            </div>
             <button
               type="submit"
               className="button button-primary button-generate"
-              disabled={
-                !ready || submitting || Boolean(job.data && !["succeeded", "failed"].includes(job.data.job.status))
-              }
+              disabled={submitting || selectedCount === 0}
             >
-              {submitting ? "準備中…" : "✦ キャラクターを生成"}
+              {submitting ? "生成条件を保存中…" : `✦ 選択した${selectedCount}項目から作成`}
             </button>
           </Card>
-        </section>
-      </form>
-
+        </form>
+      )}
       <section className="section-block">
         <div className="section-title">
           <div>
             <p className="eyebrow">GENERATED ARCHIVE</p>
-            <h2>生成したキャラクター</h2>
+            <h2>作成履歴</h2>
           </div>
-          <small>使用したプロフィール版へ固定</small>
+          <small>生成だけでは嗜好プロフィールを変更しません</small>
         </div>
         {generations.isPending && <Spinner />}
         {generations.data?.generations.length === 0 && (
           <Card>
-            <EmptyState icon="✦" title="まだ生成履歴はありません">
-              モードを選び、最初のキャラクターを生成してみましょう。
+            <EmptyState icon="✦" title="まだ作成履歴がありません">
+              嗜好項目とモードを選び、最初のキャラクターを作成できます。
             </EmptyState>
           </Card>
         )}
         <div className="generation-grid">
-          {generations.data?.generations.map((generation) => (
+          {generations.data?.generations.map((item) => (
             <button
               type="button"
               className="generation-card"
-              key={generation.id}
-              onClick={() => setDetailId(generation.id)}
+              key={item.generationRequestId}
+              onClick={() => item.character && setDetail(item)}
+              disabled={!item.character}
             >
-              <span className={`generation-mode mode-${generation.mode}`}>
-                {modes.find((item) => item.id === generation.mode)?.title}
+              <span className={`generation-mode mode-${item.mode}`}>
+                {modes.find((mode) => mode.id === item.mode)?.title}
               </span>
-              {generation.status === "succeeded" && generation.result ? (
+              {item.character ? (
                 <>
-                  <h3>{generation.result.name}</h3>
-                  <p>{generation.result.concept}</p>
+                  <h3>{item.character.identity.name}</h3>
+                  <p>{item.character.identity.oneLineConcept}</p>
                   <footer>
-                    <span>{new Date(generation.createdAt).toLocaleDateString("ja-JP")}</span>
+                    <span>{new Date(item.createdAt).toLocaleDateString("ja-JP")}</span>
                     <b>設定を見る →</b>
                   </footer>
                 </>
               ) : (
                 <>
-                  <h3>{generation.status === "failed" ? "生成に失敗しました" : "生成中…"}</h3>
-                  <p>
-                    {generation.status === "failed"
-                      ? "入力は消費されていません。時間を置いて再度お試しください。"
-                      : "プロフィールから設計案を組み立てています。"}
-                  </p>
+                  <h3>{item.status === "failed" ? "生成に失敗" : "生成中…"}</h3>
+                  <p>{item.job.errorCode ?? "生成条件と構造化設定を処理しています。"}</p>
                 </>
               )}
             </button>
           ))}
         </div>
       </section>
-      {detailId && (
-        <GenerationDetail
-          generationId={detailId}
-          onClose={() => setDetailId(undefined)}
-          onFeedback={() => {
-            queryClient.invalidateQueries({ queryKey: ["profile"] });
-            queryClient.invalidateQueries({ queryKey: ["generation", detailId] });
-          }}
-        />
-      )}
+      {detail?.character && <CharacterModal character={detail.character} onClose={() => setDetail(undefined)} />}
     </>
   );
 }
 
-function GenerationJob({ job }: { job: Job }) {
-  if (job.status === "succeeded")
-    return <Notice tone="success">キャラクターを生成しました。フィードバックは任意です。</Notice>;
-  if (job.status === "failed")
-    return <Notice tone="danger">生成に失敗しました。プロフィールと入力データは変更されていません。</Notice>;
+function CharacterModal({ character, onClose }: { character: GeneratedCharacterCandidate; onClose(): void }) {
+  const sections = [
+    ["外見", character.appearance],
+    ["性格", character.personality],
+    ["動機", character.motivations],
+    ["能力と限界", character.abilitiesAndLimits],
+  ] as const;
   return (
-    <Notice tone="info">
-      <span className="inline-progress">
-        <i style={{ width: `${job.progress}%` }} />
-      </span>
-      キャラクターを設計しています… {job.progress}%
-    </Notice>
-  );
-}
-
-function GenerationDetail({
-  generationId,
-  onClose,
-  onFeedback,
-}: {
-  generationId: string;
-  onClose(): void;
-  onFeedback(): void;
-}) {
-  const detail = useQuery({
-    queryKey: ["generation", generationId],
-    queryFn: () =>
-      api<{ generation: Generation; feedback: Record<string, unknown> | null }>(`/api/v1/generations/${generationId}`),
-    refetchInterval: (query) => (query.state.data?.generation.status === "queued" ? 1_500 : false),
-  });
-  const [rating, setRating] = useState<number>();
-  const [liked, setLiked] = useState<string[]>([]);
-  const [disliked, setDisliked] = useState<string[]>([]);
-  const [adjustments, setAdjustments] = useState<Array<{ traitId: string; direction: "stronger" | "weaker" }>>([]);
-  const [comment, setComment] = useState("");
-  const [notice, setNotice] = useState<{ tone: "success" | "danger"; message: string }>();
-  const [submitting, setSubmitting] = useState(false);
-
-  async function submitFeedback(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setNotice(undefined);
-    try {
-      await api(`/api/v1/generations/${generationId}/feedback`, {
-        method: "PUT",
-        idempotencyKey: idempotencyKey(),
-        body: JSON.stringify({
-          overallRating: rating,
-          likedTraitIds: liked.length ? liked : undefined,
-          dislikedTraitIds: disliked.length ? disliked : undefined,
-          intensityAdjustments: adjustments.length ? adjustments : undefined,
-          comment: comment || undefined,
-        }),
-      });
-      setNotice({
-        tone: "success",
-        message: "フィードバックを保存しました。分析プロフィールを再計算しています。",
-      });
-      onFeedback();
-    } catch (caught) {
-      setNotice({ tone: "danger", message: caught instanceof Error ? caught.message : "保存できませんでした" });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const generation = detail.data?.generation;
-  const character = generation?.result;
-  return (
-    <Modal title={character?.name ?? "生成キャラクター"} onClose={onClose} wide>
-      {detail.isPending && <Spinner label="生成結果を読み込んでいます" />}
-      {generation?.status === "queued" && <Spinner label="キャラクターを生成しています" />}
-      {generation?.status === "failed" && <Notice tone="danger">生成に失敗しました。</Notice>}
-      {character && (
-        <article className="character-sheet">
-          <header>
-            <span className={`generation-mode mode-${generation.mode}`}>
-              {modes.find((item) => item.id === generation.mode)?.title}
-            </span>
-            <p>{character.concept}</p>
-            {generation.similarityWarning && <Notice tone="warning">{generation.similarityWarning}</Notice>}
-          </header>
-          <div className="sheet-grid">
-            <SheetSection number="01" title="外見" text={character.appearance} />
-            <SheetSection number="02" title="性格" text={character.personality} />
-            <SheetSection number="03" title="価値観と動機" text={character.valuesAndMotivation} />
-            <SheetSection number="04" title="能力と弱点" text={character.abilitiesAndWeaknesses} />
-            <SheetSection number="05" title="背景" text={character.background} />
-            <SheetSection number="06" title="中心的な葛藤" text={character.centralConflict} />
-            <SheetSection number="07" title="関係性" text={character.relationships} />
-            <SheetSection number="08" title="話し方・仕草" text={character.voiceAndMannerisms} />
-          </div>
-          <section className="story-hooks">
-            <p className="eyebrow">STORY HOOKS</p>
-            <h3>物語の入口</h3>
-            <ol>
-              {character.storyHooks.map((hook) => (
-                <li key={hook}>{hook}</li>
-              ))}
-            </ol>
-          </section>
-          <section className="rationale">
-            <p className="eyebrow">WHY THIS DESIGN</p>
-            <h3>嗜好との対応</h3>
-            <div>
-              {character.tasteRationale.map((item) => (
-                <span key={item.traitId}>
-                  <strong>{traitById.get(item.traitId)?.label ?? item.traitId}</strong>
-                  <small>{item.reason}</small>
-                </span>
-              ))}
-            </div>
-          </section>
-          <form className="feedback-form" onSubmit={submitFeedback}>
-            <div className="feedback-heading">
+    <Modal title={character.identity.name} onClose={onClose} wide>
+      <article className="character-sheet">
+        <header>
+          <p>{character.identity.oneLineConcept}</p>
+          <small>{character.identity.origin}</small>
+        </header>
+        <div className="sheet-grid">
+          {sections.map(([title, section], index) => (
+            <section className="sheet-section" key={title}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
               <div>
-                <p className="eyebrow">OPTIONAL FEEDBACK</p>
-                <h3>このキャラ、どうでしたか？</h3>
+                <h3>{title}</h3>
+                <p>{section.summary}</p>
+                <ul>
+                  {section.traits.map((trait) => (
+                    <li key={trait.label}>
+                      <strong>{trait.label}</strong> — {trait.description}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <Rating value={rating} onChange={setRating} />
+            </section>
+          ))}
+          <section className="sheet-section">
+            <span>05</span>
+            <div>
+              <h3>価値観と道徳</h3>
+              <p>{character.valuesAndMorality.moralRelationship}</p>
+              <p>
+                <strong>改心:</strong> {character.valuesAndMorality.redemption}
+              </p>
+              <p>
+                <strong>隠れた善性:</strong> {character.valuesAndMorality.hiddenGoodness}
+              </p>
             </div>
-            <p className="muted">すべて任意です。属性を選ぶと、その項目だけが明示嗜好として反映されます。</p>
-            <div className="feedback-traits">
-              {character.tasteRationale.map((item) => {
-                const state = liked.includes(item.traitId)
-                  ? "liked"
-                  : disliked.includes(item.traitId)
-                    ? "disliked"
-                    : adjustments.find((adjustment) => adjustment.traitId === item.traitId)?.direction;
-                return (
-                  <div key={item.traitId}>
-                    <strong>{traitById.get(item.traitId)?.label ?? item.traitId}</strong>
-                    <select
-                      value={state ?? ""}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setLiked((items) =>
-                          value === "liked"
-                            ? [...items.filter((id) => id !== item.traitId), item.traitId]
-                            : items.filter((id) => id !== item.traitId),
-                        );
-                        setDisliked((items) =>
-                          value === "disliked"
-                            ? [...items.filter((id) => id !== item.traitId), item.traitId]
-                            : items.filter((id) => id !== item.traitId),
-                        );
-                        setAdjustments((items) =>
-                          ["stronger", "weaker"].includes(value)
-                            ? [
-                                ...items.filter((adjustment) => adjustment.traitId !== item.traitId),
-                                { traitId: item.traitId, direction: value as "stronger" | "weaker" },
-                              ]
-                            : items.filter((adjustment) => adjustment.traitId !== item.traitId),
-                        );
-                      }}
-                    >
-                      <option value="">未評価</option>
-                      <option value="liked">良かった</option>
-                      <option value="disliked">違った</option>
-                      <option value="stronger">もっと強く</option>
-                      <option value="weaker">もう少し弱く</option>
-                    </select>
-                  </div>
-                );
-              })}
+          </section>
+          <section className="sheet-section">
+            <span>06</span>
+            <div>
+              <h3>役割と変化</h3>
+              <p>
+                {character.narrativeRole.role} — {character.narrativeRole.function}
+              </p>
+              <p>
+                {character.characterArc.start} → {character.characterArc.end}
+              </p>
             </div>
-            <label>
-              <span>自由な感想</span>
-              <textarea
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                maxLength={2_000}
-                rows={4}
-                placeholder="好きだった部分、違和感、次に試してほしい方向など"
-              />
-            </label>
-            {notice && <Notice tone={notice.tone}>{notice.message}</Notice>}
-            <button
-              type="submit"
-              className="button button-primary"
-              disabled={submitting || (!rating && !liked.length && !disliked.length && !adjustments.length && !comment)}
-            >
-              {submitting ? "保存中…" : "フィードバックを保存"}
-            </button>
-          </form>
-        </article>
-      )}
+          </section>
+        </div>
+        <section className="rationale">
+          <p className="eyebrow">PREFERENCE BASIS</p>
+          <h3>嗜好との対応</h3>
+          <div>
+            {character.briefCoverage.map((item) => (
+              <span key={item.profileSnapshotItemId}>
+                <strong>
+                  {item.treatment} / {item.status}
+                </strong>
+                <small>{item.explanation}</small>
+              </span>
+            ))}
+          </div>
+        </section>
+      </article>
     </Modal>
-  );
-}
-
-function SheetSection({ number, title, text }: { number: string; title: string; text: string }) {
-  return (
-    <section>
-      <span>{number}</span>
-      <div>
-        <h3>{title}</h3>
-        <p>{text}</p>
-      </div>
-    </section>
   );
 }
