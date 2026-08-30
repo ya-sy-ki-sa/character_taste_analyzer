@@ -6,7 +6,7 @@ import {
   generatedCharacterCandidateSchema,
   generationValidationReportSchema,
 } from "../../shared/schemas";
-import { deriveUuid, nowIso, sha256Hex } from "../lib/crypto";
+import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first, placeholders } from "../lib/db";
 import { createLlmProvider } from "../llm/providers";
 import { LlmProviderError, type LlmRunMetadata } from "../llm/types";
@@ -34,6 +34,7 @@ type SnapshotItem = {
 };
 
 type Treatment = "required" | "include" | "explore" | "prohibit";
+type ValuePolicySetting = "required" | "allowed" | "not_required" | "prohibited";
 
 type GenerationBrief = {
   schemaVersion: "1.0";
@@ -68,8 +69,8 @@ type GenerationBrief = {
   valuePolicy: {
     allowedOrientations: string[];
     requiredStances: Array<{ target: string; stance: string }>;
-    redemption: GenerationRequestInput["redemption"];
-    hiddenGoodness: GenerationRequestInput["hiddenGoodness"];
+    redemption: ValuePolicySetting;
+    hiddenGoodness: ValuePolicySetting;
     moralJustification: "not_required";
     punishmentOrDefeat: "not_required";
   };
@@ -332,8 +333,8 @@ async function compileBrief(
           ? [{ target: payload.targetRef, stance: payload.stance }]
           : [];
       }),
-      redemption: input.redemption,
-      hiddenGoodness: input.hiddenGoodness,
+      redemption: "not_required",
+      hiddenGoodness: "not_required",
       moralJustification: "not_required",
       punishmentOrDefeat: "not_required",
     },
@@ -387,7 +388,7 @@ async function persistModelRun(
 ): Promise<string> {
   const id = crypto.randomUUID();
   await env.DB.prepare(
-    `INSERT INTO model_run_metadata (id,owner_user_id,provider,transport,adapter_version,requested_model,resolved_model,operation,prompt_version,schema_version,provider_request_id,input_hash,output_hash,input_token_estimate,output_token_estimate,latency_ms,finish_reason,data_retention_mode,root_request_id,attempt_number,prompt_hash,fallback_from_provider,fallback_error_code,effective_settings_json,ignored_parameters_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO model_run_metadata (id,owner_user_id,provider,transport,adapter_version,requested_model,resolved_model,operation,prompt_version,schema_version,provider_request_id,input_hash,output_hash,input_token_estimate,output_token_estimate,latency_ms,finish_reason,data_retention_mode,root_request_id,attempt_number,prompt_hash,fallback_from_provider,fallback_error_code,effective_settings_json,ignored_parameters_json,provider_response_diagnostics_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   )
     .bind(
       id,
@@ -415,6 +416,7 @@ async function persistModelRun(
       metadata.fallbackErrorCode ?? null,
       JSON.stringify(metadata.effectiveSettings ?? {}),
       JSON.stringify(metadata.ignoredParameters ?? []),
+      JSON.stringify(metadata.providerResponseDiagnostics ?? {}),
       nowIso(),
     )
     .run();
@@ -538,6 +540,7 @@ async function validateGeneratedCandidate(
     maxOutputTokens: 4_000,
     temperature: 0,
     idempotencyKey: `${generationRequestId}:validation:${stage}`,
+    safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${ownerUserId}`),
     fakeFactory: () => fakeValidationReport(brief, candidate),
   });
   const modelRunIds: string[] = [];
@@ -578,6 +581,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
   let claim: JobClaim | undefined;
   try {
     claim = await claimJob(env, params.jobId, params.ownerUserId, params.inputGeneration, "character-generation");
+    if (claim.status === "attempts_exhausted") throw new Error("JOB_STEP_ATTEMPTS_EXHAUSTED");
     if (claim.status !== "claimed") return;
     const now = nowIso();
     await env.DB.batch([
@@ -612,6 +616,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
       maxOutputTokens: 8_000,
       temperature: brief.mode === "faithful" ? 0.2 : brief.mode === "exploratory" ? 0.8 : 0.5,
       idempotencyKey: `${params.generationRequestId}:${briefRowId}`,
+      safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
       fakeFactory: () => fakeCharacter(brief),
     });
     if (generated.value.briefId !== briefRowId) throw new Error("GENERATION_BRIEF_MISMATCH");
@@ -653,6 +658,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
         maxOutputTokens: 8_000,
         temperature: 0,
         idempotencyKey: `${params.generationRequestId}:${briefRowId}:constraint-repair`,
+        safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
         fakeFactory: () => candidate,
       });
       const repairRunIds: string[] = [];
@@ -759,7 +765,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
     const code =
       error instanceof LlmProviderError ? error.code : error instanceof Error ? error.message : "GENERATION_FAILED";
     const now = nowIso();
-    const willRetry = claim?.status === "claimed" && claim.attemptNumber < 3 && isRetryableFailure(error);
+    const willRetry = claim?.status === "claimed" && claim.stepAttemptNumber < 3 && isRetryableFailure(error);
     if (claim?.status === "claimed")
       await finishJobAttempt(
         env,

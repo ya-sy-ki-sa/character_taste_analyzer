@@ -208,6 +208,17 @@ describe("v2 input contracts", () => {
     expect(input.success).toBe(false);
   });
 
+  it("does not accept removed redemption and hidden-goodness generation controls", () => {
+    const id = crypto.randomUUID();
+    const input = generationRequestInputSchema.safeParse({
+      purpose: "テスト",
+      selectedItemIds: [id],
+      redemption: "required",
+      hiddenGoodness: "required",
+    });
+    expect(input.success).toBe(false);
+  });
+
   it("requires structured generation coverage", () => {
     const parsed = generatedCharacterCandidateSchema.safeParse({ schemaVersion: "1.0", briefId: crypto.randomUUID() });
     expect(parsed.success).toBe(false);

@@ -356,6 +356,7 @@ interface ReviewRequest {
 - correctは対象typeに応じたcorrection schemaで検証する
 - conditionalはcondition必須
 - review後に必須確認が全て完了した場合だけ、後続jobをenqueueし202とする。後続なしは200
+- as-builtの`POST /api/v1/preference-analysis-runs/{runId}/review`は、`confirm_all`に加えて`reject_selected`と単一のPreferenceAssertionまたはValueStanceAssertion IDを受け付ける。owner、active revision、Entryの`analysis_review`状態、Runとの所属を検証して対象を`rejected`にし、以後の確認画面とProfile集計から除外する。再送時にすでに`rejected`なら同じ結果を返す
 
 ## 8. Profile API
 

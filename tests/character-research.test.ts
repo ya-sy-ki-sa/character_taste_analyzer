@@ -37,7 +37,91 @@ describe("system-side character research", () => {
     expect(result.status).toBe("collected");
     expect(result.query).toContain("架空作品 登場人物A");
     expect(result.sources[0]?.url).toBe("https://ja.wikipedia.org/wiki/example");
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.sources[0]?.provider).toBe("wikipedia_ja");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("adds only target-matched Wikidata items to the trusted source set", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("https://ja.wikipedia.org/")) return Response.json({ query: { pages: [] } });
+      return Response.json({
+        search: [
+          {
+            id: "Q123",
+            label: "登場人物A",
+            description: "架空作品に登場する人物",
+            aliases: ["人物A"],
+          },
+          {
+            id: "Q999",
+            label: "登場人物A",
+            description: "別作品に登場する同名人物",
+          },
+        ],
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await collectCharacterResearch(env("workers_ai"), existing);
+    expect(result.status).toBe("collected");
+    expect(result.sources).toEqual([
+      expect.objectContaining({
+        provider: "wikidata",
+        url: "https://www.wikidata.org/wiki/Q123",
+        trustReason: expect.stringContaining("作品名とキャラクター名の両方"),
+      }),
+    ]);
+    expect(result.sources.some((source) => source.url.endsWith("Q999"))).toBe(false);
+  });
+
+  it("accepts the Wikidata item linked by a target-matched Wikipedia page", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("https://ja.wikipedia.org/")) {
+        return Response.json({
+          query: {
+            pages: [
+              {
+                title: "うずまきナルト",
+                fullurl: "https://ja.wikipedia.org/wiki/example-naruto",
+                extract: "NARUTOに登場するうずまきナルトは、物語の主人公である。",
+                pageprops: { wikibase_item: "Q931" },
+              },
+            ],
+          },
+        });
+      }
+      return Response.json({
+        search: [
+          {
+            id: "Q931",
+            label: "うずまきナルト",
+            description: "岸本斉史の漫画及びそれを原作としたアニメに登場する架空の人物",
+          },
+        ],
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await collectCharacterResearch(
+      env("workers_ai"),
+      entryDraftSchema.parse({
+        schemaVersion: "1",
+        registrationType: "existing",
+        workTitle: "NARUTO",
+        characterName: "うずまきナルト",
+        preference: { responseChannels: [] },
+      }),
+    );
+    expect(result.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ provider: "wikipedia_ja" }),
+        expect.objectContaining({
+          provider: "wikidata",
+          url: "https://www.wikidata.org/wiki/Q931",
+          trustReason: expect.stringContaining("日本語Wikipediaページに紐づく"),
+        }),
+      ]),
+    );
   });
 
   it("does not access the network in deterministic test profiles", async () => {

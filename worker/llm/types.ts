@@ -21,6 +21,7 @@ export type StructuredLlmRequest<T> = {
   maxOutputTokens: number;
   temperature: number;
   idempotencyKey: string;
+  safetyIdentifier?: string;
   enableWebSearch?: boolean;
   fakeFactory(): T;
 };
@@ -44,6 +45,17 @@ export type LlmRunMetadata = {
   ignoredParameters?: string[];
   fallbackFromProvider?: LlmProviderId;
   fallbackErrorCode?: string;
+  providerResponseDiagnostics?: {
+    httpStatus?: number;
+    requestId?: string;
+    responseId?: string;
+    responseStatus?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    incompleteReason?: string;
+    refusal?: string;
+    safetySignal: "none" | "refusal" | "content_filter" | "provider_error" | "incomplete";
+  };
 };
 export type StructuredLlmResult<T> = {
   value: T;

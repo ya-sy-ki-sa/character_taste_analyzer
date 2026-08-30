@@ -48,7 +48,7 @@ OpenAIの`direct`/`ai_gateway`は通信経路の違いであり、どちらもPr
 
 既成・既成（カスタム）の基本像をユーザーの説明負担へ依存させない。理解抽出前に作品名、キャラクター名、媒体・版から検索queryを組み立て、次の順で情報を収集する。
 
-1. 固定hostへ接続する`CharacterResearch` Adapterで公開情報を取得する。初期Adapterは日本語Wikipedia APIの検索・導入部取得とし、URL、title、短いexcerptを保持する
+1. 固定hostへ接続する`CharacterResearch` Adapterで公開情報を取得する。日本語Wikipedia APIの検索・導入部に加え、Wikidata APIの項目検索を行い、URL、title、短いexcerpt、provider、採用理由を保持する。Wikipediaは正規化した作品名とキャラクター名の両方が候補本文に一致した場合だけ採用する。Wikidataは同じ直接一致、または一致済みWikipediaページの`wikibase_item`と項目IDが一致した場合に採用する
 2. OpenAI ProviderではResponses APIの組み込み`web_search`も`character_understanding`で有効にする
 3. Workers AIでは収集済み公開情報とモデル知識をstructured outputへ渡す。Workers AIのfunction calling自体は検索サービスではないため、検索実行はWorker側Adapterが担当する
 4. ユーザーの`referenceMaterial`があれば、一般情報を置き換える必須資料ではなく付加情報として同時に渡す
@@ -56,7 +56,7 @@ OpenAIの`direct`/`ai_gateway`は通信経路の違いであり、どちらもPr
 
 オリジナルでは外部検索を行わず、必須の`characterBasicInfo`を基本像の一次入力として使用する。入力階層は既成キャラクターのシステム収集済み公開情報に対応し、`referenceMaterial`は追加資料、`userCharacterView`はユーザー自身の解釈として別々にLLMへ渡す。
 
-検索失敗はキャラクター登録自体を失敗させない。取得不能、一致なし、競合、情報不足は`sourceAssessment.systemResearch`と`limitations`へ保存し、モデル知識を使用したassertionのconfidence上限を維持する。Replay/Fakeでは外部検索を禁止し、固定fixtureだけで再現する。検索先はAdapter内の固定hostに限定し、ユーザー入力URLを直接fetchしてSSRFを生じさせない。
+検索失敗はキャラクター登録自体を失敗させない。取得不能、一致なし、競合、情報不足は`sourceAssessment.systemResearch`と`limitations`へ保存し、モデル知識を使用したassertionのconfidence上限を維持する。Replay/Fakeでは外部検索を禁止し、固定fixtureだけで再現する。検索先はAdapter内の固定host（`ja.wikipedia.org`、`www.wikidata.org`）に限定し、ユーザー入力やLLM出力のURLを直接fetchしてSSRFを生じさせない。ドメイン単位の無条件許可は行わない。
 
 ### 2.3 共通metadata
 
@@ -73,10 +73,31 @@ interface LlmRunMetadata {
   latencyMs: number;
   finishReason?: string;
   dataRetentionMode: "provider_default" | "no_retention" | "unknown";
+  rootRequestId?: string;
+  attemptNumber?: number;
+  providerResponseDiagnostics?: {
+    httpStatus?: number;
+    requestId?: string;
+    responseId?: string;
+    responseStatus?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    incompleteReason?: string;
+    refusal?: string;
+    safetySignal: "none" | "refusal" | "content_filter" | "provider_error" | "incomplete";
+  };
 }
 ```
 
 Provider固有のresponseはAdapter内で共通metadataとstructured candidateへ変換する。model aliasを指定した場合も、Providerから解決後model IDを取得できる場合は`resolvedModel`に保存する。取得できない場合はrequested valueと同値にし、その旨をeval reportに残す。
+
+OpenAI Responses APIでは、HTTPの`x-request-id`、Response ID、`status`、`error.code/message`、`incomplete_details.reason`、output内の`refusal`を別々に抽出する。安全関連の文字列が返された場合だけ`content_filter`、refusal itemがある場合は`refusal`として記録し、アプリケーション独自のschema・出典検証エラーと混同しない。Providerが内部で保持する非公開classifier出力はAPI応答に含まれないため、本システム側で推測して記録しない。
+
+複数のLLM呼出しを含む解析が失敗した場合、Jobとattemptのエラー詳細には失敗した呼出し自身のmetadataを使用する。直前に完了した別呼出しのResponse IDやstatusを組み合わせない。完了済みmetadataをfallbackに使うのは、その完了応答を受信した後のschema・provenance検証で失敗した場合だけとする。未完了応答でもProviderが返したinput/output token usageをmodel runへ保存する。
+
+Responses APIの`max_output_tokens`は可視テキストだけでなくreasoning tokenも含む。理解解析・カスタム差分・嗜好解析は100,000を上限とし、`incomplete_details.reason=max_output_tokens`は「出力上限による未完了」と表示する。この理由単独をcontent filterやrefusalなどの安全判定として扱わない。生成・生成検証・修復は用途別の短い構造化出力契約を持つため、各処理の4,000／8,000上限を維持する。
+
+個別利用者を扱うOpenAI requestには、ユーザーUUIDを直接送らず`AUTH_PEPPER`でHMAC化した64文字の`safety_identifier`を付与する。送信した識別子はmodel runの実効設定にも保存し、Provider request IDと併せて問い合わせ時の照合情報とする。
 
 ### 2.4 fallback
 
@@ -252,6 +273,8 @@ LLMがこれらのfieldを返しても破棄する。evidence fragment IDだけ�
 4. semantic validatorでID、scope、confidence、delta整合を検査する。
 5. failure時はinvalid outputのhash、error path、短い周辺値だけをrepair callへ渡す。
 6. 最大2回失敗で内部Job errorを`LLM_SCHEMA_INVALID`とし、APIでは422 `LLM_OUTPUT_REJECTED`へ写像する。元本文をlogへ出さない。
+
+外部URL evidenceは、日本語Wikipedia・WikidataのCharacterResearch取得結果、またはOpenAI Web Searchの`action.sources`・`url_citation`から得たURLのallowlistと照合する。Wikidata候補は作品名・キャラクター名の直接一致、または一致済みWikipediaページとの項目ID一致がない限りallowlistへ入れない。URL照合ではfragment、既知の追跡query parameter、ルート以外の末尾slashを正規化するが、scheme・host・実質的なpathは一致を必須とする。ドメイン全体を信頼扱いにはしない。不一致時の`EXTERNAL_CITATION_NOT_ALLOWED`はOpenAIの拒否ではなく、正常に得た構造化応答に未確認URLが含まれたことを示すアプリケーション検証エラーである。失敗詳細には不一致URL、照合可能URL、Provider request/response ID、応答status、安全関連シグナルを保存する。下流検証で失敗した場合も、完了済みLLM attemptのmodel run metadataを失わない。
 
 Schemaは次を正式契約とする。
 

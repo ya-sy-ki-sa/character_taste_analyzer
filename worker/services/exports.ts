@@ -241,6 +241,7 @@ export async function processAccountExport(env: Env, params: ExportWorkflowParam
   try {
     if (!env.EXPORTS) throw new Error("EXPORT_STORAGE_UNAVAILABLE");
     claim = await claimJob(env, params.jobId, params.ownerUserId, 1, "account-export");
+    if (claim.status === "attempts_exhausted") throw new Error("JOB_STEP_ATTEMPTS_EXHAUSTED");
     if (claim.status !== "claimed") return;
     const started = nowIso();
     await env.DB.prepare(
@@ -298,7 +299,7 @@ export async function processAccountExport(env: Env, params: ExportWorkflowParam
     if (storedObjectKey && env.EXPORTS) await env.EXPORTS.delete(storedObjectKey);
     const code = error instanceof Error ? error.message.slice(0, 100) : "EXPORT_FAILED";
     const permanent = code === "EXPORT_STORAGE_UNAVAILABLE" || code === "EXPORT_COMMIT_FENCE_CHANGED";
-    const willRetry = claim?.status === "claimed" && claim.attemptNumber < 3 && !permanent;
+    const willRetry = claim?.status === "claimed" && claim.stepAttemptNumber < 3 && !permanent;
     if (claim?.status === "claimed") await finishJobAttempt(env, claim.attemptId, "failed", code);
     const now = nowIso();
     await env.DB.batch([

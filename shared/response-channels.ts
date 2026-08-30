@@ -330,7 +330,7 @@ const responseChannelByValue = new Map<string, (typeof responseChannelCatalog)[n
 );
 
 export function responseChannelLabel(value: string): string {
-  return responseChannelByValue.get(value)?.label ?? value;
+  return responseChannelByValue.get(value)?.label ?? "その他の反応";
 }
 
 export function responseChannelPrompt(): string {

@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
+import { attributeCategoryLabel } from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
 import type { GraphProjection, ProfileView, ProjectionFreshness } from "../../shared/schemas";
+import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stance-labels";
 import { api } from "../api";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
 import { type DisplayProfileDimension, groupProfileDimensions } from "../lib/profile-dimensions";
@@ -130,9 +132,9 @@ export function ProfilePage() {
           <div className="stance-grid">
             {value.valueStances.map((item) => (
               <Card key={`${item.orientation}:${item.stance}`}>
-                <strong>{orientationLabel(item.orientation)}</strong>
+                <strong>{valueOrientationLabel(item.orientation)}</strong>
                 <span>
-                  {stanceLabel(item.stance)}・{item.count}件
+                  {valueStanceLabel(item.stance)}・{item.count}件
                 </span>
                 <small>{item.labels.slice(0, 4).join("、")}</small>
               </Card>
@@ -220,7 +222,7 @@ function DimensionRow({
       <div className="trait-copy">
         <strong>{item.label}</strong>
         <small>
-          {item.category}・
+          {attributeCategoryLabel(item.category)}・
           {item.responseChannels.length
             ? item.responseChannels.map((channel) => responseChannelLabel(channel)).join("／")
             : "反応経路なし"}
@@ -234,36 +236,5 @@ function DimensionRow({
         {classificationLabels[item.classification]} {Math.round(item.confidence * 100)}%
       </span>
     </div>
-  );
-}
-
-function orientationLabel(value: string) {
-  return (
-    (
-      {
-        evil: "悪そのもの",
-        immoral: "非道徳",
-        indifferent_to_good: "善への無関心",
-        transgressive: "規範逸脱",
-        self_defined: "自己定義の規範",
-        good: "善",
-        mixed: "複合",
-      } as Record<string, string>
-    )[value] ?? value
-  );
-}
-
-function stanceLabel(value: string) {
-  return (
-    (
-      {
-        affirm: "肯定",
-        accept: "受容",
-        indifferent: "判断対象にしない",
-        ambivalent: "両価的",
-        reject: "支持しない",
-        unspecified: "未指定",
-      } as Record<string, string>
-    )[value] ?? value
   );
 }

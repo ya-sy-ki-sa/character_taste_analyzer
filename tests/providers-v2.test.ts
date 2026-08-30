@@ -87,7 +87,12 @@ describe("explicit LLM provider routing", () => {
   it("returns auditable metadata for a rejected OpenAI attempt", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => Response.json({ error: { code: "invalid_request", message: "bad schema" } }, { status: 400 })),
+      vi.fn(async () =>
+        Response.json(
+          { id: "resp_rejected", error: { code: "invalid_request", message: "bad schema" } },
+          { status: 400, headers: { "x-request-id": "req_rejected" } },
+        ),
+      ),
     );
     const error = await createLlmProvider(
       providerEnv({
@@ -101,11 +106,190 @@ describe("explicit LLM provider routing", () => {
       .catch((caught: unknown) => caught);
     expect(error).toMatchObject({
       code: "EXTERNAL_PROVIDER_REJECTED",
+      safeDetail: "HTTP 400: invalid_request: bad schema",
       operation: "character_understanding",
       attempts: [
         {
           output: { errorCode: "EXTERNAL_PROVIDER_REJECTED" },
-          metadata: { provider: "openai", resolvedModel: "gpt-5.6-luna", attemptNumber: 0 },
+          metadata: {
+            provider: "openai",
+            resolvedModel: "gpt-5.6-luna",
+            providerRequestId: "req_rejected",
+            attemptNumber: 0,
+            providerResponseDiagnostics: {
+              httpStatus: 400,
+              requestId: "req_rejected",
+              responseId: "resp_rejected",
+              errorCode: "invalid_request",
+              errorMessage: "bad schema",
+              safetySignal: "provider_error",
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it("records an OpenAI refusal separately from application validation errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          id: "resp_refusal",
+          status: "completed",
+          output: [
+            {
+              type: "message",
+              content: [{ type: "refusal", refusal: "この内容には回答できません" }],
+            },
+          ],
+        }),
+      ),
+    );
+    const error = await createLlmProvider(
+      providerEnv({
+        LLM_PROVIDER: "openai",
+        LLM_MODEL: "gpt-5.6-luna",
+        OPENAI_API_KEY: "test-key",
+        OPENAI_TRANSPORT: "direct",
+      }),
+    )
+      .generateStructured(request)
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "EXTERNAL_PROVIDER_REFUSED",
+      safeDetail: "OpenAIの拒否応答: この内容には回答できません",
+      attempts: [
+        {
+          metadata: {
+            providerRequestId: "resp_refusal",
+            providerResponseDiagnostics: {
+              httpStatus: 200,
+              responseStatus: "completed",
+              refusal: "この内容には回答できません",
+              safetySignal: "refusal",
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it("records content-filter signals from an incomplete OpenAI response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          id: "resp_filtered",
+          status: "incomplete",
+          incomplete_details: { reason: "content_filter" },
+          output: [],
+          usage: { input_tokens: 123, output_tokens: 100 },
+        }),
+      ),
+    );
+    const error = await createLlmProvider(
+      providerEnv({
+        LLM_PROVIDER: "openai",
+        LLM_MODEL: "gpt-5.6-luna",
+        OPENAI_API_KEY: "test-key",
+        OPENAI_TRANSPORT: "direct",
+      }),
+    )
+      .generateStructured(request)
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "EXTERNAL_PROVIDER_INCOMPLETE",
+      safeDetail: "未完了理由: content_filter",
+      attempts: [
+        {
+          metadata: {
+            providerRequestId: "resp_filtered",
+            inputTokens: 123,
+            outputTokens: 100,
+            providerResponseDiagnostics: {
+              responseStatus: "incomplete",
+              incompleteReason: "content_filter",
+              safetySignal: "content_filter",
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it("records token usage when an OpenAI response reaches the output limit", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            id: "resp_output_limit",
+            status: "incomplete",
+            incomplete_details: { reason: "max_output_tokens" },
+            output: [],
+            usage: { input_tokens: 7_816, output_tokens: 5_000 },
+          },
+          { headers: { "x-request-id": "req_output_limit" } },
+        ),
+      ),
+    );
+    const error = await createLlmProvider(
+      providerEnv({
+        LLM_PROVIDER: "openai",
+        LLM_MODEL: "gpt-5.6-luna",
+        OPENAI_API_KEY: "test-key",
+        OPENAI_TRANSPORT: "direct",
+      }),
+    )
+      .generateStructured(request)
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "EXTERNAL_PROVIDER_INCOMPLETE",
+      attempts: [
+        {
+          metadata: {
+            providerRequestId: "req_output_limit",
+            inputTokens: 7_816,
+            outputTokens: 5_000,
+            providerResponseDiagnostics: {
+              requestId: "req_output_limit",
+              responseId: "resp_output_limit",
+              responseStatus: "incomplete",
+              incompleteReason: "max_output_tokens",
+              safetySignal: "incomplete",
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it("retains a safe excerpt when the model response is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ id: "resp_invalid", output_text: "JSONではない応答です", usage: {} })),
+    );
+    const error = await createLlmProvider(
+      providerEnv({
+        LLM_PROVIDER: "openai",
+        LLM_MODEL: "gpt-5.6-luna",
+        OPENAI_API_KEY: "test-key",
+        OPENAI_TRANSPORT: "direct",
+      }),
+    )
+      .generateStructured(request)
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "LLM_SCHEMA_INVALID",
+      safeDetail: "JSONとして解釈できなかったモデル応答: JSONではない応答です",
+      operation: "character_understanding",
+      attempts: [
+        {
+          output: {
+            errorCode: "LLM_SCHEMA_INVALID",
+            safeDetail: "JSONとして解釈できなかったモデル応答: JSONではない応答です",
+          },
         },
       ],
     });
@@ -118,6 +302,7 @@ describe("explicit LLM provider routing", () => {
       expect(body).toMatchObject({
         model: "gpt-5.6-sol",
         store: false,
+        safety_identifier: "privacy-safe-user-hash",
         max_output_tokens: 100,
         text: { format: { type: "json_schema", strict: true } },
       });
@@ -133,7 +318,7 @@ describe("explicit LLM provider routing", () => {
         OPENAI_API_KEY: "test-key",
         OPENAI_TRANSPORT: "direct",
       }),
-    ).generateStructured(request);
+    ).generateStructured({ ...request, safetyIdentifier: "privacy-safe-user-hash" });
     expect(result.value.value).toBe("openai");
     expect(result.metadata.providerRequestId).toBe("resp_test");
     expect(fetchMock).toHaveBeenCalledOnce();

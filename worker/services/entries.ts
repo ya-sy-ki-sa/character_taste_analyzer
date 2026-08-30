@@ -16,6 +16,7 @@ import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../lib/cry
 import { all, first } from "../lib/db";
 import { placeholders } from "../lib/db";
 import type { Env } from "../types";
+import { localizeAttributeReference, localizeUnderstandingSummary } from "./attribute-labels";
 import { outboxStatement } from "./orchestration";
 import { prepareQuotaReservation } from "./quota";
 
@@ -66,6 +67,8 @@ type EvidenceView = {
   inputPointer: string | null;
   sourceTitle: string | null;
   sourceUrl: string | null;
+  sourceProvider: string | null;
+  trustReason: string | null;
   canNavigate: boolean;
 };
 
@@ -111,6 +114,8 @@ async function loadEvidenceViews(
         inputPointer: row.user_input_path,
         sourceTitle: row.title,
         sourceUrl,
+        sourceProvider: typeof citation.provider === "string" ? citation.provider : null,
+        trustReason: typeof citation.trustReason === "string" ? citation.trustReason : null,
         canNavigate: row.verification_status === "verified_quote" && sourceUrl !== null,
       });
       grouped.set(row.owner_id, items);
@@ -768,13 +773,15 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
     progress_current: number | null;
     progress_total: number | null;
     error_code: string | null;
+    error_detail_safe: string | null;
   }>(
     env.DB.prepare(`
     SELECT e.id,e.registration_type,e.status,e.active_revision_number,e.updated_at,er.registration_payload_json,
       CASE WHEN e.status='understanding_review' THEN (SELECT id FROM character_understanding_snapshots WHERE owner_user_id=e.owner_user_id AND representation_id=er.representation_id ORDER BY created_at DESC LIMIT 1)
            WHEN e.status='analysis_review' THEN (SELECT id FROM analysis_runs WHERE owner_user_id=e.owner_user_id AND entry_revision_id=er.id ORDER BY created_at DESC LIMIT 1)
            ELSE NULL END AS review_target_id,
-      j.id AS job_id,j.status AS job_status,j.retryable,j.current_step,j.progress_current,j.progress_total,j.error_code
+      j.id AS job_id,j.status AS job_status,j.retryable,j.current_step,j.progress_current,j.progress_total,
+      j.error_code,j.error_detail_safe
     FROM user_character_entries e JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
     LEFT JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id AND j.input_generation=e.active_revision_number
     WHERE e.owner_user_id=? AND e.deleted_at IS NULL ORDER BY e.updated_at DESC,e.id
@@ -800,6 +807,7 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
             progressCurrent: row.progress_current ?? 0,
             progressTotal: row.progress_total ?? 15,
             errorCode: row.error_code,
+            errorDetail: row.error_detail_safe,
           }
         : null,
     };
@@ -845,8 +853,10 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         status: string;
       }>(
         env.DB.prepare(
-          `SELECT id,raw_label,value_text,assertion_kind,explicitness,confidence,status FROM character_assertions
-           WHERE snapshot_id=? AND status NOT IN ('rejected','superseded') ORDER BY ordinal,id`,
+          `SELECT ca.id,COALESCE(ad.label,ca.raw_label) AS raw_label,ca.value_text,ca.assertion_kind,
+                  ca.explicitness,ca.confidence,ca.status
+           FROM character_assertions ca LEFT JOIN attribute_definitions ad ON ad.id=ca.attribute_definition_id
+           WHERE ca.snapshot_id=? AND ca.status NOT IN ('rejected','superseded') ORDER BY ca.ordinal,ca.id`,
         ).bind(snapshot.id),
       )
     : [];
@@ -893,8 +903,10 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         status: string;
       }>(
         env.DB.prepare(
-          `SELECT id,raw_label,value_text,assertion_kind,explicitness,confidence,status FROM character_assertions
-           WHERE snapshot_id=? AND status NOT IN ('rejected','superseded') ORDER BY ordinal,id`,
+          `SELECT ca.id,COALESCE(ad.label,ca.raw_label) AS raw_label,ca.value_text,ca.assertion_kind,
+                  ca.explicitness,ca.confidence,ca.status
+           FROM character_assertions ca LEFT JOIN attribute_definitions ad ON ad.id=ca.attribute_definition_id
+           WHERE ca.snapshot_id=? AND ca.status NOT IN ('rejected','superseded') ORDER BY ca.ordinal,ca.id`,
         ).bind(baseSnapshot.id),
       )
     : [];
@@ -915,7 +927,12 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         status: string;
       }>(
         env.DB.prepare(
-          `SELECT pa.id,rm.raw_label,pa.polarity,pa.response_channel,pa.strength,pa.explicitness,pa.confidence,pa.status FROM preference_assertions pa JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id WHERE pa.analysis_run_id=? ORDER BY pa.created_at,pa.id`,
+          `SELECT pa.id,COALESCE(ad.label,rm.raw_label) AS raw_label,pa.polarity,pa.response_channel,
+                  pa.strength,pa.explicitness,pa.confidence,pa.status
+           FROM preference_assertions pa JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id
+           LEFT JOIN attribute_definitions ad ON ad.id=pa.attribute_definition_id
+           WHERE pa.analysis_run_id=? AND pa.status NOT IN ('rejected','superseded')
+           ORDER BY pa.created_at,pa.id`,
         ).bind(analysis.id),
       )
     : [];
@@ -930,36 +947,52 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         status: string;
       }>(
         env.DB.prepare(
-          `SELECT id,target_ref,stance,orientation,explicitness,confidence,status FROM value_stance_assertions WHERE analysis_run_id=? ORDER BY created_at,id`,
+          `SELECT id,target_ref,stance,orientation,explicitness,confidence,status
+           FROM value_stance_assertions
+           WHERE analysis_run_id=? AND status NOT IN ('rejected','superseded')
+           ORDER BY created_at,id`,
         ).bind(analysis.id),
       )
     : [];
-  const [understandingEvidence, baseUnderstandingEvidence, preferenceEvidence, stanceEvidence] = await Promise.all([
-    loadEvidenceViews(
-      env,
-      ownerUserId,
-      "character_assertion",
-      assertions.map((item) => item.id),
-    ),
-    loadEvidenceViews(
-      env,
-      ownerUserId,
-      "character_assertion",
-      baseAssertions.map((item) => item.id),
-    ),
-    loadEvidenceViews(
-      env,
-      ownerUserId,
-      "preference_assertion",
-      preferences.map((item) => item.id),
-    ),
-    loadEvidenceViews(
-      env,
-      ownerUserId,
-      "value_stance_assertion",
-      valueStances.map((item) => item.id),
-    ),
-  ]);
+  const [understandingEvidence, baseUnderstandingEvidence, preferenceEvidence, stanceEvidence, attributeRows] =
+    await Promise.all([
+      loadEvidenceViews(
+        env,
+        ownerUserId,
+        "character_assertion",
+        assertions.map((item) => item.id),
+      ),
+      loadEvidenceViews(
+        env,
+        ownerUserId,
+        "character_assertion",
+        baseAssertions.map((item) => item.id),
+      ),
+      loadEvidenceViews(
+        env,
+        ownerUserId,
+        "preference_assertion",
+        preferences.map((item) => item.id),
+      ),
+      loadEvidenceViews(
+        env,
+        ownerUserId,
+        "value_stance_assertion",
+        valueStances.map((item) => item.id),
+      ),
+      snapshot || baseSnapshot
+        ? all<{ stable_key: string; label: string }>(
+            env.DB.prepare(`
+            SELECT d.stable_key,d.label
+            FROM attribute_definitions d
+            JOIN attribute_schema_versions v ON v.id=d.schema_version_id
+            WHERE v.status='active' AND d.status='active'
+            ORDER BY d.stable_key
+          `),
+          )
+        : Promise.resolve([]),
+    ]);
+  const attributeLabels = new Map(attributeRows.map((row) => [row.stable_key, row.label]));
   return {
     entry: {
       id: entryId,
@@ -972,7 +1005,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
           id: snapshot.id,
           baseSnapshotId: snapshot.base_snapshot_id,
           sourceAssessment: JSON.parse(snapshot.source_assessment_json),
-          summary: JSON.parse(snapshot.summary_json),
+          summary: localizeUnderstandingSummary(JSON.parse(snapshot.summary_json), attributeLabels),
           uncertainties: JSON.parse(snapshot.uncertainties_json),
           confidence: snapshot.overall_confidence,
           status: snapshot.status,
@@ -984,7 +1017,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
       ? {
           id: baseSnapshot.id,
           sourceAssessment: JSON.parse(baseSnapshot.source_assessment_json),
-          summary: JSON.parse(baseSnapshot.summary_json),
+          summary: localizeUnderstandingSummary(JSON.parse(baseSnapshot.summary_json), attributeLabels),
           uncertainties: JSON.parse(baseSnapshot.uncertainties_json),
           confidence: baseSnapshot.overall_confidence,
           status: baseSnapshot.status,
@@ -1001,10 +1034,72 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
           uncertainties: JSON.parse(analysis.uncertainties_json),
           status: analysis.status,
           assertions: preferences.map((item) => ({ ...item, evidence: preferenceEvidence.get(item.id) ?? [] })),
-          valueStances: valueStances.map((item) => ({ ...item, evidence: stanceEvidence.get(item.id) ?? [] })),
+          valueStances: valueStances.map((item) => ({
+            ...item,
+            target_ref: localizeAttributeReference(item.target_ref, attributeLabels),
+            evidence: stanceEvidence.get(item.id) ?? [],
+          })),
         }
       : null,
   };
+}
+
+export async function rejectPreferenceAnalysisItem(
+  env: Env,
+  ownerUserId: string,
+  analysisRunId: string,
+  targetId: string,
+): Promise<{
+  analysisRunId: string;
+  targetId: string;
+  targetType: "preference_assertion" | "value_stance_assertion";
+  replayed: boolean;
+}> {
+  const run = await first<{ id: string }>(
+    env.DB.prepare(
+      `SELECT ar.id
+       FROM analysis_runs ar
+       JOIN entry_revisions er ON er.id=ar.entry_revision_id
+       JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
+       WHERE ar.id=? AND ar.owner_user_id=? AND e.owner_user_id=?
+         AND ar.status='succeeded' AND e.status='analysis_review'`,
+    ).bind(analysisRunId, ownerUserId, ownerUserId),
+  );
+  if (!run) throw new Error("PREFERENCE_REVIEW_NOT_FOUND");
+
+  const targets = await all<{
+    target_type: "preference_assertion" | "value_stance_assertion";
+    status: string;
+  }>(
+    env.DB.prepare(
+      `SELECT 'preference_assertion' AS target_type,status
+       FROM preference_assertions WHERE id=? AND owner_user_id=? AND analysis_run_id=?
+       UNION ALL
+       SELECT 'value_stance_assertion' AS target_type,status
+       FROM value_stance_assertions WHERE id=? AND owner_user_id=? AND analysis_run_id=?`,
+    ).bind(targetId, ownerUserId, analysisRunId, targetId, ownerUserId, analysisRunId),
+  );
+  if (targets.length !== 1) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
+  const target = targets[0];
+  if (target.status === "rejected") {
+    return { analysisRunId, targetId, targetType: target.target_type, replayed: true };
+  }
+  if (!new Set(["proposed", "corrected"]).has(target.status)) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+
+  const statement =
+    target.target_type === "preference_assertion"
+      ? env.DB.prepare(
+          `UPDATE preference_assertions SET status='rejected'
+           WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected')`,
+        )
+      : env.DB.prepare(
+          `UPDATE value_stance_assertions SET status='rejected'
+           WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected')`,
+        );
+  const result = await statement.bind(targetId, ownerUserId, analysisRunId).run();
+  if (!result.success) throw new Error("D1_PREFERENCE_REVIEW_FAILED");
+  if (!result.meta.changes) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+  return { analysisRunId, targetId, targetType: target.target_type, replayed: false };
 }
 
 export async function mutateUnderstandingReview(
@@ -1366,8 +1461,11 @@ export async function confirmUnderstanding(
       `UPDATE user_character_entries SET status='analyzing',updated_at=?,revision=revision+1 WHERE id=? AND owner_user_id=?`,
     ).bind(now, target.entry_id, ownerUserId),
     env.DB.prepare(
-      `UPDATE jobs SET status='queued',current_step='preferenceAnalysis',progress_current=8,updated_at=?,revision=revision+1 WHERE owner_user_id=? AND target_type='entry' AND target_id=?`,
-    ).bind(now, ownerUserId, target.entry_id),
+      `UPDATE jobs SET status='queued',current_step='preferenceAnalysis',progress_current=8,
+       workflow_instance_id=NULL,completed_at=NULL,updated_at=?,revision=revision+1
+       WHERE id=? AND owner_user_id=? AND target_type='entry' AND target_id=? AND input_generation=?
+         AND status='waiting_for_user'`,
+    ).bind(now, target.job_id, ownerUserId, target.entry_id, target.revision_number),
     outbox.statement,
   ];
   if (target.base_snapshot_id) {

@@ -1,10 +1,9 @@
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import type { SessionUser } from "../App";
 import { api, downloadExport } from "../api";
 import { Card, Modal, Notice, PageHeading } from "../components/Ui";
 
 export function SettingsPage({ user }: { user?: SessionUser }) {
-  const [rotationOpen, setRotationOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notice, setNotice] = useState<{ tone: "success" | "danger"; message: string }>();
 
@@ -13,26 +12,16 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
       <PageHeading
         eyebrow="ACCOUNT & PRIVACY"
         title="設定"
-        description="アクセスキー、データの持ち出し、アカウント削除を管理します。"
+        description="データの持ち出し、プライバシー、アカウント削除を管理します。"
       />
       {notice && <Notice tone={notice.tone}>{notice.message}</Notice>}
       <div className="settings-grid">
-        <Card>
-          <div className="settings-icon">⌁</div>
-          <div>
-            <h2>アクセスキー</h2>
-            <p>現在のキーを知っている場合だけ、新しいUUIDキーへ変更できます。変更すると全端末からログアウトします。</p>
-            <button type="button" className="button button-secondary" onClick={() => setRotationOpen(true)}>
-              アクセスキーを変更
-            </button>
-          </div>
-        </Card>
         <Card>
           <div className="settings-icon">⇩</div>
           <div>
             <h2>データをエクスポート</h2>
             <p>
-              全入力・revision・分析・根拠・プロフィール・生成・処理履歴を非同期でJSONへまとめます。認証情報は含みません。
+              全入力・変更履歴・分析・根拠・プロフィール・生成・処理履歴を、非同期でJSON形式のファイルへまとめます。認証情報は含みません。
             </p>
             <button
               type="button"
@@ -65,7 +54,7 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
               AIまたはOpenAIへ送信されます。
             </p>
             <ul>
-              <li>既成キャラクターではWikipedia、OpenAI Web Search、モデル知識を補助情報として利用します</li>
+              <li>既成キャラクターではWikipedia、Wikidata、OpenAI Web Search、モデル知識を補助情報として利用します</li>
               <li>根拠には出典と検証状態を保存し、原文へ移動できるのは原文照合済みの引用だけです</li>
               <li>モデル知識・出典だけ確認できた根拠・旧データは、検証済み引用と区別して表示します</li>
               <li>資格情報やユーザー名をLLMへ送りません</li>
@@ -107,89 +96,8 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
           </div>
         </dl>
       </Card>
-      {rotationOpen && <RotationModal onClose={() => setRotationOpen(false)} />}
       {deleteOpen && user && <DeleteModal user={user} onClose={() => setDeleteOpen(false)} />}
     </>
-  );
-}
-
-function RotationModal({ onClose }: { onClose(): void }) {
-  const [currentAccessKey, setCurrentAccessKey] = useState("");
-  const [nextKey, setNextKey] = useState<string>();
-  const [saved, setSaved] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>();
-
-  async function rotate(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(undefined);
-    try {
-      const result = await api<{ accessKey: string }>("/api/v1/account/key-rotation", {
-        method: "POST",
-        body: JSON.stringify({ currentAccessKey }),
-      });
-      setNextKey(result.accessKey);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "変更できませんでした");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Modal title="アクセスキーを変更" onClose={onClose}>
-      {nextKey ? (
-        <div className="stack-form">
-          <Notice tone="warning">この新しいキーは一度だけ表示されます。</Notice>
-          <div className="credential-box">
-            <small>NEW UUID ACCESS KEY</small>
-            <code>{nextKey}</code>
-          </div>
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={async () => {
-              await navigator.clipboard.writeText(nextKey);
-              setSaved(true);
-            }}
-          >
-            {saved ? "コピーしました" : "キーをコピー"}
-          </button>
-          <label className="check-row">
-            <input type="checkbox" checked={saved} onChange={(event) => setSaved(event.target.checked)} />
-            <span>新しいキーを安全な場所に保存しました</span>
-          </label>
-          <button
-            type="button"
-            className="button button-primary"
-            disabled={!saved}
-            onClick={() => {
-              window.location.href = "/";
-            }}
-          >
-            ログイン画面へ
-          </button>
-        </div>
-      ) : (
-        <form className="stack-form" onSubmit={rotate}>
-          <p className="muted">本人確認のため、現在のアクセスキーを入力してください。</p>
-          <label>
-            <span>現在のアクセスキー</span>
-            <input
-              value={currentAccessKey}
-              onChange={(event) => setCurrentAccessKey(event.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </label>
-          {error && <Notice tone="danger">{error}</Notice>}
-          <button type="submit" className="button button-primary" disabled={submitting}>
-            {submitting ? "変更中…" : "新しいキーを発行"}
-          </button>
-        </form>
-      )}
-    </Modal>
   );
 }
 

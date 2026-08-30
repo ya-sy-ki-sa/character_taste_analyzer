@@ -6,8 +6,8 @@ import { jobClaimDisposition } from "./job-policy";
 export { isRetryableFailure } from "./job-policy";
 
 export type JobClaim =
-  | { status: "claimed"; attemptId: string; attemptNumber: number }
-  | { status: "superseded" | "already_finished" | "not_claimable" };
+  | { status: "claimed"; attemptId: string; attemptNumber: number; stepAttemptNumber: number }
+  | { status: "superseded" | "already_finished" | "not_claimable" | "attempts_exhausted" };
 
 export async function claimJob(
   env: Env,
@@ -74,11 +74,16 @@ export async function claimJob(
       .run();
     return { status: "superseded" };
   }
-  const next = await first<{ number: number }>(
-    env.DB.prepare(`SELECT COALESCE(MAX(attempt_number),0)+1 AS number FROM job_attempts WHERE job_id=?`).bind(jobId),
+  const next = await first<{ number: number; step_number: number }>(
+    env.DB.prepare(
+      `SELECT COALESCE(MAX(attempt_number),0)+1 AS number,
+        COALESCE(SUM(CASE WHEN step_name=? THEN 1 ELSE 0 END),0)+1 AS step_number
+       FROM job_attempts WHERE job_id=?`,
+    ).bind(stepName, jobId),
   );
   const attemptNumber = next?.number ?? 1;
-  if (attemptNumber > 3) return { status: "not_claimable" };
+  const stepAttemptNumber = next?.step_number ?? 1;
+  if (stepAttemptNumber > 3) return { status: "attempts_exhausted" };
   const now = nowIso();
   const attemptId = crypto.randomUUID();
   const leaseExpires = new Date(Date.now() + 10 * 60_000).toISOString();
@@ -97,7 +102,7 @@ export async function claimJob(
       attemptNumber,
       attemptId,
       leaseExpires,
-      JSON.stringify({ inputGeneration }),
+      JSON.stringify({ inputGeneration, stepAttemptNumber }),
       stepName,
       now,
       jobId,
@@ -114,7 +119,7 @@ export async function claimJob(
     ).bind(stepName, now, jobId, ownerUserId, inputGeneration, attemptId),
   ]);
   if (!results[0].meta.changes || !results[1].meta.changes) return { status: "not_claimable" };
-  return { status: "claimed", attemptId, attemptNumber };
+  return { status: "claimed", attemptId, attemptNumber, stepAttemptNumber };
 }
 
 export async function finishJobAttempt(

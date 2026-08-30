@@ -30,6 +30,8 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
 
   await login();
   await page.locator('.side-nav a[href="/app/settings"]').click();
+  await expect(page.getByRole("heading", { name: "アクセスキー", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "アクセスキーを変更", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "アカウントを削除" }).click();
   await page.getByLabel(new RegExp(`確認のため「${username}」と入力`, "u")).fill(username);
   await page.getByRole("button", { name: "完全に削除" }).click();

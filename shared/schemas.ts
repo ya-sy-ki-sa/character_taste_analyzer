@@ -259,7 +259,7 @@ export function entryInputSources(draft: EntryDraft): EntryInputSource[] {
       : null,
     {
       pointer: "/preference/responseChannels",
-      label: "反応チャネル",
+      label: "選択した惹かれ方",
       text: JSON.stringify(draft.preference.responseChannels),
     },
     draft.preference.valueStanceNote
@@ -483,9 +483,8 @@ export const generationRequestInputSchema = z
     freeInstruction: optionalText(4_000),
     selectedItemIds: z.array(z.string().uuid()).min(1).max(100),
     prohibitedItemIds: z.array(z.string().uuid()).max(100).default([]),
-    redemption: z.enum(["required", "allowed", "not_required", "prohibited"]).default("not_required"),
-    hiddenGoodness: z.enum(["required", "allowed", "not_required", "prohibited"]).default("not_required"),
   })
+  .strict()
   .superRefine((input, context) => {
     if (input.selectedItemIds.some((id) => input.prohibitedItemIds.includes(id))) {
       context.addIssue({
@@ -605,6 +604,7 @@ export type EntrySummary = {
     progressCurrent: number;
     progressTotal: number;
     errorCode: string | null;
+    errorDetail: string | null;
   } | null;
 };
 export type ProfileDimension = {

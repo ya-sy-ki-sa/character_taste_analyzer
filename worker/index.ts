@@ -380,11 +380,18 @@ app.post(
 app.post("/api/v1/preference-analysis-runs/:runId/review", validateJson(batchReviewSchema), async (context) => {
   const session = requireSession(context);
   const input = context.req.valid("json");
-  if (
-    input.decision !== "confirm_all" ||
-    input.targetIds.length !== 1 ||
-    input.targetIds[0] !== context.req.param("runId")
-  )
+  const runId = context.req.param("runId");
+  if (input.decision === "reject_selected") {
+    if (input.targetIds.length !== 1)
+      throw new HTTPException(422, { message: "削除する嗜好候補を1件選択してください" });
+    const result = await createDataStoreStrategy(context.env).rejectPreferenceAnalysisItem(
+      session.userId,
+      runId,
+      input.targetIds[0],
+    );
+    return context.json(data(result));
+  }
+  if (input.decision !== "confirm_all" || input.targetIds.length !== 1 || input.targetIds[0] !== runId)
     throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
   const result = await createDataStoreStrategy(context.env).activateAnalysisAndRebuild(
     session.userId,
@@ -639,6 +646,8 @@ app.onError((error, context) => {
     ENTRY_REVISION_CONFLICT: [409, "登録内容が更新されました。画面を再読み込みしてください"],
     PROFILE_REBUILDING: [409, "プロフィールを再構築しています"],
     PREFERENCE_REVIEW_NOT_FOUND: [404, "確認対象が見つかりません"],
+    PREFERENCE_REVIEW_TARGET_NOT_FOUND: [404, "削除する嗜好候補が見つかりません"],
+    PREFERENCE_REVIEW_STATE_CHANGED: [409, "嗜好候補が更新されました。画面を再読み込みしてください"],
     IDENTITY_RESOLUTION_INVALID: [422, "選択した同一キャラクター候補を利用できません"],
     GENERATION_JOB_NOT_FOUND: [404, "生成ジョブが見つかりません"],
     GENERATION_NOT_FOUND: [404, "作成履歴が見つかりません"],

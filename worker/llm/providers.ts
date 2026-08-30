@@ -12,6 +12,56 @@ import { LlmProviderError } from "./types";
 
 const ADAPTER_VERSION = "1.0.0";
 
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function openAiResponseDiagnostics(
+  payload: unknown,
+  httpStatus: number,
+  requestId?: string,
+): NonNullable<LlmRunMetadata["providerResponseDiagnostics"]> {
+  const response = objectValue(payload);
+  const error = objectValue(response.error);
+  const incomplete = objectValue(response.incomplete_details);
+  let refusal: string | undefined;
+  if (Array.isArray(response.output)) {
+    for (const item of response.output) {
+      const output = objectValue(item);
+      if (!Array.isArray(output.content)) continue;
+      for (const content of output.content) {
+        const part = objectValue(content);
+        if (part.type === "refusal" && typeof part.refusal === "string") refusal = part.refusal.slice(0, 1_000);
+      }
+    }
+  }
+  const responseStatus = typeof response.status === "string" ? response.status : undefined;
+  const errorCode = typeof error.code === "string" ? error.code : undefined;
+  const errorMessage = typeof error.message === "string" ? error.message.slice(0, 1_000) : undefined;
+  const incompleteReason = typeof incomplete.reason === "string" ? incomplete.reason : undefined;
+  const signalText = [errorCode, errorMessage, incompleteReason].filter(Boolean).join(" ");
+  const safetySignal = /content[_ -]?filter|safety|policy[_ -]?violation|moderation/iu.test(signalText)
+    ? "content_filter"
+    : refusal
+      ? "refusal"
+      : errorCode || errorMessage
+        ? "provider_error"
+        : responseStatus === "incomplete"
+          ? "incomplete"
+          : "none";
+  return {
+    httpStatus,
+    requestId,
+    responseId: typeof response.id === "string" ? response.id : undefined,
+    responseStatus,
+    errorCode,
+    errorMessage,
+    incompleteReason,
+    refusal,
+    safetySignal,
+  };
+}
+
 function extractText(payload: unknown): {
   text: string;
   requestId?: string;
@@ -91,7 +141,21 @@ function parseJson(text: string): unknown {
       // Try the next bounded extraction form.
     }
   }
-  throw new LlmProviderError("モデル応答をJSONとして解釈できません", "LLM_SCHEMA_INVALID", false);
+  const excerpt = [...text]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127 ? " " : character;
+    })
+    .join("")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 1_000);
+  throw new LlmProviderError(
+    "モデル応答をJSONとして解釈できません",
+    "LLM_SCHEMA_INVALID",
+    false,
+    excerpt ? `JSONとして解釈できなかったモデル応答: ${excerpt}` : "モデル応答の本文が空でした",
+  );
 }
 
 function token(usage: Record<string, unknown> | undefined, ...keys: string[]): number | undefined {
@@ -153,13 +217,23 @@ abstract class RemoteProvider implements LlmProvider {
         }
         throw error;
       }
-      const raw = parseJson(response.text);
       const metadata = {
         ...response.metadata,
         rootRequestId,
         attemptNumber: attempt,
         promptHash,
       };
+      let raw: unknown;
+      try {
+        raw = parseJson(response.text);
+      } catch (error) {
+        if (error instanceof LlmProviderError) {
+          attempts.push({ output: { errorCode: error.code, safeDetail: error.safeDetail ?? error.message }, metadata });
+          error.attempts = attempts;
+          error.operation = request.operation;
+        }
+        throw error;
+      }
       attempts.push({ output: raw, metadata });
       const parsed = request.schema.safeParse(raw);
       if (parsed.success) return { value: parsed.data, metadata, attempts };
@@ -223,6 +297,10 @@ class WorkersAiLlmProvider extends RemoteProvider {
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
+        providerRequestId:
+          payload && typeof payload === "object" && "id" in payload && typeof payload.id === "string"
+            ? payload.id
+            : undefined,
         latencyMs: Date.now() - started,
         dataRetentionMode: "unknown",
         effectiveSettings: { maxOutputTokens: request.maxOutputTokens, temperature: request.temperature },
@@ -284,6 +362,7 @@ class OpenAiLlmProvider extends RemoteProvider {
           model: this.model,
           input: messages,
           store: false,
+          ...(request.safetyIdentifier ? { safety_identifier: request.safetyIdentifier.slice(0, 64) } : {}),
           max_output_tokens: request.maxOutputTokens,
           ...(request.enableWebSearch
             ? {
@@ -319,12 +398,25 @@ class OpenAiLlmProvider extends RemoteProvider {
         resolvedModel: this.model,
         latencyMs: Date.now() - started,
         dataRetentionMode: "no_retention",
-        effectiveSettings: { maxOutputTokens: request.maxOutputTokens, webSearch: request.enableWebSearch === true },
+        effectiveSettings: {
+          maxOutputTokens: request.maxOutputTokens,
+          webSearch: request.enableWebSearch === true,
+          safetyIdentifier: request.safetyIdentifier ?? null,
+        },
         ignoredParameters: ["temperature"],
       };
       throw providerError;
     }
     const payload = await response.json<unknown>().catch(() => ({}));
+    const diagnostics = openAiResponseDiagnostics(
+      payload,
+      response.status,
+      response.headers.get("x-request-id") ?? undefined,
+    );
+    const normalizedUsage =
+      payload && typeof payload === "object" && "usage" in payload
+        ? ((payload as { usage?: Record<string, unknown> }).usage ?? undefined)
+        : undefined;
     if (!response.ok) {
       const capacity = response.status === 429;
       const errorObject =
@@ -346,23 +438,75 @@ class OpenAiLlmProvider extends RemoteProvider {
           .filter(Boolean)
           .join(": "),
       );
-      const normalizedUsage =
-        payload && typeof payload === "object" && "usage" in payload
-          ? ((payload as { usage?: Record<string, unknown> }).usage ?? undefined)
-          : undefined;
       providerError.attemptMetadata = {
         provider: this.providerId,
         transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "ai_gateway" : "direct",
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
+        providerRequestId: diagnostics.requestId ?? diagnostics.responseId,
         inputTokens: token(normalizedUsage, "input_tokens"),
         outputTokens: token(normalizedUsage, "output_tokens"),
         latencyMs: Date.now() - started,
         dataRetentionMode: "no_retention",
-        effectiveSettings: { maxOutputTokens: request.maxOutputTokens, webSearch: request.enableWebSearch === true },
+        effectiveSettings: {
+          maxOutputTokens: request.maxOutputTokens,
+          webSearch: request.enableWebSearch === true,
+          safetyIdentifier: request.safetyIdentifier ?? null,
+        },
         ignoredParameters: ["temperature"],
+        providerResponseDiagnostics: diagnostics,
       };
+      throw providerError;
+    }
+    const providerRequestId = diagnostics.requestId ?? diagnostics.responseId;
+    const attemptMetadata: LlmRunMetadata = {
+      provider: this.providerId,
+      transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "ai_gateway" : "direct",
+      adapterVersion: ADAPTER_VERSION,
+      requestedModel: this.model,
+      resolvedModel: this.model,
+      providerRequestId,
+      inputTokens: token(normalizedUsage, "input_tokens"),
+      outputTokens: token(normalizedUsage, "output_tokens"),
+      latencyMs: Date.now() - started,
+      dataRetentionMode: "no_retention",
+      effectiveSettings: {
+        maxOutputTokens: request.maxOutputTokens,
+        webSearch: request.enableWebSearch === true,
+        safetyIdentifier: request.safetyIdentifier ?? null,
+      },
+      ignoredParameters: ["temperature"],
+      providerResponseDiagnostics: diagnostics,
+    };
+    if (diagnostics.refusal) {
+      const providerError = new LlmProviderError(
+        "OpenAIが回答を拒否しました",
+        "EXTERNAL_PROVIDER_REFUSED",
+        false,
+        `OpenAIの拒否応答: ${diagnostics.refusal}`,
+      );
+      providerError.attemptMetadata = attemptMetadata;
+      throw providerError;
+    }
+    if (diagnostics.errorCode || diagnostics.errorMessage || diagnostics.responseStatus === "failed") {
+      const providerError = new LlmProviderError(
+        "OpenAIが回答の生成に失敗しました",
+        "EXTERNAL_PROVIDER_REJECTED",
+        false,
+        [diagnostics.errorCode, diagnostics.errorMessage].filter(Boolean).join(": ") || "応答状態がfailedでした",
+      );
+      providerError.attemptMetadata = attemptMetadata;
+      throw providerError;
+    }
+    if (diagnostics.responseStatus === "incomplete") {
+      const providerError = new LlmProviderError(
+        "OpenAIの回答が未完了でした",
+        "EXTERNAL_PROVIDER_INCOMPLETE",
+        false,
+        `未完了理由: ${diagnostics.incompleteReason ?? "理由なし"}`,
+      );
+      providerError.attemptMetadata = attemptMetadata;
       throw providerError;
     }
     const normalized = extractText(payload);
@@ -374,7 +518,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
-        providerRequestId: normalized.requestId,
+        providerRequestId: normalized.requestId ?? providerRequestId,
         inputTokens: token(normalized.usage, "input_tokens"),
         outputTokens: token(normalized.usage, "output_tokens"),
         latencyMs: Date.now() - started,
@@ -384,8 +528,10 @@ class OpenAiLlmProvider extends RemoteProvider {
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
           webSearch: request.enableWebSearch === true,
+          safetyIdentifier: request.safetyIdentifier ?? null,
         },
         ignoredParameters: ["temperature"],
+        providerResponseDiagnostics: diagnostics,
       },
     };
   }
@@ -408,7 +554,11 @@ class DeterministicProvider implements LlmProvider {
       rootRequestId: request.idempotencyKey,
       attemptNumber: 0,
       promptHash: await sha256Hex(JSON.stringify(request.messages)),
-      effectiveSettings: { maxOutputTokens: request.maxOutputTokens, temperature: request.temperature },
+      effectiveSettings: {
+        maxOutputTokens: request.maxOutputTokens,
+        temperature: request.temperature,
+        safetyIdentifier: request.safetyIdentifier ?? null,
+      },
       ignoredParameters: [],
     };
     return {

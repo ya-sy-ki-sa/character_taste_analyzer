@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EntriesPage } from "../src/pages/EntriesPage";
 
@@ -24,6 +24,7 @@ function entry(
       progressCurrent: 0,
       progressTotal: 15,
       errorCode: status === "failed" ? "EXTERNAL_PROVIDER_UNAVAILABLE" : null,
+      errorDetail: status === "failed" ? "HTTP 503: upstream temporarily unavailable" : null,
     },
   };
 }
@@ -191,7 +192,118 @@ describe("解析エラーの再実行", () => {
     );
 
     renderPage();
-    await screen.findByText("EXTERNAL_PROVIDER_UNAVAILABLE");
+    await screen.findByText("LLMサービスへ接続できませんでした");
+    expect(screen.getByText("HTTP 503: upstream temporarily unavailable")).toBeInTheDocument();
+    expect(screen.getByText("エラー詳細")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "解析を再実行" })).not.toBeInTheDocument();
+  });
+
+  it("旧形式の出典エラーコードだけでもOpenAI拒否ではないことを説明する", async () => {
+    const failed = entry("failed", false);
+    failed.job.errorCode = "EXTERNAL_CITATION_NOT_ALLOWED";
+    failed.job.errorDetail = "EXTERNAL_CITATION_NOT_ALLOWED";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ data: { entries: [failed] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    renderPage();
+    await screen.findByText("LLMの回答に確認できない外部出典が含まれていました");
+    expect(screen.getByText(/このエラー自体はOpenAIの拒否やセンシティブ判定を示しません/u)).toBeInTheDocument();
+  });
+});
+
+describe("嗜好候補の確認", () => {
+  it("個別の好き候補と価値スタンスを削除できる", async () => {
+    const runId = "a4cc0ce8-4b28-48c2-a40f-b45e3f3f5517";
+    const preferenceId = "eb4b5a7f-bd53-43cb-bef1-8556b4e5b18a";
+    const stanceId = "916e0c7c-91e1-431f-90ce-ccfdaea39c78";
+    let preferenceDeleted = false;
+    let stanceDeleted = false;
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const path = String(input);
+      if (path === `/api/v1/preference-analysis-runs/${runId}/review` && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { decision: string; targetIds: string[] };
+        expect(body.decision).toBe("reject_selected");
+        if (body.targetIds[0] === preferenceId) preferenceDeleted = true;
+        if (body.targetIds[0] === stanceId) stanceDeleted = true;
+        return new Response(JSON.stringify({ data: { targetId: body.targetIds[0], replayed: false } }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (path.endsWith("/api/v1/entries/9fd3b2d6-cd4b-4f3a-8907-a0f1281270d7")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              entry: {
+                id: "9fd3b2d6-cd4b-4f3a-8907-a0f1281270d7",
+                status: "analysis_review",
+                registrationType: "existing",
+                draft: { characterName: "再実行テスト" },
+              },
+              understanding: null,
+              baseUnderstanding: null,
+              preferenceAnalysis: {
+                id: runId,
+                summary: { userExplicitSummary: [], inferredSummary: [], limitations: [] },
+                uncertainties: [],
+                assertions: preferenceDeleted
+                  ? []
+                  : [
+                      {
+                        id: preferenceId,
+                        raw_label: "物語上の反転が好き",
+                        polarity: "positive",
+                        response_channel: "narrative_interest",
+                        strength: 0.9,
+                        explicitness: "user_explicit",
+                        confidence: 0.95,
+                        status: "proposed",
+                        evidence: [],
+                      },
+                    ],
+                valueStances: stanceDeleted
+                  ? []
+                  : [
+                      {
+                        id: stanceId,
+                        target_ref: "悪そのものへの志向",
+                        stance: "affirm",
+                        orientation: "evil",
+                        explicitness: "user_explicit",
+                        confidence: 0.9,
+                        status: "proposed",
+                        evidence: [],
+                      },
+                    ],
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ data: { entries: [entry("analysis_review", false)] } }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "内容を見る" }));
+    const preferenceCard = (await screen.findByText("物語上の反転が好き")).closest("article");
+    expect(preferenceCard).not.toBeNull();
+    fireEvent.click(within(preferenceCard as HTMLElement).getByRole("button", { name: "削除" }));
+    await waitFor(() => expect(screen.queryByText("物語上の反転が好き")).not.toBeInTheDocument());
+
+    const stanceCard = screen.getByText("悪そのものへの志向").closest("article");
+    expect(stanceCard).not.toBeNull();
+    fireEvent.click(within(stanceCard as HTMLElement).getByRole("button", { name: "削除" }));
+    await waitFor(() => expect(screen.queryByText("悪そのものへの志向")).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/v1/preference-analysis-runs/${runId}/review`,
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 });

@@ -1,5 +1,7 @@
+import { graphNodeLabel, representationTypeLabel } from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
 import type { GraphProjection } from "../../shared/schemas";
+import { valueStanceLabel } from "../../shared/value-stance-labels";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
 import type { Env } from "../types";
@@ -87,9 +89,13 @@ export async function rebuildGraphProjection(
     confidence: number;
   }>(
     env.DB.prepare(`
-    SELECT DISTINCT vs.id,vs.orientation,vs.stance,vs.target_ref,vs.confidence
+    SELECT DISTINCT vs.id,vs.orientation,vs.stance,
+      COALESCE(ad.label,CASE WHEN instr(vs.target_ref,'.')>0 THEN '未分類の属性' ELSE vs.target_ref END) AS target_ref,
+      vs.confidence
     FROM value_stance_assertions vs JOIN analysis_runs ar ON ar.id=vs.analysis_run_id
     JOIN entry_revisions er ON er.id=ar.entry_revision_id JOIN user_character_entries e ON e.id=er.entry_id
+    LEFT JOIN attribute_definitions ad ON ad.stable_key=vs.target_ref AND ad.status='active'
+      AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' ORDER BY created_at DESC LIMIT 1)
     WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active' AND e.active_revision_number=er.revision_number
     ORDER BY vs.id
   `).bind(ownerUserId),
@@ -197,7 +203,7 @@ export async function rebuildGraphProjection(
     putNode({
       id: representationNode,
       type: "representation",
-      label: `${entry.identity_name}（${entry.representation_type}）`,
+      label: `${entry.identity_name}（${representationTypeLabel(entry.representation_type)}）`,
       weight: 0.65,
       attributes: { representationType: entry.representation_type },
     });
@@ -290,7 +296,7 @@ export async function rebuildGraphProjection(
     putNode({
       id: nodeId,
       type: "value_stance",
-      label: `${stance.target_ref}：${stance.stance}`,
+      label: `${stance.target_ref}：${valueStanceLabel(stance.stance)}`,
       weight: stance.confidence,
       attributes: { orientation: stance.orientation, stance: stance.stance },
     });
@@ -403,6 +409,15 @@ export async function loadCurrentGraph(
       `SELECT node_id,node_type,label,weight,payload_json FROM graph_projection_nodes WHERE projection_snapshot_id=? ORDER BY weight DESC,node_id LIMIT ?`,
     ).bind(snapshot.id, limits.nodes),
   );
+  const attributeRows = await all<{ stable_key: string; label: string }>(
+    env.DB.prepare(`
+      SELECT ad.stable_key,ad.label FROM attribute_definitions ad
+      JOIN attribute_schema_versions av ON av.id=ad.schema_version_id
+      WHERE ad.status='active' AND av.status='active'
+      ORDER BY ad.stable_key
+    `),
+  );
+  const attributeLabels = new Map(attributeRows.map((row) => [row.stable_key, row.label]));
   const included = new Set(nodeRows.map((node) => node.node_id));
   const edgeRows = await all<{
     edge_id: string;
@@ -429,13 +444,15 @@ export async function loadCurrentGraph(
     profileGeneration: snapshot.generation,
     contentHash: snapshot.content_hash,
     detail,
-    nodes: nodeRows.map((node) => ({
-      id: node.node_id,
-      type: node.node_type,
-      label: node.label,
-      weight: node.weight,
-      attributes: JSON.parse(node.payload_json) as Record<string, unknown>,
-    })),
+    nodes: nodeRows.map((node) => {
+      const attributes = JSON.parse(node.payload_json) as Record<string, unknown>;
+      const view = { id: node.node_id, type: node.node_type, label: node.label, attributes };
+      return {
+        ...view,
+        label: graphNodeLabel(view, attributeLabels),
+        weight: node.weight,
+      };
+    }),
     edges: edges.map((edge) => {
       const payload = JSON.parse(edge.payload_json) as Record<string, unknown>;
       return {

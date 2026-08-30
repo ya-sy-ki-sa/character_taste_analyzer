@@ -3,7 +3,9 @@ import forceAtlas2 from "graphology-layout-forceatlas2";
 import FA2LayoutSupervisor from "graphology-layout-forceatlas2/worker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
+import { graphEdgeTypeLabel, graphNodeLabel, graphNodeTypeLabel } from "../../shared/presentation-labels";
 import type { GraphProjection } from "../../shared/schemas";
+import { graphAttributeEntries } from "../lib/graph-labels";
 
 const colors: Record<string, string> = {
   user: "#7c5cff",
@@ -32,6 +34,10 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
     [minimum, projection.nodes],
   );
   const visibleIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+  const nodeLabels = useMemo(
+    () => new Map(projection.nodes.map((node) => [node.id, graphNodeLabel(node)])),
+    [projection.nodes],
+  );
   const visibleEdges = useMemo(
     () => projection.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)),
     [projection.edges, visibleIds],
@@ -45,7 +51,7 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
     visible.forEach((node, index) => {
       const angle = (index / Math.max(1, visible.length)) * Math.PI * 2;
       graph.addNode(node.id, {
-        label: node.label,
+        label: nodeLabels.get(node.id) ?? "不明な項目",
         x: Math.cos(angle),
         y: Math.sin(angle),
         size: Math.min(24, 6 + 18 * Math.sqrt(node.weight)),
@@ -94,7 +100,7 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
       layout?.kill();
       renderer.kill();
     };
-  }, [projection, visibleNodes]);
+  }, [nodeLabels, projection, visibleNodes]);
 
   return (
     <div className="graph-shell">
@@ -119,10 +125,10 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
       {selected && (
         <aside className="graph-selection">
           <strong>{selected.label}</strong>
-          <small>{selected.type}</small>
-          {Object.entries(selected.attributes).map(([key, value]) => (
+          <small>{graphNodeTypeLabel(selected.type)}</small>
+          {graphAttributeEntries(selected.attributes).map(([key, value]) => (
             <span key={key}>
-              {key}: {String(value)}
+              {key}：{value}
             </span>
           ))}
         </aside>
@@ -149,10 +155,10 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
                         setSelected({ id: node.id, label: node.label, type: node.type, attributes: node.attributes })
                       }
                     >
-                      {node.label}
+                      {nodeLabels.get(node.id) ?? "不明な項目"}
                     </button>
                   </th>
-                  <td>{node.type}</td>
+                  <td>{graphNodeTypeLabel(node.type)}</td>
                   <td>{Math.round(node.weight * 100)}%</td>
                 </tr>
               ))}
@@ -173,9 +179,9 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
             <tbody>
               {visibleEdges.map((edge) => (
                 <tr key={edge.id}>
-                  <td>{projection.nodes.find((node) => node.id === edge.source)?.label ?? edge.source}</td>
-                  <td>{edge.type}</td>
-                  <td>{projection.nodes.find((node) => node.id === edge.target)?.label ?? edge.target}</td>
+                  <td>{nodeLabels.get(edge.source) ?? "不明な項目"}</td>
+                  <td>{graphEdgeTypeLabel(edge.type)}</td>
+                  <td>{nodeLabels.get(edge.target) ?? "不明な項目"}</td>
                   <td>{Math.round(edge.weight * 100)}%</td>
                 </tr>
               ))}

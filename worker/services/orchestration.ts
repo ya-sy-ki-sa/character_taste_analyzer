@@ -63,6 +63,18 @@ type WorkflowBinding<Params> = {
   get(id: string): Promise<{ id: string }>;
 };
 
+export function workflowInstanceIdForEvent(eventId: string, type: OutboxPayload["type"]): string {
+  const prefix =
+    type === "analysis.start"
+      ? "analysis"
+      : type === "generation.start"
+        ? "generation"
+        : type === "profile.rebuild"
+          ? "profile"
+          : "export";
+  return `${prefix}-${eventId}`;
+}
+
 async function createOrGetWorkflow<Params>(
   workflow: WorkflowBinding<Params>,
   id: string,
@@ -91,7 +103,7 @@ async function deliver(env: Env, row: OutboxRow): Promise<string | null> {
     }
     return createOrGetWorkflow(
       env.CHARACTER_ANALYSIS_WORKFLOW,
-      `analysis-${payload.params.jobId}-${payload.params.inputGeneration}-${payload.params.stage}`,
+      workflowInstanceIdForEvent(row.id, payload.type),
       payload.params,
     );
   }
@@ -103,7 +115,7 @@ async function deliver(env: Env, row: OutboxRow): Promise<string | null> {
     }
     return createOrGetWorkflow(
       env.GENERATION_WORKFLOW,
-      `generation-${payload.params.jobId}-${payload.params.inputGeneration}`,
+      workflowInstanceIdForEvent(row.id, payload.type),
       payload.params,
     );
   }
@@ -115,7 +127,7 @@ async function deliver(env: Env, row: OutboxRow): Promise<string | null> {
     }
     return createOrGetWorkflow(
       env.PROFILE_REBUILD_WORKFLOW,
-      `profile-${payload.params.ownerUserId}-${payload.params.desiredGeneration}`,
+      workflowInstanceIdForEvent(row.id, payload.type),
       payload.params,
     );
   }
@@ -124,7 +136,11 @@ async function deliver(env: Env, row: OutboxRow): Promise<string | null> {
     await processAccountExport(env, payload.params);
     return null;
   }
-  return createOrGetWorkflow(env.ACCOUNT_EXPORT_WORKFLOW, `export-${payload.params.exportId}`, payload.params);
+  return createOrGetWorkflow(
+    env.ACCOUNT_EXPORT_WORKFLOW,
+    workflowInstanceIdForEvent(row.id, payload.type),
+    payload.params,
+  );
 }
 
 export async function dispatchOutboxEvent(env: Env, eventId: string): Promise<boolean> {

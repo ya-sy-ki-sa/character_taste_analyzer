@@ -5,6 +5,7 @@ import type {
   IdentityCandidateRequest,
   UnderstandingReviewMutation,
 } from "../../shared/schemas";
+import { snapshotItemLabel } from "../../shared/presentation-labels";
 import { nowIso } from "../lib/crypto";
 import { all, first } from "../lib/db";
 import {
@@ -21,6 +22,7 @@ import {
   listEntries,
   loadEntryReview,
   mutateUnderstandingReview,
+  rejectPreferenceAnalysisItem,
 } from "../services/entries";
 import {
   createGenerationRequest,
@@ -66,6 +68,11 @@ export interface CharacterTasteDataStoreStrategy {
     idempotencyKey: string,
   ): ReturnType<typeof mutateUnderstandingReview>;
   confirmUnderstanding(ownerUserId: string, snapshotId: string): ReturnType<typeof confirmUnderstanding>;
+  rejectPreferenceAnalysisItem(
+    ownerUserId: string,
+    analysisRunId: string,
+    targetId: string,
+  ): ReturnType<typeof rejectPreferenceAnalysisItem>;
   archiveEntry(ownerUserId: string, entryId: string): Promise<{ outboxEventId: string }>;
   processCharacterAnalysis(params: CharacterAnalysisWorkflowParams): Promise<void>;
   processPreferenceAnalysis(params: CharacterAnalysisWorkflowParams): Promise<void>;
@@ -106,6 +113,8 @@ function d1Strategy(env: Env): CharacterTasteDataStoreStrategy {
     mutateUnderstandingReview: (ownerUserId, snapshotId, input, idempotencyKey) =>
       mutateUnderstandingReview(env, ownerUserId, snapshotId, input, idempotencyKey),
     confirmUnderstanding: (ownerUserId, snapshotId) => confirmUnderstanding(env, ownerUserId, snapshotId),
+    rejectPreferenceAnalysisItem: (ownerUserId, analysisRunId, targetId) =>
+      rejectPreferenceAnalysisItem(env, ownerUserId, analysisRunId, targetId),
     archiveEntry: async (ownerUserId, entryId) => {
       const now = nowIso();
       const state = await first<{ desired_generation: number; built_generation: number }>(
@@ -177,15 +186,26 @@ function d1Strategy(env: Env): CharacterTasteDataStoreStrategy {
           `SELECT id,item_type,stable_key,label,payload_json FROM profile_snapshot_items WHERE profile_snapshot_id=? ORDER BY ordinal,id`,
         ).bind(snapshot.id),
       );
+      const attributeRows = await all<{ stable_key: string; label: string }>(
+        env.DB.prepare(`
+          SELECT ad.stable_key,ad.label FROM attribute_definitions ad
+          JOIN attribute_schema_versions av ON av.id=ad.schema_version_id
+          WHERE ad.status='active' AND av.status='active'
+        `),
+      );
+      const attributeLabels = new Map(attributeRows.map((row) => [row.stable_key, row.label]));
       return {
         snapshot: { id: snapshot.id, generation: snapshot.profile_generation },
-        items: items.map((item) => ({
-          id: item.id,
-          type: item.item_type,
-          stableKey: item.stable_key,
-          label: item.label,
-          payload: JSON.parse(item.payload_json) as Record<string, unknown>,
-        })),
+        items: items.map((item) => {
+          const view = {
+            id: item.id,
+            type: item.item_type,
+            stableKey: item.stable_key,
+            label: item.label,
+            payload: JSON.parse(item.payload_json) as Record<string, unknown>,
+          };
+          return { ...view, label: snapshotItemLabel(view, attributeLabels) };
+        }),
       };
     },
     loadCurrentGraph: (ownerUserId, detail) => loadCurrentGraph(env, ownerUserId, detail),

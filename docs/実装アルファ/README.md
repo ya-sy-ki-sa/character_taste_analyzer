@@ -14,10 +14,10 @@
 | 確認 | 2026-08-30の結果 |
 |---|---|
 | format / lint / typecheck | 成功 |
-| unit | 15ファイル・79テスト成功 |
-| coverage | statement 97.17%、branch 92.13%、function 100%、line 98.69% |
-| contracts | migration 5件・66 tables・94 attributes、JSON Schema 5件、as-built OpenAPI、prompt hash成功 |
-| build / secret / bundle | 成功。main 88,604 bytes、graph 42,066 bytes（gzip） |
+| unit | 15ファイル・102テスト成功 |
+| coverage | statement 96.50%、branch 90.58%、function 100%、line 97.91% |
+| contracts | migration 6件・66 tables・94 attributes、JSON Schema 5件、as-built OpenAPI、prompt hash成功 |
+| build / secret / bundle | 成功。main 88,624 bytes、graph 42,646 bytes（gzip） |
 | hermetic E2E | Chromium全7件、Firefox smoke、mobile smokeの計9件成功 |
 | WebKit smoke | testとCI gateは実装済み。現在のホストは共有ライブラリ不足かつsudo不可のため、ローカル起動だけ未完了 |
 | ローカルD1 | backup/restore確認後、全22 EntryをOpenAIで再分析。22件とも理解確認待ち、失敗Entry 0件 |
@@ -32,7 +32,7 @@ WebKitを含むCIは`npx playwright install --with-deps chromium firefox webkit`
 
 1. 過去 Workflow が再分析後の状態を上書きできるなど、非同期処理に世代フェンスがない。
 2. 根拠の出典・入力箇所が実データと一致せず、「原文から追跡」という表示を保証できない。
-3. アクセスキーの初回表示・ローテーション画面を閉じると、利用者が復旧できなくなる場合がある。
+3. アクセスキーの初回表示を保存前に閉じたり、保存後に紛失した場合、同じアカウントへ復旧できない。設定画面からの変更・再発行導線も提供しない。
 4. 設定画面の「モデル知識や外部検索を分析根拠にしない」という説明が、現在の実装と反対になっている。
 
 また、同一作品・同一キャラクターを別登録すると毎回別 ID になるため、設計上の「作品・キャラクターの偏り補正」は登録をまたいで効きません。これは分析品質の中核に関わるため、公開前の仕様決定が必要です。

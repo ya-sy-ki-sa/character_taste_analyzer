@@ -1,5 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
+import {
+  briefCoverageStatusLabel,
+  briefTreatmentLabel,
+  generationErrorLabel,
+  snapshotItemLabel,
+  snapshotItemTypeLabel,
+} from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
 import type { GeneratedCharacterCandidate, GenerationRequestInput } from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
@@ -37,8 +44,6 @@ export function GeneratePage() {
   const [role, setRole] = useState("");
   const [tone, setTone] = useState("");
   const [instruction, setInstruction] = useState("");
-  const [redemption, setRedemption] = useState<GenerationRequestInput["redemption"]>("not_required");
-  const [hiddenGoodness, setHiddenGoodness] = useState<GenerationRequestInput["hiddenGoodness"]>("not_required");
   const [treatments, setTreatments] = useState<Record<string, SnapshotTreatment>>({});
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string>();
@@ -96,8 +101,6 @@ export function GeneratePage() {
           freeInstruction: instruction || undefined,
           selectedItemIds,
           prohibitedItemIds,
-          redemption,
-          hiddenGoodness,
         }),
       });
       await queryClient.invalidateQueries({ queryKey: ["generated-characters"] });
@@ -161,7 +164,7 @@ export function GeneratePage() {
             {groupedSnapshotItems.map((item) => (
               <div className="selection-row" key={item.id}>
                 <span>
-                  <strong>{item.label}</strong>
+                  <strong>{snapshotItemLabel(item)}</strong>
                   <small>
                     {snapshotItemTypeLabel(item.type)}
                     {item.responseChannels.length
@@ -240,32 +243,6 @@ export function GeneratePage() {
                 />
               </label>
               <label>
-                <span>改心・贖罪</span>
-                <select
-                  value={redemption}
-                  onChange={(event) => setRedemption(event.target.value as GenerationRequestInput["redemption"])}
-                >
-                  <option value="not_required">必要ない</option>
-                  <option value="prohibited">入れない</option>
-                  <option value="allowed">入ってもよい</option>
-                  <option value="required">必須</option>
-                </select>
-              </label>
-              <label>
-                <span>隠れた善性</span>
-                <select
-                  value={hiddenGoodness}
-                  onChange={(event) =>
-                    setHiddenGoodness(event.target.value as GenerationRequestInput["hiddenGoodness"])
-                  }
-                >
-                  <option value="not_required">必要ない</option>
-                  <option value="prohibited">入れない</option>
-                  <option value="allowed">入ってもよい</option>
-                  <option value="required">必須</option>
-                </select>
-              </label>
-              <label>
                 <span>表現トーン</span>
                 <input maxLength={1000} value={tone} onChange={(event) => setTone(event.target.value)} />
               </label>
@@ -332,7 +309,7 @@ export function GeneratePage() {
                   ) : (
                     <>
                       <h3>{item.status === "failed" ? "生成に失敗" : "生成中…"}</h3>
-                      <p>{item.job.errorCode ?? "生成条件と構造化設定を処理しています。"}</p>
+                      <p>{generationErrorLabel(item.job.errorCode)}</p>
                     </>
                   )}
                 </button>
@@ -354,13 +331,6 @@ export function GeneratePage() {
       {detail?.character && <CharacterModal character={detail.character} onClose={() => setDetail(undefined)} />}
     </>
   );
-}
-
-function snapshotItemTypeLabel(type: string): string {
-  if (type === "dimension") return "惹かれる属性";
-  if (type === "negative_preference") return "避けたい属性";
-  if (type === "value_stance") return "価値・善悪との関わり方";
-  return type;
 }
 
 function snapshotScopeLabel(conditions: Record<string, unknown>[]): string {
@@ -434,7 +404,7 @@ function CharacterModal({ character, onClose }: { character: GeneratedCharacterC
             {character.briefCoverage.map((item) => (
               <span key={item.profileSnapshotItemId}>
                 <strong>
-                  {item.treatment} / {item.status}
+                  {briefTreatmentLabel(item.treatment)} ／ {briefCoverageStatusLabel(item.status)}
                 </strong>
                 <small>{item.explanation}</small>
               </span>

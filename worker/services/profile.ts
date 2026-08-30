@@ -577,10 +577,13 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
   );
   const stanceRows = await all<{ orientation: string; stance: string; count: number; labels: string }>(
     env.DB.prepare(`
-    SELECT vs.orientation, vs.stance, COUNT(*) AS count, json_group_array(vs.target_ref) AS labels
+    SELECT vs.orientation, vs.stance, COUNT(*) AS count,
+           json_group_array(COALESCE(ad.label,CASE WHEN instr(vs.target_ref,'.')>0 THEN '未分類の属性' ELSE vs.target_ref END)) AS labels
     FROM value_stance_assertions vs JOIN analysis_runs ar ON ar.id=vs.analysis_run_id
     JOIN entry_revisions er ON er.id=ar.entry_revision_id
     JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
+    LEFT JOIN attribute_definitions ad ON ad.stable_key=vs.target_ref AND ad.status='active'
+      AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' ORDER BY created_at DESC LIMIT 1)
     WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active' AND e.deleted_at IS NULL
     GROUP BY vs.orientation,vs.stance ORDER BY count DESC,vs.orientation,vs.stance
   `).bind(ownerUserId),
@@ -670,6 +673,7 @@ export async function processProfileRebuild(env: Env, params: ProfileRebuildWork
   let claim: JobClaim | undefined;
   try {
     claim = await claimJob(env, params.jobId, params.ownerUserId, params.desiredGeneration, "profile-graph-rebuild");
+    if (claim.status === "attempts_exhausted") throw new Error("JOB_STEP_ATTEMPTS_EXHAUSTED");
     if (claim.status !== "claimed") return;
     const result = await rebuildProfile(env, params.ownerUserId, "queued_rebuild", params.desiredGeneration);
     const now = nowIso();

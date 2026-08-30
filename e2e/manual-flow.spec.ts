@@ -133,18 +133,59 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await expect(firstAssertion.locator(".assertion-card-header > .confidence-pill")).toHaveText(/^確信度 \d+%$/u);
   const customizationEvidence = page
     .locator("details.evidence-disclosure")
-    .filter({ has: page.getByText("/customizationDescription", { exact: true }) })
+    .filter({ has: page.getByText("改変内容", { exact: true }) })
     .first();
   await expect(customizationEvidence).not.toHaveAttribute("open", "");
   await customizationEvidence.getByText("詳細を見る", { exact: true }).click();
   await expect(customizationEvidence).toHaveAttribute("open", "");
   await expect(customizationEvidence.getByText("原文照合済み").first()).toBeVisible();
   await expect(customizationEvidence.getByText("改変内容", { exact: true }).first()).toBeVisible();
-  await expect(customizationEvidence.getByText("/customizationDescription", { exact: true }).first()).toBeVisible();
+  await expect(customizationEvidence.getByText("/customizationDescription", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "この理解を確認して嗜好解析へ" }).click();
   await expect(page.getByRole("button", { name: "すべて確認してプロフィールへ反映" })).toBeVisible({
     timeout: 20_000,
   });
+  const reviewDialog = page.getByRole("dialog", { name: "解析内容の確認" });
+  await expect(reviewDialog.getByText(/人物として好き・強さ/u).first()).toBeVisible();
+  await expect(reviewDialog.getByText("person_liking", { exact: true })).toHaveCount(0);
+  await expect(reviewDialog.getByText("user_explicit", { exact: true })).toHaveCount(0);
+  await expect(reviewDialog.locator("code").filter({ hasText: /^\//u })).toHaveCount(0);
+  const preferenceReviewCard = reviewDialog
+    .getByRole("heading", { name: "この登録から読み取った「好き」" })
+    .locator("..");
+  const preferenceList = preferenceReviewCard.locator(".assertion-list").first();
+  const rejectedPreferenceLabel = await preferenceList.locator(":scope > article strong").first().textContent();
+  expect(rejectedPreferenceLabel).toBeTruthy();
+  const rejectedPreference = preferenceList
+    .locator(":scope > article")
+    .filter({ hasText: rejectedPreferenceLabel ?? "" })
+    .first();
+  const matchingPreferenceCount = await preferenceList
+    .locator(":scope > article")
+    .filter({ hasText: rejectedPreferenceLabel ?? "" })
+    .count();
+  page.once("dialog", (dialog) => dialog.accept());
+  await rejectedPreference.getByRole("button", { name: "削除", exact: true }).click();
+  await expect(
+    preferenceList.locator(":scope > article").filter({ hasText: rejectedPreferenceLabel ?? "" }),
+  ).toHaveCount(matchingPreferenceCount - 1);
+  const valueStanceList = preferenceReviewCard.locator(".assertion-list").nth(1);
+  const rejectedStanceLabel = await valueStanceList.locator(":scope > article strong").first().textContent();
+  expect(rejectedStanceLabel).toBeTruthy();
+  const matchingStanceCount = await valueStanceList
+    .locator(":scope > article")
+    .filter({ hasText: rejectedStanceLabel ?? "" })
+    .count();
+  page.once("dialog", (dialog) => dialog.accept());
+  await valueStanceList
+    .locator(":scope > article")
+    .filter({ hasText: rejectedStanceLabel ?? "" })
+    .first()
+    .getByRole("button", { name: "削除", exact: true })
+    .click();
+  await expect(valueStanceList.locator(":scope > article").filter({ hasText: rejectedStanceLabel ?? "" })).toHaveCount(
+    matchingStanceCount - 1,
+  );
   await page.getByRole("button", { name: "すべて確認してプロフィールへ反映" }).click();
   await expect(page.getByText("現在: 解析済み")).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "閉じる" }).click();
@@ -165,6 +206,8 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
 
   await page.locator('.side-nav a[href="/app/generate"]').click();
   await expect(page.getByRole("heading", { name: "オリジナルキャラクター作成" })).toBeVisible();
+  await expect(page.getByLabel("改心・贖罪", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("隠れた善性", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /選択した\d+項目から作成/u }).click();
   await expect(page.getByRole("heading", { name: "霧綴のエナ" })).toBeVisible({ timeout: 20_000 });
   page.once("dialog", (dialog) => dialog.accept());

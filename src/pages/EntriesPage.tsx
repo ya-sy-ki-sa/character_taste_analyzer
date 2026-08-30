@@ -1,6 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { responseChannelCatalog, responseChannelCategories } from "../../shared/response-channels";
+import {
+  responseChannelCatalog,
+  responseChannelCategories,
+  responseChannelLabel,
+} from "../../shared/response-channels";
 import {
   canonicalEntryInputPointer,
   type EntryDraft,
@@ -15,8 +19,10 @@ import {
   type ResponseChannel,
   type UnderstandingReviewMutation,
 } from "../../shared/schemas";
+import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stance-labels";
 import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
+import { evidenceQuoteLabel, explicitnessLabel } from "../lib/analysis-labels";
 
 type EntryList = { entries: EntrySummary[] };
 type EvidenceDetail = {
@@ -27,6 +33,8 @@ type EvidenceDetail = {
   inputPointer: string | null;
   sourceTitle: string | null;
   sourceUrl: string | null;
+  sourceProvider: string | null;
+  trustReason: string | null;
   canNavigate: boolean;
 };
 type CustomizationDeltaDetail = {
@@ -46,6 +54,12 @@ type CharacterAssertionDetail = {
   confidence: number;
   status: string;
   evidence: EvidenceDetail[];
+};
+
+const evidenceSourceProviderLabels: Record<string, string> = {
+  wikipedia_ja: "日本語Wikipedia",
+  wikidata: "Wikidata",
+  openai_web_search: "OpenAI Web Search",
 };
 type ReviewDetail = {
   entry: { id: string; status: string; registrationType: RegistrationType; draft: EntryDraft };
@@ -222,8 +236,28 @@ const statusLabels: Record<string, string> = {
 };
 
 const analysisErrorLabels: Record<string, string> = {
+  LLM_SCHEMA_INVALID: "LLMの応答形式が解析仕様を満たしませんでした",
+  EXTERNAL_PROVIDER_REJECTED: "LLMサービスが解析リクエストを受け付けませんでした",
+  EXTERNAL_PROVIDER_REFUSED: "LLMサービスが回答を拒否しました",
+  EXTERNAL_PROVIDER_INCOMPLETE: "LLMサービスの回答が未完了でした",
+  EXTERNAL_PROVIDER_UNAVAILABLE: "LLMサービスへ接続できませんでした",
+  PROVIDER_CAPACITY_EXHAUSTED: "LLMサービスの利用上限または処理容量に達しました",
+  EXTERNAL_PROVIDER_INVALID_RESPONSE: "LLMサービスから有効な応答を取得できませんでした",
+  EXTERNAL_CITATION_NOT_ALLOWED: "LLMの回答に確認できない外部出典が含まれていました",
+  EVIDENCE_SOURCE_INVALID: "LLMの回答に確認できない根拠が含まれていました",
   PREFERENCE_ANALYSIS_EMPTY: "嗜好候補を生成できませんでした",
+  JOB_ATTEMPT_SCOPE_REPAIRED: "解析を再実行してください",
 };
+
+const analysisErrorFallbackDetails: Record<string, string> = {
+  EXTERNAL_CITATION_NOT_ALLOWED:
+    "LLMの構造化応答は取得できましたが、回答内の参照URLがWeb Search注釈・収集済み出典と一致しなかったため、本システムが根拠としての採用を拒否しました。このエラー自体はOpenAIの拒否やセンシティブ判定を示しません。旧記録では不一致URLを復元できません。",
+};
+
+function analysisErrorDetail(code: string, detail: string | null): string {
+  if (detail && detail !== code) return detail;
+  return analysisErrorFallbackDetails[code] ?? "LLMから詳細情報を取得できませんでした。再実行すると詳細を記録します。";
+}
 
 const reanalyzableStatuses = new Set(["understanding_review", "analysis_review", "active", "failed"]);
 
@@ -328,9 +362,15 @@ export function EntriesPage() {
               </div>
             </button>
             <footer>
-              <span className={`job-pill job-${entry.status}`}>{statusLabels[entry.status] ?? entry.status}</span>
+              <span className={`job-pill job-${entry.status}`}>{statusLabels[entry.status] ?? "状態を確認中"}</span>
               {entry.job?.errorCode && (
-                <small className="danger-text">{analysisErrorLabels[entry.job.errorCode] ?? entry.job.errorCode}</small>
+                <div className="analysis-error-detail" role="alert">
+                  <strong>{analysisErrorLabels[entry.job.errorCode] ?? "解析中にエラーが発生しました"}</strong>
+                  <span>
+                    <b>エラー詳細</b>
+                    {analysisErrorDetail(entry.job.errorCode, entry.job.errorDetail)}
+                  </span>
+                </div>
               )}
               <div className="entry-actions">
                 <button type="button" onClick={() => setDetailId(entry.id)}>
@@ -455,7 +495,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
       }
     }
     if (form.registrationType !== "original" && !resolvedIdentityId) {
-      setError("既存identityを再利用するか、別物として新規登録するか選んでください");
+      setError("既存の同一人物情報を再利用するか、別物として新規登録するか選んでください");
       setSubmitting(false);
       return;
     }
@@ -668,7 +708,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
         {form.registrationType !== "original" && candidates && candidates.length > 0 && (
           <fieldset className="identity-resolution">
             <legend>同じ作品・キャラクターの登録候補</legend>
-            <p>同一人物ならidentityを再利用します。今回の解釈・表現はどちらを選んでも新しく保存されます。</p>
+            <p>同一人物なら既存の同一人物情報を再利用します。今回の解釈・表現はどちらを選んでも新しく保存されます。</p>
             {candidates.map((candidate) => (
               <label className="check-row" key={candidate.characterIdentityId}>
                 <input
@@ -678,7 +718,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
                   onChange={() => setSelectedIdentityId(candidate.characterIdentityId)}
                 />
                 <span>
-                  既存identityを再利用：{candidate.workTitle} / {candidate.characterName}
+                  既存の同一人物情報を再利用：{candidate.workTitle} / {candidate.characterName}
                 </span>
               </label>
             ))}
@@ -866,7 +906,7 @@ function ReanalysisForm({
       }
     }
     if (form.registrationType !== "original" && identityChanged && !resolvedIdentityId) {
-      setError("既存identityを再利用するか、別物として扱うか選んでください");
+      setError("既存の同一人物情報を再利用するか、別物として扱うか選んでください");
       setSubmitting(false);
       return;
     }
@@ -1067,7 +1107,7 @@ function ReanalysisForm({
       {form.registrationType !== "original" && identityChanged && candidates && candidates.length > 0 && (
         <fieldset className="identity-resolution">
           <legend>変更後の作品・キャラクターに一致する候補</legend>
-          <p>同一人物なら既存identityを再利用します。別物の場合は新規として扱います。</p>
+          <p>同一人物なら既存の同一人物情報を再利用します。別物の場合は新規として扱います。</p>
           {candidates.map((candidate) => (
             <label className="check-row" key={candidate.characterIdentityId}>
               <input
@@ -1077,7 +1117,7 @@ function ReanalysisForm({
                 onChange={() => setSelectedIdentityId(candidate.characterIdentityId)}
               />
               <span>
-                既存identityを再利用：{candidate.workTitle} / {candidate.characterName}
+                既存の同一人物情報を再利用：{candidate.workTitle} / {candidate.characterName}
               </span>
             </label>
           ))}
@@ -1174,6 +1214,23 @@ function ReviewModal({
       setSubmitting(false);
     }
   }
+  async function rejectPreferenceItem(runId: string, targetId: string, label: string) {
+    if (!window.confirm(`「${label}」を嗜好候補から削除しますか？`)) return;
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await api(`/api/v1/preference-analysis-runs/${runId}/review`, {
+        method: "POST",
+        body: JSON.stringify({ decision: "reject_selected", targetIds: [targetId] }),
+      });
+      await detail.refetch();
+      onUpdated();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "嗜好候補を削除できませんでした");
+    } finally {
+      setSubmitting(false);
+    }
+  }
   const value = detail.data;
   return (
     <Modal title="解析内容の確認" onClose={onClose} wide>
@@ -1183,7 +1240,7 @@ function ReviewModal({
       {value && (
         <div className="review-stack">
           <Notice tone={value.entry.status === "failed" ? "danger" : "info"}>
-            現在: {statusLabels[value.entry.status] ?? value.entry.status}
+            現在: {statusLabels[value.entry.status] ?? "状態を確認中"}
           </Notice>
           {reanalyzableStatuses.has(value.entry.status) && (
             <button type="button" className="button button-secondary" onClick={onReanalyze}>
@@ -1331,6 +1388,11 @@ function ReviewModal({
             <Card>
               <p className="eyebrow">PREFERENCE CANDIDATES</p>
               <h3>この登録から読み取った「好き」</h3>
+              {value.entry.status === "analysis_review" && (
+                <p className="review-edit-guidance">
+                  認識と違う候補は個別に削除できます。削除した候補はプロフィールへ反映されません。
+                </p>
+              )}
               <div className="assertion-list">
                 {value.preferenceAnalysis.assertions.map((item) => (
                   <article key={item.id} className={item.polarity === "negative" ? "negative" : ""}>
@@ -1339,9 +1401,24 @@ function ReviewModal({
                       <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
                     </div>
                     <small>
-                      {item.response_channel}・強さ {Math.round(item.strength * 100)}%・{item.explicitness}
+                      {responseChannelLabel(item.response_channel)}・強さ {Math.round(item.strength * 100)}%・
+                      {explicitnessLabel(item.explicitness)}
                     </small>
                     <EvidenceList evidence={item.evidence} />
+                    {value.entry.status === "analysis_review" && (
+                      <div className="review-item-actions">
+                        <button
+                          type="button"
+                          className="danger-link"
+                          disabled={submitting}
+                          onClick={() =>
+                            void rejectPreferenceItem(value.preferenceAnalysis?.id ?? "", item.id, item.raw_label)
+                          }
+                        >
+                          削除
+                        </button>
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>
@@ -1356,9 +1433,24 @@ function ReviewModal({
                           <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
                         </div>
                         <small>
-                          {item.orientation} / {item.stance}
+                          対象の価値傾向：{valueOrientationLabel(item.orientation)} ／ あなたの捉え方：
+                          {valueStanceLabel(item.stance)}
                         </small>
                         <EvidenceList evidence={item.evidence} />
+                        {value.entry.status === "analysis_review" && (
+                          <div className="review-item-actions">
+                            <button
+                              type="button"
+                              className="danger-link"
+                              disabled={submitting}
+                              onClick={() =>
+                                void rejectPreferenceItem(value.preferenceAnalysis?.id ?? "", item.id, item.target_ref)
+                              }
+                            >
+                              削除
+                            </button>
+                          </div>
+                        )}
                       </article>
                     ))}
                   </div>
@@ -1740,7 +1832,7 @@ const inputPointerLabels: Record<string, string> = {
   "/userCharacterView": "ユーザーのキャラクター観",
   "/preference/likedReasons": "好きな理由",
   "/preference/dislikedReasons": "苦手な理由",
-  "/preference/responseChannels": "反応チャネル",
+  "/preference/responseChannels": "選択した惹かれ方",
   "/preference/valueStanceNote": "価値スタンス",
 };
 
@@ -1759,26 +1851,32 @@ function EvidenceList({ evidence }: { evidence: EvidenceDetail[] }) {
             <li key={item.id} className={`evidence-item evidence-${item.verificationStatus}`}>
               <div className="evidence-heading">
                 <span className="evidence-status">
-                  {evidenceStatusLabels[item.verificationStatus] ?? item.verificationStatus}
+                  {evidenceStatusLabels[item.verificationStatus] ?? "検証状態未分類"}
                 </span>
-                <small>{evidenceInferenceLabels[item.inferenceType] ?? item.inferenceType}</small>
+                <small>{evidenceInferenceLabels[item.inferenceType] ?? "根拠形式未分類"}</small>
               </div>
               {item.quote && (
                 <div className="evidence-detail">
                   <span>引用</span>
-                  <q>{item.quote}</q>
+                  <q>{evidenceQuoteLabel(item.quote, pointer)}</q>
                 </div>
               )}
               {pointer && (
                 <div className="evidence-detail">
                   <span>入力項目</span>
                   <strong>{inputPointerLabels[pointer] ?? "登録情報"}</strong>
-                  <code>{pointer}</code>
                 </div>
               )}
               {item.verificationStatus === "invalid" && (
                 <small className="evidence-warning">
                   指定された入力または出典と照合できなかったため、この根拠は採用されません。
+                </small>
+              )}
+              {(item.sourceProvider || item.trustReason) && (
+                <small>
+                  取得元:{" "}
+                  {item.sourceProvider ? (evidenceSourceProviderLabels[item.sourceProvider] ?? "公開情報") : "公開情報"}
+                  {item.trustReason ? `／採用理由: ${item.trustReason}` : ""}
                 </small>
               )}
               {item.canNavigate && item.sourceUrl ? (

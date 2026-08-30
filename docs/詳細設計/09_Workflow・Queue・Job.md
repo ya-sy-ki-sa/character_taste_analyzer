@@ -33,6 +33,8 @@ stateDiagram-v2
 - `waiting_for_user`は失敗ではなくユーザー入力待ち
 - retry可能な一時errorだけ`retrying`とし、`next_attempt_at`を持つ
 - `failed`からのretryは新`job_attempt`を作り同じJobを`queued`へ戻す
+- `attempt_number`はJob全体で一意な監査用連番とし、最大attemptの判定は`job_id + step_name`単位で行う。前段stepの失敗回数を後段stepへ持ち越さない
+- Workflow instance IDはoutbox event IDから導出する。同じeventの重複配送は同一instanceへ収束し、手動retryで作る新eventは新しいinstanceとして実行する
 - succeeded/cancelledはterminal
 - account deletionは開始後cancel不可
 

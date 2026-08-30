@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
+import { rejectPreferenceAnalysisItem } from "../worker/services/entries";
 import { claimJob, finishJobAttempt } from "../worker/services/jobs";
 import type { Env } from "../worker/types";
 
@@ -23,6 +24,14 @@ class TestStatement {
   async run() {
     const result = this.database.prepare(this.sql).run(...this.values);
     return { success: true, meta: { changes: Number(result.changes) } };
+  }
+
+  async all<T>() {
+    return {
+      success: true,
+      results: this.database.prepare(this.sql).all(...this.values) as T[],
+      meta: { changes: 0 },
+    };
   }
 }
 
@@ -114,7 +123,7 @@ describe("job claim integration", () => {
       )
       .run();
     const claim = await claimJob(current.env, "job", "owner", 1, "understanding");
-    expect(claim).toMatchObject({ status: "claimed", attemptNumber: 2 });
+    expect(claim).toMatchObject({ status: "claimed", attemptNumber: 2, stepAttemptNumber: 1 });
     expect(current.database.prepare("SELECT status,error_code FROM job_attempts WHERE id='old'").get()).toMatchObject({
       status: "abandoned",
       error_code: "LEASE_EXPIRED",
@@ -132,6 +141,40 @@ describe("job claim integration", () => {
     expect(current.database.prepare("SELECT COUNT(*) AS count FROM job_attempts").get()).toMatchObject({ count: 0 });
   });
 
+  it("starts a new step after the previous step used all three attempts", async () => {
+    current = testDatabase();
+    seedJob(current.database);
+    const insert = current.database.prepare(
+      `INSERT INTO job_attempts
+        (id,job_id,attempt_number,status,step_name,started_at,finished_at)
+       VALUES (?,?,?,'failed','understandCharacter','2026-01-01T00:00:00.000Z','2026-01-01T00:00:01.000Z')`,
+    );
+    for (let attempt = 1; attempt <= 3; attempt += 1) insert.run(`understanding-${attempt}`, "job", attempt);
+
+    const claim = await claimJob(current.env, "job", "owner", 1, "preferenceAnalysis");
+
+    expect(claim).toMatchObject({ status: "claimed", attemptNumber: 4, stepAttemptNumber: 1 });
+    expect(
+      current.database.prepare("SELECT attempt_number,step_name FROM job_attempts WHERE status='running'").get(),
+    ).toMatchObject({ attempt_number: 4, step_name: "preferenceAnalysis" });
+  });
+
+  it("enforces the three-attempt limit within each step", async () => {
+    current = testDatabase();
+    seedJob(current.database);
+    const insert = current.database.prepare(
+      `INSERT INTO job_attempts
+        (id,job_id,attempt_number,status,step_name,started_at,finished_at)
+       VALUES (?,?,?,'failed','preferenceAnalysis','2026-01-01T00:00:00.000Z','2026-01-01T00:00:01.000Z')`,
+    );
+    for (let attempt = 1; attempt <= 3; attempt += 1) insert.run(`preference-${attempt}`, "job", attempt);
+
+    await expect(claimJob(current.env, "job", "owner", 1, "preferenceAnalysis")).resolves.toMatchObject({
+      status: "attempts_exhausted",
+    });
+    expect(current.database.prepare("SELECT COUNT(*) AS count FROM job_attempts").get()).toMatchObject({ count: 3 });
+  });
+
   it("does not let a late attempt failure overwrite its success", async () => {
     current = testDatabase();
     seedJob(current.database);
@@ -143,5 +186,63 @@ describe("job claim integration", () => {
     expect(
       current.database.prepare("SELECT status,error_code FROM job_attempts WHERE id=?").get(claim.attemptId),
     ).toMatchObject({ status: "succeeded", error_code: null });
+  });
+});
+
+describe("preference review integration", () => {
+  it("rejects an individual preference or value stance and keeps retries idempotent", async () => {
+    const database = new DatabaseSync(":memory:");
+    database.exec(`
+      CREATE TABLE user_character_entries (
+        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, active_revision_number INTEGER NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE entry_revisions (
+        id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, revision_number INTEGER NOT NULL
+      );
+      CREATE TABLE analysis_runs (
+        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, entry_revision_id TEXT NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE preference_assertions (
+        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, analysis_run_id TEXT NOT NULL, status TEXT NOT NULL
+      );
+      CREATE TABLE value_stance_assertions (
+        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, analysis_run_id TEXT NOT NULL, status TEXT NOT NULL
+      );
+      INSERT INTO user_character_entries VALUES ('entry','owner',1,'analysis_review');
+      INSERT INTO entry_revisions VALUES ('revision','entry',1);
+      INSERT INTO analysis_runs VALUES ('run','owner','revision','succeeded');
+      INSERT INTO preference_assertions VALUES ('preference','owner','run','proposed');
+      INSERT INTO value_stance_assertions VALUES ('stance','owner','run','proposed');
+    `);
+    const d1 = {
+      prepare(sql: string) {
+        return new TestStatement(database, sql);
+      },
+    } as unknown as D1Database;
+    const env = { DB: d1 } as unknown as Env;
+    try {
+      await expect(rejectPreferenceAnalysisItem(env, "owner", "run", "preference")).resolves.toMatchObject({
+        targetType: "preference_assertion",
+        replayed: false,
+      });
+      await expect(rejectPreferenceAnalysisItem(env, "owner", "run", "preference")).resolves.toMatchObject({
+        replayed: true,
+      });
+      await expect(rejectPreferenceAnalysisItem(env, "owner", "run", "stance")).resolves.toMatchObject({
+        targetType: "value_stance_assertion",
+        replayed: false,
+      });
+      expect(database.prepare("SELECT status FROM preference_assertions WHERE id='preference'").get()).toMatchObject({
+        status: "rejected",
+      });
+      expect(database.prepare("SELECT status FROM value_stance_assertions WHERE id='stance'").get()).toMatchObject({
+        status: "rejected",
+      });
+      await expect(rejectPreferenceAnalysisItem(env, "another-owner", "run", "preference")).rejects.toThrow(
+        "PREFERENCE_REVIEW_NOT_FOUND",
+      );
+    } finally {
+      database.close();
+    }
   });
 });

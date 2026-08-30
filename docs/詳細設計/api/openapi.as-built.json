@@ -9309,32 +9309,13 @@
                     },
                     "maxItems": 100,
                     "default": []
-                  },
-                  "redemption": {
-                    "type": "string",
-                    "enum": [
-                      "required",
-                      "allowed",
-                      "not_required",
-                      "prohibited"
-                    ],
-                    "default": "not_required"
-                  },
-                  "hiddenGoodness": {
-                    "type": "string",
-                    "enum": [
-                      "required",
-                      "allowed",
-                      "not_required",
-                      "prohibited"
-                    ],
-                    "default": "not_required"
                   }
                 },
                 "required": [
                   "purpose",
                   "selectedItemIds"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }

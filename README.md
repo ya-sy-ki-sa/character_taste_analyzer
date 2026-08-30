@@ -6,15 +6,15 @@
 
 ## 実装済み
 
-- UUIDアクセスキーによるユーザー作成、有効化、ログイン、セッション更新、キー変更、private R2への非同期完全JSONエクスポート、全削除
+- UUIDアクセスキーによるユーザー作成、有効化、ログイン、セッション更新、private R2への非同期完全JSONエクスポート、全削除。キー紛失時の再発行・復旧は行わない
 - 既成、既成（カスタム）、オリジナルの3方式によるキャラクター登録と、owner内identity候補のreuse/new選択
-- 既成キャラクターはシステム側の公開情報検索、オリジナルキャラクターはユーザー入力の基本情報を起点とし、任意参考情報・ユーザー解釈を分離した基本像抽出
+- 既成キャラクターはWikipedia・Wikidata・OpenAI Web Searchによる検証可能な公開情報検索、オリジナルキャラクターはユーザー入力の基本情報を起点とし、任意参考情報・ユーザー解釈を分離した基本像抽出
 - カスタム登録における基本像と対象像の分離、改変・限定差分の構造化抽出
 - キャラクター理解と嗜好候補の2段階確認
 - 統制属性94件、44種類の反応経路、自由語、価値スタンス、検証状態・JSON Pointer付き根拠を分離した保存
 - 同一キャラ・同一作品の偏りを補正する決定論的な累積嗜好プロフィール
 - GraphProjectionのサーバー生成と、Graphology・ForceAtlas2 Web Worker・Sigma.jsによるブラウザ内探索／描画
-- 固定ProfileSnapshot、項目選択、生成モード、改心／隠れた善性の方針、決定的・意味的制約検査を使うオリジナルキャラクター生成
+- 固定ProfileSnapshot、項目選択、生成モード、不要な道徳補正を自動追加しない内部方針、決定的・意味的制約検査を使うオリジナルキャラクター生成
 - Workers AI、OpenAI Responses API、Replay、Fakeの明示的なProvider切替
 - キャラクターdomainをD1 Adapterへ集約するDataStore Strategy（`DATASTORE_STRATEGY=d1`）
 - 世代フェンス、D1 outbox、lease付き再配送、profile/graphの原子的cutover
@@ -71,12 +71,12 @@ npm run verify
 ```
 
 - 単体試験: Zod契約、カスタム差分の意味制約、LLM／Embedding Provider切替、Workers AI capacity保持、共通数値処理
-- DDL契約: migration 5件、66テーブル、初期統制属性94件
+- DDL契約: migration 6件、66テーブル、初期統制属性94件
 - as-built OpenAPI、Zod/JSON Schema、prompt hash、bundle budget、secret scan
 - coverage: deterministic core全体80%/branch 75%、状態・quota・provenance・generation validatorはbranch 90%
 - API smoke: 登録→理解確認→嗜好確認→プロフィール→グラフ→生成
 - Playwright: 3方式登録画面と全主要導線、CSRF／Origin／水平権限／stored XSS、logout／session失効／account削除
-- 現行unitは15ファイル・73テスト。ローカルE2EはChromium全7件、Firefox smoke、mobile smokeの計9件を確認済みです。WebKit smokeはCIの`--with-deps`環境で必須実行します。
+- 現行unitは15ファイル・102テスト。ローカルE2EはChromium全7件、Firefox smoke、mobile smokeの計9件を確認済みです。WebKit smokeはCIの`--with-deps`環境で必須実行します。
 
 Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全build scriptは終了時に`dist`配下を検査し、path検証済みの秘密artifactだけを削除します。`dist`に`.dev.vars`が残るbuildは失敗として扱ってください。
 

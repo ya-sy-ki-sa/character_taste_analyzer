@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { EvidenceReference, GeneratedCharacterCandidate } from "../shared/schemas";
 import { jsonPointerExists, validateGenerationCoverage } from "../worker/services/generation-validation";
 import { isRetryableFailure, jobClaimDisposition } from "../worker/services/job-policy";
+import { workflowInstanceIdForEvent } from "../worker/services/orchestration";
 import { profileConditionJson } from "../worker/services/profile-context";
-import { verifyEvidenceReference, type ProvenanceSource } from "../worker/services/provenance-verifier";
+import {
+  ProvenanceVerificationError,
+  verifyEvidenceReference,
+  type ProvenanceSource,
+} from "../worker/services/provenance-verifier";
 import { nextQuotaSlot, quotaLimit } from "../worker/services/quota-policy";
 
 const source: ProvenanceSource = {
@@ -66,13 +71,23 @@ describe("provenance verifier", () => {
   });
 
   it("accepts only annotated external URLs", async () => {
-    await expect(
-      verifyEvidenceReference(
-        evidence({ sourceRef: null, sourceUrl: "https://invalid.example", inputPointer: null }),
-        [],
-        new Set(["https://allowed.example"]),
-      ),
-    ).rejects.toThrow("EXTERNAL_CITATION_NOT_ALLOWED");
+    const error = await verifyEvidenceReference(
+      evidence({
+        sourceRef: null,
+        sourceUrl: "https://invalid.example",
+        inputPointer: null,
+      }),
+      [],
+      new Set(["https://allowed.example"]),
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ProvenanceVerificationError);
+    expect(error).toMatchObject({
+      code: "EXTERNAL_CITATION_NOT_ALLOWED",
+      safeDetail: expect.stringContaining("参照URL: https://invalid.example"),
+    });
+    expect((error as ProvenanceVerificationError).safeDetail).toContain(
+      "このエラー自体はOpenAIの拒否やセンシティブ判定を示しません",
+    );
   });
 
   it("classifies mismatched direct quotes as invalid", async () => {
@@ -86,7 +101,12 @@ describe("provenance verifier", () => {
     expect(attributed.verificationStatus).toBe("source_attributed");
 
     const knowledge = await verifyEvidenceReference(
-      evidence({ sourceRef: "model_knowledge", inputPointer: null, quote: null, inferenceType: "inferred" }),
+      evidence({
+        sourceRef: "model_knowledge",
+        inputPointer: null,
+        quote: null,
+        inferenceType: "inferred",
+      }),
       [],
       new Set(),
     );
@@ -109,7 +129,11 @@ describe("provenance verifier", () => {
       origin: "source",
     };
     const byUrl = await verifyEvidenceReference(
-      evidence({ sourceRef: null, sourceUrl: webSource.url, inputPointer: null }),
+      evidence({
+        sourceRef: null,
+        sourceUrl: webSource.url,
+        inputPointer: null,
+      }),
       [webSource],
       new Set([webSource.url as string]),
     );
@@ -128,6 +152,31 @@ describe("provenance verifier", () => {
       new Set(),
     );
     expect(byQuote.verificationStatus).toBe("verified_quote");
+  });
+
+  it("accepts canonical URL variants without weakening the source allowlist", async () => {
+    const webSource: ProvenanceSource = {
+      ...source,
+      fragmentId: "canonical-web",
+      inputPointer: null,
+      url: "https://allowed.example/articles/hero/?utm_source=chatgpt.com#profile",
+      origin: "source",
+    };
+    const result = await verifyEvidenceReference(
+      evidence({
+        sourceRef: null,
+        sourceUrl: "https://allowed.example/articles/hero",
+        inputPointer: null,
+        quote: null,
+      }),
+      [webSource],
+      new Set([webSource.url as string]),
+    );
+    expect(result).toMatchObject({
+      sourceFragmentId: "canonical-web",
+      evidenceOrigin: "source",
+      verificationStatus: "source_attributed",
+    });
   });
 
   it("keeps a non-direct mismatched quote source-attributed", async () => {
@@ -228,14 +277,26 @@ describe("generation coverage validator", () => {
   });
 
   it("reports completely omitted selections", () => {
-    expect(validateGenerationCoverage(brief, { ...baseCandidate, briefCoverage: [] })).toEqual([
-      "coverage exactly-once違反: required:0",
-      "coverage exactly-once違反: prohibited:0",
-    ]);
+    expect(
+      validateGenerationCoverage(brief, {
+        ...baseCandidate,
+        briefCoverage: [],
+      }),
+    ).toEqual(["coverage exactly-once違反: required:0", "coverage exactly-once違反: prohibited:0"]);
   });
 });
 
 describe("job and quota policies", () => {
+  it("uses the outbox event as the workflow execution identity", () => {
+    expect(workflowInstanceIdForEvent("event-1", "analysis.start")).toBe("analysis-event-1");
+    expect(workflowInstanceIdForEvent("event-1", "analysis.start")).toBe(
+      workflowInstanceIdForEvent("event-1", "analysis.start"),
+    );
+    expect(workflowInstanceIdForEvent("event-2", "analysis.start")).not.toBe(
+      workflowInstanceIdForEvent("event-1", "analysis.start"),
+    );
+  });
+
   it.each(["succeeded", "waiting_for_user", "cancelled", "superseded"])(
     "does not reclaim a terminal %s job",
     (status) => {
@@ -321,7 +382,14 @@ describe("job and quota policies", () => {
 describe("profile context preservation", () => {
   it("canonicalizes and preserves a version 2 context", () => {
     expect(
-      profileConditionJson("legacy", JSON.stringify({ schemaVersion: "2", conditions: ["夜"], entryScope: "全体" })),
+      profileConditionJson(
+        "legacy",
+        JSON.stringify({
+          schemaVersion: "2",
+          conditions: ["夜"],
+          entryScope: "全体",
+        }),
+      ),
     ).toBe('{"conditions":["夜"],"entryScope":"全体","schemaVersion":"2"}');
   });
 

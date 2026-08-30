@@ -3,7 +3,10 @@ import { all, first } from "../lib/db";
 import type { Env } from "../types";
 import type { ProvenanceSource } from "./provenance-verifier";
 
-export { verifyEvidenceReference } from "./provenance-verifier";
+export {
+  ProvenanceVerificationError,
+  verifyEvidenceReference,
+} from "./provenance-verifier";
 
 export async function loadInputProvenanceSources(
   env: Env,
@@ -17,13 +20,15 @@ export async function loadInputProvenanceSources(
     source_type: string;
     citation_json: string;
   }>(
-    env.DB.prepare(`
+    env.DB.prepare(
+      `
       SELECT sf.id,sf.locator_json,sf.text_content,sd.source_type,sd.citation_json FROM source_set_items ssi
       JOIN source_fragments sf ON sf.source_document_revision_id=ssi.source_document_revision_id
       JOIN source_documents sd ON sd.id=(SELECT source_document_id FROM source_document_revisions WHERE id=sf.source_document_revision_id)
       WHERE ssi.source_set_version_id=?
       ORDER BY ssi.priority,sf.ordinal
-    `).bind(sourceSetVersionId),
+    `,
+    ).bind(sourceSetVersionId),
   );
   return sources.map((source) => {
     const locator = JSON.parse(source.locator_json) as Record<string, unknown>;
@@ -42,20 +47,52 @@ export async function prepareExternalProvenanceSources(
   env: Env,
   ownerUserId: string,
   sourceSetVersionId: string | null,
-  sources: Array<{ url: string; title: string; excerpt?: string }>,
+  sources: Array<{
+    url: string;
+    title: string;
+    excerpt?: string;
+    provider?: string;
+    trustReason?: string;
+  }>,
 ): Promise<{ sources: ProvenanceSource[]; statements: D1PreparedStatement[] }> {
   const result: ProvenanceSource[] = [];
   const prepared: D1PreparedStatement[] = [];
   for (const source of new Map(sources.map((item) => [item.url, item])).values()) {
-    const existing = await first<{ fragment_id: string; revision_id: string; text_content: string }>(
-      env.DB.prepare(`
-        SELECT sf.id AS fragment_id,sr.id AS revision_id,sf.text_content FROM source_documents sd
+    const now = nowIso();
+    const existing = await first<{
+      document_id: string;
+      fragment_id: string;
+      revision_id: string;
+      text_content: string;
+      citation_json: string;
+    }>(
+      env.DB.prepare(
+        `
+        SELECT sd.id AS document_id,sd.citation_json,sf.id AS fragment_id,sr.id AS revision_id,sf.text_content
+        FROM source_documents sd
         JOIN source_document_revisions sr ON sr.source_document_id=sd.id AND sr.revision_number=sd.active_revision_number
         JOIN source_fragments sf ON sf.source_document_revision_id=sr.id AND sf.ordinal=0
         WHERE sd.owner_user_id=? AND json_extract(sd.citation_json,'$.url')=? LIMIT 1
-      `).bind(ownerUserId, source.url),
+      `,
+      ).bind(ownerUserId, source.url),
     );
     if (existing) {
+      if (source.provider || source.trustReason) {
+        const citation = JSON.parse(existing.citation_json) as Record<string, unknown>;
+        const updatedCitation = {
+          ...citation,
+          ...(source.provider ? { provider: source.provider } : {}),
+          ...(source.trustReason ? { trustReason: source.trustReason } : {}),
+        };
+        if (JSON.stringify(updatedCitation) !== JSON.stringify(citation)) {
+          prepared.push(
+            env.DB.prepare(
+              `UPDATE source_documents SET citation_json=?,updated_at=?,revision=revision+1
+               WHERE id=? AND owner_user_id=?`,
+            ).bind(JSON.stringify(updatedCitation), now, existing.document_id, ownerUserId),
+          );
+        }
+      }
       if (sourceSetVersionId)
         prepared.push(
           env.DB.prepare(
@@ -78,12 +115,23 @@ export async function prepareExternalProvenanceSources(
     const fragmentId = crypto.randomUUID();
     const text = source.excerpt?.trim() || source.title;
     const hash = await sha256Hex(text);
-    const now = nowIso();
     prepared.push(
       env.DB.prepare(
         `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at)
          VALUES (?,?,?,'secondary','private',?,'public_web_excerpt',1,1,?,?)`,
-      ).bind(documentId, ownerUserId, source.title, JSON.stringify({ url: source.url, title: source.title }), now, now),
+      ).bind(
+        documentId,
+        ownerUserId,
+        source.title,
+        JSON.stringify({
+          url: source.url,
+          title: source.title,
+          provider: source.provider ?? null,
+          trustReason: source.trustReason ?? null,
+        }),
+        now,
+        now,
+      ),
       env.DB.prepare(
         `INSERT INTO source_document_revisions (id,source_document_id,revision_number,inline_text,mime_type,byte_size,content_hash,upload_status,extraction_status,finalized_at,created_at)
          VALUES (?,?,1,?,'text/plain',?,?,'finalized','ready',?,?)`,
@@ -108,7 +156,13 @@ export async function prepareExternalProvenanceSources(
            VALUES (?,?,100,'supporting')`,
         ).bind(sourceSetVersionId, revisionId),
       );
-    result.push({ fragmentId, text, inputPointer: null, url: source.url, origin: "source" });
+    result.push({
+      fragmentId,
+      text,
+      inputPointer: null,
+      url: source.url,
+      origin: "source",
+    });
   }
   return { sources: result, statements: prepared };
 }
@@ -117,7 +171,13 @@ export async function persistExternalProvenanceSources(
   env: Env,
   ownerUserId: string,
   sourceSetVersionId: string | null,
-  sources: Array<{ url: string; title: string; excerpt?: string }>,
+  sources: Array<{
+    url: string;
+    title: string;
+    excerpt?: string;
+    provider?: string;
+    trustReason?: string;
+  }>,
 ): Promise<ProvenanceSource[]> {
   const prepared = await prepareExternalProvenanceSources(env, ownerUserId, sourceSetVersionId, sources);
   if (prepared.statements.length) {

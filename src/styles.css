@@ -1120,6 +1120,28 @@
   .entry-card > footer .entry-actions {
     margin-left: auto;
   }
+  .analysis-error-detail {
+    display: grid;
+    flex: 1 0 100%;
+    gap: 6px;
+    padding: 10px 12px;
+    color: var(--danger);
+    background: var(--danger-pale);
+    border-radius: var(--radius-sm);
+    overflow-wrap: anywhere;
+  }
+  .analysis-error-detail > strong {
+    font-size: 0.78rem;
+  }
+  .analysis-error-detail > span {
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+    white-space: pre-wrap;
+  }
+  .analysis-error-detail > span > b {
+    margin-right: 0.55em;
+    color: var(--danger);
+  }
   .entry-actions button {
     padding: 4px 0;
     color: var(--lavender);
