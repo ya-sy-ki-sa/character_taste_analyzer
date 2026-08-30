@@ -41,7 +41,9 @@ export function GeneratePage() {
   const [hiddenGoodness, setHiddenGoodness] = useState<GenerationRequestInput["hiddenGoodness"]>("not_required");
   const [treatments, setTreatments] = useState<Record<string, SnapshotTreatment>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string>();
   const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
   const [detail, setDetail] = useState<GenerationRow>();
   const snapshot = useQuery({
     queryKey: ["profile-snapshot-items"],
@@ -106,6 +108,24 @@ export function GeneratePage() {
     }
   }
 
+  async function removeHistory(item: GenerationRow) {
+    const title = item.character?.identity.name ?? (item.status === "failed" ? "失敗した生成" : "この生成");
+    if (!window.confirm(`「${title}」の作成履歴を削除しますか？`)) return;
+    setDeletingId(item.generationRequestId);
+    setError(undefined);
+    setNotice(undefined);
+    try {
+      await api(`/api/v1/generation-requests/${item.generationRequestId}`, { method: "DELETE" });
+      if (detail?.generationRequestId === item.generationRequestId) setDetail(undefined);
+      await queryClient.invalidateQueries({ queryKey: ["generated-characters"] });
+      setNotice("作成履歴を削除しました。");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "作成履歴を削除できませんでした");
+    } finally {
+      setDeletingId(undefined);
+    }
+  }
+
   const selectedCount = Object.values(treatments).filter((item) => item === "include").length;
   return (
     <>
@@ -115,6 +135,7 @@ export function GeneratePage() {
         description="固定した嗜好スナップショットから、使う項目と避ける項目を自分で選んで作成します。"
       />
       {error && <Notice tone="danger">{error}</Notice>}
+      {notice && <Notice tone="success">{notice}</Notice>}
       {snapshot.isPending && <Spinner label="生成に使う嗜好を準備しています" />}
       {!snapshot.isPending && !snapshot.data?.snapshot && (
         <Card>
@@ -285,34 +306,49 @@ export function GeneratePage() {
           </Card>
         )}
         <div className="generation-grid">
-          {generations.data?.generations.map((item) => (
-            <button
-              type="button"
-              className="generation-card"
-              key={item.generationRequestId}
-              onClick={() => item.character && setDetail(item)}
-              disabled={!item.character}
-            >
-              <span className={`generation-mode mode-${item.mode}`}>
-                {modes.find((mode) => mode.id === item.mode)?.title}
-              </span>
-              {item.character ? (
-                <>
-                  <h3>{item.character.identity.name}</h3>
-                  <p>{item.character.identity.oneLineConcept}</p>
-                  <footer>
-                    <span>{new Date(item.createdAt).toLocaleDateString("ja-JP")}</span>
-                    <b>設定を見る →</b>
-                  </footer>
-                </>
-              ) : (
-                <>
-                  <h3>{item.status === "failed" ? "生成に失敗" : "生成中…"}</h3>
-                  <p>{item.job.errorCode ?? "生成条件と構造化設定を処理しています。"}</p>
-                </>
-              )}
-            </button>
-          ))}
+          {generations.data?.generations.map((item) => {
+            const terminal = ["generated", "failed", "cancelled"].includes(item.status);
+            const title = item.character?.identity.name ?? (item.status === "failed" ? "失敗した生成" : "生成中の項目");
+            return (
+              <article className="generation-history-item" key={item.generationRequestId}>
+                <button
+                  type="button"
+                  className="generation-card"
+                  onClick={() => item.character && setDetail(item)}
+                  disabled={!item.character}
+                >
+                  <span className={`generation-mode mode-${item.mode}`}>
+                    {modes.find((mode) => mode.id === item.mode)?.title}
+                  </span>
+                  {item.character ? (
+                    <>
+                      <h3>{item.character.identity.name}</h3>
+                      <p>{item.character.identity.oneLineConcept}</p>
+                      <footer>
+                        <span>{new Date(item.createdAt).toLocaleDateString("ja-JP")}</span>
+                        <b>設定を見る →</b>
+                      </footer>
+                    </>
+                  ) : (
+                    <>
+                      <h3>{item.status === "failed" ? "生成に失敗" : "生成中…"}</h3>
+                      <p>{item.job.errorCode ?? "生成条件と構造化設定を処理しています。"}</p>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="generation-delete-button"
+                  disabled={!terminal || deletingId === item.generationRequestId}
+                  title={terminal ? undefined : "生成処理が完了すると削除できます"}
+                  onClick={() => void removeHistory(item)}
+                  aria-label={`「${title}」の履歴を削除`}
+                >
+                  {deletingId === item.generationRequestId ? "削除中…" : "削除"}
+                </button>
+              </article>
+            );
+          })}
         </div>
       </section>
       {detail?.character && <CharacterModal character={detail.character} onClose={() => setDetail(undefined)} />}

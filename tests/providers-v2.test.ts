@@ -76,6 +76,39 @@ describe("explicit LLM provider routing", () => {
     const result = await createLlmProvider(env).generateStructured(request);
     expect(result.metadata.provider).toBe("fake");
     expect(result.fallbackFrom).toContain("workers_ai:PROVIDER_CAPACITY_EXHAUSTED");
+    expect(result.attempts).toHaveLength(2);
+    expect(result.attempts?.[0].output).toMatchObject({ errorCode: "PROVIDER_CAPACITY_EXHAUSTED" });
+    expect(result.attempts?.[1].metadata).toMatchObject({
+      fallbackFromProvider: "workers_ai",
+      fallbackErrorCode: "PROVIDER_CAPACITY_EXHAUSTED",
+    });
+  });
+
+  it("returns auditable metadata for a rejected OpenAI attempt", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ error: { code: "invalid_request", message: "bad schema" } }, { status: 400 })),
+    );
+    const error = await createLlmProvider(
+      providerEnv({
+        LLM_PROVIDER: "openai",
+        LLM_MODEL: "gpt-5.6-luna",
+        OPENAI_API_KEY: "test-key",
+        OPENAI_TRANSPORT: "direct",
+      }),
+    )
+      .generateStructured(request)
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: "EXTERNAL_PROVIDER_REJECTED",
+      operation: "character_understanding",
+      attempts: [
+        {
+          output: { errorCode: "EXTERNAL_PROVIDER_REJECTED" },
+          metadata: { provider: "openai", resolvedModel: "gpt-5.6-luna", attemptNumber: 0 },
+        },
+      ],
+    });
   });
 
   it("sends the structured-output contract and execution limits to OpenAI Responses", async () => {
@@ -89,7 +122,7 @@ describe("explicit LLM provider routing", () => {
         text: { format: { type: "json_schema", strict: true } },
       });
       expect(body).not.toHaveProperty("temperature");
-      expect(headers.get("Idempotency-Key")).toBe(request.idempotencyKey);
+      expect(headers.get("Idempotency-Key")).toBe(`${request.idempotencyKey}:attempt-0`);
       return Response.json({ id: "resp_test", output_text: '{"value":"openai"}', usage: {} });
     });
     vi.stubGlobal("fetch", fetchMock);

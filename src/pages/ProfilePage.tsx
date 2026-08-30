@@ -1,17 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { responseChannelLabel } from "../../shared/response-channels";
-import type { GraphProjection, ProfileView } from "../../shared/schemas";
+import type { GraphProjection, ProfileView, ProjectionFreshness } from "../../shared/schemas";
 import { api } from "../api";
-import { TasteGraph } from "../components/TasteGraph";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
 import { type DisplayProfileDimension, groupProfileDimensions } from "../lib/profile-dimensions";
 
 const classificationLabels = { stable: "安定傾向", emerging: "発展中", insufficient: "データ少" } as const;
+const TasteGraph = lazy(() => import("../components/TasteGraph").then((module) => ({ default: module.TasteGraph })));
 export function ProfilePage() {
   const profile = useQuery({
     queryKey: ["profile"],
-    queryFn: () => api<{ profile: ProfileView | null }>("/api/v1/profile"),
+    queryFn: () => api<{ profile: ProfileView | null; freshness: ProjectionFreshness }>("/api/v1/profile"),
     refetchInterval: 10_000,
   });
   const graph = useQuery({
@@ -22,6 +23,21 @@ export function ProfilePage() {
   if (profile.isPending) return <Spinner label="嗜好プロフィールを読み込んでいます" />;
   if (profile.isError) return <Notice tone="danger">嗜好プロフィールを読み込めませんでした。</Notice>;
   const value = profile.data.profile;
+  if (!value && profile.data.freshness.status === "rebuilding")
+    return (
+      <>
+        <PageHeading
+          eyebrow="YOUR TASTE PROFILE"
+          title="嗜好解析結果"
+          description="確認済みデータからプロフィールとグラフを再構築しています。"
+        />
+        <Card>
+          <Spinner
+            label={`プロフィールを再構築しています（${profile.data.freshness.builtGeneration} → ${profile.data.freshness.desiredGeneration}）`}
+          />
+        </Card>
+      </>
+    );
   if (!value)
     return (
       <>
@@ -174,7 +190,11 @@ export function ProfilePage() {
           {graph.isError && (
             <Notice tone="danger">グラフを読み込めませんでした。上の一覧は引き続き利用できます。</Notice>
           )}
-          {graph.data?.graph && <TasteGraph projection={graph.data.graph} />}
+          {graph.data?.graph && (
+            <Suspense fallback={<Spinner label="グラフ表示を読み込んでいます" />}>
+              <TasteGraph projection={graph.data.graph} />
+            </Suspense>
+          )}
         </Card>
       </section>
     </>

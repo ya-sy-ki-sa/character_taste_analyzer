@@ -66,10 +66,7 @@ export const preferenceInputSchema = z.object({
 });
 export type PreferenceInput = z.infer<typeof preferenceInputSchema>;
 
-export const entryReanalysisSchema = z.object({ preference: preferenceInputSchema });
-export type EntryReanalysisInput = z.infer<typeof entryReanalysisSchema>;
-const commonEntry = {
-  schemaVersion: z.literal("1"),
+const commonEntryFields = {
   preferenceContext: optionalText(2_000),
   /** @deprecated 旧ローカルデータの読込み専用。新規入力にはpreferenceContextを使用する。 */
   knownScope: optionalText(2_000),
@@ -79,15 +76,28 @@ const commonEntry = {
   userCharacterView: optionalText(4_000),
   preference: preferenceInputSchema,
 };
-export const existingEntryDraftSchema = z.object({
-  ...commonEntry,
+
+export const identityResolutionSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("new") }),
+  z.object({
+    mode: z.literal("reuse"),
+    workId: z.string().uuid().nullable(),
+    characterIdentityId: z.string().uuid(),
+  }),
+]);
+export type IdentityResolution = z.infer<typeof identityResolutionSchema>;
+
+const legacyExistingEntryDraftSchema = z.object({
+  ...commonEntryFields,
+  schemaVersion: z.literal("1"),
   registrationType: z.literal("existing"),
   workTitle: text(200),
   characterName: text(200),
   mediaType: optionalText(100),
 });
-export const customizedExistingEntryDraftSchema = z.object({
-  ...commonEntry,
+const legacyCustomizedExistingEntryDraftSchema = z.object({
+  ...commonEntryFields,
+  schemaVersion: z.literal("1"),
   registrationType: z.literal("customized_existing"),
   workTitle: text(200),
   characterName: text(200),
@@ -95,18 +105,75 @@ export const customizedExistingEntryDraftSchema = z.object({
   representationType: z.enum(["facet", "scene_state", "alternate_setting", "transformative", "user_interpretation"]),
   customizationDescription: text(8_000, "どのように基本像から異なるか入力してください"),
 });
-export const originalEntryDraftSchema = z.object({
-  ...commonEntry,
+const legacyOriginalEntryDraftSchema = z.object({
+  ...commonEntryFields,
+  schemaVersion: z.literal("1"),
   registrationType: z.literal("original"),
   characterName: text(200),
   characterBasicInfo: text(20_000, "キャラクター基本情報を入力してください"),
 });
-export const entryDraftSchema = z.discriminatedUnion("registrationType", [
+
+export const existingEntryDraftSchema = z.object({
+  ...commonEntryFields,
+  schemaVersion: z.literal("2"),
+  registrationType: z.literal("existing"),
+  workTitle: text(200),
+  characterName: text(200),
+  mediaType: optionalText(100),
+  identityResolution: identityResolutionSchema,
+});
+export const customizedExistingEntryDraftSchema = z.object({
+  ...commonEntryFields,
+  schemaVersion: z.literal("2"),
+  registrationType: z.literal("customized_existing"),
+  workTitle: text(200),
+  baseCharacterName: text(200),
+  characterName: text(200),
+  mediaType: optionalText(100),
+  representationType: z.enum(["facet", "scene_state", "alternate_setting", "transformative", "user_interpretation"]),
+  customizationDescription: text(8_000, "どのように基本像から異なるか入力してください"),
+  identityResolution: identityResolutionSchema,
+});
+export const originalEntryDraftSchema = z.object({
+  ...commonEntryFields,
+  schemaVersion: z.literal("2"),
+  registrationType: z.literal("original"),
+  characterName: text(200),
+  characterBasicInfo: text(20_000, "キャラクター基本情報を入力してください"),
+});
+
+export const entrySubmissionSchema = z.discriminatedUnion("registrationType", [
   existingEntryDraftSchema,
   customizedExistingEntryDraftSchema,
   originalEntryDraftSchema,
 ]);
+export const entryReanalysisSchema = z.object({ draft: entrySubmissionSchema });
+export type EntryReanalysisInput = z.infer<typeof entryReanalysisSchema>;
+export const entryDraftSchema = z.union([
+  entrySubmissionSchema,
+  z.discriminatedUnion("registrationType", [
+    legacyExistingEntryDraftSchema,
+    legacyCustomizedExistingEntryDraftSchema,
+    legacyOriginalEntryDraftSchema,
+  ]),
+]);
 export type EntryDraft = z.infer<typeof entryDraftSchema>;
+export type EntrySubmission = z.infer<typeof entrySubmissionSchema>;
+
+export const identityCandidateRequestSchema = z.object({
+  workTitle: text(200),
+  characterName: text(200),
+  mediaType: optionalText(100),
+});
+export type IdentityCandidateRequest = z.infer<typeof identityCandidateRequestSchema>;
+export type IdentityCandidate = {
+  workId: string | null;
+  characterIdentityId: string;
+  workTitle: string | null;
+  characterName: string;
+  mediaType: string | null;
+  match: "exact" | "work_and_character";
+};
 
 export function entryPreferenceContext(draft: EntryDraft): string | undefined {
   return draft.preferenceContext ?? draft.knownScope;
@@ -119,6 +186,114 @@ export function entryScopeText(draft: EntryDraft): string {
 export function entryReferenceMaterial(draft: EntryDraft): string | undefined {
   return draft.referenceMaterial ?? draft.sourceText;
 }
+
+/**
+ * The canonical character used to resolve identities and construct the base
+ * understanding. Legacy customized drafts predate the separate field, so
+ * their display name is also their base character name.
+ */
+export function entryBaseCharacterName(draft: EntryDraft): string {
+  if (draft.registrationType !== "customized_existing") return draft.characterName;
+  return "baseCharacterName" in draft ? draft.baseCharacterName : draft.characterName;
+}
+
+export type EntryInputSource = {
+  pointer: string;
+  label: string;
+  text: string;
+};
+
+export function canonicalEntryInputPointer(pointer: string | null | undefined): string | null {
+  if (!pointer) return null;
+  let canonical = pointer.trim();
+  if (!canonical.startsWith("/")) canonical = `/${canonical}`;
+  for (const wrapper of ["/登録情報", "/input", "/entry"]) {
+    if (canonical.startsWith(`${wrapper}/`)) {
+      canonical = canonical.slice(wrapper.length);
+      break;
+    }
+  }
+  return canonical;
+}
+
+/**
+ * Character/preference analysis may cite only these user-input fragments.
+ * Keep this list shared by entry creation, local migration and prompt construction
+ * so that a JSON Pointer emitted by the model always has a persisted source.
+ */
+export function entryInputSources(draft: EntryDraft): EntryInputSource[] {
+  const referenceMaterial = entryReferenceMaterial(draft);
+  const preferenceContext = entryPreferenceContext(draft);
+  return [
+    draft.registrationType === "original" ? null : { pointer: "/workTitle", label: "作品名", text: draft.workTitle },
+    draft.registrationType === "customized_existing"
+      ? { pointer: "/baseCharacterName", label: "既成キャラクター名", text: entryBaseCharacterName(draft) }
+      : null,
+    { pointer: "/characterName", label: "キャラクター名", text: draft.characterName },
+    draft.registrationType === "original" || !draft.mediaType
+      ? null
+      : { pointer: "/mediaType", label: "媒体種別", text: draft.mediaType },
+    draft.registrationType === "customized_existing"
+      ? { pointer: "/representationType", label: "改変種別", text: draft.representationType }
+      : null,
+    draft.registrationType === "customized_existing"
+      ? {
+          pointer: "/customizationDescription",
+          label: "改変内容",
+          text: draft.customizationDescription,
+        }
+      : null,
+    draft.registrationType === "original"
+      ? { pointer: "/characterBasicInfo", label: "キャラクター基本情報", text: draft.characterBasicInfo }
+      : null,
+    preferenceContext ? { pointer: "/preferenceContext", label: "対象範囲・場面", text: preferenceContext } : null,
+    referenceMaterial ? { pointer: "/referenceMaterial", label: "追加の参考情報", text: referenceMaterial } : null,
+    draft.userCharacterView
+      ? { pointer: "/userCharacterView", label: "ユーザーのキャラクター観", text: draft.userCharacterView }
+      : null,
+    draft.preference.likedReasons
+      ? { pointer: "/preference/likedReasons", label: "好きな理由", text: draft.preference.likedReasons }
+      : null,
+    draft.preference.dislikedReasons
+      ? { pointer: "/preference/dislikedReasons", label: "苦手な理由", text: draft.preference.dislikedReasons }
+      : null,
+    {
+      pointer: "/preference/responseChannels",
+      label: "反応チャネル",
+      text: JSON.stringify(draft.preference.responseChannels),
+    },
+    draft.preference.valueStanceNote
+      ? { pointer: "/preference/valueStanceNote", label: "価値スタンス", text: draft.preference.valueStanceNote }
+      : null,
+  ].filter((item): item is EntryInputSource => item !== null);
+}
+
+export const evidenceReferenceSchema = z
+  .object({
+    sourceRef: z.string().min(1).max(200).nullable(),
+    sourceUrl: z.string().url().max(1_000).nullable(),
+    inputPointer: z.string().startsWith("/").max(500).nullable(),
+    quote: z.string().min(1).max(500).nullable(),
+    inferenceType: z.enum(["direct", "paraphrase", "inferred"]),
+  })
+  .superRefine((evidence, context) => {
+    if (!evidence.sourceRef && !evidence.sourceUrl && !evidence.inputPointer)
+      context.addIssue({ code: "custom", message: "evidenceには参照元が必要です" });
+    if (evidence.inferenceType === "direct" && !evidence.quote)
+      context.addIssue({ code: "custom", path: ["quote"], message: "direct evidenceには引用が必要です" });
+  });
+export type EvidenceReference = z.infer<typeof evidenceReferenceSchema>;
+
+export const preferenceAssertionContextSchema = z.object({
+  schemaVersion: z.literal("2"),
+  entryScope: z.string().max(1_000).nullable(),
+  subjects: z.array(z.string().min(1).max(300)).max(10),
+  relationships: z.array(z.string().min(1).max(300)).max(10),
+  narrativePhases: z.array(z.string().min(1).max(300)).max(10),
+  conditions: z.array(z.string().min(1).max(500)).max(10),
+  exceptions: z.array(z.string().min(1).max(500)).max(10),
+});
+export type PreferenceAssertionContext = z.infer<typeof preferenceAssertionContextSchema>;
 
 const sourceAssessmentSchema = z.object({
   coverage: z.enum(["sufficient", "partial", "minimal", "none"]),
@@ -152,7 +327,7 @@ export const understandingCandidateSchema = z.object({
         scopeText: z.string().max(1_000),
         explicitness: z.enum(["source_explicit", "source_interpreted", "user_explicit", "model_knowledge"]),
         confidence: z.number().min(0).max(1),
-        evidenceQuote: z.string().max(500).nullable(),
+        evidence: z.array(evidenceReferenceSchema).max(3),
       }),
     )
     .max(100),
@@ -219,8 +394,8 @@ export const preferenceCandidateSchema = z.object({
         strength: z.number().min(0).max(1),
         explicitness: z.enum(["user_explicit", "user_confirmed", "inferred", "model_knowledge"]),
         confidence: z.number().min(0).max(1),
-        contextText: z.string().max(1_000),
-        evidenceQuote: z.string().max(500).nullable(),
+        context: preferenceAssertionContextSchema,
+        evidence: z.array(evidenceReferenceSchema).max(3),
       }),
     )
     .max(100),
@@ -231,15 +406,21 @@ export const preferenceCandidateSchema = z.object({
         targetRef: z.string().min(1).max(1_000),
         stance: valueStanceSchema,
         orientation: valueOrientationSchema,
-        scopeText: z.string().max(1_000),
+        context: preferenceAssertionContextSchema,
         explicitness: z.enum(["user_explicit", "user_confirmed", "inferred"]),
         confidence: z.number().min(0).max(1),
-        evidenceQuote: z.string().max(500).nullable(),
+        evidence: z.array(evidenceReferenceSchema).max(3),
       }),
     )
     .max(100),
   uncertainties: z
-    .array(z.object({ topic: z.string(), reason: z.string(), recommendedQuestion: z.string().nullable() }))
+    .array(
+      z.object({
+        topic: z.string().min(1).max(500),
+        reason: z.string().min(1).max(2_000),
+        recommendedQuestion: z.string().max(1_000).nullable(),
+      }),
+    )
     .max(50),
 });
 export type PreferenceCandidate = z.infer<typeof preferenceCandidateSchema>;
@@ -250,7 +431,47 @@ export const batchReviewSchema = z.object({
   reasonText: optionalText(2_000),
 });
 
+const reviewDeltaFields = {
+  operation: z.enum(["inherit", "add", "modify", "remove", "invert", "narrow_scope", "emphasize", "unspecified"]),
+  beforeValue: z.string().trim().min(1).max(2_000).nullable(),
+  afterValue: z.string().trim().min(1).max(2_000).nullable(),
+  reasonText: z.string().trim().min(1).max(2_000).nullable().default(null),
+};
+
+export const understandingReviewMutationSchema = z
+  .discriminatedUnion("action", [
+    z.object({
+      action: z.literal("add_assertion"),
+      rawLabel: text(200),
+      valueText: text(2_000),
+    }),
+    z.object({
+      action: z.literal("update_assertion"),
+      targetId: z.string().uuid(),
+      rawLabel: text(200),
+      valueText: text(2_000),
+    }),
+    z.object({ action: z.literal("delete_assertion"), targetId: z.string().uuid() }),
+    z.object({ action: z.literal("add_delta"), ...reviewDeltaFields }),
+    z.object({ action: z.literal("update_delta"), targetId: z.string().uuid(), ...reviewDeltaFields }),
+    z.object({ action: z.literal("delete_delta"), targetId: z.string().uuid() }),
+  ])
+  .superRefine((input, context) => {
+    if (input.action !== "add_delta" && input.action !== "update_delta") return;
+    if (input.operation === "add" && (input.beforeValue !== null || input.afterValue === null))
+      context.addIssue({ code: "custom", message: "追加には変更後の設定だけを入力してください" });
+    if (input.operation === "remove" && (input.beforeValue === null || input.afterValue !== null))
+      context.addIssue({ code: "custom", message: "削除には原典の設定だけを入力してください" });
+    if (["modify", "invert"].includes(input.operation) && (input.beforeValue === null || input.afterValue === null))
+      context.addIssue({ code: "custom", message: "変更・反転には原典と変更後の設定が必要です" });
+    if (input.beforeValue === null && input.afterValue === null)
+      context.addIssue({ code: "custom", message: "原典または変更後の設定を入力してください" });
+  });
+export type UnderstandingReviewMutation = z.infer<typeof understandingReviewMutationSchema>;
+export const understandingReviewRequestSchema = z.union([batchReviewSchema, understandingReviewMutationSchema]);
+
 export const generationModeSchema = z.enum(["faithful", "balanced", "exploratory"]);
+export const accountExportRequestSchema = z.object({}).strict();
 export const generationRequestInputSchema = z
   .object({
     mode: generationModeSchema.default("balanced"),
@@ -275,6 +496,22 @@ export const generationRequestInputSchema = z
     }
   });
 export type GenerationRequestInput = z.infer<typeof generationRequestInputSchema>;
+
+export const generationValidationReportSchema = z.object({
+  passed: z.boolean(),
+  checks: z
+    .array(
+      z.object({
+        constraintId: z.string().min(1).max(200),
+        status: z.enum(["satisfied", "violated", "uncertain"]),
+        outputPointers: z.array(z.string().startsWith("/").max(500)).max(20),
+        explanation: z.string().min(1).max(1_000),
+      }),
+    )
+    .max(250),
+  violations: z.array(z.string().min(1).max(1_000)).max(100),
+});
+export type GenerationValidationReport = z.infer<typeof generationValidationReportSchema>;
 
 const generatedTraitSchema = z.object({
   label: z.string().min(1).max(200),
@@ -310,24 +547,29 @@ export const generatedCharacterCandidateSchema = z.object({
   abilitiesAndLimits: generatedSectionSchema,
   relationships: z
     .array(
-      z.object({ targetRole: z.string(), dynamic: z.string(), characterBehavior: z.string(), development: z.string() }),
+      z.object({
+        targetRole: z.string().min(1).max(300),
+        dynamic: z.string().min(1).max(2_000),
+        characterBehavior: z.string().min(1).max(2_000),
+        development: z.string().min(1).max(2_000),
+      }),
     )
     .max(30),
   speech: z.object({
-    voice: z.string(),
-    habits: z.array(z.string()).max(30),
-    exampleLines: z.array(z.string()).max(5),
+    voice: z.string().min(1).max(2_000),
+    habits: z.array(z.string().max(500)).max(30),
+    exampleLines: z.array(z.string().max(500)).max(5),
   }),
   narrativeRole: z.object({
-    role: z.string(),
-    function: z.string(),
-    agency: z.string(),
+    role: z.string().min(1).max(500),
+    function: z.string().min(1).max(2_000),
+    agency: z.string().min(1).max(2_000),
     visibility: z.enum(["central", "supporting", "minor", "scene_limited"]),
   }),
   characterArc: z.object({
-    start: z.string(),
-    turningPoints: z.array(z.string()).max(20),
-    end: z.string(),
+    start: z.string().min(1).max(2_000),
+    turningPoints: z.array(z.string().max(1_000)).max(20),
+    end: z.string().min(1).max(2_000),
     changeType: z.enum(["positive", "negative", "flat", "corruption", "no_redemption", "open", "other"]),
   }),
   briefCoverage: z
@@ -342,7 +584,7 @@ export const generatedCharacterCandidateSchema = z.object({
     )
     .min(1)
     .max(200),
-  uncertainties: z.array(z.string()).max(50),
+  uncertainties: z.array(z.string().max(1_000)).max(50),
 });
 export type GeneratedCharacterCandidate = z.infer<typeof generatedCharacterCandidateSchema>;
 
@@ -391,6 +633,12 @@ export type ProfileView = {
   entryCount: number;
   updatedAt: string;
 };
+export type ProjectionFreshness = {
+  status: "fresh" | "rebuilding" | "unavailable" | "failed";
+  desiredGeneration: number;
+  builtGeneration: number;
+  errorCode: string | null;
+};
 export type GraphProjection = {
   schemaVersion: "1.0";
   projectionId: string;
@@ -411,5 +659,17 @@ export type GraphProjection = {
   }>;
   truncated: boolean;
   truncationReason: string | null;
+};
+export type AccountExportStatus = {
+  id: string;
+  jobId: string;
+  status: "queued" | "running" | "ready" | "failed" | "expired";
+  schemaVersion: "2.0";
+  byteSize: number | null;
+  contentHash: string | null;
+  errorCode: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  expiresAt: string | null;
 };
 export type ApiError = { code: string; message: string; requestId: string; details?: unknown };

@@ -1,8 +1,10 @@
-import type { ProfileDimension, ProfileView } from "../../shared/schemas";
+import type { ProfileDimension, ProfileView, ProjectionFreshness } from "../../shared/schemas";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
-import type { Env } from "../types";
+import type { Env, ProfileRebuildWorkflowParams } from "../types";
 import { rebuildGraphProjection } from "./graph";
+import { claimJob, finishJobAttempt, type JobClaim } from "./jobs";
+import { profileConditionJson } from "./profile-context";
 
 export const PROFILE_ALGORITHM_VERSION = "profile/v1.1.0";
 const ONTOLOGY_VERSION = "1.0";
@@ -144,16 +146,10 @@ function canonicalJson(input: string): string {
   }
 }
 
-export function profileConditionJson(knownScope: string | null): string {
-  const scope = knownScope?.normalize("NFKC").trim() ?? "";
-  if (!scope || scope === "キャラクター全体") return "{}";
-  return canonicalJson(JSON.stringify({ schemaVersion: "1", scope }));
-}
-
 async function weightAssertions(rows: AssertionRow[]): Promise<WeightedAssertion[]> {
   return Promise.all(
     rows.map(async (row) => {
-      const conditionJson = profileConditionJson(row.known_scope);
+      const conditionJson = profileConditionJson(row.known_scope, row.context_json);
       const conditionHash = await sha256Hex(conditionJson);
       const stableKey = row.stable_key ?? `raw:${normalizeIdentityPart(row.normalized_label || row.raw_label)}`;
       const contribution = clamp01(
@@ -207,7 +203,11 @@ function buildDimensions(rows: WeightedAssertion[]): BuiltDimension[] {
     const condition = JSON.parse(conditionJson) as Record<string, unknown>;
     const flags = [
       ...(!firstRow.attribute_definition_id ? ["unmapped"] : []),
-      ...(typeof condition.scope === "string" && condition.scope ? ["conditional"] : []),
+      ...(Object.entries(condition).some(
+        ([key, value]) => key !== "schemaVersion" && (Array.isArray(value) ? value.length > 0 : Boolean(value)),
+      )
+        ? ["conditional"]
+        : []),
       ...(positiveScore >= 0.4 && negativeScore >= 0.4 ? ["contrast"] : []),
     ];
     const factor = classification === "stable" ? 1 : classification === "emerging" ? 0.8 : 0.5;
@@ -244,9 +244,10 @@ async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<
            rm.normalized_label, pa.polarity, pa.response_channel, pa.strength, pa.explicitness,
            pa.confidence, pa.context_json, er.known_scope,
            COUNT(ef.id) AS evidence_count,
-           COALESCE(MAX(CASE ef.evidence_origin
-             WHEN 'user_input' THEN 1.0 WHEN 'review' THEN 1.0 WHEN 'source' THEN 0.9
-             WHEN 'derived' THEN 0.75 WHEN 'model_knowledge' THEN 0.45 ELSE 0.2 END), 0.2) AS evidence_quality
+           COALESCE(MAX(CASE ef.verification_status
+             WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
+             WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
+             WHEN 'legacy_unverified' THEN 0.2 WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
     FROM preference_assertions pa
     JOIN entry_revisions er ON er.id = pa.entry_revision_id
     JOIN user_character_entries e ON e.id = er.entry_id AND e.active_revision_number = er.revision_number
@@ -267,9 +268,10 @@ async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueSta
     env.DB.prepare(`
     SELECT vs.id, vs.target_type, vs.target_ref, vs.stance, vs.orientation, vs.scope_json,
            vs.explicitness, vs.confidence,
-           COALESCE(MAX(CASE ef.evidence_origin
-             WHEN 'user_input' THEN 1.0 WHEN 'review' THEN 1.0 WHEN 'source' THEN 0.9
-             WHEN 'derived' THEN 0.75 ELSE 0.2 END), 0.2) AS evidence_quality
+           COALESCE(MAX(CASE ef.verification_status
+             WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
+             WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
+             WHEN 'legacy_unverified' THEN 0.2 WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
     FROM value_stance_assertions vs
     JOIN analysis_runs ar ON ar.id = vs.analysis_run_id
     JOIN entry_revisions er ON er.id = ar.entry_revision_id
@@ -286,7 +288,8 @@ export async function rebuildProfile(
   env: Env,
   ownerUserId: string,
   _cause: string,
-): Promise<{ projectionId: string; profileSnapshotId: string }> {
+  desiredGeneration?: number,
+): Promise<{ projectionId: string; profileSnapshotId: string; graphProjectionId: string; generation: number }> {
   const [assertionRows, valueStances] = await Promise.all([
     loadPreferenceAssertions(env, ownerUserId),
     loadValueStances(env, ownerUserId),
@@ -310,24 +313,33 @@ export async function rebuildProfile(
       `SELECT generation FROM profile_projections WHERE owner_user_id = ? ORDER BY generation DESC LIMIT 1`,
     ).bind(ownerUserId),
   );
-  const generation = (current?.generation ?? 0) + 1;
+  const rebuildState = await first<{ desired_generation: number; built_generation: number }>(
+    env.DB.prepare(
+      `SELECT desired_generation,built_generation FROM projection_rebuild_states WHERE owner_user_id=?`,
+    ).bind(ownerUserId),
+  );
+  const generation = desiredGeneration ?? rebuildState?.desired_generation ?? (current?.generation ?? 0) + 1;
+  if (rebuildState && generation !== rebuildState.desired_generation) throw new Error("PROFILE_BUILD_SUPERSEDED");
   const projectionId = crypto.randomUUID();
   const profileSnapshotId = crypto.randomUUID();
   const now = nowIso();
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
-      `UPDATE profile_projections SET status='superseded' WHERE owner_user_id=? AND status='current'`,
-    ).bind(ownerUserId),
-    env.DB.prepare(
-      `INSERT INTO profile_projections (id, owner_user_id, generation, ontology_version, algorithm_version, evidence_set_hash, status, revision, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, 'current', 1, ?, ?)`,
-    ).bind(
-      projectionId,
+      `INSERT INTO profile_projections (id, owner_user_id, generation, ontology_version, algorithm_version, evidence_set_hash, status, revision, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, 'building', 1, ?, NULL)`,
+    ).bind(projectionId, ownerUserId, generation, ONTOLOGY_VERSION, PROFILE_ALGORITHM_VERSION, evidenceSetHash, now),
+    env.DB.prepare(`
+      INSERT INTO projection_rebuild_states
+        (owner_user_id,desired_generation,built_generation,status,lease_owner,lease_expires_at,updated_at)
+      VALUES (?,?,?,'building',?,?,?)
+      ON CONFLICT(owner_user_id) DO UPDATE SET status='building',lease_owner=excluded.lease_owner,
+        lease_expires_at=excluded.lease_expires_at,updated_at=excluded.updated_at
+      WHERE projection_rebuild_states.desired_generation=excluded.desired_generation
+    `).bind(
       ownerUserId,
       generation,
-      ONTOLOGY_VERSION,
-      PROFILE_ALGORITHM_VERSION,
-      evidenceSetHash,
-      now,
+      rebuildState?.built_generation ?? current?.generation ?? 0,
+      projectionId,
+      new Date(Date.now() + 10 * 60_000).toISOString(),
       now,
     ),
   ];
@@ -374,7 +386,7 @@ export async function rebuildProfile(
       stableKey: dimension.stableKey,
       label: dimension.label,
       payload: {
-        schemaVersion: "1",
+        schemaVersion: "2",
         stableKey: dimension.stableKey,
         category: dimension.category,
         positiveScore: dimension.positiveScore,
@@ -401,7 +413,7 @@ export async function rebuildProfile(
       stableKey: `value:${stance.orientation}:${stance.stance}:${targetHash}`,
       label: `${stance.target_ref}：${stance.stance}`,
       payload: {
-        schemaVersion: "1",
+        schemaVersion: "2",
         targetType: stance.target_type,
         targetRef: stance.target_ref,
         orientation: stance.orientation,
@@ -459,12 +471,56 @@ export async function rebuildProfile(
   }
   const results = await env.DB.batch(statements);
   if (results.some((result) => !result.success)) throw new Error("D1_PROFILE_REBUILD_FAILED");
-  await rebuildGraphProjection(env, ownerUserId, projectionId);
-  return { projectionId, profileSnapshotId };
+  const graphProjectionId = await rebuildGraphProjection(env, ownerUserId, projectionId);
+  const latest = await first<{ desired_generation: number }>(
+    env.DB.prepare(`SELECT desired_generation FROM projection_rebuild_states WHERE owner_user_id=?`).bind(ownerUserId),
+  );
+  if (latest?.desired_generation !== generation) {
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE profile_projections SET status='superseded' WHERE id=? AND status='building'`).bind(
+        projectionId,
+      ),
+      env.DB.prepare(`UPDATE graph_projection_snapshots SET status='superseded' WHERE id=? AND status='building'`).bind(
+        graphProjectionId,
+      ),
+    ]);
+    throw new Error("PROFILE_BUILD_SUPERSEDED");
+  }
+  const completed = nowIso();
+  const switched = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE profile_projections SET status='superseded'
+       WHERE owner_user_id=? AND status='current'
+         AND EXISTS (SELECT 1 FROM projection_rebuild_states WHERE owner_user_id=? AND desired_generation=?)`,
+    ).bind(ownerUserId, ownerUserId, generation),
+    env.DB.prepare(
+      `UPDATE graph_projection_snapshots SET status='superseded'
+       WHERE owner_user_id=? AND status='current'
+         AND EXISTS (SELECT 1 FROM projection_rebuild_states WHERE owner_user_id=? AND desired_generation=?)`,
+    ).bind(ownerUserId, ownerUserId, generation),
+    env.DB.prepare(
+      `UPDATE profile_projections SET status='current',completed_at=?,revision=revision+1
+       WHERE id=? AND status='building'
+         AND EXISTS (SELECT 1 FROM projection_rebuild_states WHERE owner_user_id=? AND desired_generation=?)`,
+    ).bind(completed, projectionId, ownerUserId, generation),
+    env.DB.prepare(
+      `UPDATE graph_projection_snapshots SET status='current',completed_at=?
+       WHERE id=? AND status='building'
+         AND EXISTS (SELECT 1 FROM projection_rebuild_states WHERE owner_user_id=? AND desired_generation=?)`,
+    ).bind(completed, graphProjectionId, ownerUserId, generation),
+    env.DB.prepare(`UPDATE projection_rebuild_states SET built_generation=?,status='current',lease_owner=NULL,
+      lease_expires_at=NULL,last_error_code=NULL,updated_at=?
+      WHERE owner_user_id=? AND desired_generation=?`).bind(generation, completed, ownerUserId, generation),
+  ]);
+  if (switched.some((result) => !result.success) || !switched[4].meta.changes)
+    throw new Error("D1_PROFILE_CUTOVER_FAILED");
+  return { projectionId, profileSnapshotId, graphProjectionId, generation };
 }
 
 export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise<ProfileView | null> {
-  let projection = await first<{
+  const freshness = await loadProjectionFreshness(env, ownerUserId);
+  if (freshness.status !== "fresh") return null;
+  const projection = await first<{
     id: string;
     generation: number;
     evidence_set_hash: string;
@@ -476,43 +532,7 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     ).bind(ownerUserId),
   );
   if (!projection) return null;
-  if (projection.algorithm_version !== PROFILE_ALGORITHM_VERSION) {
-    try {
-      await rebuildProfile(env, ownerUserId, "algorithm_upgrade");
-    } catch (error) {
-      const refreshed = await first<{
-        id: string;
-        algorithm_version: string;
-        graph_profile_projection_id: string | null;
-      }>(
-        env.DB.prepare(`
-          SELECT pp.id, pp.algorithm_version, gps.profile_projection_id AS graph_profile_projection_id
-          FROM profile_projections pp
-          LEFT JOIN graph_projection_snapshots gps
-            ON gps.owner_user_id=pp.owner_user_id AND gps.status='current'
-          WHERE pp.owner_user_id=? AND pp.status='current'
-        `).bind(ownerUserId),
-      );
-      if (
-        refreshed?.algorithm_version !== PROFILE_ALGORITHM_VERSION ||
-        refreshed.graph_profile_projection_id !== refreshed.id
-      ) {
-        throw error;
-      }
-    }
-    projection = await first<{
-      id: string;
-      generation: number;
-      evidence_set_hash: string;
-      algorithm_version: string;
-      completed_at: string;
-    }>(
-      env.DB.prepare(
-        `SELECT id, generation, evidence_set_hash, algorithm_version, completed_at FROM profile_projections WHERE owner_user_id=? AND status='current'`,
-      ).bind(ownerUserId),
-    );
-    if (!projection) return null;
-  }
+  if (projection.algorithm_version !== PROFILE_ALGORITHM_VERSION) return null;
   const snapshot = await first<{ id: string }>(
     env.DB.prepare(
       `SELECT id FROM profile_snapshots WHERE owner_user_id=? AND profile_projection_id=? ORDER BY created_at DESC LIMIT 1`,
@@ -607,4 +627,85 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     entryCount: entryCount?.count ?? 0,
     updatedAt: projection.completed_at,
   };
+}
+
+export async function loadProjectionFreshness(env: Env, ownerUserId: string): Promise<ProjectionFreshness> {
+  const state = await first<{
+    desired_generation: number;
+    built_generation: number;
+    status: string;
+    last_error_code: string | null;
+  }>(
+    env.DB.prepare(
+      `SELECT desired_generation,built_generation,status,last_error_code FROM projection_rebuild_states WHERE owner_user_id=?`,
+    ).bind(ownerUserId),
+  );
+  if (state) {
+    return {
+      status:
+        state.status === "failed"
+          ? "failed"
+          : state.desired_generation === state.built_generation && state.status === "current"
+            ? "fresh"
+            : "rebuilding",
+      desiredGeneration: state.desired_generation,
+      builtGeneration: state.built_generation,
+      errorCode: state.last_error_code,
+    };
+  }
+  const current = await first<{ generation: number }>(
+    env.DB.prepare(`SELECT generation FROM profile_projections WHERE owner_user_id=? AND status='current'`).bind(
+      ownerUserId,
+    ),
+  );
+  return {
+    status: current ? "fresh" : "unavailable",
+    desiredGeneration: current?.generation ?? 0,
+    builtGeneration: current?.generation ?? 0,
+    errorCode: null,
+  };
+}
+
+export async function processProfileRebuild(env: Env, params: ProfileRebuildWorkflowParams): Promise<void> {
+  let claim: JobClaim | undefined;
+  try {
+    claim = await claimJob(env, params.jobId, params.ownerUserId, params.desiredGeneration, "profile-graph-rebuild");
+    if (claim.status !== "claimed") return;
+    const result = await rebuildProfile(env, params.ownerUserId, "queued_rebuild", params.desiredGeneration);
+    const now = nowIso();
+    const committed = await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE jobs SET status='succeeded',current_step='complete',progress_current=2,result_ref_json=?,
+         updated_at=?,completed_at=?,revision=revision+1
+         WHERE id=? AND owner_user_id=? AND status='running' AND input_generation=?`,
+      ).bind(JSON.stringify(result), now, now, params.jobId, params.ownerUserId, params.desiredGeneration),
+      env.DB.prepare(
+        `UPDATE job_attempts SET status='succeeded',finished_at=?,lease_expires_at=NULL
+         WHERE id=? AND job_id=? AND status='running'`,
+      ).bind(now, claim.attemptId, params.jobId),
+    ]);
+    if (committed.some((item) => !item.success) || committed.some((item) => !item.meta.changes))
+      throw new Error("PROFILE_JOB_FENCE_CHANGED");
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "PROFILE_REBUILD_FAILED";
+    const superseded = code === "PROFILE_BUILD_SUPERSEDED" || code === "PROFILE_JOB_FENCE_CHANGED";
+    if (claim?.status === "claimed")
+      await finishJobAttempt(env, claim.attemptId, superseded ? "abandoned" : "failed", code);
+    const now = nowIso();
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE jobs SET status=?,retryable=?,error_code=?,updated_at=?,completed_at=?,revision=revision+1
+         WHERE id=? AND status!='succeeded'`,
+      ).bind(superseded ? "superseded" : "failed", superseded ? 0 : 1, code, now, now, params.jobId),
+      ...(!superseded
+        ? [
+            env.DB.prepare(
+              `UPDATE projection_rebuild_states SET status='failed',last_error_code=?,lease_owner=NULL,
+               lease_expires_at=NULL,updated_at=? WHERE owner_user_id=? AND desired_generation=?`,
+            ).bind(code, now, params.ownerUserId, params.desiredGeneration),
+          ]
+        : []),
+    ]);
+    if (!superseded) throw error;
+  }
 }

@@ -48,6 +48,40 @@ describe("system-side character research", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("uses the base character name when researching a customized character", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        query: {
+          pages: [
+            {
+              title: "うずまきナルト",
+              fullurl: "https://ja.wikipedia.org/wiki/example-naruto",
+              extract: "NARUTOに登場するうずまきナルトは、物語の主人公である。",
+            },
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await collectCharacterResearch(
+      env("workers_ai"),
+      entryDraftSchema.parse({
+        schemaVersion: "2",
+        registrationType: "customized_existing",
+        workTitle: "NARUTO",
+        baseCharacterName: "うずまきナルト",
+        characterName: "暁ナルト",
+        representationType: "transformative",
+        customizationDescription: "犯罪組織「暁」に所属しているナルト",
+        identityResolution: { mode: "new" },
+        preference: { responseChannels: [] },
+      }),
+    );
+    expect(result.status).toBe("collected");
+    expect(result.query).toContain("NARUTO うずまきナルト");
+    expect(result.query).not.toContain("暁ナルト");
+  });
+
   it("does not search for an original character", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

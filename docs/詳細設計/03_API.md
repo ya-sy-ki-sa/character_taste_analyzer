@@ -261,9 +261,11 @@ interface CreateEntryDraftRequest {
 
 ```typescript
 interface UpdateEntryDraftRequest {
-  schemaVersion: "1";
+  schemaVersion: "2";
   work?: { id?: UUID; title?: string; mediaType?: string };
   character: { id?: UUID; name: string };
+  /** registrationType=customized_existingのとき必須。元キャラクターの特定・基本像解析に使う */
+  baseCharacterName?: string;
   representation: {
     baseRepresentationId?: UUID;
     type: string;
@@ -282,6 +284,8 @@ interface UpdateEntryDraftRequest {
   preferenceInput?: Record<string, unknown>;
 }
 ```
+
+`customized_existing`の`character.name`はカスタム後の表示名である。同一人物候補の照合、外部調査、「既成キャラクターの基本像」には`baseCharacterName`を使う。
 
 OpenAPIで共通構造を検証した後、serverがEntry aggregateの`registrationType`に対応するtype-specific Zod schemaを選んで検証する。bodyのtype指定で保存済みregistrationTypeを切り替えることはできない。上記は共通の説明用表現である。
 

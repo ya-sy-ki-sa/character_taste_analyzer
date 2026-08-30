@@ -1,4 +1,5 @@
-import type { EntryDraft } from "../../shared/schemas";
+import { type EntryDraft, entryBaseCharacterName } from "../../shared/schemas";
+import { normalizeIdentityPart } from "../lib/crypto";
 import type { Env } from "../types";
 
 export type CharacterResearchSource = {
@@ -30,7 +31,8 @@ export async function collectCharacterResearch(env: Env, draft: EntryDraft): Pro
     return { status: "disabled", sources: [], limitation: "決定論的テストでは外部検索を行わない" };
   }
 
-  const query = [draft.workTitle, draft.characterName, draft.mediaType].filter(Boolean).join(" ");
+  const baseCharacterName = entryBaseCharacterName(draft);
+  const query = [draft.workTitle, baseCharacterName, draft.mediaType].filter(Boolean).join(" ");
   const params = new URLSearchParams({
     action: "query",
     generator: "search",
@@ -62,6 +64,8 @@ export async function collectCharacterResearch(env: Env, draft: EntryDraft): Pro
       };
     }
     const payload = (await response.json()) as { query?: { pages?: WikipediaPage[] } };
+    const expectedCharacter = normalizeIdentityPart(baseCharacterName);
+    const expectedWork = normalizeIdentityPart(draft.workTitle);
     const sources = (payload.query?.pages ?? [])
       .map((page) => ({
         title: boundedText(page.title, 200),
@@ -69,6 +73,10 @@ export async function collectCharacterResearch(env: Env, draft: EntryDraft): Pro
         excerpt: boundedText(page.extract, 2_500),
       }))
       .filter((page) => page.title && page.url && page.excerpt)
+      .filter((page) => {
+        const searchable = normalizeIdentityPart(`${page.title} ${page.excerpt}`);
+        return searchable.includes(expectedCharacter) && searchable.includes(expectedWork);
+      })
       .slice(0, 4);
     return sources.length
       ? { status: "collected", query, sources }

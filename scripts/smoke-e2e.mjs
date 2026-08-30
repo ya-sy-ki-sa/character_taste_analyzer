@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 
 const base = process.env.SMOKE_BASE_URL ?? "http://127.0.0.1:5173/api/v1";
+const origin = new URL(base).origin;
 let cookie = "";
 let csrf = "";
 
 async function request(path, init = {}) {
   const headers = new Headers(init.headers);
+  if (!headers.has("Origin") && !["GET", "HEAD", "OPTIONS"].includes(init.method ?? "GET"))
+    headers.set("Origin", origin);
   if (init.body) headers.set("Content-Type", "application/json");
   if (cookie) headers.set("Cookie", cookie);
   if (csrf && !["GET", "HEAD"].includes(init.method ?? "GET")) headers.set("X-CSRF-Token", csrf);
@@ -30,7 +33,7 @@ async function waitEntry(entryId, expected) {
   throw new Error(`entry did not reach ${expected}`);
 }
 
-const health = await request("/health");
+const health = await request("/health/ready");
 if (health.llmProvider !== "replay") throw new Error(`smoke test must use replay, got ${health.llmProvider}`);
 const registrationKey = randomUUID();
 const user = await request("/users", {
@@ -51,13 +54,15 @@ csrf = session.csrfToken;
 const created = await request("/entries", {
   method: "POST",
   body: JSON.stringify({
-    schemaVersion: "1",
+    schemaVersion: "2",
     registrationType: "customized_existing",
     workTitle: "架空検証作品",
+    baseCharacterName: "黒曜卿（原典）",
     characterName: "黒曜卿",
     mediaType: "小説",
     representationType: "facet",
     customizationDescription: "表向きではなく、善への無関心を明言し残酷さを楽しむ裏人格だけ。最後まで改心しない。",
+    identityResolution: { mode: "new" },
     preferenceContext: "第7章で裏人格が現れている間",
     userCharacterView: "悲しい過去で正当化されない純粋悪として解釈している。",
     preference: {
@@ -78,12 +83,12 @@ const created = await request("/entries", {
 });
 
 let detail = await waitEntry(created.entryId, "understanding_review");
-await request(`/entries/${created.entryId}/understanding-review`, {
+await request(`/understanding-snapshots/${detail.understanding.id}/review`, {
   method: "POST",
   body: JSON.stringify({ decision: "confirm_all", targetIds: [detail.understanding.id] }),
 });
 detail = await waitEntry(created.entryId, "analysis_review");
-await request(`/entries/${created.entryId}/preference-review`, {
+await request(`/preference-analysis-runs/${detail.preferenceAnalysis.id}/review`, {
   method: "POST",
   body: JSON.stringify({ decision: "confirm_all", targetIds: [detail.preferenceAnalysis.id] }),
 });

@@ -26,6 +26,7 @@
     "EMBEDDING_DIMENSIONS": "1536",
     "ANALYSIS_DAILY_QUOTA": "30",
     "GENERATION_DAILY_QUOTA": "10",
+    "EXPORT_DAILY_QUOTA": "3",
     "SESSION_DAYS": "30",
     "SESSION_RENEWAL_DAYS": "7",
     "PUBLIC_WRITE_LIMIT_10_MIN": "1000",
@@ -41,6 +42,16 @@
       "migrations_dir": "docs/詳細設計/database"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "EXPORTS",
+      "bucket_name": "character-taste-exports-local",
+      "remote": false
+    }
+  ],
+  "triggers": {
+    "crons": ["* * * * *", "17 3 * * *"]
+  },
   "workflows": [
     {
       "name": "character-taste-analysis",
@@ -51,6 +62,16 @@
       "name": "character-taste-generation",
       "binding": "GENERATION_WORKFLOW",
       "class_name": "GenerationWorkflow"
+    },
+    {
+      "name": "character-taste-profile-rebuild",
+      "binding": "PROFILE_REBUILD_WORKFLOW",
+      "class_name": "ProfileRebuildWorkflow"
+    },
+    {
+      "name": "character-taste-account-export",
+      "binding": "ACCOUNT_EXPORT_WORKFLOW",
+      "class_name": "AccountExportWorkflow"
     }
   ],
   "env": {
@@ -70,12 +91,13 @@
         "EMBEDDING_DIMENSIONS": "1536",
         "ANALYSIS_DAILY_QUOTA": "1000",
         "GENERATION_DAILY_QUOTA": "1000",
+        "EXPORT_DAILY_QUOTA": "1000",
         "SESSION_DAYS": "30",
         "SESSION_RENEWAL_DAYS": "7",
         "PUBLIC_WRITE_LIMIT_10_MIN": "1000",
         "USER_WRITE_LIMIT_PER_MIN": "1000",
         "IP_WRITE_LIMIT_PER_MIN": "1000",
-        "APP_ORIGIN": "http://localhost:5173"
+        "APP_ORIGIN": "http://localhost:41737"
       },
       "d1_databases": [
         {
@@ -83,6 +105,35 @@
           "database_name": "character-taste-lab-v2-clean-local",
           "database_id": "00000000-0000-4000-8000-000000000002",
           "migrations_dir": "docs/詳細設計/database"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "EXPORTS",
+          "bucket_name": "character-taste-exports-offline",
+          "remote": false
+        }
+      ],
+      "workflows": [
+        {
+          "name": "character-taste-analysis-offline",
+          "binding": "CHARACTER_ANALYSIS_WORKFLOW",
+          "class_name": "CharacterAnalysisWorkflow"
+        },
+        {
+          "name": "character-taste-generation-offline",
+          "binding": "GENERATION_WORKFLOW",
+          "class_name": "GenerationWorkflow"
+        },
+        {
+          "name": "character-taste-profile-rebuild-offline",
+          "binding": "PROFILE_REBUILD_WORKFLOW",
+          "class_name": "ProfileRebuildWorkflow"
+        },
+        {
+          "name": "character-taste-account-export-offline",
+          "binding": "ACCOUNT_EXPORT_WORKFLOW",
+          "class_name": "AccountExportWorkflow"
         }
       ]
     },
@@ -99,8 +150,10 @@
         "OPENAI_TRANSPORT": "direct",
         "EMBEDDING_PROVIDER": "workers_ai",
         "EMBEDDING_MODEL": "@cf/baai/bge-m3",
+        "EMBEDDING_DIMENSIONS": "1024",
         "ANALYSIS_DAILY_QUOTA": "30",
         "GENERATION_DAILY_QUOTA": "10",
+        "EXPORT_DAILY_QUOTA": "3",
         "SESSION_DAYS": "30",
         "SESSION_RENEWAL_DAYS": "7",
         "PUBLIC_WRITE_LIMIT_10_MIN": "30",
@@ -125,6 +178,12 @@
           "index_name": "character-taste-bge-m3-staging"
         }
       ],
+      "r2_buckets": [
+        {
+          "binding": "EXPORTS",
+          "bucket_name": "character-taste-exports-staging"
+        }
+      ],
       "workflows": [
         {
           "name": "character-taste-analysis-staging",
@@ -135,6 +194,16 @@
           "name": "character-taste-generation-staging",
           "binding": "GENERATION_WORKFLOW",
           "class_name": "GenerationWorkflow"
+        },
+        {
+          "name": "character-taste-profile-rebuild-staging",
+          "binding": "PROFILE_REBUILD_WORKFLOW",
+          "class_name": "ProfileRebuildWorkflow"
+        },
+        {
+          "name": "character-taste-account-export-staging",
+          "binding": "ACCOUNT_EXPORT_WORKFLOW",
+          "class_name": "AccountExportWorkflow"
         }
       ]
     },
@@ -154,6 +223,7 @@
         "EMBEDDING_DIMENSIONS": "1536",
         "ANALYSIS_DAILY_QUOTA": "30",
         "GENERATION_DAILY_QUOTA": "10",
+        "EXPORT_DAILY_QUOTA": "3",
         "SESSION_DAYS": "30",
         "SESSION_RENEWAL_DAYS": "7",
         "PUBLIC_WRITE_LIMIT_10_MIN": "30",
@@ -178,6 +248,12 @@
           "index_name": "character-taste-text-embedding-3-small-1536"
         }
       ],
+      "r2_buckets": [
+        {
+          "binding": "EXPORTS",
+          "bucket_name": "character-taste-exports-production"
+        }
+      ],
       "workflows": [
         {
           "name": "character-taste-analysis",
@@ -188,6 +264,16 @@
           "name": "character-taste-generation",
           "binding": "GENERATION_WORKFLOW",
           "class_name": "GenerationWorkflow"
+        },
+        {
+          "name": "character-taste-profile-rebuild",
+          "binding": "PROFILE_REBUILD_WORKFLOW",
+          "class_name": "ProfileRebuildWorkflow"
+        },
+        {
+          "name": "character-taste-account-export",
+          "binding": "ACCOUNT_EXPORT_WORKFLOW",
+          "class_name": "AccountExportWorkflow"
         }
       ]
     }

@@ -1,4 +1,5 @@
 import type { Env } from "../types";
+import { sha256Hex } from "../lib/crypto";
 import type {
   LlmMessage,
   LlmProvider,
@@ -16,6 +17,7 @@ function extractText(payload: unknown): {
   requestId?: string;
   usage?: Record<string, unknown>;
   finishReason?: string;
+  citations?: Array<{ url: string; title: string }>;
 } {
   const object = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
   if (typeof object.response === "string")
@@ -37,14 +39,34 @@ function extractText(payload: unknown): {
       };
   }
   if (Array.isArray(object.output)) {
+    const citations = new Map<string, { url: string; title: string }>();
     for (const item of object.output as Array<Record<string, unknown>>) {
+      const action = item.action as Record<string, unknown> | undefined;
+      if (Array.isArray(action?.sources))
+        for (const source of action.sources as Array<Record<string, unknown>>) {
+          if (typeof source.url === "string")
+            citations.set(source.url, {
+              url: source.url,
+              title: typeof source.title === "string" ? source.title : source.url,
+            });
+        }
       if (!Array.isArray(item.content)) continue;
       for (const part of item.content as Array<Record<string, unknown>>) {
+        if (Array.isArray(part.annotations))
+          for (const annotation of part.annotations as Array<Record<string, unknown>>) {
+            const url = typeof annotation.url === "string" ? annotation.url : undefined;
+            if (url)
+              citations.set(url, {
+                url,
+                title: typeof annotation.title === "string" ? annotation.title : url,
+              });
+          }
         if (typeof part.text === "string")
           return {
             text: part.text,
             requestId: typeof object.id === "string" ? object.id : undefined,
             usage: object.usage as Record<string, unknown>,
+            citations: [...citations.values()],
           };
       }
     }
@@ -77,6 +99,18 @@ function token(usage: Record<string, unknown> | undefined, ...keys: string[]): n
   return undefined;
 }
 
+function openAiCompatibleJsonSchema(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(openAiCompatibleJsonSchema);
+  if (!value || typeof value !== "object") return value;
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "$schema") continue;
+    if (key === "format" && item === "uri") continue;
+    result[key] = openAiCompatibleJsonSchema(item);
+  }
+  return result;
+}
+
 function repairMessages(messages: LlmMessage[], invalid: string, issues: string): LlmMessage[] {
   return [
     ...messages,
@@ -93,17 +127,44 @@ abstract class RemoteProvider implements LlmProvider {
   abstract invoke<T>(
     request: StructuredLlmRequest<T>,
     messages: LlmMessage[],
+    idempotencyKey: string,
   ): Promise<{ text: string; metadata: LlmRunMetadata }>;
 
   async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
     let messages = request.messages;
+    const attempts: Array<{ output: unknown; metadata: LlmRunMetadata }> = [];
+    const rootRequestId = request.idempotencyKey;
+    const promptHash = await sha256Hex(JSON.stringify(request.messages));
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await this.invoke(request, messages);
+      const suffix = attempt === 0 ? ":attempt-0" : ":repair-1";
+      let response: { text: string; metadata: LlmRunMetadata };
+      try {
+        response = await this.invoke(request, messages, `${rootRequestId}${suffix}`);
+      } catch (error) {
+        if (error instanceof LlmProviderError) {
+          if (error.attemptMetadata) {
+            attempts.push({
+              output: { errorCode: error.code, safeDetail: error.safeDetail ?? null },
+              metadata: { ...error.attemptMetadata, rootRequestId, attemptNumber: attempt, promptHash },
+            });
+          }
+          error.attempts = [...attempts, ...error.attempts];
+          error.operation = request.operation;
+        }
+        throw error;
+      }
       const raw = parseJson(response.text);
+      const metadata = {
+        ...response.metadata,
+        rootRequestId,
+        attemptNumber: attempt,
+        promptHash,
+      };
+      attempts.push({ output: raw, metadata });
       const parsed = request.schema.safeParse(raw);
-      if (parsed.success) return { value: parsed.data, metadata: response.metadata };
-      if (attempt === 1)
-        throw new LlmProviderError(
+      if (parsed.success) return { value: parsed.data, metadata, attempts };
+      if (attempt === 1) {
+        const error = new LlmProviderError(
           "構造化出力が契約を満たしません",
           "LLM_SCHEMA_INVALID",
           false,
@@ -112,6 +173,10 @@ abstract class RemoteProvider implements LlmProvider {
             .join("; ")
             .slice(0, 1_000),
         );
+        error.attempts = attempts;
+        error.operation = request.operation;
+        throw error;
+      }
       messages = repairMessages(
         messages,
         response.text,
@@ -131,7 +196,7 @@ class WorkersAiLlmProvider extends RemoteProvider {
     super();
   }
 
-  async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[]) {
+  async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[], _idempotencyKey: string) {
     if (!this.env.AI)
       throw new LlmProviderError("Workers AI bindingがありません", "EXTERNAL_PROVIDER_UNAVAILABLE", true);
     const started = Date.now();
@@ -146,12 +211,24 @@ class WorkersAiLlmProvider extends RemoteProvider {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Workers AI request failed";
       const capacity = /429|quota|limit|capacity|daily/iu.test(message);
-      throw new LlmProviderError(
+      const providerError = new LlmProviderError(
         "解析Providerを利用できません",
         capacity ? "PROVIDER_CAPACITY_EXHAUSTED" : "EXTERNAL_PROVIDER_UNAVAILABLE",
         true,
         message.slice(0, 500),
       );
+      providerError.attemptMetadata = {
+        provider: this.providerId,
+        transport: "binding",
+        adapterVersion: ADAPTER_VERSION,
+        requestedModel: this.model,
+        resolvedModel: this.model,
+        latencyMs: Date.now() - started,
+        dataRetentionMode: "unknown",
+        effectiveSettings: { maxOutputTokens: request.maxOutputTokens, temperature: request.temperature },
+        ignoredParameters: [],
+      };
+      throw providerError;
     }
     const normalized = extractText(payload);
     return {
@@ -188,7 +265,7 @@ class OpenAiLlmProvider extends RemoteProvider {
     return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID)}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID)}/openai/v1/responses`;
   }
 
-  async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[]) {
+  async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[], idempotencyKey: string) {
     if (!this.env.OPENAI_API_KEY)
       throw new LlmProviderError("OpenAI API keyがありません", "EXTERNAL_PROVIDER_UNAVAILABLE", false);
     const started = Date.now();
@@ -199,7 +276,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         headers: {
           Authorization: `Bearer ${this.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
-          "Idempotency-Key": request.idempotencyKey,
+          "Idempotency-Key": idempotencyKey,
           "cf-aig-collect-log-payload": "false",
           "cf-aig-skip-cache": "true",
         },
@@ -221,24 +298,43 @@ class OpenAiLlmProvider extends RemoteProvider {
               type: "json_schema",
               name: request.schemaName.replace(/[^a-z0-9_-]/giu, "_").slice(0, 64),
               strict: true,
-              schema: request.jsonSchema,
+              schema: openAiCompatibleJsonSchema(request.jsonSchema),
             },
           },
         }),
         signal: AbortSignal.timeout(60_000),
       });
     } catch (error) {
-      throw new LlmProviderError(
+      const providerError = new LlmProviderError(
         "OpenAIへ接続できません",
         "EXTERNAL_PROVIDER_UNAVAILABLE",
         true,
         error instanceof Error ? error.message.slice(0, 500) : undefined,
       );
+      providerError.attemptMetadata = {
+        provider: this.providerId,
+        transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "ai_gateway" : "direct",
+        adapterVersion: ADAPTER_VERSION,
+        requestedModel: this.model,
+        resolvedModel: this.model,
+        latencyMs: Date.now() - started,
+        dataRetentionMode: "no_retention",
+        effectiveSettings: { maxOutputTokens: request.maxOutputTokens, webSearch: request.enableWebSearch === true },
+        ignoredParameters: ["temperature"],
+      };
+      throw providerError;
     }
     const payload = await response.json<unknown>().catch(() => ({}));
     if (!response.ok) {
       const capacity = response.status === 429;
-      throw new LlmProviderError(
+      const errorObject =
+        payload && typeof payload === "object" && "error" in payload
+          ? ((payload as { error?: unknown }).error as Record<string, unknown> | undefined)
+          : undefined;
+      const providerCode = typeof errorObject?.code === "string" ? errorObject.code : undefined;
+      const providerType = typeof errorObject?.type === "string" ? errorObject.type : undefined;
+      const providerMessage = typeof errorObject?.message === "string" ? errorObject.message : undefined;
+      const providerError = new LlmProviderError(
         "OpenAIがリクエストを処理できません",
         capacity
           ? "PROVIDER_CAPACITY_EXHAUSTED"
@@ -246,8 +342,28 @@ class OpenAiLlmProvider extends RemoteProvider {
             ? "EXTERNAL_PROVIDER_UNAVAILABLE"
             : "EXTERNAL_PROVIDER_REJECTED",
         capacity || response.status >= 500,
-        `HTTP ${response.status}`,
+        [`HTTP ${response.status}`, providerCode, providerType, providerMessage?.slice(0, 300)]
+          .filter(Boolean)
+          .join(": "),
       );
+      const normalizedUsage =
+        payload && typeof payload === "object" && "usage" in payload
+          ? ((payload as { usage?: Record<string, unknown> }).usage ?? undefined)
+          : undefined;
+      providerError.attemptMetadata = {
+        provider: this.providerId,
+        transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "ai_gateway" : "direct",
+        adapterVersion: ADAPTER_VERSION,
+        requestedModel: this.model,
+        resolvedModel: this.model,
+        inputTokens: token(normalizedUsage, "input_tokens"),
+        outputTokens: token(normalizedUsage, "output_tokens"),
+        latencyMs: Date.now() - started,
+        dataRetentionMode: "no_retention",
+        effectiveSettings: { maxOutputTokens: request.maxOutputTokens, webSearch: request.enableWebSearch === true },
+        ignoredParameters: ["temperature"],
+      };
+      throw providerError;
     }
     const normalized = extractText(payload);
     return {
@@ -264,6 +380,12 @@ class OpenAiLlmProvider extends RemoteProvider {
         latencyMs: Date.now() - started,
         finishReason: normalized.finishReason,
         dataRetentionMode: "no_retention" as const,
+        citations: normalized.citations,
+        effectiveSettings: {
+          maxOutputTokens: request.maxOutputTokens,
+          webSearch: request.enableWebSearch === true,
+        },
+        ignoredParameters: ["temperature"],
       },
     };
   }
@@ -274,18 +396,25 @@ class DeterministicProvider implements LlmProvider {
   async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
     const started = Date.now();
     const value = request.schema.parse(await request.fakeFactory());
+    const metadata: LlmRunMetadata = {
+      provider: this.providerId,
+      transport: this.providerId,
+      adapterVersion: ADAPTER_VERSION,
+      requestedModel: `${this.providerId}-v1`,
+      resolvedModel: `${this.providerId}-v1`,
+      latencyMs: Date.now() - started,
+      finishReason: "stop",
+      dataRetentionMode: "no_retention",
+      rootRequestId: request.idempotencyKey,
+      attemptNumber: 0,
+      promptHash: await sha256Hex(JSON.stringify(request.messages)),
+      effectiveSettings: { maxOutputTokens: request.maxOutputTokens, temperature: request.temperature },
+      ignoredParameters: [],
+    };
     return {
       value,
-      metadata: {
-        provider: this.providerId,
-        transport: this.providerId,
-        adapterVersion: ADAPTER_VERSION,
-        requestedModel: `${this.providerId}-v1`,
-        resolvedModel: `${this.providerId}-v1`,
-        latencyMs: Date.now() - started,
-        finishReason: "stop",
-        dataRetentionMode: "no_retention",
-      },
+      metadata,
+      attempts: [{ output: value, metadata }],
     };
   }
 }
@@ -312,8 +441,32 @@ class LlmProviderRouter implements LlmProvider {
       return await this.primary.generateStructured(request);
     } catch (error) {
       if (!(error instanceof LlmProviderError) || !error.retryable || !this.fallback) throw error;
-      const result = await this.fallback.generateStructured(request);
-      return { ...result, fallbackFrom: `${this.primary.providerId}:${error.code}` };
+      try {
+        const result = await this.fallback.generateStructured({
+          ...request,
+          idempotencyKey: `${request.idempotencyKey}:fallback`,
+        });
+        const fallbackAttempts = (result.attempts ?? [{ output: result.value, metadata: result.metadata }]).map(
+          (attempt) => ({
+            ...attempt,
+            metadata: {
+              ...attempt.metadata,
+              fallbackFromProvider: this.primary.providerId,
+              fallbackErrorCode: error.code,
+            },
+          }),
+        );
+        return {
+          ...result,
+          attempts: [...error.attempts, ...fallbackAttempts],
+          fallbackFrom: `${this.primary.providerId}:${error.code}`,
+        };
+      } catch (fallbackError) {
+        if (fallbackError instanceof LlmProviderError) {
+          fallbackError.attempts = [...error.attempts, ...fallbackError.attempts];
+        }
+        throw fallbackError;
+      }
     }
   }
 }

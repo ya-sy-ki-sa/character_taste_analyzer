@@ -9,7 +9,9 @@
       "!!**/.wrangler",
       "!!**/coverage",
       "!!**/playwright-report",
-      "!!**/test-results"
+      "!!**/test-results",
+      "!!docs/詳細設計/api/openapi.as-built.json",
+      "!!docs/詳細設計/prompt-contracts.json"
     ]
   },
   "formatter": {

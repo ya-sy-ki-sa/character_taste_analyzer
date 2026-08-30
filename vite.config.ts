@@ -3,7 +3,12 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [react(), cloudflare()],
+  plugins: [
+    react(),
+    cloudflare({
+      persistState: process.env.E2E_STATE_PATH ? { path: process.env.E2E_STATE_PATH } : true,
+    }),
+  ],
   server: {
     headers: {
       "Content-Security-Policy":

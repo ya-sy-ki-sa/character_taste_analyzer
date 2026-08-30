@@ -59,6 +59,7 @@
 | ファイル | 用途 |
 |---|---|
 | [OpenAPI 3.1](api/openapi.yaml) | HTTP APIの正式契約 |
+| [as-built OpenAPI 3.1](api/openapi.as-built.json) | 現行routeとZodから生成する実装契約 |
 | [D1初期DDL](database/001_initial.sql) | 初期migration |
 | [CharacterUnderstanding Schema](schemas/character-understanding.schema.json) | キャラクター基本像のLLM出力 |
 | [PreferenceAnalysis Schema](schemas/preference-analysis.schema.json) | 嗜好・価値スタンスのLLM出力 |

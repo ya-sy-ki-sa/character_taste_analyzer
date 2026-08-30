@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect } from "react";
+import { lazy, Suspense, useCallback, useEffect } from "react";
 import { Navigate, NavLink, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 import { ApiClientError, api, setCsrfToken, setSessionExpiredHandler } from "./api";
 import { Brand, Spinner } from "./components/Ui";
-import { EntriesPage } from "./pages/EntriesPage";
-import { GeneratePage } from "./pages/GeneratePage";
 import { Landing } from "./pages/Landing";
-import { ProfilePage } from "./pages/ProfilePage";
-import { SettingsPage } from "./pages/SettingsPage";
+
+const EntriesPage = lazy(() => import("./pages/EntriesPage").then((module) => ({ default: module.EntriesPage })));
+const GeneratePage = lazy(() => import("./pages/GeneratePage").then((module) => ({ default: module.GeneratePage })));
+const ProfilePage = lazy(() => import("./pages/ProfilePage").then((module) => ({ default: module.ProfilePage })));
+const SettingsPage = lazy(() => import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 
 export type SessionUser = { id: string; username: string };
 type MeResponse = { user: SessionUser; csrfToken: string; expiresAt: string };
@@ -33,7 +34,7 @@ export function App() {
         setCsrfToken(result.csrfToken);
         return result;
       } catch (error) {
-        if (error instanceof ApiClientError && error.status === 401 && error.code === "session_required") return null;
+        if (error instanceof ApiClientError && error.status === 401 && error.code === "SESSION_REQUIRED") return null;
         throw error;
       }
     },
@@ -57,26 +58,35 @@ export function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/" element={me.data ? <Navigate to="/app/profile" replace /> : <Landing onLogin={login} />} />
-      <Route
-        path="/app"
-        element={
-          me.data ? (
-            <AuthenticatedLayout user={me.data.user} onLogout={clearAuthentication} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      >
-        <Route index element={<Navigate to="profile" replace />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="entries" element={<EntriesPage />} />
-        <Route path="generate" element={<GeneratePage />} />
-        <Route path="settings" element={<SettingsPage user={me.data?.user} />} />
-      </Route>
-      <Route path="*" element={<Navigate to={me.data ? "/app/profile" : "/"} replace />} />
-    </Routes>
+    <Suspense
+      fallback={
+        <div className="full-loader">
+          <Brand />
+          <Spinner label="画面を読み込んでいます" />
+        </div>
+      }
+    >
+      <Routes>
+        <Route path="/" element={me.data ? <Navigate to="/app/profile" replace /> : <Landing onLogin={login} />} />
+        <Route
+          path="/app"
+          element={
+            me.data ? (
+              <AuthenticatedLayout user={me.data.user} onLogout={clearAuthentication} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        >
+          <Route index element={<Navigate to="profile" replace />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="entries" element={<EntriesPage />} />
+          <Route path="generate" element={<GeneratePage />} />
+          <Route path="settings" element={<SettingsPage user={me.data?.user} />} />
+        </Route>
+        <Route path="*" element={<Navigate to={me.data ? "/app/profile" : "/"} replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

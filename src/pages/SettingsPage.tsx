@@ -31,14 +31,19 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
           <div className="settings-icon">⇩</div>
           <div>
             <h2>データをエクスポート</h2>
-            <p>入力、分析プロフィール、生成履歴をJSON形式でダウンロードします。認証情報は含みません。</p>
+            <p>
+              全入力・revision・分析・根拠・プロフィール・生成・処理履歴を非同期でJSONへまとめます。認証情報は含みません。
+            </p>
             <button
               type="button"
               className="button button-secondary"
               onClick={async () => {
                 try {
                   await downloadExport();
-                  setNotice({ tone: "success", message: "エクスポートを開始しました。" });
+                  setNotice({
+                    tone: "success",
+                    message: "エクスポートを作成し、ダウンロードしました。ファイルは24時間で失効します。",
+                  });
                 } catch (error) {
                   setNotice({
                     tone: "danger",
@@ -60,7 +65,9 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
               AIまたはOpenAIへ送信されます。
             </p>
             <ul>
-              <li>モデルの作品知識や外部検索を分析根拠にしません</li>
+              <li>既成キャラクターではWikipedia、OpenAI Web Search、モデル知識を補助情報として利用します</li>
+              <li>根拠には出典と検証状態を保存し、原文へ移動できるのは原文照合済みの引用だけです</li>
+              <li>モデル知識・出典だけ確認できた根拠・旧データは、検証済み引用と区別して表示します</li>
               <li>資格情報やユーザー名をLLMへ送りません</li>
               <li>プロンプト・応答本文をアプリログへ残しません</li>
             </ul>

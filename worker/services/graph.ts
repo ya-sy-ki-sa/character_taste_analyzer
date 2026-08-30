@@ -32,7 +32,7 @@ export async function rebuildGraphProjection(
 ): Promise<string> {
   const profile = await first<{ generation: number }>(
     env.DB.prepare(
-      `SELECT generation FROM profile_projections WHERE id=? AND owner_user_id=? AND status='current'`,
+      `SELECT generation FROM profile_projections WHERE id=? AND owner_user_id=? AND status IN ('building','current')`,
     ).bind(profileProjectionId, ownerUserId),
   );
   if (!profile) throw new Error("PROFILE_NOT_CURRENT");
@@ -318,10 +318,7 @@ export async function rebuildGraphProjection(
   const now = nowIso();
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
-      `UPDATE graph_projection_snapshots SET status='superseded' WHERE owner_user_id=? AND status='current'`,
-    ).bind(ownerUserId),
-    env.DB.prepare(
-      `INSERT INTO graph_projection_snapshots (id,owner_user_id,profile_projection_id,projection_generation,schema_version,content_hash,node_count,edge_count,status,created_at,completed_at) VALUES (?,?,?,?,?,?,?,?,'current',?,?)`,
+      `INSERT INTO graph_projection_snapshots (id,owner_user_id,profile_projection_id,projection_generation,schema_version,content_hash,node_count,edge_count,status,created_at,completed_at) VALUES (?,?,?,?,?,?,?,?,'building',?,?)`,
     ).bind(
       id,
       ownerUserId,
@@ -367,6 +364,13 @@ export async function loadCurrentGraph(
   ownerUserId: string,
   detail: GraphProjection["detail"] = "standard",
 ): Promise<GraphProjection | null> {
+  const freshness = await first<{ desired_generation: number; built_generation: number; status: string }>(
+    env.DB.prepare(
+      `SELECT desired_generation,built_generation,status FROM projection_rebuild_states WHERE owner_user_id=?`,
+    ).bind(ownerUserId),
+  );
+  if (freshness && (freshness.desired_generation !== freshness.built_generation || freshness.status !== "current"))
+    return null;
   const snapshot = await first<{
     id: string;
     profile_projection_id: string;
@@ -411,8 +415,12 @@ export async function loadCurrentGraph(
     payload_json: string;
   }>(
     env.DB.prepare(
-      `SELECT edge_id,source_node_id,target_node_id,edge_type,directed,weight,confidence,payload_json FROM graph_projection_edges WHERE projection_snapshot_id=? ORDER BY weight DESC,edge_id LIMIT ?`,
-    ).bind(snapshot.id, limits.edges),
+      `SELECT edge_id,source_node_id,target_node_id,edge_type,directed,weight,confidence,payload_json
+       FROM graph_projection_edges WHERE projection_snapshot_id=?
+         AND source_node_id IN (SELECT node_id FROM graph_projection_nodes WHERE projection_snapshot_id=? ORDER BY weight DESC,node_id LIMIT ?)
+         AND target_node_id IN (SELECT node_id FROM graph_projection_nodes WHERE projection_snapshot_id=? ORDER BY weight DESC,node_id LIMIT ?)
+       ORDER BY weight DESC,confidence DESC,edge_id LIMIT ?`,
+    ).bind(snapshot.id, snapshot.id, limits.nodes, snapshot.id, limits.nodes, limits.edges),
   );
   const edges = edgeRows.filter((edge) => included.has(edge.source_node_id) && included.has(edge.target_node_id));
   return {

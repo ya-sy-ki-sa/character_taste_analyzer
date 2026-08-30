@@ -1,7 +1,7 @@
 import { MultiDirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import FA2LayoutSupervisor from "graphology-layout-forceatlas2/worker";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 import type { GraphProjection } from "../../shared/schemas";
 
@@ -21,12 +21,26 @@ const colors: Record<string, string> = {
 export function TasteGraph({ projection }: { projection: GraphProjection }) {
   const container = useRef<HTMLDivElement>(null);
   const [minimum, setMinimum] = useState(0.2);
-  const [selected, setSelected] = useState<{ label: string; type: string; attributes: Record<string, unknown> }>();
+  const [selected, setSelected] = useState<{
+    id: string;
+    label: string;
+    type: string;
+    attributes: Record<string, unknown>;
+  }>();
+  const visibleNodes = useMemo(
+    () => projection.nodes.filter((node) => node.weight >= minimum || node.type === "user"),
+    [minimum, projection.nodes],
+  );
+  const visibleIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+  const visibleEdges = useMemo(
+    () => projection.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)),
+    [projection.edges, visibleIds],
+  );
 
   useEffect(() => {
     if (!container.current) return;
     const graph = new MultiDirectedGraph({ allowSelfLoops: false });
-    const visible = projection.nodes.filter((node) => node.weight >= minimum || node.type === "user");
+    const visible = visibleNodes;
     const nodeIds = new Set(visible.map((node) => node.id));
     visible.forEach((node, index) => {
       const angle = (index / Math.max(1, visible.length)) * Math.PI * 2;
@@ -52,6 +66,7 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
     renderer.on("clickNode", ({ node }) => {
       const attrs = graph.getNodeAttributes(node);
       setSelected({
+        id: node,
         label: String(attrs.label),
         type: String(attrs.nodeType),
         attributes: (attrs.payload ?? {}) as Record<string, unknown>,
@@ -79,7 +94,7 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
       layout?.kill();
       renderer.kill();
     };
-  }, [minimum, projection]);
+  }, [projection, visibleNodes]);
 
   return (
     <div className="graph-shell">
@@ -112,6 +127,62 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
           ))}
         </aside>
       )}
+      <details className="graph-table-alternative">
+        <summary>キーボード操作用のノード・エッジ表</summary>
+        <div className="table-scroll">
+          <table>
+            <caption>表示中のノード</caption>
+            <thead>
+              <tr>
+                <th scope="col">名称</th>
+                <th scope="col">種類</th>
+                <th scope="col">重み</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleNodes.map((node) => (
+                <tr key={node.id}>
+                  <th scope="row">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelected({ id: node.id, label: node.label, type: node.type, attributes: node.attributes })
+                      }
+                    >
+                      {node.label}
+                    </button>
+                  </th>
+                  <td>{node.type}</td>
+                  <td>{Math.round(node.weight * 100)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="table-scroll">
+          <table>
+            <caption>表示中のエッジ</caption>
+            <thead>
+              <tr>
+                <th scope="col">接続元</th>
+                <th scope="col">関係</th>
+                <th scope="col">接続先</th>
+                <th scope="col">重み</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleEdges.map((edge) => (
+                <tr key={edge.id}>
+                  <td>{projection.nodes.find((node) => node.id === edge.source)?.label ?? edge.source}</td>
+                  <td>{edge.type}</td>
+                  <td>{projection.nodes.find((node) => node.id === edge.target)?.label ?? edge.target}</td>
+                  <td>{Math.round(edge.weight * 100)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
       <p className="muted">
         色はノードの種類を示します。善悪の価値序列ではありません。配置と接続探索はブラウザ内のGraphology／ForceAtlas2／Sigma.jsで行い、嗜好スコアは変更しません。
       </p>

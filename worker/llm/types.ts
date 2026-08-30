@@ -6,6 +6,8 @@ export type LlmOperation =
   | "customization_delta"
   | "preference_analysis"
   | "character_generation"
+  | "generation_validation"
+  | "generation_repair"
   | "schema_repair";
 
 export type LlmMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -34,8 +36,21 @@ export type LlmRunMetadata = {
   latencyMs: number;
   finishReason?: string;
   dataRetentionMode: "provider_default" | "no_retention" | "unknown";
+  citations?: Array<{ url: string; title: string }>;
+  rootRequestId?: string;
+  attemptNumber?: number;
+  promptHash?: string;
+  effectiveSettings?: Record<string, unknown>;
+  ignoredParameters?: string[];
+  fallbackFromProvider?: LlmProviderId;
+  fallbackErrorCode?: string;
 };
-export type StructuredLlmResult<T> = { value: T; metadata: LlmRunMetadata; fallbackFrom?: string };
+export type StructuredLlmResult<T> = {
+  value: T;
+  metadata: LlmRunMetadata;
+  attempts?: Array<{ output: unknown; metadata: LlmRunMetadata }>;
+  fallbackFrom?: string;
+};
 
 export interface LlmProvider {
   readonly providerId: LlmProviderId;
@@ -43,6 +58,10 @@ export interface LlmProvider {
 }
 
 export class LlmProviderError extends Error {
+  attempts: Array<{ output: unknown; metadata: LlmRunMetadata }> = [];
+  operation?: LlmOperation;
+  attemptMetadata?: LlmRunMetadata;
+
   constructor(
     message: string,
     readonly code: string,

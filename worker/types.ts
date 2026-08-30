@@ -1,5 +1,6 @@
 export type WorkflowBinding<T> = {
   create(options: { id: string; params: T }): Promise<{ id: string }>;
+  get(id: string): Promise<{ id: string }>;
 };
 
 export type AiBinding = {
@@ -11,12 +12,26 @@ export type CharacterAnalysisWorkflowParams = {
   ownerUserId: string;
   entryId: string;
   stage: "understanding" | "preference";
+  inputGeneration: number;
 };
 
 export type GenerationWorkflowParams = {
   jobId: string;
   ownerUserId: string;
   generationRequestId: string;
+  inputGeneration: number;
+};
+
+export type ProfileRebuildWorkflowParams = {
+  jobId: string;
+  ownerUserId: string;
+  desiredGeneration: number;
+};
+
+export type ExportWorkflowParams = {
+  jobId: string;
+  ownerUserId: string;
+  exportId: string;
 };
 
 export type Env = {
@@ -24,6 +39,10 @@ export type Env = {
   AI?: AiBinding;
   CHARACTER_ANALYSIS_WORKFLOW?: WorkflowBinding<CharacterAnalysisWorkflowParams>;
   GENERATION_WORKFLOW?: WorkflowBinding<GenerationWorkflowParams>;
+  PROFILE_REBUILD_WORKFLOW?: WorkflowBinding<ProfileRebuildWorkflowParams>;
+  ACCOUNT_EXPORT_WORKFLOW?: WorkflowBinding<ExportWorkflowParams>;
+  EXPORTS?: R2Bucket;
+  VECTORS?: VectorizeIndex;
   ASSETS?: Fetcher;
   ENVIRONMENT: "local" | "preview" | "production";
   DEPLOYMENT_PROFILE: "free_validation" | "cloudflare_paid" | "external_scale";
@@ -45,6 +64,7 @@ export type Env = {
   EMBEDDING_DIMENSIONS?: string;
   ANALYSIS_DAILY_QUOTA: string;
   GENERATION_DAILY_QUOTA: string;
+  EXPORT_DAILY_QUOTA?: string;
   SESSION_DAYS: string;
   SESSION_RENEWAL_DAYS?: string;
   PUBLIC_WRITE_LIMIT_10_MIN?: string;

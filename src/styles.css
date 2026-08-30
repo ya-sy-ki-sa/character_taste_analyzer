@@ -1186,8 +1186,35 @@
   .generation-card {
     position: relative;
     flex-direction: column;
+    width: 100%;
+    height: 100%;
     min-height: 190px;
+    text-align: left;
     cursor: pointer;
+  }
+  .generation-history-item {
+    position: relative;
+    display: grid;
+  }
+  .generation-delete-button {
+    position: absolute;
+    z-index: 1;
+    top: 15px;
+    right: 15px;
+    padding: 5px 9px;
+    color: var(--danger);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--line));
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .generation-delete-button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  }
+  .generation-delete-button:disabled {
+    color: var(--muted);
+    border-color: var(--line);
   }
   .generation-card::after {
     content: "→";
@@ -1438,7 +1465,7 @@
   }
   .review-stack,
   .review-summary,
-  .assertion-list > span {
+  .assertion-list > article {
     display: grid;
     gap: 10px;
   }
@@ -1447,7 +1474,7 @@
     margin-block: 14px;
   }
   .review-summary > div,
-  .assertion-list > span {
+  .assertion-list > article {
     padding: 12px 14px;
     background: var(--paper);
     border: 1px solid var(--line);
@@ -1458,12 +1485,282 @@
     color: var(--ink-soft);
     font-size: 0.73rem;
   }
-  .assertion-list > span {
+  .assertion-list > article {
     gap: 2px;
   }
-  .assertion-list > span.negative {
+  .assertion-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+  }
+  .assertion-card-header > strong {
+    min-width: 0;
+  }
+  .assertion-title {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+  }
+  .user-corrected-badge {
+    padding: 2px 6px;
+    color: var(--lavender);
+    background: var(--lavender-pale);
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+  .confidence-pill {
+    flex: none;
+    padding: 3px 8px;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .assertion-value {
+    margin: 3px 0 1px;
+    color: var(--ink);
+    font-size: 0.94rem;
+    font-weight: 550;
+    line-height: 1.65;
+  }
+  .section-help {
+    margin: -3px 0 10px;
+    color: var(--ink-soft);
+    font-size: 0.76rem;
+  }
+  .review-edit-guidance {
+    margin: 0 0 10px;
+    padding: 9px 11px;
+    color: var(--ink-soft);
+    background: var(--lavender-pale);
+    border-radius: 8px;
+    font-size: 0.74rem;
+    line-height: 1.55;
+  }
+  .customization-delta-list {
+    display: grid;
+    gap: 12px;
+  }
+  .customization-delta {
+    display: grid;
+    gap: 13px;
+    padding: 15px 16px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+  }
+  .customization-delta-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+  }
+  .customization-delta-header > div {
+    display: grid;
+    gap: 3px;
+  }
+  .customization-delta-header strong {
+    color: var(--ink);
+    font-size: 0.93rem;
+  }
+  .customization-delta-header p {
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+  }
+  .customization-comparison {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+  }
+  .customization-comparison section {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    padding: 11px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .customization-comparison section > span {
+    color: var(--ink-soft);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  .customization-comparison section > p {
+    color: var(--ink);
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+  .customization-comparison .customization-target {
+    background: var(--lavender-pale);
+    border-color: color-mix(in srgb, var(--lavender) 35%, var(--line));
+  }
+  .customization-arrow {
+    align-self: center;
+    color: var(--accent);
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+  .customization-reason {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 9px;
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+    line-height: 1.55;
+  }
+  .customization-reason strong {
+    color: var(--ink);
+  }
+  .assertion-list > article.negative {
     border-color: #e5bcb5;
     background: var(--danger-pale);
+  }
+  .review-item-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .review-item-actions button {
+    padding: 3px 0;
+    color: var(--lavender);
+    background: transparent;
+    border: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+  }
+  .review-item-actions button.danger-link {
+    color: var(--danger);
+  }
+  .manual-add-button {
+    width: 100%;
+    padding: 11px 14px;
+    color: var(--lavender);
+    background: color-mix(in srgb, var(--lavender-pale) 50%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--lavender) 45%, var(--line));
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .review-edit-form {
+    display: grid;
+    gap: 11px;
+    margin-top: 9px;
+    padding: 13px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+  }
+  .review-edit-form label {
+    display: grid;
+    gap: 5px;
+  }
+  .review-edit-form label > span {
+    color: var(--ink-soft);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .review-edit-form input,
+  .review-edit-form textarea,
+  .review-edit-form select {
+    width: 100%;
+  }
+  .review-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .review-edit-actions .button {
+    min-height: 35px;
+    padding: 7px 12px;
+    font-size: 0.73rem;
+  }
+  .manual-add-form {
+    margin-top: 0;
+    border-style: dashed;
+  }
+  .evidence-disclosure {
+    margin-top: 7px;
+  }
+  .evidence-disclosure > summary {
+    width: fit-content;
+    color: var(--lavender);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .evidence-disclosure > summary:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .evidence-close-label,
+  .evidence-disclosure[open] .evidence-open-label {
+    display: none;
+  }
+  .evidence-disclosure[open] .evidence-close-label {
+    display: inline;
+  }
+  .evidence-list {
+    display: grid;
+    gap: 8px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .evidence-item {
+    display: grid;
+    gap: 7px;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    border-left: 3px solid var(--line);
+    border-radius: 7px;
+  }
+  .evidence-heading,
+  .evidence-detail {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 9px;
+  }
+  .evidence-status {
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .evidence-verified_quote {
+    border-left-color: var(--accent);
+  }
+  .evidence-invalid {
+    border-left-color: var(--danger);
+    background: var(--danger-pale);
+  }
+  .evidence-detail > span {
+    min-width: 4em;
+    color: var(--ink-soft);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .evidence-detail q {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .evidence-detail code {
+    color: var(--ink-soft);
+    font-size: 0.68rem;
+    overflow-wrap: anywhere;
+  }
+  .evidence-warning {
+    color: var(--danger);
   }
   .stance-grid {
     display: grid;
@@ -1768,6 +2065,23 @@
     .channel-grid,
     .review-summary {
       grid-template-columns: 1fr;
+    }
+    .customization-delta-header {
+      display: grid;
+    }
+    .customization-delta-header small {
+      width: fit-content;
+    }
+    .customization-comparison {
+      grid-template-columns: 1fr;
+    }
+    .customization-arrow {
+      justify-self: center;
+      transform: rotate(90deg);
+    }
+    .customization-reason {
+      grid-template-columns: 1fr;
+      gap: 2px;
     }
     .selection-head,
     .selection-row {

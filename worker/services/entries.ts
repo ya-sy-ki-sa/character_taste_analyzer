@@ -1,27 +1,128 @@
 import {
   type EntryDraft,
   type EntryReanalysisInput,
+  type EntrySubmission,
   type EntrySummary,
+  type IdentityCandidate,
+  type IdentityCandidateRequest,
+  type UnderstandingReviewMutation,
+  entryBaseCharacterName,
   entryDraftSchema,
+  entryInputSources,
   entryReferenceMaterial,
   entryScopeText,
 } from "../../shared/schemas";
 import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
+import { placeholders } from "../lib/db";
 import type { Env } from "../types";
-import { rebuildProfile } from "./profile";
+import { outboxStatement } from "./orchestration";
+import { prepareQuotaReservation } from "./quota";
 
-export type CreatedEntry = { entryId: string; jobId: string; status: string; replayed: boolean };
+export type CreatedEntry = {
+  entryId: string;
+  jobId: string;
+  outboxEventId?: string;
+  profileOutboxEventId?: string;
+  status: string;
+  replayed: boolean;
+};
 export type ReanalyzedEntry = CreatedEntry & { entryRevisionId: string; revisionNumber: number };
+
+export async function listIdentityCandidates(
+  env: Env,
+  ownerUserId: string,
+  input: IdentityCandidateRequest,
+): Promise<IdentityCandidate[]> {
+  return all<IdentityCandidate>(
+    env.DB.prepare(`
+      SELECT ci.work_id AS workId,ci.id AS characterIdentityId,w.title AS workTitle,
+             ci.name AS characterName,w.media_type AS mediaType,
+             CASE WHEN ci.name_normalized=? AND w.title_normalized=? THEN 'exact'
+                  ELSE 'work_and_character' END AS match
+      FROM character_identities ci JOIN works w ON w.id=ci.work_id
+      WHERE ci.owner_user_id=? AND ci.deleted_at IS NULL
+        AND ci.name_normalized=? AND w.title_normalized=?
+      ORDER BY ci.updated_at DESC,ci.id LIMIT 20
+    `).bind(
+      normalizeIdentityPart(input.characterName),
+      normalizeIdentityPart(input.workTitle),
+      ownerUserId,
+      normalizeIdentityPart(input.characterName),
+      normalizeIdentityPart(input.workTitle),
+    ),
+  );
+}
 
 function registrationTitle(draft: EntryDraft): string {
   return draft.registrationType === "original" ? draft.characterName : `${draft.workTitle} / ${draft.characterName}`;
 }
 
+type EvidenceView = {
+  id: string;
+  verificationStatus: string;
+  inferenceType: string;
+  quote: string | null;
+  inputPointer: string | null;
+  sourceTitle: string | null;
+  sourceUrl: string | null;
+  canNavigate: boolean;
+};
+
+async function loadEvidenceViews(
+  env: Env,
+  ownerUserId: string,
+  ownerType: "character_assertion" | "preference_assertion" | "value_stance_assertion",
+  ownerIds: string[],
+): Promise<Map<string, EvidenceView[]>> {
+  const grouped = new Map<string, EvidenceView[]>();
+  for (let offset = 0; offset < ownerIds.length; offset += 90) {
+    const chunk = ownerIds.slice(offset, offset + 90);
+    if (!chunk.length) continue;
+    const rows = await all<{
+      id: string;
+      owner_id: string;
+      verification_status: string;
+      inference_type: string;
+      excerpt_text: string | null;
+      user_input_path: string | null;
+      title: string | null;
+      citation_json: string | null;
+    }>(
+      env.DB.prepare(`
+      SELECT ef.id,ef.owner_id,ef.verification_status,ef.inference_type,ef.excerpt_text,ef.user_input_path,
+               sd.title,sd.citation_json
+        FROM evidence_fragments ef LEFT JOIN source_fragments sf ON sf.id=ef.source_fragment_id
+        LEFT JOIN source_document_revisions sr ON sr.id=sf.source_document_revision_id
+        LEFT JOIN source_documents sd ON sd.id=sr.source_document_id
+        WHERE ef.owner_user_id=? AND ef.owner_type=? AND ef.owner_id IN (${placeholders(chunk.length)})
+        ORDER BY ef.owner_id,ef.id
+      `).bind(ownerUserId, ownerType, ...chunk),
+    );
+    for (const row of rows) {
+      const citation = row.citation_json ? (JSON.parse(row.citation_json) as Record<string, unknown>) : {};
+      const sourceUrl = typeof citation.url === "string" ? citation.url : null;
+      const items = grouped.get(row.owner_id) ?? [];
+      items.push({
+        id: row.id,
+        verificationStatus: row.verification_status,
+        inferenceType: row.inference_type,
+        quote: row.excerpt_text,
+        inputPointer: row.user_input_path,
+        sourceTitle: row.title,
+        sourceUrl,
+        canNavigate: row.verification_status === "verified_quote" && sourceUrl !== null,
+      });
+      grouped.set(row.owner_id, items);
+    }
+  }
+  return grouped;
+}
+
 export async function createEntry(
   env: Env,
   ownerUserId: string,
-  draft: EntryDraft,
+  draft: EntrySubmission,
   idempotencyKey: string,
 ): Promise<CreatedEntry> {
   const seed = await sha256Hex(`${ownerUserId}\u0000${idempotencyKey}`);
@@ -29,94 +130,100 @@ export async function createEntry(
   const payloadHash = await sha256Hex(payloadJson);
   const existing = await first<{ id: string; job_id: string; status: string; content_hash: string }>(
     env.DB.prepare(`
-    SELECT e.id,j.id AS job_id,e.status,er.content_hash FROM user_character_entries e
-    JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
-    JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id
-    WHERE e.owner_user_id=? AND json_extract(e.draft_payload_json,'$.idempotencySeed')=?
-    ORDER BY e.created_at DESC LIMIT 1
-  `).bind(ownerUserId, seed),
+      SELECT e.id,j.id AS job_id,e.status,er.content_hash FROM user_character_entries e
+      JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
+      JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id
+      WHERE e.owner_user_id=? AND json_extract(e.draft_payload_json,'$.idempotencySeed')=?
+      ORDER BY e.created_at DESC LIMIT 1
+    `).bind(ownerUserId, seed),
   );
   if (existing) {
     if (existing.content_hash !== payloadHash) throw new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
     return { entryId: existing.id, jobId: existing.job_id, status: existing.status, replayed: true };
   }
 
-  const ids = {
-    entry: crypto.randomUUID(),
-    revision: crypto.randomUUID(),
-    job: crypto.randomUUID(),
-    identity: crypto.randomUUID(),
-    work: draft.registrationType === "original" ? null : crypto.randomUUID(),
-    workVersion: crypto.randomUUID(),
-    representation: crypto.randomUUID(),
-    baseRepresentation: draft.registrationType === "customized_existing" ? crypto.randomUUID() : null,
-    sourceDocument: crypto.randomUUID(),
-    sourceRevision: crypto.randomUUID(),
-    sourceFragment: crypto.randomUUID(),
-    sourceSet: crypto.randomUUID(),
-    sourceSetVersion: crypto.randomUUID(),
-  };
   const now = nowIso();
-  const scopeText = entryScopeText(draft);
-  const characterBasicInfo = draft.registrationType === "original" ? draft.characterBasicInfo : undefined;
-  const referenceMaterial = entryReferenceMaterial(draft);
-  const providedCharacterMaterial = [
-    characterBasicInfo ? `【キャラクター基本情報】\n${characterBasicInfo}` : undefined,
-    referenceMaterial ? `【追加の参考情報】\n${referenceMaterial}` : undefined,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join("\n\n");
-  const sourceHash = providedCharacterMaterial ? await sha256Hex(providedCharacterMaterial) : undefined;
+  const entryId = crypto.randomUUID();
+  const revisionId = crypto.randomUUID();
+  const jobId = crypto.randomUUID();
+  const representationId = crypto.randomUUID();
+  const baseRepresentationId = draft.registrationType === "customized_existing" ? crypto.randomUUID() : null;
+  const sourceSetId = crypto.randomUUID();
+  const sourceSetVersionId = crypto.randomUUID();
+  let identityId: string = crypto.randomUUID();
+  let workId: string | null = draft.registrationType === "original" ? null : crypto.randomUUID();
+  const resolution = draft.registrationType === "original" ? { mode: "new" as const } : draft.identityResolution;
+  const baseCharacterName = entryBaseCharacterName(draft);
   const statements: D1PreparedStatement[] = [];
-  if (draft.registrationType !== "original" && ids.work) {
+
+  if (resolution.mode === "reuse") {
+    const reusable = await first<{ identity_id: string; work_id: string | null }>(
+      env.DB.prepare(`
+        SELECT ci.id AS identity_id,ci.work_id FROM character_identities ci LEFT JOIN works w ON w.id=ci.work_id
+        WHERE ci.id=? AND ci.owner_user_id=? AND ci.deleted_at IS NULL AND ci.name_normalized=?
+          AND (ci.work_id IS ? OR ci.work_id=?) AND (w.id IS NULL OR w.title_normalized=?)
+      `).bind(
+        resolution.characterIdentityId,
+        ownerUserId,
+        normalizeIdentityPart(baseCharacterName),
+        resolution.workId,
+        resolution.workId,
+        normalizeIdentityPart(draft.registrationType === "original" ? "" : draft.workTitle),
+      ),
+    );
+    if (!reusable) throw new Error("IDENTITY_RESOLUTION_INVALID");
+    identityId = reusable.identity_id;
+    workId = reusable.work_id;
+  } else {
+    if (draft.registrationType !== "original" && workId) {
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,'private','user_created',1,?,?)`,
+        ).bind(
+          workId,
+          ownerUserId,
+          draft.workTitle,
+          normalizeIdentityPart(draft.workTitle),
+          draft.mediaType ?? null,
+          now,
+          now,
+        ),
+        env.DB.prepare(
+          `INSERT INTO work_versions (id,work_id,version_number,title,aliases_json,description,source_note,content_hash,created_by_user_id,created_at) VALUES (?,?,1,?,'[]',NULL,'ユーザー登録',?,?,?)`,
+        ).bind(crypto.randomUUID(), workId, draft.workTitle, await sha256Hex(draft.workTitle), ownerUserId, now),
+      );
+    }
     statements.push(
       env.DB.prepare(
-        `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,'private','user_created',1,?,?)`,
+        `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,'private','user_created',1,?,?)`,
       ).bind(
-        ids.work,
+        identityId,
+        draft.registrationType === "original" ? "original" : "existing",
         ownerUserId,
-        draft.workTitle,
-        normalizeIdentityPart(draft.workTitle),
-        draft.mediaType ?? null,
+        workId,
+        baseCharacterName,
+        normalizeIdentityPart(baseCharacterName),
         now,
         now,
       ),
     );
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO work_versions (id,work_id,version_number,title,aliases_json,description,source_note,content_hash,created_by_user_id,created_at) VALUES (?,?,1,?,'[]',NULL,'ユーザー登録',?,?,?)`,
-      ).bind(ids.workVersion, ids.work, draft.workTitle, await sha256Hex(draft.workTitle), ownerUserId, now),
-    );
   }
-  statements.push(
-    env.DB.prepare(
-      `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,'private','user_created',1,?,?)`,
-    ).bind(
-      ids.identity,
-      draft.registrationType === "original" ? "original" : "existing",
-      ownerUserId,
-      ids.work,
-      draft.characterName,
-      normalizeIdentityPart(draft.characterName),
-      now,
-      now,
-    ),
-  );
-  if (ids.baseRepresentation && draft.registrationType === "customized_existing") {
+
+  const referenceMaterial = entryReferenceMaterial(draft);
+  if (baseRepresentationId && draft.registrationType === "customized_existing")
     statements.push(
       env.DB.prepare(
         `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,NULL,?,'canonical_whole','official','whole',?,NULL,?,1,'private',1,?,?)`,
       ).bind(
-        ids.baseRepresentation,
-        ids.identity,
+        baseRepresentationId,
+        identityId,
         ownerUserId,
-        `基本像: ${draft.workTitle} / ${draft.characterName}`,
+        `基本像: ${draft.workTitle} / ${baseCharacterName}`,
         referenceMaterial?.slice(0, 2000) ?? null,
         now,
         now,
       ),
     );
-  }
   const representationType =
     draft.registrationType === "original"
       ? "original"
@@ -145,72 +252,93 @@ export async function createEntry(
     env.DB.prepare(
       `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,1,'private',1,?,?)`,
     ).bind(
-      ids.representation,
-      ids.identity,
-      ids.baseRepresentation,
+      representationId,
+      identityId,
+      baseRepresentationId,
       ownerUserId,
       representationType,
       canonicality,
       scopeType,
-      scopeText,
+      entryScopeText(draft),
       draft.registrationType === "customized_existing" ? draft.customizationDescription : null,
-      (characterBasicInfo ?? referenceMaterial)?.slice(0, 2000) ?? null,
+      (draft.registrationType === "original" ? draft.characterBasicInfo : referenceMaterial)?.slice(0, 2000) ?? null,
       now,
       now,
     ),
   );
-  if (providedCharacterMaterial && sourceHash) {
+
+  const sources = entryInputSources(draft);
+  const sourceSetHash = await sha256Hex(JSON.stringify(sources.map(({ pointer, text }) => ({ pointer, text }))));
+  statements.push(
+    env.DB.prepare(
+      `INSERT INTO source_sets (id,owner_user_id,purpose,active_version,created_at,updated_at) VALUES (?,?,'character_understanding',1,?,?)`,
+    ).bind(sourceSetId, ownerUserId, now, now),
+    env.DB.prepare(
+      `INSERT INTO source_set_versions (id,source_set_id,version,content_hash,created_at) VALUES (?,?,1,?,?)`,
+    ).bind(sourceSetVersionId, sourceSetId, sourceSetHash, now),
+  );
+  for (const [ordinal, source] of sources.entries()) {
+    const documentId = crypto.randomUUID();
+    const sourceRevisionId = crypto.randomUUID();
+    const hash = await sha256Hex(source.text);
     statements.push(
       env.DB.prepare(
-        `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at) VALUES (?,?,?,'user_text','private','{}','user_supplied',1,1,?,?)`,
-      ).bind(ids.sourceDocument, ownerUserId, `${registrationTitle(draft)} 基本情報・参考情報`, now, now),
-    );
-    statements.push(
+        `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at) VALUES (?,?,?,'user_text','private',?,'user_supplied',1,1,?,?)`,
+      ).bind(
+        documentId,
+        ownerUserId,
+        `${registrationTitle(draft)} ${source.label}`,
+        JSON.stringify({ inputPointer: source.pointer }),
+        now,
+        now,
+      ),
       env.DB.prepare(
         `INSERT INTO source_document_revisions (id,source_document_id,revision_number,inline_text,mime_type,byte_size,content_hash,upload_status,extraction_status,finalized_at,created_at) VALUES (?,?,1,?,'text/plain',?,?,'finalized','ready',?,?)`,
       ).bind(
-        ids.sourceRevision,
-        ids.sourceDocument,
-        providedCharacterMaterial,
-        new TextEncoder().encode(providedCharacterMaterial).byteLength,
-        sourceHash,
+        sourceRevisionId,
+        documentId,
+        source.text,
+        new TextEncoder().encode(source.text).byteLength,
+        hash,
         now,
         now,
       ),
-    );
-    statements.push(
       env.DB.prepare(
-        `INSERT INTO source_fragments (id,source_document_revision_id,ordinal,locator_json,text_content,content_hash,token_estimate,created_at) VALUES (?,?,0,'{"type":"full_text"}',?,?,?,?)`,
+        `INSERT INTO source_fragments (id,source_document_revision_id,ordinal,locator_json,text_content,content_hash,token_estimate,created_at) VALUES (?,?,0,?,?,?,?,?)`,
       ).bind(
-        ids.sourceFragment,
-        ids.sourceRevision,
-        providedCharacterMaterial,
-        sourceHash,
-        Math.ceil(providedCharacterMaterial.length / 3),
+        crypto.randomUUID(),
+        sourceRevisionId,
+        JSON.stringify({ type: "json_pointer", pointer: source.pointer }),
+        source.text,
+        hash,
+        Math.ceil(source.text.length / 3),
         now,
       ),
-    );
-    statements.push(
       env.DB.prepare(
-        `INSERT INTO source_sets (id,owner_user_id,purpose,active_version,created_at,updated_at) VALUES (?,?,'character_understanding',1,?,?)`,
-      ).bind(ids.sourceSet, ownerUserId, now, now),
-    );
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO source_set_versions (id,source_set_id,version,content_hash,created_at) VALUES (?,?,1,?,?)`,
-      ).bind(ids.sourceSetVersion, ids.sourceSet, sourceHash, now),
-    );
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO source_set_items (source_set_version_id,source_document_revision_id,priority,usage_type) VALUES (?,?,1,'user_definition')`,
-      ).bind(ids.sourceSetVersion, ids.sourceRevision),
+        `INSERT INTO source_set_items (source_set_version_id,source_document_revision_id,priority,usage_type) VALUES (?,?,?,'user_definition')`,
+      ).bind(sourceSetVersionId, sourceRevisionId, ordinal + 1),
     );
   }
+
+  const quota = await prepareQuotaReservation(env, ownerUserId, "analysis", idempotencyKey, payloadHash);
+  const outbox = await outboxStatement(
+    env,
+    ownerUserId,
+    "job",
+    jobId,
+    1,
+    {
+      type: "analysis.start",
+      params: { jobId, ownerUserId, entryId, stage: "understanding", inputGeneration: 1 },
+    },
+    `analysis:${jobId}:1:understanding`,
+    idempotencyKey,
+  );
   statements.push(
     env.DB.prepare(
-      `INSERT INTO user_character_entries (id,owner_user_id,registration_type,status,active_revision_number,active_generation,draft_schema_version,draft_payload_json,draft_updated_at,revision,created_at,updated_at) VALUES (?,?,?,'submitted',1,0,'1',?,?,1,?,?)`,
+      `INSERT INTO user_character_entries (id,owner_user_id,registration_type,status,active_revision_number,active_generation,draft_schema_version,draft_payload_json,draft_updated_at,revision,created_at,updated_at) VALUES (?,?,?,'submitted',1,0,'2',?,?,1,?,?)`,
     ).bind(
-      ids.entry,
+      entryId,
       ownerUserId,
       draft.registrationType,
       JSON.stringify({ ...draft, idempotencySeed: seed }),
@@ -218,31 +346,29 @@ export async function createEntry(
       now,
       now,
     ),
-  );
-  statements.push(
     env.DB.prepare(
-      `INSERT INTO entry_revisions (id,entry_id,revision_number,representation_id,source_set_version_id,known_scope,user_character_view,preference_input_json,registration_payload_json,content_hash,created_at) VALUES (?,?,1,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO entry_revisions (id,entry_id,revision_number,representation_id,source_set_version_id,known_scope,user_character_view,preference_input_json,registration_payload_json,content_hash,analysis_contract_version,created_at) VALUES (?,?,1,?,?,?,?,?,?,?,'2',?)`,
     ).bind(
-      ids.revision,
-      ids.entry,
-      ids.representation,
-      providedCharacterMaterial ? ids.sourceSetVersion : null,
-      scopeText,
+      revisionId,
+      entryId,
+      representationId,
+      sourceSetVersionId,
+      entryScopeText(draft),
       draft.userCharacterView ?? null,
       JSON.stringify(draft.preference),
       payloadJson,
       payloadHash,
       now,
     ),
-  );
-  statements.push(
+    ...quota.statements,
     env.DB.prepare(
-      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,created_at,updated_at) VALUES (?,?,'character_analysis','queued','entry',?,1,0,15,'queued',1,1,?,?)`,
-    ).bind(ids.job, ownerUserId, ids.entry, now, now),
+      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,quota_reservation_id,created_at,updated_at) VALUES (?,?,'character_analysis','queued','entry',?,1,0,15,'queued',1,1,?,?,?)`,
+    ).bind(jobId, ownerUserId, entryId, quota.id, now, now),
+    outbox.statement,
   );
   const results = await env.DB.batch(statements);
   if (results.some((result) => !result.success)) throw new Error("D1_ENTRY_CREATE_FAILED");
-  return { entryId: ids.entry, jobId: ids.job, status: "submitted", replayed: false };
+  return { entryId, jobId, outboxEventId: outbox.id, status: "submitted", replayed: false };
 }
 
 export async function createEntryReanalysis(
@@ -257,6 +383,8 @@ export async function createEntryReanalysis(
     active_revision_number: number;
     representation_id: string;
     source_set_version_id: string | null;
+    character_identity_id: string;
+    work_id: string | null;
     known_scope: string;
     user_character_view: string | null;
     registration_payload_json: string;
@@ -264,16 +392,21 @@ export async function createEntryReanalysis(
   }>(
     env.DB.prepare(`
       SELECT e.status,e.active_revision_number,e.draft_payload_json AS entry_draft_payload_json,
-        er.representation_id,er.source_set_version_id,er.known_scope,er.user_character_view,er.registration_payload_json
+        er.representation_id,er.source_set_version_id,er.known_scope,er.user_character_view,er.registration_payload_json,
+        cr.character_identity_id,ci.work_id
       FROM user_character_entries e
       JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
+      JOIN character_representations cr ON cr.id=er.representation_id
+      JOIN character_identities ci ON ci.id=cr.character_identity_id
       WHERE e.id=? AND e.owner_user_id=? AND e.deleted_at IS NULL
     `).bind(entryId, ownerUserId),
   );
   if (!current) throw new Error("ENTRY_NOT_FOUND");
 
   const previousDraft = entryDraftSchema.parse(JSON.parse(current.registration_payload_json));
-  const nextDraft: EntryDraft = { ...previousDraft, preference: input.preference };
+  const nextDraft = input.draft;
+  if (nextDraft.registrationType !== previousDraft.registrationType)
+    throw new Error("ENTRY_REGISTRATION_TYPE_IMMUTABLE");
   const payloadJson = JSON.stringify(nextDraft);
   const currentMutableDraft = JSON.parse(current.entry_draft_payload_json) as Record<string, unknown>;
   const draftPayloadJson = JSON.stringify({
@@ -315,47 +448,308 @@ export async function createEntryReanalysis(
 
   const revisionNumber = current.active_revision_number + 1;
   const now = nowIso();
-  const results = await env.DB.batch([
+  const preparationStatements: D1PreparedStatement[] = [];
+  const previousBaseCharacterName = entryBaseCharacterName(previousDraft);
+  const nextBaseCharacterName = entryBaseCharacterName(nextDraft);
+  const identityChanged =
+    normalizeIdentityPart(nextBaseCharacterName) !== normalizeIdentityPart(previousBaseCharacterName) ||
+    (nextDraft.registrationType !== "original" &&
+      previousDraft.registrationType !== "original" &&
+      normalizeIdentityPart(nextDraft.workTitle) !== normalizeIdentityPart(previousDraft.workTitle));
+  let identityId = current.character_identity_id;
+  let workId = current.work_id;
+  if (identityChanged) {
+    if (nextDraft.registrationType !== "original" && nextDraft.identityResolution.mode === "reuse") {
+      const reusable = await first<{ identity_id: string; work_id: string | null }>(
+        env.DB.prepare(`
+          SELECT ci.id AS identity_id,ci.work_id FROM character_identities ci LEFT JOIN works w ON w.id=ci.work_id
+          WHERE ci.id=? AND ci.owner_user_id=? AND ci.deleted_at IS NULL AND ci.name_normalized=?
+            AND (ci.work_id IS ? OR ci.work_id=?) AND (w.id IS NULL OR w.title_normalized=?)
+        `).bind(
+          nextDraft.identityResolution.characterIdentityId,
+          ownerUserId,
+          normalizeIdentityPart(nextBaseCharacterName),
+          nextDraft.identityResolution.workId,
+          nextDraft.identityResolution.workId,
+          normalizeIdentityPart(nextDraft.workTitle),
+        ),
+      );
+      if (!reusable) throw new Error("IDENTITY_RESOLUTION_INVALID");
+      identityId = reusable.identity_id;
+      workId = reusable.work_id;
+    } else {
+      identityId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:identity`);
+      workId =
+        nextDraft.registrationType === "original" ? null : await deriveUuid(env.AUTH_PEPPER, `${revisionId}:work`);
+      if (nextDraft.registrationType !== "original" && workId) {
+        preparationStatements.push(
+          env.DB.prepare(
+            `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,'private','user_created',1,?,?)`,
+          ).bind(
+            workId,
+            ownerUserId,
+            nextDraft.workTitle,
+            normalizeIdentityPart(nextDraft.workTitle),
+            nextDraft.mediaType ?? null,
+            now,
+            now,
+          ),
+          env.DB.prepare(
+            `INSERT INTO work_versions (id,work_id,version_number,title,aliases_json,description,source_note,content_hash,created_by_user_id,created_at) VALUES (?,?,1,?,'[]',NULL,'再分析で更新',?,?,?)`,
+          ).bind(
+            await deriveUuid(env.AUTH_PEPPER, `${revisionId}:work-version`),
+            workId,
+            nextDraft.workTitle,
+            await sha256Hex(nextDraft.workTitle),
+            ownerUserId,
+            now,
+          ),
+        );
+      }
+      preparationStatements.push(
+        env.DB.prepare(
+          `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,'private','user_created',1,?,?)`,
+        ).bind(
+          identityId,
+          nextDraft.registrationType === "original" ? "original" : "existing",
+          ownerUserId,
+          workId,
+          nextBaseCharacterName,
+          normalizeIdentityPart(nextBaseCharacterName),
+          now,
+          now,
+        ),
+      );
+    }
+  }
+
+  const representationId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:representation`);
+  const baseRepresentationId =
+    nextDraft.registrationType === "customized_existing"
+      ? await deriveUuid(env.AUTH_PEPPER, `${revisionId}:base-representation`)
+      : null;
+  const referenceMaterial = entryReferenceMaterial(nextDraft);
+  if (baseRepresentationId && nextDraft.registrationType === "customized_existing")
+    preparationStatements.push(
+      env.DB.prepare(
+        `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,NULL,?,'canonical_whole','official','whole',?,NULL,?,1,'private',1,?,?)`,
+      ).bind(
+        baseRepresentationId,
+        identityId,
+        ownerUserId,
+        `基本像: ${nextDraft.workTitle} / ${nextBaseCharacterName}`,
+        referenceMaterial?.slice(0, 2000) ?? null,
+        now,
+        now,
+      ),
+    );
+  const representationType =
+    nextDraft.registrationType === "original"
+      ? "original"
+      : nextDraft.registrationType === "customized_existing"
+        ? nextDraft.representationType
+        : "canonical_whole";
+  const canonicality =
+    nextDraft.registrationType === "original"
+      ? "original"
+      : nextDraft.registrationType === "customized_existing"
+        ? nextDraft.representationType === "transformative" || nextDraft.representationType === "alternate_setting"
+          ? "transformative"
+          : "user_interpretation"
+        : "official";
+  const scopeType =
+    nextDraft.registrationType === "customized_existing"
+      ? nextDraft.representationType === "scene_state"
+        ? "scene"
+        : nextDraft.representationType === "facet"
+          ? "facet"
+          : nextDraft.representationType === "alternate_setting"
+            ? "alternate_setting"
+            : "whole"
+      : "whole";
+  preparationStatements.push(
+    env.DB.prepare(
+      `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,1,'private',1,?,?)`,
+    ).bind(
+      representationId,
+      identityId,
+      baseRepresentationId,
+      ownerUserId,
+      representationType,
+      canonicality,
+      scopeType,
+      entryScopeText(nextDraft),
+      nextDraft.registrationType === "customized_existing" ? nextDraft.customizationDescription : null,
+      (nextDraft.registrationType === "original" ? nextDraft.characterBasicInfo : referenceMaterial)?.slice(0, 2000) ??
+        null,
+      now,
+      now,
+    ),
+  );
+
+  const sourceSetId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-set`);
+  const sourceSetVersionId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-set-version`);
+  const sources = entryInputSources(nextDraft);
+  const sourceSetHash = await sha256Hex(JSON.stringify(sources.map(({ pointer, text }) => ({ pointer, text }))));
+  preparationStatements.push(
+    env.DB.prepare(
+      `INSERT INTO source_sets (id,owner_user_id,purpose,active_version,created_at,updated_at) VALUES (?,?,'character_understanding',1,?,?)`,
+    ).bind(sourceSetId, ownerUserId, now, now),
+    env.DB.prepare(
+      `INSERT INTO source_set_versions (id,source_set_id,version,content_hash,created_at) VALUES (?,?,1,?,?)`,
+    ).bind(sourceSetVersionId, sourceSetId, sourceSetHash, now),
+  );
+  for (const [ordinal, source] of sources.entries()) {
+    const documentId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-document:${ordinal}`);
+    const sourceRevisionId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-revision:${ordinal}`);
+    const hash = await sha256Hex(source.text);
+    preparationStatements.push(
+      env.DB.prepare(
+        `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at) VALUES (?,?,?,'user_text','private',?,'user_supplied',1,1,?,?)`,
+      ).bind(
+        documentId,
+        ownerUserId,
+        `${registrationTitle(nextDraft)} ${source.label}`,
+        JSON.stringify({ inputPointer: source.pointer }),
+        now,
+        now,
+      ),
+      env.DB.prepare(
+        `INSERT INTO source_document_revisions (id,source_document_id,revision_number,inline_text,mime_type,byte_size,content_hash,upload_status,extraction_status,finalized_at,created_at) VALUES (?,?,1,?,'text/plain',?,?,'finalized','ready',?,?)`,
+      ).bind(
+        sourceRevisionId,
+        documentId,
+        source.text,
+        new TextEncoder().encode(source.text).byteLength,
+        hash,
+        now,
+        now,
+      ),
+      env.DB.prepare(
+        `INSERT INTO source_fragments (id,source_document_revision_id,ordinal,locator_json,text_content,content_hash,token_estimate,created_at) VALUES (?,?,0,?,?,?,?,?)`,
+      ).bind(
+        await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-fragment:${ordinal}`),
+        sourceRevisionId,
+        JSON.stringify({ type: "json_pointer", pointer: source.pointer }),
+        source.text,
+        hash,
+        Math.ceil(source.text.length / 3),
+        now,
+      ),
+      env.DB.prepare(
+        `INSERT INTO source_set_items (source_set_version_id,source_document_revision_id,priority,usage_type) VALUES (?,?,?,'user_definition')`,
+      ).bind(sourceSetVersionId, sourceRevisionId, ordinal + 1),
+    );
+  }
+  const quota = await prepareQuotaReservation(env, ownerUserId, "analysis", idempotencyKey, contentHash);
+  const outbox = await outboxStatement(
+    env,
+    ownerUserId,
+    "job",
+    jobId,
+    1,
+    {
+      type: "analysis.start",
+      params: { jobId, ownerUserId, entryId, stage: "understanding", inputGeneration: revisionNumber },
+    },
+    `analysis:${jobId}:${revisionNumber}:understanding`,
+    idempotencyKey,
+  );
+  const projectionState =
+    current.status === "active"
+      ? await first<{ desired_generation: number; built_generation: number }>(
+          env.DB.prepare(
+            `SELECT desired_generation,built_generation FROM projection_rebuild_states WHERE owner_user_id=?`,
+          ).bind(ownerUserId),
+        )
+      : null;
+  const desiredGeneration = (projectionState?.desired_generation ?? 0) + 1;
+  const profileJobId = crypto.randomUUID();
+  const profileOutbox =
+    current.status === "active"
+      ? await outboxStatement(
+          env,
+          ownerUserId,
+          "job",
+          profileJobId,
+          1,
+          {
+            type: "profile.rebuild",
+            params: { jobId: profileJobId, ownerUserId, desiredGeneration },
+          },
+          `profile:${ownerUserId}:${desiredGeneration}`,
+          revisionId,
+        )
+      : null;
+  const statements: D1PreparedStatement[] = [
+    ...preparationStatements,
     env.DB.prepare(
       `INSERT INTO entry_revisions
         (id,entry_id,revision_number,representation_id,source_set_version_id,known_scope,user_character_view,
-         preference_input_json,registration_payload_json,content_hash,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+         preference_input_json,registration_payload_json,content_hash,analysis_contract_version,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,'2',?)`,
     ).bind(
       revisionId,
       entryId,
       revisionNumber,
-      current.representation_id,
-      current.source_set_version_id,
-      current.known_scope,
-      current.user_character_view,
-      JSON.stringify(input.preference),
+      representationId,
+      sourceSetVersionId,
+      entryScopeText(nextDraft),
+      nextDraft.userCharacterView ?? null,
+      JSON.stringify(nextDraft.preference),
       payloadJson,
       contentHash,
       now,
     ),
+    ...quota.statements,
     env.DB.prepare(
       `INSERT INTO jobs
         (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,
-         current_step,retryable,revision,created_at,updated_at)
-       VALUES (?,?,'character_analysis','queued','entry',?,?,0,15,'queued',1,1,?,?)`,
-    ).bind(jobId, ownerUserId, entryId, revisionNumber, now, now),
+         current_step,retryable,revision,quota_reservation_id,created_at,updated_at)
+       VALUES (?,?,'character_analysis','queued','entry',?,?,0,15,'queued',1,1,?,?,?)`,
+    ).bind(jobId, ownerUserId, entryId, revisionNumber, quota.id, now, now),
     env.DB.prepare(
       `UPDATE jobs SET status='superseded',updated_at=?,completed_at=?,revision=revision+1
-       WHERE owner_user_id=? AND target_type='entry' AND target_id=? AND id<>?
+      WHERE owner_user_id=? AND target_type='entry' AND target_id=? AND id<>?
          AND status IN ('queued','waiting_for_user','retrying')`,
     ).bind(now, now, ownerUserId, entryId, jobId),
+  ];
+  const entryUpdateIndex = statements.length;
+  statements.push(
     env.DB.prepare(
       `UPDATE user_character_entries SET status='submitted',active_revision_number=?,draft_payload_json=?,
         draft_updated_at=?,updated_at=?,revision=revision+1
        WHERE id=? AND owner_user_id=? AND active_revision_number=?`,
     ).bind(revisionNumber, draftPayloadJson, now, now, entryId, ownerUserId, current.active_revision_number),
-  ]);
+    outbox.statement,
+  );
+  if (profileOutbox)
+    statements.push(
+      env.DB.prepare(`
+            INSERT INTO projection_rebuild_states (owner_user_id,desired_generation,built_generation,status,updated_at)
+            VALUES (?,?,?,'queued',?) ON CONFLICT(owner_user_id) DO UPDATE SET
+              desired_generation=excluded.desired_generation,status='queued',updated_at=excluded.updated_at
+          `).bind(ownerUserId, desiredGeneration, projectionState?.built_generation ?? 0, now),
+      env.DB.prepare(
+        `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,
+             progress_total,current_step,retryable,revision,created_at,updated_at)
+             VALUES (?,?,'profile_rebuild','queued','user',?,?,0,2,'profile',1,1,?,?)`,
+      ).bind(profileJobId, ownerUserId, ownerUserId, desiredGeneration, now, now),
+      profileOutbox.statement,
+    );
+  const results = await env.DB.batch(statements);
   if (results.some((result) => !result.success)) throw new Error("D1_ENTRY_REANALYSIS_FAILED");
-  if (!results[3].meta.changes) throw new Error("ENTRY_REVISION_CONFLICT");
-  if (current.status === "active") await rebuildProfile(env, ownerUserId, "entry_reanalysis_started");
-
-  return { entryId, entryRevisionId: revisionId, revisionNumber, jobId, status: "submitted", replayed: false };
+  if (!results[entryUpdateIndex].meta.changes) throw new Error("ENTRY_REVISION_CONFLICT");
+  return {
+    entryId,
+    entryRevisionId: revisionId,
+    revisionNumber,
+    jobId,
+    outboxEventId: outbox.id,
+    profileOutboxEventId: profileOutbox?.id,
+    status: "submitted",
+    replayed: false,
+  };
 }
 
 export async function listEntries(env: Env, ownerUserId: string): Promise<EntrySummary[]> {
@@ -451,7 +845,8 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         status: string;
       }>(
         env.DB.prepare(
-          `SELECT id,raw_label,value_text,assertion_kind,explicitness,confidence,status FROM character_assertions WHERE snapshot_id=? ORDER BY ordinal,id`,
+          `SELECT id,raw_label,value_text,assertion_kind,explicitness,confidence,status FROM character_assertions
+           WHERE snapshot_id=? AND status NOT IN ('rejected','superseded') ORDER BY ordinal,id`,
         ).bind(snapshot.id),
       )
     : [];
@@ -468,7 +863,8 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         status: string;
       }>(
         env.DB.prepare(
-          `SELECT id,operation,before_value,after_value,scope_json,reason_text,explicitness,confidence,status FROM customization_deltas WHERE snapshot_id=? ORDER BY ordinal,id`,
+          `SELECT id,operation,before_value,after_value,scope_json,reason_text,explicitness,confidence,status
+           FROM customization_deltas WHERE snapshot_id=? AND status <> 'rejected' ORDER BY ordinal,id`,
         ).bind(snapshot.id),
       )
     : [];
@@ -497,7 +893,8 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         status: string;
       }>(
         env.DB.prepare(
-          `SELECT id,raw_label,value_text,assertion_kind,explicitness,confidence,status FROM character_assertions WHERE snapshot_id=? ORDER BY ordinal,id`,
+          `SELECT id,raw_label,value_text,assertion_kind,explicitness,confidence,status FROM character_assertions
+           WHERE snapshot_id=? AND status NOT IN ('rejected','superseded') ORDER BY ordinal,id`,
         ).bind(baseSnapshot.id),
       )
     : [];
@@ -537,6 +934,32 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         ).bind(analysis.id),
       )
     : [];
+  const [understandingEvidence, baseUnderstandingEvidence, preferenceEvidence, stanceEvidence] = await Promise.all([
+    loadEvidenceViews(
+      env,
+      ownerUserId,
+      "character_assertion",
+      assertions.map((item) => item.id),
+    ),
+    loadEvidenceViews(
+      env,
+      ownerUserId,
+      "character_assertion",
+      baseAssertions.map((item) => item.id),
+    ),
+    loadEvidenceViews(
+      env,
+      ownerUserId,
+      "preference_assertion",
+      preferences.map((item) => item.id),
+    ),
+    loadEvidenceViews(
+      env,
+      ownerUserId,
+      "value_stance_assertion",
+      valueStances.map((item) => item.id),
+    ),
+  ]);
   return {
     entry: {
       id: entryId,
@@ -553,7 +976,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
           uncertainties: JSON.parse(snapshot.uncertainties_json),
           confidence: snapshot.overall_confidence,
           status: snapshot.status,
-          assertions,
+          assertions: assertions.map((item) => ({ ...item, evidence: understandingEvidence.get(item.id) ?? [] })),
           deltas,
         }
       : null,
@@ -565,7 +988,10 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
           uncertainties: JSON.parse(baseSnapshot.uncertainties_json),
           confidence: baseSnapshot.overall_confidence,
           status: baseSnapshot.status,
-          assertions: baseAssertions,
+          assertions: baseAssertions.map((item) => ({
+            ...item,
+            evidence: baseUnderstandingEvidence.get(item.id) ?? [],
+          })),
         }
       : null,
     preferenceAnalysis: analysis
@@ -574,26 +1000,355 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
           summary: JSON.parse(analysis.summary_json),
           uncertainties: JSON.parse(analysis.uncertainties_json),
           status: analysis.status,
-          assertions: preferences,
-          valueStances,
+          assertions: preferences.map((item) => ({ ...item, evidence: preferenceEvidence.get(item.id) ?? [] })),
+          valueStances: valueStances.map((item) => ({ ...item, evidence: stanceEvidence.get(item.id) ?? [] })),
         }
       : null,
   };
 }
 
+export async function mutateUnderstandingReview(
+  env: Env,
+  ownerUserId: string,
+  snapshotId: string,
+  input: UnderstandingReviewMutation,
+  idempotencyKey: string,
+): Promise<{
+  snapshotId: string;
+  changedId: string;
+  action: UnderstandingReviewMutation["action"];
+  replayed: boolean;
+}> {
+  const reviewId = await deriveUuid(
+    env.AUTH_PEPPER,
+    `understanding-review:${ownerUserId}:${snapshotId}:${idempotencyKey}`,
+  );
+  const prior = await first<{ correction_payload_json: string | null }>(
+    env.DB.prepare(
+      `SELECT correction_payload_json FROM understanding_reviews WHERE id=? AND owner_user_id=? AND snapshot_id=?`,
+    ).bind(reviewId, ownerUserId, snapshotId),
+  );
+  if (prior) {
+    const payload = prior.correction_payload_json
+      ? (JSON.parse(prior.correction_payload_json) as { changedId?: string })
+      : {};
+    return {
+      snapshotId,
+      changedId: payload.changedId ?? ("targetId" in input ? input.targetId : snapshotId),
+      action: input.action,
+      replayed: true,
+    };
+  }
+
+  const context = await first<{ id: string }>(
+    env.DB.prepare(`
+      SELECT s.id FROM character_understanding_snapshots s
+      JOIN character_understanding_runs ur ON ur.id=s.understanding_run_id
+      JOIN entry_revisions er ON er.id=ur.entry_revision_id
+      JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
+      WHERE s.id=? AND s.owner_user_id=? AND e.owner_user_id=?
+        AND e.status='understanding_review' AND s.status IN ('proposed','needs_review')
+    `).bind(snapshotId, ownerUserId, ownerUserId),
+  );
+  if (!context) throw new Error("UNDERSTANDING_REVIEW_NOT_FOUND");
+  const generation = await first<{ value: number }>(
+    env.DB.prepare(
+      `SELECT COALESCE(MAX(review_generation),0)+1 AS value FROM understanding_reviews WHERE snapshot_id=?`,
+    ).bind(snapshotId),
+  );
+  const reviewGeneration = generation?.value ?? 1;
+  const now = nowIso();
+  const changedId =
+    input.action === "add_assertion" || input.action === "add_delta" || input.action === "update_assertion"
+      ? await deriveUuid(env.AUTH_PEPPER, `${reviewId}:changed`)
+      : input.targetId;
+
+  if (input.action === "add_assertion") {
+    const correction = JSON.stringify({ action: input.action, changedId, newValue: input });
+    const results = await env.DB.batch([
+      env.DB.prepare(`
+        INSERT INTO character_assertions
+          (id,owner_user_id,snapshot_id,attribute_definition_id,raw_mention_id,raw_label,value_text,
+           assertion_kind,scope_json,explicitness,confidence,status,ordinal,created_at)
+        SELECT ?,?,?,NULL,NULL,?,?,'user_interpretation',?,'user_explicit',1,'corrected',
+               COALESCE((SELECT MAX(ordinal)+1 FROM character_assertions WHERE snapshot_id=?),0),?
+        FROM character_understanding_snapshots s
+        WHERE s.id=? AND s.owner_user_id=? AND s.status IN ('proposed','needs_review')
+      `).bind(
+        changedId,
+        ownerUserId,
+        snapshotId,
+        input.rawLabel,
+        input.valueText,
+        JSON.stringify({ schemaVersion: "1", freeText: "ユーザーが確認画面で追加" }),
+        snapshotId,
+        now,
+        snapshotId,
+        ownerUserId,
+      ),
+      env.DB.prepare(`
+        INSERT INTO understanding_reviews
+          (id,owner_user_id,snapshot_id,target_type,target_id,decision,correction_payload_json,review_generation,created_at)
+        SELECT ?,?,?, 'character_assertion',?,'correct',?,?,?
+        FROM character_assertions WHERE id=? AND owner_user_id=? AND snapshot_id=?
+      `).bind(
+        reviewId,
+        ownerUserId,
+        snapshotId,
+        changedId,
+        correction,
+        reviewGeneration,
+        now,
+        changedId,
+        ownerUserId,
+        snapshotId,
+      ),
+    ]);
+    if (results.some((result) => !result.success) || !results[0].meta.changes || !results[1].meta.changes)
+      throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
+  } else if (input.action === "update_assertion") {
+    const current = await first<{ raw_label: string; value_text: string }>(
+      env.DB.prepare(
+        `SELECT raw_label,value_text FROM character_assertions
+         WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
+      ).bind(input.targetId, ownerUserId, snapshotId),
+    );
+    if (!current) throw new Error("UNDERSTANDING_REVIEW_TARGET_NOT_FOUND");
+    const correction = JSON.stringify({ action: input.action, changedId, oldValue: current, newValue: input });
+    const results = await env.DB.batch([
+      env.DB.prepare(`
+        INSERT INTO character_assertions
+          (id,owner_user_id,snapshot_id,attribute_definition_id,raw_mention_id,raw_label,value_text,
+           assertion_kind,scope_json,explicitness,confidence,status,ordinal,created_at)
+        SELECT ?,owner_user_id,snapshot_id,attribute_definition_id,NULL,?,?,'user_interpretation',scope_json,
+               'user_explicit',1,'corrected',ordinal,?
+        FROM character_assertions
+        WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')
+      `).bind(changedId, input.rawLabel, input.valueText, now, input.targetId, ownerUserId, snapshotId),
+      env.DB.prepare(
+        `UPDATE character_assertions SET status='superseded',superseded_by_id=?
+         WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
+      ).bind(changedId, input.targetId, ownerUserId, snapshotId),
+      env.DB.prepare(`
+        INSERT INTO understanding_reviews
+          (id,owner_user_id,snapshot_id,target_type,target_id,decision,correction_payload_json,review_generation,created_at)
+        SELECT ?,?,?,'character_assertion',?,'correct',?,?,?
+        FROM character_assertions WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status='corrected'
+      `).bind(
+        reviewId,
+        ownerUserId,
+        snapshotId,
+        input.targetId,
+        correction,
+        reviewGeneration,
+        now,
+        changedId,
+        ownerUserId,
+        snapshotId,
+      ),
+    ]);
+    if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
+      throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
+  } else if (input.action === "delete_assertion") {
+    const correction = JSON.stringify({ action: input.action, changedId });
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE character_assertions SET status='rejected'
+         WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
+      ).bind(input.targetId, ownerUserId, snapshotId),
+      env.DB.prepare(`
+        INSERT INTO understanding_reviews
+          (id,owner_user_id,snapshot_id,target_type,target_id,decision,correction_payload_json,review_generation,created_at)
+        SELECT ?,?,?,'character_assertion',?,'reject',?,?,?
+        FROM character_assertions WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status='rejected'
+      `).bind(
+        reviewId,
+        ownerUserId,
+        snapshotId,
+        input.targetId,
+        correction,
+        reviewGeneration,
+        now,
+        input.targetId,
+        ownerUserId,
+        snapshotId,
+      ),
+    ]);
+    if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
+      throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
+  } else if (input.action === "add_delta") {
+    if (input.operation === "remove") throw new Error("UNDERSTANDING_DELTA_REMOVE_REQUIRES_BASE");
+    const correction = JSON.stringify({ action: input.action, changedId, newValue: input });
+    const results = await env.DB.batch([
+      env.DB.prepare(`
+        INSERT INTO customization_deltas
+          (id,owner_user_id,snapshot_id,base_assertion_id,operation,target_attribute_id,before_value,after_value,
+           scope_json,reason_text,explicitness,confidence,status,ordinal,created_at)
+        SELECT ?,?,?,NULL,?,NULL,?,?,?,?,'user_explicit',1,'corrected',
+               COALESCE((SELECT MAX(ordinal)+1 FROM customization_deltas WHERE snapshot_id=?),0),?
+        FROM character_understanding_snapshots s
+        WHERE s.id=? AND s.owner_user_id=? AND s.status IN ('proposed','needs_review')
+      `).bind(
+        changedId,
+        ownerUserId,
+        snapshotId,
+        input.operation,
+        input.beforeValue,
+        input.afterValue,
+        JSON.stringify({ schemaVersion: "1", freeText: "ユーザーが確認画面で追加" }),
+        input.reasonText,
+        snapshotId,
+        now,
+        snapshotId,
+        ownerUserId,
+      ),
+      env.DB.prepare(`
+        INSERT INTO understanding_reviews
+          (id,owner_user_id,snapshot_id,target_type,target_id,decision,correction_payload_json,review_generation,created_at)
+        SELECT ?,?,?,'customization_delta',?,'correct',?,?,?
+        FROM customization_deltas WHERE id=? AND owner_user_id=? AND snapshot_id=?
+      `).bind(
+        reviewId,
+        ownerUserId,
+        snapshotId,
+        changedId,
+        correction,
+        reviewGeneration,
+        now,
+        changedId,
+        ownerUserId,
+        snapshotId,
+      ),
+    ]);
+    if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
+      throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
+  } else if (input.action === "update_delta") {
+    const current = await first<{
+      base_assertion_id: string | null;
+      operation: string;
+      before_value: string | null;
+      after_value: string | null;
+      reason_text: string | null;
+    }>(
+      env.DB.prepare(
+        `SELECT base_assertion_id,operation,before_value,after_value,reason_text FROM customization_deltas
+         WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
+      ).bind(input.targetId, ownerUserId, snapshotId),
+    );
+    if (!current) throw new Error("UNDERSTANDING_REVIEW_TARGET_NOT_FOUND");
+    if (input.operation === "remove" && !current.base_assertion_id)
+      throw new Error("UNDERSTANDING_DELTA_REMOVE_REQUIRES_BASE");
+    const correction = JSON.stringify({ action: input.action, changedId, oldValue: current, newValue: input });
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE customization_deltas
+         SET operation=?,before_value=?,after_value=?,reason_text=?,explicitness='user_explicit',confidence=1,status='corrected'
+         WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
+      ).bind(
+        input.operation,
+        input.beforeValue,
+        input.afterValue,
+        input.reasonText,
+        input.targetId,
+        ownerUserId,
+        snapshotId,
+      ),
+      env.DB.prepare(`
+        INSERT INTO understanding_reviews
+          (id,owner_user_id,snapshot_id,target_type,target_id,decision,correction_payload_json,review_generation,created_at)
+        SELECT ?,?,?,'customization_delta',?,'correct',?,?,?
+        FROM customization_deltas WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status='corrected'
+      `).bind(
+        reviewId,
+        ownerUserId,
+        snapshotId,
+        input.targetId,
+        correction,
+        reviewGeneration,
+        now,
+        input.targetId,
+        ownerUserId,
+        snapshotId,
+      ),
+    ]);
+    if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
+      throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
+  } else {
+    const correction = JSON.stringify({ action: input.action, changedId });
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE customization_deltas SET status='rejected'
+         WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
+      ).bind(input.targetId, ownerUserId, snapshotId),
+      env.DB.prepare(`
+        INSERT INTO understanding_reviews
+          (id,owner_user_id,snapshot_id,target_type,target_id,decision,correction_payload_json,review_generation,created_at)
+        SELECT ?,?,?,'customization_delta',?,'reject',?,?,?
+        FROM customization_deltas WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status='rejected'
+      `).bind(
+        reviewId,
+        ownerUserId,
+        snapshotId,
+        input.targetId,
+        correction,
+        reviewGeneration,
+        now,
+        input.targetId,
+        ownerUserId,
+        snapshotId,
+      ),
+    ]);
+    if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
+      throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
+  }
+  return { snapshotId, changedId, action: input.action, replayed: false };
+}
+
 export async function confirmUnderstanding(
   env: Env,
   ownerUserId: string,
-  entryId: string,
   snapshotId: string,
-): Promise<void> {
-  const target = await first<{ id: string; base_snapshot_id: string | null }>(
+): Promise<{ entryId: string; jobId: string; inputGeneration: number; outboxEventId: string }> {
+  const target = await first<{
+    id: string;
+    base_snapshot_id: string | null;
+    entry_id: string;
+    revision_number: number;
+    job_id: string;
+  }>(
     env.DB.prepare(
-      `SELECT s.id,s.base_snapshot_id FROM character_understanding_snapshots s JOIN entry_revisions er ON er.representation_id=s.representation_id JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number WHERE s.id=? AND s.owner_user_id=? AND e.id=? AND e.status='understanding_review'`,
-    ).bind(snapshotId, ownerUserId, entryId),
+      `SELECT s.id,s.base_snapshot_id,e.id AS entry_id,er.revision_number,j.id AS job_id
+       FROM character_understanding_snapshots s
+       JOIN character_understanding_runs ur ON ur.id=s.understanding_run_id
+       JOIN entry_revisions er ON er.id=ur.entry_revision_id
+       JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
+       JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id
+         AND j.input_generation=er.revision_number
+       WHERE s.id=? AND s.owner_user_id=? AND e.owner_user_id=?
+         AND e.status='understanding_review' AND s.status IN ('proposed','needs_review')`,
+    ).bind(snapshotId, ownerUserId, ownerUserId),
   );
   if (!target) throw new Error("UNDERSTANDING_REVIEW_NOT_FOUND");
   const now = nowIso();
+  const outbox = await outboxStatement(
+    env,
+    ownerUserId,
+    "job",
+    target.job_id,
+    2,
+    {
+      type: "analysis.start",
+      params: {
+        jobId: target.job_id,
+        ownerUserId,
+        entryId: target.entry_id,
+        stage: "preference",
+        inputGeneration: target.revision_number,
+      },
+    },
+    `analysis:${target.job_id}:${target.revision_number}:preference`,
+    snapshotId,
+  );
   const reviewStatements: D1PreparedStatement[] = [
     env.DB.prepare(
       `INSERT INTO understanding_reviews (id,owner_user_id,snapshot_id,target_type,target_id,decision,review_generation,created_at) VALUES (?,?,?,'snapshot',?,'confirm',1,?)`,
@@ -609,10 +1364,11 @@ export async function confirmUnderstanding(
     ),
     env.DB.prepare(
       `UPDATE user_character_entries SET status='analyzing',updated_at=?,revision=revision+1 WHERE id=? AND owner_user_id=?`,
-    ).bind(now, entryId, ownerUserId),
+    ).bind(now, target.entry_id, ownerUserId),
     env.DB.prepare(
       `UPDATE jobs SET status='queued',current_step='preferenceAnalysis',progress_current=8,updated_at=?,revision=revision+1 WHERE owner_user_id=? AND target_type='entry' AND target_id=?`,
-    ).bind(now, ownerUserId, entryId),
+    ).bind(now, ownerUserId, target.entry_id),
+    outbox.statement,
   ];
   if (target.base_snapshot_id) {
     reviewStatements.push(
@@ -629,4 +1385,12 @@ export async function confirmUnderstanding(
   }
   const results = await env.DB.batch(reviewStatements);
   if (results.some((result) => !result.success)) throw new Error("D1_UNDERSTANDING_CONFIRM_FAILED");
+  if (!results[1].meta.changes || !results[4].meta.changes || !results[5].meta.changes)
+    throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
+  return {
+    entryId: target.entry_id,
+    jobId: target.job_id,
+    inputGeneration: target.revision_number,
+    outboxEventId: outbox.id,
+  };
 }

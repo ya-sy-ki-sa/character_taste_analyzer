@@ -1,11 +1,52 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { responseChannelCatalog, responseChannelCategories } from "../../shared/response-channels";
-import type { EntryDraft, EntrySummary, RegistrationType, ResponseChannel } from "../../shared/schemas";
+import {
+  canonicalEntryInputPointer,
+  type EntryDraft,
+  entryBaseCharacterName,
+  entryPreferenceContext,
+  entryReferenceMaterial,
+  type EntrySubmission,
+  type EntrySummary,
+  type IdentityCandidate,
+  type IdentityResolution,
+  type RegistrationType,
+  type ResponseChannel,
+  type UnderstandingReviewMutation,
+} from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 
 type EntryList = { entries: EntrySummary[] };
+type EvidenceDetail = {
+  id: string;
+  verificationStatus: string;
+  inferenceType: string;
+  quote: string | null;
+  inputPointer: string | null;
+  sourceTitle: string | null;
+  sourceUrl: string | null;
+  canNavigate: boolean;
+};
+type CustomizationDeltaDetail = {
+  id: string;
+  operation: string;
+  before_value: string | null;
+  after_value: string | null;
+  reason_text: string | null;
+  confidence: number;
+  status: string;
+};
+type CharacterAssertionDetail = {
+  id: string;
+  raw_label: string;
+  value_text: string;
+  explicitness: string;
+  confidence: number;
+  status: string;
+  evidence: EvidenceDetail[];
+};
 type ReviewDetail = {
   entry: { id: string; status: string; registrationType: RegistrationType; draft: EntryDraft };
   understanding: null | {
@@ -14,22 +55,8 @@ type ReviewDetail = {
     summary: Record<string, string | string[]>;
     uncertainties: Array<{ topic: string; reason: string }>;
     confidence: number;
-    assertions: Array<{
-      id: string;
-      raw_label: string;
-      value_text: string;
-      explicitness: string;
-      confidence: number;
-      status: string;
-    }>;
-    deltas: Array<{
-      id: string;
-      operation: string;
-      before_value: string | null;
-      after_value: string | null;
-      reason_text: string | null;
-      confidence: number;
-    }>;
+    assertions: CharacterAssertionDetail[];
+    deltas: CustomizationDeltaDetail[];
   };
   baseUnderstanding: null | {
     id: string;
@@ -37,14 +64,7 @@ type ReviewDetail = {
     summary: Record<string, string | string[]>;
     uncertainties: Array<{ topic: string; reason: string }>;
     confidence: number;
-    assertions: Array<{
-      id: string;
-      raw_label: string;
-      value_text: string;
-      explicitness: string;
-      confidence: number;
-      status: string;
-    }>;
+    assertions: CharacterAssertionDetail[];
   };
   preferenceAnalysis: null | {
     id: string;
@@ -59,6 +79,7 @@ type ReviewDetail = {
       explicitness: string;
       confidence: number;
       status: string;
+      evidence: EvidenceDetail[];
     }>;
     valueStances: Array<{
       id: string;
@@ -68,6 +89,7 @@ type ReviewDetail = {
       explicitness: string;
       confidence: number;
       status: string;
+      evidence: EvidenceDetail[];
     }>;
   };
 };
@@ -75,13 +97,14 @@ type ReviewDetail = {
 type FormState = {
   registrationType: RegistrationType;
   workTitle: string;
+  baseCharacterName: string;
   characterName: string;
   mediaType: string;
   preferenceContext: string;
   characterBasicInfo: string;
   referenceMaterial: string;
   userCharacterView: string;
-  representationType: "user_interpretation" | "transformative" | "alternate_setting";
+  representationType: "facet" | "scene_state" | "user_interpretation" | "transformative" | "alternate_setting";
   customizationDescription: string;
   likedReasons: string;
   dislikedReasons: string;
@@ -89,9 +112,24 @@ type FormState = {
   valueStanceNote: string;
 };
 
+const understandingSummaryLabels: Record<string, string> = {
+  narrativeRole: "物語での役割",
+  moralityOrientation: "善悪・道徳的な傾向",
+  goals: "目的・目標",
+  values: "重視する価値観",
+  behavior: "行動・振る舞い",
+  relationships: "他者との関係",
+  expression: "表現・雰囲気",
+};
+
+function understandingSummaryLabel(key: string): string {
+  return understandingSummaryLabels[key] ?? "その他の特徴";
+}
+
 const emptyForm: FormState = {
   registrationType: "existing",
   workTitle: "",
+  baseCharacterName: "",
   characterName: "",
   mediaType: "",
   preferenceContext: "",
@@ -105,6 +143,69 @@ const emptyForm: FormState = {
   responseChannels: ["person_liking"],
   valueStanceNote: "",
 };
+
+function formStateFromDraft(draft: EntryDraft): FormState {
+  return {
+    registrationType: draft.registrationType,
+    workTitle: draft.registrationType === "original" ? "" : draft.workTitle,
+    baseCharacterName: draft.registrationType === "customized_existing" ? entryBaseCharacterName(draft) : "",
+    characterName: draft.characterName,
+    mediaType: draft.registrationType === "original" ? "" : (draft.mediaType ?? ""),
+    preferenceContext: entryPreferenceContext(draft) ?? "",
+    characterBasicInfo: draft.registrationType === "original" ? draft.characterBasicInfo : "",
+    referenceMaterial: entryReferenceMaterial(draft) ?? "",
+    userCharacterView: draft.userCharacterView ?? "",
+    representationType:
+      draft.registrationType === "customized_existing" ? draft.representationType : "user_interpretation",
+    customizationDescription: draft.registrationType === "customized_existing" ? draft.customizationDescription : "",
+    likedReasons: draft.preference.likedReasons ?? "",
+    dislikedReasons: draft.preference.dislikedReasons ?? "",
+    responseChannels: draft.preference.responseChannels,
+    valueStanceNote: draft.preference.valueStanceNote ?? "",
+  };
+}
+
+function entrySubmissionFromForm(form: FormState, identityResolution: IdentityResolution): EntrySubmission {
+  const common = {
+    schemaVersion: "2" as const,
+    characterName: form.characterName,
+    preferenceContext: form.preferenceContext || undefined,
+    knownScope: undefined,
+    referenceMaterial: form.referenceMaterial || undefined,
+    sourceText: undefined,
+    userCharacterView: form.userCharacterView || undefined,
+    preference: {
+      likedReasons: form.likedReasons || undefined,
+      dislikedReasons: form.dislikedReasons || undefined,
+      responseChannels: form.responseChannels,
+      valueStanceNote: form.valueStanceNote || undefined,
+    },
+  };
+  if (form.registrationType === "original")
+    return { ...common, registrationType: "original", characterBasicInfo: form.characterBasicInfo };
+  if (form.registrationType === "existing")
+    return {
+      ...common,
+      registrationType: "existing",
+      workTitle: form.workTitle,
+      mediaType: form.mediaType || undefined,
+      identityResolution,
+    };
+  return {
+    ...common,
+    registrationType: "customized_existing",
+    workTitle: form.workTitle,
+    baseCharacterName: form.baseCharacterName,
+    mediaType: form.mediaType || undefined,
+    representationType: form.representationType,
+    customizationDescription: form.customizationDescription,
+    identityResolution,
+  };
+}
+
+function identityCharacterName(form: FormState): string {
+  return form.registrationType === "customized_existing" ? form.baseCharacterName : form.characterName;
+}
 
 const popularChannelOptions = responseChannelCatalog.filter((item) => item.tier === "popular");
 const detailedChannelOptions = responseChannelCatalog.filter((item) => item.tier === "detail");
@@ -306,8 +407,15 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
-  const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+  const [candidates, setCandidates] = useState<IdentityCandidate[]>();
+  const [selectedIdentityId, setSelectedIdentityId] = useState<string>("new");
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+    if (["registrationType", "workTitle", "baseCharacterName", "characterName", "mediaType"].includes(key)) {
+      setCandidates(undefined);
+      setSelectedIdentityId("new");
+    }
+  };
   const toggleResponseChannel = (value: ResponseChannel, selected: boolean) =>
     update(
       "responseChannels",
@@ -322,32 +430,44 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
     event.preventDefault();
     setSubmitting(true);
     setError(undefined);
-    const common = {
-      schemaVersion: "1" as const,
-      registrationType: form.registrationType,
-      characterName: form.characterName,
-      preferenceContext: form.preferenceContext || undefined,
-      referenceMaterial: form.referenceMaterial || undefined,
-      userCharacterView: form.userCharacterView || undefined,
-      preference: {
-        likedReasons: form.likedReasons || undefined,
-        dislikedReasons: form.dislikedReasons || undefined,
-        responseChannels: form.responseChannels,
-        valueStanceNote: form.valueStanceNote || undefined,
-      },
-    };
-    const payload =
-      form.registrationType === "original"
-        ? { ...common, characterBasicInfo: form.characterBasicInfo }
-        : form.registrationType === "existing"
-          ? { ...common, workTitle: form.workTitle, mediaType: form.mediaType || undefined }
-          : {
-              ...common,
-              workTitle: form.workTitle,
-              mediaType: form.mediaType || undefined,
-              representationType: form.representationType,
-              customizationDescription: form.customizationDescription,
-            };
+    let resolvedCandidates = candidates;
+    let resolvedIdentityId = selectedIdentityId;
+    if (form.registrationType !== "original" && candidates === undefined) {
+      try {
+        const result = await api<{ candidates: IdentityCandidate[] }>("/api/v1/identity-candidates", {
+          method: "POST",
+          body: JSON.stringify({
+            workTitle: form.workTitle,
+            characterName: identityCharacterName(form),
+            mediaType: form.mediaType || undefined,
+          }),
+        });
+        setCandidates(result.candidates);
+        setSelectedIdentityId(result.candidates.length ? "" : "new");
+        resolvedCandidates = result.candidates;
+        resolvedIdentityId = result.candidates.length ? "" : "new";
+        if (result.candidates.length) return;
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "同一キャラクター候補を確認できませんでした");
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
+    if (form.registrationType !== "original" && !resolvedIdentityId) {
+      setError("既存identityを再利用するか、別物として新規登録するか選んでください");
+      setSubmitting(false);
+      return;
+    }
+    const selectedCandidate = resolvedCandidates?.find((item) => item.characterIdentityId === resolvedIdentityId);
+    const identityResolution = selectedCandidate
+      ? {
+          mode: "reuse" as const,
+          workId: selectedCandidate.workId,
+          characterIdentityId: selectedCandidate.characterIdentityId,
+        }
+      : { mode: "new" as const };
+    const payload = entrySubmissionFromForm(form, identityResolution);
     try {
       await api("/api/v1/entries", { method: "POST", idempotencyKey: idempotencyKey(), body: JSON.stringify(payload) });
       onCreated();
@@ -388,6 +508,20 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               />
             </label>
           )}
+          {form.registrationType === "customized_existing" && (
+            <label>
+              <span>
+                既成キャラクター名 <b>必須</b>
+              </span>
+              <input
+                required
+                maxLength={200}
+                value={form.baseCharacterName}
+                onChange={(event) => update("baseCharacterName", event.target.value)}
+              />
+              <small>元キャラクターを特定し、「既成キャラクターの基本像」を調べるための名前です。</small>
+            </label>
+          )}
           <label>
             <span>
               キャラクター名 <b>必須</b>
@@ -398,6 +532,9 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               value={form.characterName}
               onChange={(event) => update("characterName", event.target.value)}
             />
+            {form.registrationType === "customized_existing" && (
+              <small>カスタム後のキャラクター名です。一覧や解析画面ではこちらを表示します。</small>
+            )}
           </label>
           {form.registrationType !== "original" && (
             <label>
@@ -447,6 +584,8 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
                   }
                 >
                   <option value="user_interpretation">独自解釈</option>
+                  <option value="facet">特定の側面</option>
+                  <option value="scene_state">特定の場面・状態</option>
                   <option value="transformative">二次創作</option>
                   <option value="alternate_setting">別設定</option>
                 </select>
@@ -526,13 +665,45 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
             />
           </label>
         </div>
+        {form.registrationType !== "original" && candidates && candidates.length > 0 && (
+          <fieldset className="identity-resolution">
+            <legend>同じ作品・キャラクターの登録候補</legend>
+            <p>同一人物ならidentityを再利用します。今回の解釈・表現はどちらを選んでも新しく保存されます。</p>
+            {candidates.map((candidate) => (
+              <label className="check-row" key={candidate.characterIdentityId}>
+                <input
+                  type="radio"
+                  name="identity-resolution"
+                  checked={selectedIdentityId === candidate.characterIdentityId}
+                  onChange={() => setSelectedIdentityId(candidate.characterIdentityId)}
+                />
+                <span>
+                  既存identityを再利用：{candidate.workTitle} / {candidate.characterName}
+                </span>
+              </label>
+            ))}
+            <label className="check-row">
+              <input
+                type="radio"
+                name="identity-resolution"
+                checked={selectedIdentityId === "new"}
+                onChange={() => setSelectedIdentityId("new")}
+              />
+              <span>同名だが別物として新規登録</span>
+            </label>
+          </fieldset>
+        )}
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="modal-actions">
           <button type="button" className="button button-ghost" onClick={onClose}>
             キャンセル
           </button>
           <button type="submit" className="button button-primary" disabled={submitting}>
-            {submitting ? "保存中…" : "保存して理解抽出を開始"}
+            {submitting
+              ? "確認中…"
+              : form.registrationType !== "original" && candidates === undefined
+                ? "同一キャラクター候補を確認"
+                : "保存して理解抽出を開始"}
           </button>
         </div>
       </form>
@@ -614,13 +785,6 @@ function ResponseChannelPicker({
   );
 }
 
-type ReanalysisFormState = {
-  likedReasons: string;
-  dislikedReasons: string;
-  responseChannels: ResponseChannel[];
-  valueStanceNote: string;
-};
-
 function ReanalysisModal({ entryId, onClose, onCreated }: { entryId: string; onClose(): void; onCreated(): void }) {
   const detail = useQuery({
     queryKey: ["entry", entryId],
@@ -648,39 +812,80 @@ function ReanalysisForm({
   onClose(): void;
   onCreated(): void;
 }) {
-  const [form, setForm] = useState<ReanalysisFormState>({
-    likedReasons: draft.preference.likedReasons ?? "",
-    dislikedReasons: draft.preference.dislikedReasons ?? "",
-    responseChannels: draft.preference.responseChannels,
-    valueStanceNote: draft.preference.valueStanceNote ?? "",
-  });
+  const [form, setForm] = useState<FormState>(() => formStateFromDraft(draft));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
+  const [candidates, setCandidates] = useState<IdentityCandidate[]>();
+  const [selectedIdentityId, setSelectedIdentityId] = useState<string>("new");
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    if (["workTitle", "baseCharacterName", "characterName"].includes(key)) {
+      setCandidates(undefined);
+      setSelectedIdentityId("new");
+    }
+  };
   const toggleResponseChannel = (value: ResponseChannel, selected: boolean) =>
-    setForm((current) => ({
-      ...current,
-      responseChannels: selected
-        ? current.responseChannels.includes(value)
-          ? current.responseChannels
-          : [...current.responseChannels, value]
-        : current.responseChannels.filter((item) => item !== value),
-    }));
+    update(
+      "responseChannels",
+      selected
+        ? form.responseChannels.includes(value)
+          ? form.responseChannels
+          : [...form.responseChannels, value]
+        : form.responseChannels.filter((item) => item !== value),
+    );
+  const identityChanged =
+    identityCharacterName(form).trim() !== entryBaseCharacterName(draft).trim() ||
+    (draft.registrationType !== "original" && form.workTitle.trim() !== draft.workTitle.trim());
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(undefined);
+    let resolvedCandidates = candidates;
+    let resolvedIdentityId = selectedIdentityId;
+    if (form.registrationType !== "original" && identityChanged && candidates === undefined) {
+      try {
+        const result = await api<{ candidates: IdentityCandidate[] }>("/api/v1/identity-candidates", {
+          method: "POST",
+          body: JSON.stringify({
+            workTitle: form.workTitle,
+            characterName: identityCharacterName(form),
+            mediaType: form.mediaType || undefined,
+          }),
+        });
+        setCandidates(result.candidates);
+        setSelectedIdentityId(result.candidates.length ? "" : "new");
+        resolvedCandidates = result.candidates;
+        resolvedIdentityId = result.candidates.length ? "" : "new";
+        if (result.candidates.length) return;
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "同一キャラクター候補を確認できませんでした");
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
+    if (form.registrationType !== "original" && identityChanged && !resolvedIdentityId) {
+      setError("既存identityを再利用するか、別物として扱うか選んでください");
+      setSubmitting(false);
+      return;
+    }
+    const currentResolution: IdentityResolution =
+      draft.registrationType !== "original" && draft.schemaVersion === "2" ? draft.identityResolution : { mode: "new" };
+    const selectedCandidate = resolvedCandidates?.find((item) => item.characterIdentityId === resolvedIdentityId);
+    const identityResolution: IdentityResolution = identityChanged
+      ? selectedCandidate
+        ? {
+            mode: "reuse",
+            workId: selectedCandidate.workId,
+            characterIdentityId: selectedCandidate.characterIdentityId,
+          }
+        : { mode: "new" }
+      : currentResolution;
     try {
       await api(`/api/v1/entries/${entryId}/reanalysis`, {
         method: "POST",
-        body: JSON.stringify({
-          preference: {
-            likedReasons: form.likedReasons || undefined,
-            dislikedReasons: form.dislikedReasons || undefined,
-            responseChannels: form.responseChannels,
-            valueStanceNote: form.valueStanceNote || undefined,
-          },
-        }),
+        body: JSON.stringify({ draft: entrySubmissionFromForm(form, identityResolution) }),
       });
       onCreated();
     } catch (caught) {
@@ -695,14 +900,147 @@ function ReanalysisForm({
       <Notice tone="warning">
         現在の解析履歴は残ります。再分析を始めると、新しい結果を確認するまでこの登録は累積プロフィールの集計対象外になります。
       </Notice>
+      <fieldset className="segmented" disabled>
+        <legend>登録方法（変更できません）</legend>
+        <button type="button" className="active">
+          {form.registrationType === "existing"
+            ? "既成"
+            : form.registrationType === "customized_existing"
+              ? "既成（カスタム）"
+              : "オリジナル"}
+        </button>
+      </fieldset>
       <div className="form-grid">
+        {form.registrationType !== "original" && (
+          <label>
+            <span>
+              作品名 <b>必須</b>
+            </span>
+            <input
+              required
+              maxLength={200}
+              value={form.workTitle}
+              onChange={(event) => update("workTitle", event.target.value)}
+            />
+          </label>
+        )}
+        {form.registrationType === "customized_existing" && (
+          <label>
+            <span>
+              既成キャラクター名 <b>必須</b>
+            </span>
+            <input
+              required
+              maxLength={200}
+              value={form.baseCharacterName}
+              onChange={(event) => update("baseCharacterName", event.target.value)}
+            />
+            <small>元キャラクターを特定し、「既成キャラクターの基本像」を再分析するための名前です。</small>
+          </label>
+        )}
+        <label>
+          <span>
+            キャラクター名 <b>必須</b>
+          </span>
+          <input
+            required
+            maxLength={200}
+            value={form.characterName}
+            onChange={(event) => update("characterName", event.target.value)}
+          />
+          {form.registrationType === "customized_existing" && (
+            <small>カスタム後の表示名です。一覧や解析画面ではこちらを表示します。</small>
+          )}
+        </label>
+        {form.registrationType !== "original" && (
+          <label>
+            <span>媒体・版</span>
+            <input
+              maxLength={100}
+              value={form.mediaType}
+              onChange={(event) => update("mediaType", event.target.value)}
+              placeholder="アニメ版、ゲーム版など"
+            />
+          </label>
+        )}
+        {form.registrationType === "original" && (
+          <label className="full">
+            <span>
+              キャラクター基本情報 <b>必須</b>
+            </span>
+            <textarea
+              required
+              rows={7}
+              maxLength={20000}
+              value={form.characterBasicInfo}
+              onChange={(event) => update("characterBasicInfo", event.target.value)}
+            />
+          </label>
+        )}
+        <label className="full">
+          <span>特に好きな時期・場面・状態（任意）</span>
+          <input
+            maxLength={2000}
+            value={form.preferenceContext}
+            onChange={(event) => update("preferenceContext", event.target.value)}
+          />
+        </label>
+        {form.registrationType === "customized_existing" && (
+          <>
+            <label>
+              <span>カスタムの種類</span>
+              <select
+                value={form.representationType}
+                onChange={(event) =>
+                  update("representationType", event.target.value as FormState["representationType"])
+                }
+              >
+                <option value="user_interpretation">独自解釈</option>
+                <option value="facet">特定の側面</option>
+                <option value="scene_state">特定の場面・状態</option>
+                <option value="transformative">二次創作</option>
+                <option value="alternate_setting">別設定</option>
+              </select>
+            </label>
+            <label className="full">
+              <span>
+                基本像からどう違うか <b>必須</b>
+              </span>
+              <textarea
+                required
+                rows={4}
+                maxLength={8000}
+                value={form.customizationDescription}
+                onChange={(event) => update("customizationDescription", event.target.value)}
+              />
+            </label>
+          </>
+        )}
+        <label className="full">
+          <span>解析に加えたい参考情報（任意）</span>
+          <textarea
+            rows={7}
+            maxLength={20000}
+            value={form.referenceMaterial}
+            onChange={(event) => update("referenceMaterial", event.target.value)}
+          />
+        </label>
+        <label className="full">
+          <span>あなた自身のキャラクター解釈</span>
+          <textarea
+            rows={3}
+            maxLength={4000}
+            value={form.userCharacterView}
+            onChange={(event) => update("userCharacterView", event.target.value)}
+          />
+        </label>
         <label className="full">
           <span>好きな理由</span>
           <textarea
             rows={5}
             maxLength={4000}
             value={form.likedReasons}
-            onChange={(event) => setForm((current) => ({ ...current, likedReasons: event.target.value }))}
+            onChange={(event) => update("likedReasons", event.target.value)}
             placeholder="思い出した理由や、分析結果へ反映したい具体的な点を入力してください"
           />
         </label>
@@ -712,7 +1050,7 @@ function ReanalysisForm({
             rows={3}
             maxLength={4000}
             value={form.dislikedReasons}
-            onChange={(event) => setForm((current) => ({ ...current, dislikedReasons: event.target.value }))}
+            onChange={(event) => update("dislikedReasons", event.target.value)}
           />
         </label>
         <ResponseChannelPicker selected={form.responseChannels} onChange={toggleResponseChannel} />
@@ -722,10 +1060,38 @@ function ReanalysisForm({
             rows={3}
             maxLength={2000}
             value={form.valueStanceNote}
-            onChange={(event) => setForm((current) => ({ ...current, valueStanceNote: event.target.value }))}
+            onChange={(event) => update("valueStanceNote", event.target.value)}
           />
         </label>
       </div>
+      {form.registrationType !== "original" && identityChanged && candidates && candidates.length > 0 && (
+        <fieldset className="identity-resolution">
+          <legend>変更後の作品・キャラクターに一致する候補</legend>
+          <p>同一人物なら既存identityを再利用します。別物の場合は新規として扱います。</p>
+          {candidates.map((candidate) => (
+            <label className="check-row" key={candidate.characterIdentityId}>
+              <input
+                type="radio"
+                name="reanalysis-identity-resolution"
+                checked={selectedIdentityId === candidate.characterIdentityId}
+                onChange={() => setSelectedIdentityId(candidate.characterIdentityId)}
+              />
+              <span>
+                既存identityを再利用：{candidate.workTitle} / {candidate.characterName}
+              </span>
+            </label>
+          ))}
+          <label className="check-row">
+            <input
+              type="radio"
+              name="reanalysis-identity-resolution"
+              checked={selectedIdentityId === "new"}
+              onChange={() => setSelectedIdentityId("new")}
+            />
+            <span>別物として新規登録</span>
+          </label>
+        </fieldset>
+      )}
       <small>入力を変更せず、現在の内容でもう一度分析することもできます。</small>
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="modal-actions">
@@ -733,7 +1099,11 @@ function ReanalysisForm({
           キャンセル
         </button>
         <button type="submit" className="button button-primary" disabled={submitting}>
-          {submitting ? "開始中…" : "入力を保存して再分析"}
+          {submitting
+            ? "確認中…"
+            : form.registrationType !== "original" && identityChanged && candidates === undefined
+              ? "同一キャラクター候補を確認"
+              : "入力を保存して再分析"}
         </button>
       </div>
     </form>
@@ -765,14 +1135,41 @@ function ReviewModal({
     setSubmitting(true);
     setError(undefined);
     try {
-      await api(`/api/v1/entries/${entryId}/${kind}-review`, {
-        method: "POST",
-        body: JSON.stringify({ decision: "confirm_all", targetIds: [targetId] }),
-      });
+      await api(
+        kind === "understanding"
+          ? `/api/v1/understanding-snapshots/${targetId}/review`
+          : `/api/v1/preference-analysis-runs/${targetId}/review`,
+        {
+          method: "POST",
+          body: JSON.stringify({ decision: "confirm_all", targetIds: [targetId] }),
+        },
+      );
       await detail.refetch();
       onUpdated();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "確認を保存できませんでした");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+  async function mutateUnderstandingSnapshot(
+    snapshotId: string | undefined,
+    input: UnderstandingReviewMutation,
+  ): Promise<boolean> {
+    if (!snapshotId) return false;
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await api(`/api/v1/understanding-snapshots/${snapshotId}/review`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      await detail.refetch();
+      onUpdated();
+      return true;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "修正を保存できませんでした");
+      return false;
     } finally {
       setSubmitting(false);
     }
@@ -803,21 +1200,44 @@ function ReviewModal({
                   .filter(([key]) => key !== "identity")
                   .map(([key, item]) => (
                     <div key={key}>
-                      <dt>{key}</dt>
+                      <dt>{understandingSummaryLabel(key)}</dt>
                       <dd>{Array.isArray(item) ? item.join("、") || "—" : item}</dd>
                     </div>
                   ))}
               </dl>
               <h4>基本像の抽出属性</h4>
+              {value.entry.status === "understanding_review" && (
+                <p className="review-edit-guidance">
+                  認識と違う項目は修正・削除でき、不足している属性は手動追加できます。保存した内容は基本像の確認結果として記録されます。
+                </p>
+              )}
               <div className="assertion-list">
                 {value.baseUnderstanding.assertions.map((item) => (
-                  <span key={item.id}>
-                    <strong>{item.raw_label}</strong>
-                    <small>
-                      {item.value_text}・確信度 {Math.round(item.confidence * 100)}%
-                    </small>
-                  </span>
+                  <article key={item.id}>
+                    <div className="assertion-card-header">
+                      <div className="assertion-title">
+                        <strong>{item.raw_label}</strong>
+                        {item.status === "corrected" && <span className="user-corrected-badge">ユーザー修正</span>}
+                      </div>
+                      <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                    </div>
+                    <p className="assertion-value">{item.value_text}</p>
+                    <EvidenceList evidence={item.evidence} />
+                    {value.entry.status === "understanding_review" && (
+                      <AssertionReviewControls
+                        item={item}
+                        disabled={submitting}
+                        onMutate={(input) => mutateUnderstandingSnapshot(value.baseUnderstanding?.id, input)}
+                      />
+                    )}
+                  </article>
                 ))}
+                {value.entry.status === "understanding_review" && (
+                  <AddAssertionControl
+                    disabled={submitting}
+                    onMutate={(input) => mutateUnderstandingSnapshot(value.baseUnderstanding?.id, input)}
+                  />
+                )}
               </div>
             </Card>
           )}
@@ -831,34 +1251,67 @@ function ReviewModal({
                   .filter(([key]) => key !== "identity")
                   .map(([key, item]) => (
                     <div key={key}>
-                      <dt>{key}</dt>
+                      <dt>{understandingSummaryLabel(key)}</dt>
                       <dd>{Array.isArray(item) ? item.join("、") || "—" : item}</dd>
                     </div>
                   ))}
               </dl>
               <h4>抽出属性</h4>
+              {value.entry.status === "understanding_review" && (
+                <p className="review-edit-guidance">
+                  認識と違う項目は修正・削除でき、不足している属性は手動追加できます。保存した内容が次の嗜好解析に使われます。
+                </p>
+              )}
               <div className="assertion-list">
                 {value.understanding.assertions.map((item) => (
-                  <span key={item.id}>
-                    <strong>{item.raw_label}</strong>
-                    <small>
-                      {item.value_text}・確信度 {Math.round(item.confidence * 100)}%
-                    </small>
-                  </span>
+                  <article key={item.id}>
+                    <div className="assertion-card-header">
+                      <div className="assertion-title">
+                        <strong>{item.raw_label}</strong>
+                        {item.status === "corrected" && <span className="user-corrected-badge">ユーザー修正</span>}
+                      </div>
+                      <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                    </div>
+                    <p className="assertion-value">{item.value_text}</p>
+                    <EvidenceList evidence={item.evidence} />
+                    {value.entry.status === "understanding_review" && (
+                      <AssertionReviewControls
+                        item={item}
+                        disabled={submitting}
+                        onMutate={(input) => mutateUnderstandingSnapshot(value.understanding?.id, input)}
+                      />
+                    )}
+                  </article>
                 ))}
+                {value.entry.status === "understanding_review" && (
+                  <AddAssertionControl
+                    disabled={submitting}
+                    onMutate={(input) => mutateUnderstandingSnapshot(value.understanding?.id, input)}
+                  />
+                )}
               </div>
-              {value.understanding.deltas.length > 0 && (
+              {(value.understanding.deltas.length > 0 ||
+                (value.baseUnderstanding && value.entry.status === "understanding_review")) && (
                 <>
-                  <h4>基本像からの差分</h4>
-                  <div className="assertion-list">
+                  <h4>原典からどのように変わっているか</h4>
+                  <p className="section-help">原典の設定と、この登録で指定されたキャラクター像を比較しています。</p>
+                  <div className="customization-delta-list">
                     {value.understanding.deltas.map((item) => (
-                      <span key={item.id}>
-                        <strong>{item.operation}</strong>
-                        <small>
-                          {item.before_value ?? "（追加）"} → {item.after_value ?? "（除外）"}
-                        </small>
-                      </span>
+                      <CustomizationDeltaCard
+                        key={item.id}
+                        item={item}
+                        targetName={value.entry.draft.characterName}
+                        editable={value.entry.status === "understanding_review"}
+                        disabled={submitting}
+                        onMutate={(input) => mutateUnderstandingSnapshot(value.understanding?.id, input)}
+                      />
                     ))}
+                    {value.entry.status === "understanding_review" && (
+                      <AddDeltaControl
+                        disabled={submitting}
+                        onMutate={(input) => mutateUnderstandingSnapshot(value.understanding?.id, input)}
+                      />
+                    )}
                   </div>
                 </>
               )}
@@ -880,12 +1333,16 @@ function ReviewModal({
               <h3>この登録から読み取った「好き」</h3>
               <div className="assertion-list">
                 {value.preferenceAnalysis.assertions.map((item) => (
-                  <span key={item.id} className={item.polarity === "negative" ? "negative" : ""}>
-                    <strong>{item.raw_label}</strong>
+                  <article key={item.id} className={item.polarity === "negative" ? "negative" : ""}>
+                    <div className="assertion-card-header">
+                      <strong>{item.raw_label}</strong>
+                      <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                    </div>
                     <small>
                       {item.response_channel}・強さ {Math.round(item.strength * 100)}%・{item.explicitness}
                     </small>
-                  </span>
+                    <EvidenceList evidence={item.evidence} />
+                  </article>
                 ))}
               </div>
               {value.preferenceAnalysis.valueStances.length > 0 && (
@@ -893,12 +1350,16 @@ function ReviewModal({
                   <h4>価値スタンス</h4>
                   <div className="assertion-list">
                     {value.preferenceAnalysis.valueStances.map((item) => (
-                      <span key={item.id}>
-                        <strong>{item.target_ref}</strong>
+                      <article key={item.id}>
+                        <div className="assertion-card-header">
+                          <strong>{item.target_ref}</strong>
+                          <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                        </div>
                         <small>
                           {item.orientation} / {item.stance}
                         </small>
-                      </span>
+                        <EvidenceList evidence={item.evidence} />
+                      </article>
                     ))}
                   </div>
                 </>
@@ -921,5 +1382,416 @@ function ReviewModal({
         </div>
       )}
     </Modal>
+  );
+}
+
+const evidenceStatusLabels: Record<string, string> = {
+  verified_quote: "原文照合済み",
+  source_attributed: "出典のみ確認",
+  model_knowledge: "モデル知識",
+  legacy_unverified: "旧データ・未検証",
+  invalid: "根拠を検証できません",
+};
+
+const deltaOperationLabels: Record<string, { label: string; description: string }> = {
+  add: { label: "新しく追加された設定", description: "原典にはない設定が追加されています。" },
+  modify: { label: "内容が変更された設定", description: "原典の設定が別の内容に変わっています。" },
+  remove: { label: "取り除かれた設定", description: "原典にある設定が、このキャラクター像では適用されません。" },
+  invert: { label: "反対になった設定", description: "原典とは反対の性質・立場へ変更されています。" },
+  narrow_scope: { label: "範囲が限定された設定", description: "原典の設定が特定の場面や状態だけに限定されています。" },
+  emphasize: { label: "より強調された設定", description: "原典にもある性質が、より強く表現されています。" },
+  inherit: { label: "原典から引き継いだ設定", description: "原典と同じ設定が維持されています。" },
+  unspecified: { label: "その他の変更", description: "登録内容から読み取った原典との差分です。" },
+};
+
+type ReviewMutationHandler = (input: UnderstandingReviewMutation) => Promise<boolean>;
+
+function AssertionReviewControls({
+  item,
+  disabled,
+  onMutate,
+}: {
+  item: CharacterAssertionDetail;
+  disabled: boolean;
+  onMutate: ReviewMutationHandler;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [rawLabel, setRawLabel] = useState(item.raw_label);
+  const [valueText, setValueText] = useState(item.value_text);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const saved = await onMutate({ action: "update_assertion", targetId: item.id, rawLabel, valueText });
+    if (saved) setEditing(false);
+  }
+  if (editing)
+    return (
+      <form className="review-edit-form" onSubmit={submit}>
+        <label>
+          <span>属性名</span>
+          <input value={rawLabel} onChange={(event) => setRawLabel(event.target.value)} maxLength={200} required />
+        </label>
+        <label>
+          <span>内容</span>
+          <textarea
+            value={valueText}
+            onChange={(event) => setValueText(event.target.value)}
+            maxLength={2000}
+            rows={3}
+            required
+          />
+        </label>
+        <div className="review-edit-actions">
+          <button type="button" className="button button-ghost" onClick={() => setEditing(false)} disabled={disabled}>
+            キャンセル
+          </button>
+          <button type="submit" className="button button-primary" disabled={disabled}>
+            修正を保存
+          </button>
+        </div>
+      </form>
+    );
+  return (
+    <div className="review-item-actions">
+      <button type="button" onClick={() => setEditing(true)} disabled={disabled}>
+        修正
+      </button>
+      <button
+        type="button"
+        className="danger-link"
+        disabled={disabled}
+        onClick={() => {
+          if (window.confirm(`「${item.raw_label}」を解析結果から削除しますか？`))
+            void onMutate({ action: "delete_assertion", targetId: item.id });
+        }}
+      >
+        削除
+      </button>
+    </div>
+  );
+}
+
+function AddAssertionControl({ disabled, onMutate }: { disabled: boolean; onMutate: ReviewMutationHandler }) {
+  const [open, setOpen] = useState(false);
+  const [rawLabel, setRawLabel] = useState("");
+  const [valueText, setValueText] = useState("");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const saved = await onMutate({ action: "add_assertion", rawLabel, valueText });
+    if (!saved) return;
+    setRawLabel("");
+    setValueText("");
+    setOpen(false);
+  }
+  if (!open)
+    return (
+      <button type="button" className="manual-add-button" onClick={() => setOpen(true)} disabled={disabled}>
+        ＋ 属性を手動追加
+      </button>
+    );
+  return (
+    <form className="review-edit-form manual-add-form" onSubmit={submit}>
+      <strong>属性を手動追加</strong>
+      <label>
+        <span>属性名</span>
+        <input value={rawLabel} onChange={(event) => setRawLabel(event.target.value)} maxLength={200} required />
+      </label>
+      <label>
+        <span>内容</span>
+        <textarea
+          value={valueText}
+          onChange={(event) => setValueText(event.target.value)}
+          maxLength={2000}
+          rows={3}
+          required
+        />
+      </label>
+      <div className="review-edit-actions">
+        <button type="button" className="button button-ghost" onClick={() => setOpen(false)} disabled={disabled}>
+          キャンセル
+        </button>
+        <button type="submit" className="button button-primary" disabled={disabled}>
+          追加する
+        </button>
+      </div>
+    </form>
+  );
+}
+
+const deltaOperationOptions = [
+  { value: "add", label: "新しい設定を追加" },
+  { value: "modify", label: "原典の設定を変更" },
+  { value: "remove", label: "原典の設定を適用しない" },
+  { value: "invert", label: "原典と反対の設定にする" },
+  { value: "narrow_scope", label: "適用範囲を限定" },
+  { value: "emphasize", label: "原典の設定を強調" },
+  { value: "inherit", label: "原典の設定を引き継ぐ" },
+  { value: "unspecified", label: "その他の変更" },
+] as const;
+type DeltaOperation = (typeof deltaOperationOptions)[number]["value"];
+
+function DeltaReviewForm({
+  initial,
+  targetId,
+  disabled,
+  onMutate,
+  onCancel,
+}: {
+  initial?: CustomizationDeltaDetail;
+  targetId?: string;
+  disabled: boolean;
+  onMutate: ReviewMutationHandler;
+  onCancel(): void;
+}) {
+  const [operation, setOperation] = useState<DeltaOperation>((initial?.operation as DeltaOperation) ?? "add");
+  const [beforeValue, setBeforeValue] = useState(initial?.before_value ?? "");
+  const [afterValue, setAfterValue] = useState(initial?.after_value ?? "");
+  const [reasonText, setReasonText] = useState(initial?.reason_text ?? "");
+  const options = targetId
+    ? deltaOperationOptions
+    : deltaOperationOptions.filter((item) => item.value !== "remove" && item.value !== "inherit");
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const fields = {
+      operation,
+      beforeValue: operation === "add" ? null : beforeValue.trim() || null,
+      afterValue: operation === "remove" ? null : afterValue.trim() || null,
+      reasonText: reasonText.trim() || null,
+    };
+    const saved = await onMutate(
+      targetId ? { action: "update_delta", targetId, ...fields } : { action: "add_delta", ...fields },
+    );
+    if (saved) onCancel();
+  }
+  const requiresBefore = ["modify", "remove", "invert"].includes(operation);
+  const requiresAfter = operation !== "remove";
+  return (
+    <form className="review-edit-form delta-edit-form" onSubmit={submit}>
+      <strong>{targetId ? "差分を修正" : "差分を手動追加"}</strong>
+      <label>
+        <span>変更の種類</span>
+        <select
+          value={operation}
+          onChange={(event) => {
+            const next = event.target.value as DeltaOperation;
+            setOperation(next);
+            if (next === "add") setBeforeValue("");
+            if (next === "remove") setAfterValue("");
+          }}
+        >
+          {options.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {operation !== "add" && (
+        <label>
+          <span>原典の設定</span>
+          <textarea
+            value={beforeValue}
+            onChange={(event) => setBeforeValue(event.target.value)}
+            maxLength={2000}
+            rows={2}
+            required={requiresBefore}
+          />
+        </label>
+      )}
+      {operation !== "remove" && (
+        <label>
+          <span>変更後の設定</span>
+          <textarea
+            value={afterValue}
+            onChange={(event) => setAfterValue(event.target.value)}
+            maxLength={2000}
+            rows={2}
+            required={requiresAfter}
+          />
+        </label>
+      )}
+      <label>
+        <span>補足・判定理由（任意）</span>
+        <textarea
+          value={reasonText}
+          onChange={(event) => setReasonText(event.target.value)}
+          maxLength={2000}
+          rows={2}
+        />
+      </label>
+      <div className="review-edit-actions">
+        <button type="button" className="button button-ghost" onClick={onCancel} disabled={disabled}>
+          キャンセル
+        </button>
+        <button type="submit" className="button button-primary" disabled={disabled}>
+          {targetId ? "修正を保存" : "追加する"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddDeltaControl({ disabled, onMutate }: { disabled: boolean; onMutate: ReviewMutationHandler }) {
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <button type="button" className="manual-add-button" onClick={() => setOpen(true)} disabled={disabled}>
+        ＋ 差分を手動追加
+      </button>
+    );
+  return <DeltaReviewForm disabled={disabled} onMutate={onMutate} onCancel={() => setOpen(false)} />;
+}
+
+function CustomizationDeltaCard({
+  item,
+  targetName,
+  editable = false,
+  disabled = false,
+  onMutate,
+}: {
+  item: CustomizationDeltaDetail;
+  targetName: string;
+  editable?: boolean;
+  disabled?: boolean;
+  onMutate?: ReviewMutationHandler;
+}) {
+  const [editing, setEditing] = useState(false);
+  const operation = deltaOperationLabels[item.operation] ?? {
+    label: "設定の変更",
+    description: "登録内容から読み取った原典との差分です。",
+  };
+  return (
+    <article className={`customization-delta delta-${item.operation}`}>
+      <header className="customization-delta-header">
+        <div>
+          <div className="assertion-title">
+            <strong>{operation.label}</strong>
+            {item.status === "corrected" && <span className="user-corrected-badge">ユーザー修正</span>}
+          </div>
+          <p>{operation.description}</p>
+        </div>
+        <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+      </header>
+      <div className="customization-comparison">
+        <section>
+          <span>原典の設定</span>
+          <p>{item.before_value ?? "該当する設定なし"}</p>
+        </section>
+        <span className="customization-arrow" aria-hidden="true">
+          →
+        </span>
+        <section className="customization-target">
+          <span>{targetName}の設定</span>
+          <p>{item.after_value ?? "このキャラクター像では適用しない"}</p>
+        </section>
+      </div>
+      {item.reason_text && (
+        <p className="customization-reason">
+          <strong>判定理由</strong>
+          <span>{item.reason_text}</span>
+        </p>
+      )}
+      {editable &&
+        onMutate &&
+        (editing ? (
+          <DeltaReviewForm
+            initial={item}
+            targetId={item.id}
+            disabled={disabled}
+            onMutate={onMutate}
+            onCancel={() => setEditing(false)}
+          />
+        ) : (
+          <div className="review-item-actions">
+            <button type="button" onClick={() => setEditing(true)} disabled={disabled}>
+              修正
+            </button>
+            <button
+              type="button"
+              className="danger-link"
+              disabled={disabled}
+              onClick={() => {
+                if (window.confirm("この差分を解析結果から削除しますか？"))
+                  void onMutate({ action: "delete_delta", targetId: item.id });
+              }}
+            >
+              削除
+            </button>
+          </div>
+        ))}
+    </article>
+  );
+}
+
+const evidenceInferenceLabels: Record<string, string> = {
+  direct: "直接引用",
+  paraphrase: "要約・言い換え",
+  inferred: "推論",
+};
+
+const inputPointerLabels: Record<string, string> = {
+  "/workTitle": "作品名",
+  "/characterName": "キャラクター名",
+  "/mediaType": "媒体種別",
+  "/representationType": "改変種別",
+  "/customizationDescription": "改変内容",
+  "/characterBasicInfo": "キャラクター基本情報",
+  "/preferenceContext": "対象範囲・場面",
+  "/referenceMaterial": "追加の参考情報",
+  "/userCharacterView": "ユーザーのキャラクター観",
+  "/preference/likedReasons": "好きな理由",
+  "/preference/dislikedReasons": "苦手な理由",
+  "/preference/responseChannels": "反応チャネル",
+  "/preference/valueStanceNote": "価値スタンス",
+};
+
+function EvidenceList({ evidence }: { evidence: EvidenceDetail[] }) {
+  if (!evidence.length) return <small className="evidence-status">根拠なし</small>;
+  return (
+    <details className="evidence-disclosure">
+      <summary>
+        <span className="evidence-open-label">詳細を見る</span>
+        <span className="evidence-close-label">詳細を閉じる</span>
+      </summary>
+      <ul className="evidence-list">
+        {evidence.map((item) => {
+          const pointer = canonicalEntryInputPointer(item.inputPointer);
+          return (
+            <li key={item.id} className={`evidence-item evidence-${item.verificationStatus}`}>
+              <div className="evidence-heading">
+                <span className="evidence-status">
+                  {evidenceStatusLabels[item.verificationStatus] ?? item.verificationStatus}
+                </span>
+                <small>{evidenceInferenceLabels[item.inferenceType] ?? item.inferenceType}</small>
+              </div>
+              {item.quote && (
+                <div className="evidence-detail">
+                  <span>引用</span>
+                  <q>{item.quote}</q>
+                </div>
+              )}
+              {pointer && (
+                <div className="evidence-detail">
+                  <span>入力項目</span>
+                  <strong>{inputPointerLabels[pointer] ?? "登録情報"}</strong>
+                  <code>{pointer}</code>
+                </div>
+              )}
+              {item.verificationStatus === "invalid" && (
+                <small className="evidence-warning">
+                  指定された入力または出典と照合できなかったため、この根拠は採用されません。
+                </small>
+              )}
+              {item.canNavigate && item.sourceUrl ? (
+                <a href={item.sourceUrl} target="_blank" rel="noreferrer">
+                  原文へ移動
+                </a>
+              ) : item.sourceTitle ? (
+                <small>出典: {item.sourceTitle}</small>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }

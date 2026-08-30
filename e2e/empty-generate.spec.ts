@@ -6,13 +6,13 @@ test("登録・嗜好解析が0件でもオリジナルキャラクター作成�
 
   const username = `empty-${Date.now()}`;
   const createdResponse = await request.post("/api/v1/users", {
-    headers: { "Idempotency-Key": crypto.randomUUID() },
+    headers: { "Idempotency-Key": crypto.randomUUID(), Origin: "http://localhost:41737" },
     data: { username },
   });
   expect(createdResponse.status()).toBe(201);
   const created = (await createdResponse.json()).data as { user: { id: string }; accessKey: string };
   const activatedResponse = await request.post(`/api/v1/users/${created.user.id}/activate`, {
-    headers: { "Idempotency-Key": crypto.randomUUID() },
+    headers: { "Idempotency-Key": crypto.randomUUID(), Origin: "http://localhost:41737" },
     data: { accessKey: created.accessKey },
   });
   expect(activatedResponse.ok()).toBe(true);
@@ -37,7 +37,13 @@ test("登録・嗜好解析が0件でもオリジナルキャラクター作成�
   await expect(page.getByText("キャラクターを判断できる資料・説明", { exact: false })).toHaveCount(0);
   await page.getByRole("button", { name: "既成（カスタム）", exact: true }).click();
   const customizationType = page.getByLabel("カスタムの種類");
-  await expect(customizationType.locator("option")).toHaveText(["独自解釈", "二次創作", "別設定"]);
+  await expect(customizationType.locator("option")).toHaveText([
+    "独自解釈",
+    "特定の側面",
+    "特定の場面・状態",
+    "二次創作",
+    "別設定",
+  ]);
   await expect(customizationType).toHaveValue("user_interpretation");
   const personLiking = page.getByRole("checkbox", { name: /人物として好き/u });
   await expect(personLiking).toBeVisible();

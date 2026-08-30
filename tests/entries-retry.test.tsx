@@ -70,10 +70,15 @@ describe("登録済みキャラクターの再分析", () => {
                 status: "active",
                 registrationType: "existing",
                 draft: {
-                  schemaVersion: "1",
+                  schemaVersion: "2",
                   registrationType: "existing",
                   workTitle: "架空作品",
                   characterName: "再実行テスト",
+                  mediaType: "アニメ版",
+                  preferenceContext: "第3話の決戦時",
+                  referenceMaterial: "以前の参考情報",
+                  userCharacterView: "以前のキャラクター解釈",
+                  identityResolution: { mode: "new" },
                   preference: { likedReasons: "以前の理由", responseChannels: ["person_liking"] },
                 },
               },
@@ -94,6 +99,16 @@ describe("登録済みキャラクターの再分析", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "入力を見直して再分析" }));
     const likedReasons = await screen.findByLabelText("好きな理由");
+    expect(screen.getByLabelText("作品名 必須")).toHaveValue("架空作品");
+    expect(screen.getByLabelText("キャラクター名 必須")).toHaveValue("再実行テスト");
+    expect(screen.getByLabelText("媒体・版")).toHaveValue("アニメ版");
+    expect(screen.getByLabelText("特に好きな時期・場面・状態（任意）")).toHaveValue("第3話の決戦時");
+    fireEvent.change(screen.getByLabelText("解析に加えたい参考情報（任意）"), {
+      target: { value: "見直して追加した参考情報" },
+    });
+    fireEvent.change(screen.getByLabelText("あなた自身のキャラクター解釈"), {
+      target: { value: "見直した新しい解釈" },
+    });
     fireEvent.change(likedReasons, { target: { value: "思い出して追加した新しい理由" } });
     fireEvent.click(screen.getByRole("button", { name: "入力を保存して再分析" }));
 
@@ -101,7 +116,16 @@ describe("登録済みキャラクターの再分析", () => {
     const reanalysisCall = fetchMock.mock.calls.find(([path]) => String(path).endsWith("/reanalysis"));
     expect(reanalysisCall?.[1]).toEqual(expect.objectContaining({ method: "POST" }));
     expect(JSON.parse(String(reanalysisCall?.[1]?.body))).toMatchObject({
-      preference: { likedReasons: "思い出して追加した新しい理由", responseChannels: ["person_liking"] },
+      draft: {
+        schemaVersion: "2",
+        workTitle: "架空作品",
+        characterName: "再実行テスト",
+        mediaType: "アニメ版",
+        preferenceContext: "第3話の決戦時",
+        referenceMaterial: "見直して追加した参考情報",
+        userCharacterView: "見直した新しい解釈",
+        preference: { likedReasons: "思い出して追加した新しい理由", responseChannels: ["person_liking"] },
+      },
     });
   });
 

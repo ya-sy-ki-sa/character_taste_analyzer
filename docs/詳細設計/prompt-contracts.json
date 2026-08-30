@@ -1,0 +1,14 @@
+{
+  "analysis": {
+    "promptVersion": "character_understanding/v1.0.1",
+    "sha256": "609fa6a8570ddde5d16802a8420604dbf3d009317e8a254496805124a7280020"
+  },
+  "generation": {
+    "promptVersion": "character_generation/v1.0.0",
+    "sha256": "c9fcc4045c0dd02c80cd2ca5e77de3a5a44e603ea004740bf1c51f5908d35606"
+  },
+  "generationValidation": {
+    "promptVersion": "generation_validation/v1.0.0",
+    "sha256": "fe635cc12cb943f612b52d447d749703385aae636a4c4848c27e16b61c8ab44d"
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasPreferenceAnalysisCandidates } from "../worker/services/analysis";
+import { hasPreferenceAnalysisCandidates } from "../worker/services/analysis-result-policy";
 
 describe("preference analysis result validation", () => {
   it("treats a result without preferences or value stances as empty", () => {

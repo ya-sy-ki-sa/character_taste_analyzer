@@ -1,4 +1,5 @@
 import { type PropsWithChildren, type ReactNode, useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 
 export function Brand() {
   return (
@@ -91,6 +92,7 @@ export function Modal({
 }>) {
   const titleId = useId();
   const dialog = useRef<HTMLElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -98,17 +100,40 @@ export function Modal({
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onCloseRef.current();
+      if (event.key !== "Tab" || !dialog.current) return;
+      const focusable = [
+        ...dialog.current.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((item) => !item.hidden && item.getAttribute("aria-hidden") !== "true");
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+    const inerted = [...document.body.children].filter((item) => item !== backdrop.current);
+    for (const item of inerted) item.setAttribute("inert", "");
     document.addEventListener("keydown", handleKeyDown);
     dialog.current?.focus();
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      for (const item of inerted) item.removeAttribute("inert");
       previouslyFocused?.focus();
     };
   }, []);
 
-  return (
-    <div className="modal-backdrop">
+  return createPortal(
+    <div className="modal-backdrop" ref={backdrop}>
       <button type="button" className="modal-backdrop-dismiss" onClick={onClose} aria-label="ダイアログを終了" />
       <section
         ref={dialog}
@@ -126,6 +151,7 @@ export function Modal({
         </header>
         {children}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

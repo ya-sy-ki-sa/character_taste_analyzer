@@ -1,26 +1,24 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import {
   accountDeletionSchema,
+  accountExportRequestSchema,
   activationSchema,
   batchReviewSchema,
-  entryDraftSchema,
   entryReanalysisSchema,
+  entrySubmissionSchema,
   generationRequestInputSchema,
+  identityCandidateRequestSchema,
   keyRotationSchema,
   loginSchema,
   registrationSchema,
+  understandingReviewRequestSchema,
 } from "../shared/schemas";
-import {
-  csrfMiddleware,
-  enforceQuota,
-  rateLimitMiddleware,
-  requireSession,
-  sessionMiddleware,
-  verifyTurnstile,
-} from "./auth";
+import { csrfMiddleware, rateLimitMiddleware, requireSession, sessionMiddleware, verifyTurnstile } from "./auth";
+import { validateConfig } from "./config";
 import { createEmbeddingProvider } from "./embedding/providers";
 import { clearSessionCookie, readCookie, SESSION_COOKIE, sessionCookie } from "./lib/cookies";
 import {
@@ -37,10 +35,18 @@ import {
 } from "./lib/crypto";
 import { all, first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
+import { runDailyCleanup } from "./services/cleanup";
+import { createAccountExport } from "./services/exports";
+import { dispatchOutboxEvent, dispatchPendingOutbox } from "./services/orchestration";
 import { createDataStoreStrategy } from "./storage/strategy";
-import type { AppVariables, CharacterAnalysisWorkflowParams, Env, GenerationWorkflowParams } from "./types";
+import type { AppVariables, Env } from "./types";
 
-export { CharacterAnalysisWorkflow, GenerationWorkflow } from "./workflows";
+export {
+  AccountExportWorkflow,
+  CharacterAnalysisWorkflow,
+  GenerationWorkflow,
+  ProfileRebuildWorkflow,
+} from "./workflows";
 
 type AppEnv = { Bindings: Env; Variables: AppVariables };
 const app = new Hono<AppEnv>();
@@ -49,50 +55,36 @@ function data<T>(value: T) {
   return { data: value };
 }
 
+function validateJson<Schema extends z.ZodType>(schema: Schema) {
+  return zValidator("json", schema, (result, context) => {
+    if (result.success) return;
+    return context.json(
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "入力内容を確認してください",
+          requestId: (context as unknown as { get(key: string): string }).get("requestId"),
+          details: result.error.issues.map((issue) => ({ path: issue.path, code: issue.code, message: issue.message })),
+        },
+      },
+      400,
+    );
+  });
+}
+
 function requireIdempotencyKey(value?: string): string {
   const parsed = z.string().uuid().safeParse(value);
   if (!parsed.success) throw new HTTPException(400, { message: "Idempotency-KeyにはUUIDが必要です" });
   return parsed.data;
 }
 
-async function startAnalysis(
-  context: Parameters<typeof requireSession>[0],
-  params: CharacterAnalysisWorkflowParams,
-  runId?: string,
-) {
-  if (context.env.CHARACTER_ANALYSIS_WORKFLOW) {
-    const instance = await context.env.CHARACTER_ANALYSIS_WORKFLOW.create({
-      id: `analysis-${params.jobId}-${params.stage}${runId ? `-${runId}` : ""}`,
-      params,
-    });
-    await context.env.DB.prepare(`UPDATE jobs SET workflow_instance_id=? WHERE id=?`)
-      .bind(instance.id, params.jobId)
-      .run();
-    return;
-  }
-  context.executionCtx.waitUntil(
-    params.stage === "understanding"
-      ? createDataStoreStrategy(context.env).processCharacterAnalysis(params)
-      : createDataStoreStrategy(context.env).processPreferenceAnalysis(params),
-  );
-}
-
-async function startGeneration(context: Parameters<typeof requireSession>[0], params: GenerationWorkflowParams) {
-  if (context.env.GENERATION_WORKFLOW) {
-    const instance = await context.env.GENERATION_WORKFLOW.create({ id: `generation-${params.jobId}`, params });
-    await context.env.DB.prepare(`UPDATE jobs SET workflow_instance_id=? WHERE id=?`)
-      .bind(instance.id, params.jobId)
-      .run();
-    return;
-  }
-  context.executionCtx.waitUntil(createDataStoreStrategy(context.env).processGeneration(params));
+function dispatchAfterCommit(context: Parameters<typeof requireSession>[0], eventId?: string) {
+  if (eventId) context.executionCtx.waitUntil(dispatchOutboxEvent(context.env, eventId));
 }
 
 app.use("*", async (context, next) => {
   const requestId = context.req.header("CF-Ray") || crypto.randomUUID();
   context.set("requestId", requestId);
-  if (Number(context.req.header("Content-Length") || 0) > 64_000)
-    throw new HTTPException(413, { message: "リクエストが大きすぎます" });
   await next();
   context.header("X-Request-Id", requestId);
   context.header("X-Content-Type-Options", "nosniff");
@@ -106,21 +98,68 @@ app.use("*", async (context, next) => {
   if (context.req.path.startsWith("/api/")) context.header("Cache-Control", "no-store");
 });
 
+app.use(
+  "/api/v1/*",
+  bodyLimit({
+    maxSize: 64 * 1024,
+    onError: (context) =>
+      context.json(
+        {
+          error: {
+            code: "REQUEST_TOO_LARGE",
+            message: "リクエストが大きすぎます",
+            requestId: context.get("requestId"),
+          },
+        },
+        413,
+      ),
+  }),
+);
+
 app.use("/api/v1/*", sessionMiddleware);
 app.use("/api/v1/*", rateLimitMiddleware);
 app.use("/api/v1/*", csrfMiddleware);
 
-app.get("/api/v1/health", (context) => {
-  const embedding = createEmbeddingProvider(context.env);
+app.get("/api/v1/health/live", (context) => {
+  return context.json(data({ status: "ok" }));
+});
+
+app.get("/api/v1/health/ready", async (context) => {
+  const config = validateConfig(context.env);
+  const errors = [...config.errors];
+  let embeddingProvider = context.env.EMBEDDING_PROVIDER;
+  let embeddingModel = context.env.EMBEDDING_MODEL;
+  let embeddingDimensions = Number(context.env.EMBEDDING_DIMENSIONS);
+  let embeddingReady = true;
+  try {
+    const embedding = createEmbeddingProvider(context.env);
+    embeddingProvider = embedding.providerId;
+    embeddingModel = embedding.model;
+    embeddingDimensions = embedding.dimensions ?? embeddingDimensions;
+  } catch {
+    embeddingReady = false;
+    if (!errors.includes("EMBEDDING_PROVIDER_CONFIGURATION_INVALID"))
+      errors.push("EMBEDDING_PROVIDER_CONFIGURATION_INVALID");
+  }
+  let databaseReady = true;
+  try {
+    await context.env.DB.prepare("SELECT 1 AS ready").first();
+  } catch {
+    databaseReady = false;
+  }
+  const ready = errors.length === 0 && databaseReady && embeddingReady;
   return context.json(
     data({
-      status: "ok",
+      status: ready ? "ready" : "not_ready",
       environment: context.env.ENVIRONMENT,
       llmProvider: context.env.LLM_PROVIDER,
-      embeddingProvider: embedding.providerId,
-      embeddingModel: embedding.model,
-      embeddingDimensions: embedding.dimensions,
+      embeddingProvider,
+      embeddingModel,
+      embeddingDimensions,
+      checks: { database: databaseReady, configuration: errors.length === 0, embedding: embeddingReady },
+      errors,
     }),
+    ready ? 200 : 503,
   );
 });
 
@@ -134,7 +173,7 @@ app.get("/api/v1/users", async (context) => {
   return context.json(data({ users: rows, nextCursor: null }));
 });
 
-app.post("/api/v1/users", zValidator("json", registrationSchema), async (context) => {
+app.post("/api/v1/users", validateJson(registrationSchema), async (context) => {
   const input = context.req.valid("json");
   await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
   const key = requireIdempotencyKey(context.req.header("Idempotency-Key") || input.idempotencyKey);
@@ -185,7 +224,7 @@ app.post("/api/v1/users", zValidator("json", registrationSchema), async (context
   return context.json(data({ user: { id: userId, username, status: "pending" }, accessKey, expiresAt }), 201);
 });
 
-app.post("/api/v1/users/:id/activate", zValidator("json", activationSchema), async (context) => {
+app.post("/api/v1/users/:id/activate", validateJson(activationSchema), async (context) => {
   const userId = context.req.param("id");
   const row = await first<{ key_digest: string; status: string; pending_expires_at: string | null; username: string }>(
     context.env.DB.prepare(
@@ -201,7 +240,7 @@ app.post("/api/v1/users/:id/activate", zValidator("json", activationSchema), asy
   if (row.status === "active")
     return context.json(data({ user: { id: userId, username: row.username, status: "active" } }));
   if (row.status !== "pending" || !row.pending_expires_at || row.pending_expires_at <= nowIso())
-    throw new HTTPException(401, { message: "有効化期限を過ぎています" });
+    throw new HTTPException(410, { message: "REGISTRATION_EXPIRED" });
   const now = nowIso();
   await context.env.DB.prepare(
     `UPDATE users SET status='active',activated_at=?,updated_at=?,revision=revision+1 WHERE id=?`,
@@ -211,7 +250,7 @@ app.post("/api/v1/users/:id/activate", zValidator("json", activationSchema), asy
   return context.json(data({ user: { id: userId, username: row.username, status: "active" } }));
 });
 
-app.post("/api/v1/sessions", zValidator("json", loginSchema), async (context) => {
+app.post("/api/v1/sessions", validateJson(loginSchema), async (context) => {
   const input = context.req.valid("json");
   await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
   const row = await first<{ username: string; key_digest: string; key_generation: number }>(
@@ -273,21 +312,24 @@ app.get("/api/v1/entries", async (context) => {
   return context.json(data({ entries: await createDataStoreStrategy(context.env).listEntries(session.userId) }));
 });
 
-app.post("/api/v1/entries", zValidator("json", entryDraftSchema), async (context) => {
+app.post("/api/v1/identity-candidates", validateJson(identityCandidateRequestSchema), async (context) => {
   const session = requireSession(context);
-  await enforceQuota(context.env, session.userId, "analysis");
+  const candidates = await createDataStoreStrategy(context.env).listIdentityCandidates(
+    session.userId,
+    context.req.valid("json"),
+  );
+  return context.json(data({ candidates }));
+});
+
+app.post("/api/v1/entries", validateJson(entrySubmissionSchema), async (context) => {
+  const session = requireSession(context);
   const result = await createDataStoreStrategy(context.env).createEntry(
     session.userId,
     context.req.valid("json"),
     requireIdempotencyKey(context.req.header("Idempotency-Key")),
   );
-  if (!result.replayed)
-    await startAnalysis(context, {
-      jobId: result.jobId,
-      ownerUserId: session.userId,
-      entryId: result.entryId,
-      stage: "understanding",
-    });
+  if (!result.replayed) dispatchAfterCommit(context, result.outboxEventId);
+  if (!result.replayed) dispatchAfterCommit(context, result.profileOutboxEventId);
   return context.json(data(result), 202);
 });
 
@@ -298,67 +340,65 @@ app.get("/api/v1/entries/:id", async (context) => {
   return context.json(data(result));
 });
 
-app.post("/api/v1/entries/:id/reanalysis", zValidator("json", entryReanalysisSchema), async (context) => {
+app.post("/api/v1/entries/:id/reanalysis", validateJson(entryReanalysisSchema), async (context) => {
   const session = requireSession(context);
-  await enforceQuota(context.env, session.userId, "analysis");
   const result = await createDataStoreStrategy(context.env).createEntryReanalysis(
     session.userId,
     context.req.param("id"),
     context.req.valid("json"),
     requireIdempotencyKey(context.req.header("Idempotency-Key")),
   );
-  if (!result.replayed)
-    await startAnalysis(context, {
-      jobId: result.jobId,
-      ownerUserId: session.userId,
-      entryId: result.entryId,
-      stage: "understanding",
-    });
+  if (!result.replayed) dispatchAfterCommit(context, result.outboxEventId);
+  if (!result.replayed) dispatchAfterCommit(context, result.profileOutboxEventId);
   return context.json(data(result), 202);
 });
 
-app.post("/api/v1/entries/:id/understanding-review", zValidator("json", batchReviewSchema), async (context) => {
-  const session = requireSession(context);
-  const input = context.req.valid("json");
-  if (input.decision !== "confirm_all" || input.targetIds.length !== 1)
-    throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
-  await createDataStoreStrategy(context.env).confirmUnderstanding(
-    session.userId,
-    context.req.param("id"),
-    input.targetIds[0],
-  );
-  const job = await first<{ id: string }>(
-    context.env.DB.prepare(
-      `SELECT id FROM jobs WHERE owner_user_id=? AND target_type='entry' AND target_id=? ORDER BY created_at DESC LIMIT 1`,
-    ).bind(session.userId, context.req.param("id")),
-  );
-  if (!job) throw new HTTPException(409, { message: "解析ジョブが見つかりません" });
-  await startAnalysis(context, {
-    jobId: job.id,
-    ownerUserId: session.userId,
-    entryId: context.req.param("id"),
-    stage: "preference",
-  });
-  return context.json(data({ entryId: context.req.param("id"), status: "analyzing", jobId: job.id }), 202);
-});
+app.post(
+  "/api/v1/understanding-snapshots/:snapshotId/review",
+  validateJson(understandingReviewRequestSchema),
+  async (context) => {
+    const session = requireSession(context);
+    const input = context.req.valid("json");
+    const snapshotId = context.req.param("snapshotId");
+    if ("action" in input) {
+      const result = await createDataStoreStrategy(context.env).mutateUnderstandingReview(
+        session.userId,
+        snapshotId,
+        input,
+        requireIdempotencyKey(context.req.header("Idempotency-Key")),
+      );
+      return context.json(data(result));
+    }
+    if (input.decision !== "confirm_all" || input.targetIds.length !== 1 || input.targetIds[0] !== snapshotId)
+      throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
+    const result = await createDataStoreStrategy(context.env).confirmUnderstanding(session.userId, input.targetIds[0]);
+    dispatchAfterCommit(context, result.outboxEventId);
+    return context.json(data({ entryId: result.entryId, status: "analyzing", jobId: result.jobId }), 202);
+  },
+);
 
-app.post("/api/v1/entries/:id/preference-review", zValidator("json", batchReviewSchema), async (context) => {
+app.post("/api/v1/preference-analysis-runs/:runId/review", validateJson(batchReviewSchema), async (context) => {
   const session = requireSession(context);
   const input = context.req.valid("json");
-  if (input.decision !== "confirm_all" || input.targetIds.length !== 1)
+  if (
+    input.decision !== "confirm_all" ||
+    input.targetIds.length !== 1 ||
+    input.targetIds[0] !== context.req.param("runId")
+  )
     throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
   const result = await createDataStoreStrategy(context.env).activateAnalysisAndRebuild(
     session.userId,
-    context.req.param("id"),
     input.targetIds[0],
   );
-  return context.json(data({ entryId: context.req.param("id"), status: "active", ...result }));
+  dispatchAfterCommit(context, result.outboxEventId);
+  return context.json(data({ status: "active", ...result }), 202);
 });
 
 app.delete("/api/v1/entries/:id", async (context) => {
   const session = requireSession(context);
   try {
-    await createDataStoreStrategy(context.env).archiveEntry(session.userId, context.req.param("id"));
+    const result = await createDataStoreStrategy(context.env).archiveEntry(session.userId, context.req.param("id"));
+    dispatchAfterCommit(context, result.outboxEventId);
   } catch (error) {
     if (error instanceof Error && error.message === "ENTRY_NOT_FOUND")
       throw new HTTPException(404, { message: "キャラクターが見つかりません" });
@@ -369,7 +409,12 @@ app.delete("/api/v1/entries/:id", async (context) => {
 
 app.get("/api/v1/profile", async (context) => {
   const session = requireSession(context);
-  return context.json(data({ profile: await createDataStoreStrategy(context.env).loadCurrentProfile(session.userId) }));
+  const strategy = createDataStoreStrategy(context.env);
+  const [profile, freshness] = await Promise.all([
+    strategy.loadCurrentProfile(session.userId),
+    strategy.loadProjectionFreshness(session.userId),
+  ]);
+  return context.json(data({ profile, freshness }));
 });
 
 app.get("/api/v1/profile/snapshot-items", async (context) => {
@@ -380,26 +425,23 @@ app.get("/api/v1/profile/snapshot-items", async (context) => {
 app.get("/api/v1/profile/graph", async (context) => {
   const session = requireSession(context);
   const detail = z.enum(["summary", "standard", "expanded"]).catch("standard").parse(context.req.query("detail"));
-  return context.json(
-    data({ graph: await createDataStoreStrategy(context.env).loadCurrentGraph(session.userId, detail) }),
-  );
+  const strategy = createDataStoreStrategy(context.env);
+  const [graph, freshness] = await Promise.all([
+    strategy.loadCurrentGraph(session.userId, detail),
+    strategy.loadProjectionFreshness(session.userId),
+  ]);
+  return context.json(data({ graph, freshness }));
 });
 
-app.post("/api/v1/generation-requests", zValidator("json", generationRequestInputSchema), async (context) => {
+app.post("/api/v1/generation-requests", validateJson(generationRequestInputSchema), async (context) => {
   const session = requireSession(context);
-  await enforceQuota(context.env, session.userId, "generation");
   const result = await createDataStoreStrategy(context.env).createGenerationRequest(
     session.userId,
     context.req.valid("json"),
     requireIdempotencyKey(context.req.header("Idempotency-Key")),
   );
   if (!result.jobId) throw new HTTPException(409, { message: "生成ジョブが見つかりません" });
-  if (!result.replayed)
-    await startGeneration(context, {
-      jobId: result.jobId,
-      ownerUserId: session.userId,
-      generationRequestId: result.generationRequestId,
-    });
+  if (!result.replayed) dispatchAfterCommit(context, result.outboxEventId);
   return context.json(data(result), 202);
 });
 
@@ -408,6 +450,12 @@ app.get("/api/v1/generated-characters", async (context) => {
   return context.json(
     data({ generations: await createDataStoreStrategy(context.env).listGenerations(session.userId) }),
   );
+});
+
+app.delete("/api/v1/generation-requests/:id", async (context) => {
+  const session = requireSession(context);
+  await createDataStoreStrategy(context.env).deleteGeneration(session.userId, context.req.param("id"));
+  return context.body(null, 204);
 });
 
 app.get("/api/v1/jobs/:id", async (context) => {
@@ -420,24 +468,22 @@ app.get("/api/v1/jobs/:id", async (context) => {
 app.post("/api/v1/jobs/:id/retry", async (context) => {
   const session = requireSession(context);
   const retryId = requireIdempotencyKey(context.req.header("Idempotency-Key"));
-  const result = await createDataStoreStrategy(context.env).retryCharacterAnalysis(
-    session.userId,
-    context.req.param("id"),
-  );
-  await startAnalysis(
-    context,
-    {
-      jobId: result.jobId,
-      ownerUserId: session.userId,
-      entryId: result.entryId,
-      stage: result.stage,
-    },
-    retryId,
-  );
+  const strategy = createDataStoreStrategy(context.env);
+  const job = await strategy.loadJob(session.userId, context.req.param("id"));
+  if (!job) throw new HTTPException(404, { message: "ジョブが見つかりません" });
+  const result =
+    job.job_type === "generation"
+      ? await strategy.retryGeneration(session.userId, context.req.param("id"), retryId)
+      : job.job_type === "character_analysis"
+        ? await strategy.retryCharacterAnalysis(session.userId, context.req.param("id"), retryId)
+        : (() => {
+            throw new HTTPException(409, { message: "このジョブ種別は再実行できません" });
+          })();
+  dispatchAfterCommit(context, result.outboxEventId);
   return context.json(data({ ...result, status: "queued" }), 202);
 });
 
-app.post("/api/v1/account/key-rotation", zValidator("json", keyRotationSchema), async (context) => {
+app.post("/api/v1/account/key-rotation", validateJson(keyRotationSchema), async (context) => {
   const session = requireSession(context);
   const active = await first<{ id: string; key_digest: string; key_generation: number }>(
     context.env.DB.prepare(
@@ -473,27 +519,66 @@ app.post("/api/v1/account/key-rotation", zValidator("json", keyRotationSchema), 
   return context.json(data({ accessKey, sessionsRevoked: true }));
 });
 
-app.get("/api/v1/account/export", async (context) => {
+app.post("/api/v1/account/exports", validateJson(accountExportRequestSchema), async (context) => {
   const session = requireSession(context);
-  const [entries, profile, generations] = await Promise.all([
-    createDataStoreStrategy(context.env).listEntries(session.userId),
-    createDataStoreStrategy(context.env).loadCurrentProfile(session.userId),
-    createDataStoreStrategy(context.env).listGenerations(session.userId),
-  ]);
-  return context.json({
-    schemaVersion: "1.0",
-    exportedAt: nowIso(),
-    user: { id: session.userId, username: session.username },
-    entries,
-    profile,
-    generations,
-  });
+  const result = await createAccountExport(
+    context.env,
+    session.userId,
+    requireIdempotencyKey(context.req.header("Idempotency-Key")),
+  );
+  if (!result.replayed) dispatchAfterCommit(context, result.outboxEventId);
+  return context.json(data(result), 202);
 });
 
-app.delete("/api/v1/account", zValidator("json", accountDeletionSchema), async (context) => {
+app.get("/api/v1/account/exports/:exportId", async (context) => {
+  const session = requireSession(context);
+  const result = await first<Record<string, unknown>>(
+    context.env.DB.prepare(
+      `SELECT id,status,schema_version,byte_size,error_code,created_at,updated_at,completed_at,expires_at
+       FROM account_exports WHERE id=? AND owner_user_id=?`,
+    ).bind(context.req.param("exportId"), session.userId),
+  );
+  if (!result) throw new HTTPException(404, { message: "エクスポートが見つかりません" });
+  return context.json(data({ export: result }));
+});
+
+app.get("/api/v1/account/exports/:exportId/download", async (context) => {
+  const session = requireSession(context);
+  const result = await first<{ status: string; object_key: string | null; expires_at: string | null }>(
+    context.env.DB.prepare(
+      `SELECT status,object_key,expires_at FROM account_exports WHERE id=? AND owner_user_id=?`,
+    ).bind(context.req.param("exportId"), session.userId),
+  );
+  if (!result) throw new HTTPException(404, { message: "エクスポートが見つかりません" });
+  if (result.status !== "ready" || !result.object_key)
+    throw new HTTPException(result.status === "expired" ? 410 : 409, {
+      message: "エクスポートはダウンロードできません",
+    });
+  if (!result.expires_at || result.expires_at <= nowIso()) throw new HTTPException(410, { message: "EXPORT_EXPIRED" });
+  if (!context.env.EXPORTS) throw new HTTPException(503, { message: "エクスポート保存先が利用できません" });
+  const object = await context.env.EXPORTS.get(result.object_key);
+  if (!object) throw new HTTPException(410, { message: "EXPORT_EXPIRED" });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control", "private, no-store");
+  headers.set(
+    "Content-Disposition",
+    `attachment; filename="character-taste-export-${context.req.param("exportId")}.json"`,
+  );
+  return new Response(object.body, { headers });
+});
+
+app.delete("/api/v1/account", validateJson(accountDeletionSchema), async (context) => {
   const session = requireSession(context);
   if (context.req.valid("json").usernameConfirmation !== session.username)
     throw new HTTPException(422, { message: "確認用ユーザー名が一致しません" });
+  if (context.env.EXPORTS) {
+    const bucket = context.env.EXPORTS;
+    const objects = await all<{ object_key: string | null }>(
+      context.env.DB.prepare(`SELECT object_key FROM account_exports WHERE owner_user_id=?`).bind(session.userId),
+    );
+    await Promise.all(objects.flatMap((item) => (item.object_key ? [bucket.delete(item.object_key)] : [])));
+  }
   const results = await context.env.DB.batch([
     // 001_initial.sqlの修正前に作成されたlocal D1でも、jobsのSET NULL/CHECK競合を起こさない。
     context.env.DB.prepare(`DELETE FROM jobs WHERE owner_user_id=?`).bind(session.userId),
@@ -508,17 +593,29 @@ app.delete("/api/v1/account", zValidator("json", accountDeletionSchema), async (
 app.onError((error, context) => {
   const requestId = context.get("requestId") || crypto.randomUUID();
   if (error instanceof HTTPException) {
-    const code =
-      error.status === 401
-        ? "session_required"
+    const explicitCodes = new Set(["ORIGIN_REQUIRED", "ORIGIN_DENIED", "REGISTRATION_EXPIRED", "EXPORT_EXPIRED"]);
+    const code = explicitCodes.has(error.message)
+      ? error.message
+      : error.status === 401
+        ? "SESSION_REQUIRED"
         : error.status === 404
-          ? "not_found"
+          ? "NOT_FOUND"
           : error.status === 409
-            ? "conflict"
+            ? "CONFLICT"
             : error.status === 429
-              ? "rate_limited"
-              : "request_invalid";
-    return context.json({ error: { code, message: error.message, requestId } }, error.status);
+              ? "RATE_LIMITED"
+              : "REQUEST_INVALID";
+    const message =
+      error.message === "ORIGIN_REQUIRED"
+        ? "Originヘッダーが必要です"
+        : error.message === "ORIGIN_DENIED"
+          ? "許可されていない送信元です"
+          : error.message === "REGISTRATION_EXPIRED"
+            ? "有効化期限を過ぎています"
+            : error.message === "EXPORT_EXPIRED"
+              ? "エクスポートの有効期限を過ぎています"
+              : error.message;
+    return context.json({ error: { code, message, requestId } }, error.status);
   }
   const message = error instanceof Error ? error.message : "予期しないエラーが発生しました";
   const known: Record<string, [number, string]> = {
@@ -526,6 +623,9 @@ app.onError((error, context) => {
     PROFILE_ITEM_NOT_FOUND: [404, "選択した嗜好項目が見つかりません"],
     GENERATION_SELECTION_CONFLICT: [422, "同じ項目を採用と禁止の両方には指定できません"],
     UNDERSTANDING_REVIEW_NOT_FOUND: [404, "確認対象が見つかりません"],
+    UNDERSTANDING_REVIEW_TARGET_NOT_FOUND: [404, "修正対象が見つかりません"],
+    UNDERSTANDING_REVIEW_STATE_CHANGED: [409, "解析内容が更新されました。画面を再読み込みしてください"],
+    UNDERSTANDING_DELTA_REMOVE_REQUIRES_BASE: [422, "削除する原典設定を特定できません"],
     IDEMPOTENCY_PAYLOAD_MISMATCH: [409, "同じIdempotency-Keyを異なる内容には使用できません"],
     ANALYSIS_JOB_NOT_FOUND: [404, "解析ジョブが見つかりません"],
     JOB_NOT_FAILED: [409, "失敗状態の解析だけ再実行できます"],
@@ -535,16 +635,27 @@ app.onError((error, context) => {
     ENTRY_NOT_FOUND: [404, "キャラクターが見つかりません"],
     ENTRY_ANALYSIS_IN_PROGRESS: [409, "解析中のため、完了後に再分析してください"],
     ENTRY_REANALYSIS_UNAVAILABLE: [409, "この登録は再分析できません"],
+    ENTRY_REGISTRATION_TYPE_IMMUTABLE: [422, "再分析では登録方法を変更できません"],
     ENTRY_REVISION_CONFLICT: [409, "登録内容が更新されました。画面を再読み込みしてください"],
+    PROFILE_REBUILDING: [409, "プロフィールを再構築しています"],
+    PREFERENCE_REVIEW_NOT_FOUND: [404, "確認対象が見つかりません"],
+    IDENTITY_RESOLUTION_INVALID: [422, "選択した同一キャラクター候補を利用できません"],
+    GENERATION_JOB_NOT_FOUND: [404, "生成ジョブが見つかりません"],
+    GENERATION_NOT_FOUND: [404, "作成履歴が見つかりません"],
+    GENERATION_DELETE_IN_PROGRESS: [409, "生成処理が完了してから削除してください"],
+    GENERATION_DELETE_STATE_CHANGED: [409, "作成履歴の状態が更新されました。画面を再読み込みしてください"],
+    EXPORT_STORAGE_UNAVAILABLE: [503, "エクスポート保存先を利用できません"],
   };
   const mapped = known[message];
-  if (mapped)
-    return context.json(
-      { error: { code: message.toLocaleLowerCase(), message: mapped[1], requestId } },
-      mapped[0] as 404,
-    );
+  if (mapped) return context.json({ error: { code: message, message: mapped[1], requestId } }, mapped[0] as 404);
   console.error(JSON.stringify({ requestId, code: message.slice(0, 100) }));
-  return context.json({ error: { code: "internal_error", message: "処理を完了できませんでした", requestId } }, 500);
+  return context.json({ error: { code: "INTERNAL_ERROR", message: "処理を完了できませんでした", requestId } }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(controller: ScheduledController, env: Env, executionCtx: ExecutionContext) {
+    executionCtx.waitUntil(dispatchPendingOutbox(env, 50));
+    if (controller.cron !== "* * * * *") executionCtx.waitUntil(runDailyCleanup(env));
+  },
+};

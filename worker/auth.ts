@@ -119,7 +119,8 @@ export const csrfMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVa
   if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) return next();
   const origin = context.req.header("Origin");
   const expected = context.env.APP_ORIGIN || new URL(context.req.url).origin;
-  if (origin && origin !== expected) throw new HTTPException(403, { message: "許可されていない送信元です" });
+  if (!origin) throw new HTTPException(403, { message: "ORIGIN_REQUIRED" });
+  if (origin !== expected) throw new HTTPException(403, { message: "ORIGIN_DENIED" });
   const session = context.get("session");
   if (session) {
     const csrf = context.req.header("X-CSRF-Token");
@@ -130,6 +131,7 @@ export const csrfMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVa
 });
 
 export async function verifyTurnstile(env: Env, token?: string, remoteIp?: string): Promise<void> {
+  if (env.ENVIRONMENT === "local" && (env.LLM_PROVIDER === "replay" || env.LLM_PROVIDER === "fake")) return;
   if (!env.TURNSTILE_SECRET) {
     if (env.ENVIRONMENT === "production") throw new HTTPException(503, { message: "Turnstileが設定されていません" });
     return;

@@ -1,4 +1,10 @@
-import type { EntryDraft, EntryReanalysisInput, GenerationRequestInput } from "../../shared/schemas";
+import type {
+  EntryReanalysisInput,
+  EntrySubmission,
+  GenerationRequestInput,
+  IdentityCandidateRequest,
+  UnderstandingReviewMutation,
+} from "../../shared/schemas";
 import { nowIso } from "../lib/crypto";
 import { all, first } from "../lib/db";
 import {
@@ -11,12 +17,21 @@ import {
   confirmUnderstanding,
   createEntry,
   createEntryReanalysis,
+  listIdentityCandidates,
   listEntries,
   loadEntryReview,
+  mutateUnderstandingReview,
 } from "../services/entries";
-import { createGenerationRequest, listGenerations, processGeneration } from "../services/generation";
+import {
+  createGenerationRequest,
+  deleteGeneration,
+  listGenerations,
+  processGeneration,
+  retryGeneration,
+} from "../services/generation";
 import { loadCurrentGraph } from "../services/graph";
-import { loadCurrentProfile, rebuildProfile } from "../services/profile";
+import { outboxStatement } from "../services/orchestration";
+import { loadCurrentProfile, loadProjectionFreshness } from "../services/profile";
 import type { CharacterAnalysisWorkflowParams, Env, GenerationWorkflowParams } from "../types";
 
 export type ProfileSnapshotItems = {
@@ -31,7 +46,11 @@ export type ProfileSnapshotItems = {
  */
 export interface CharacterTasteDataStoreStrategy {
   readonly id: string;
-  createEntry(ownerUserId: string, draft: EntryDraft, idempotencyKey: string): ReturnType<typeof createEntry>;
+  createEntry(ownerUserId: string, draft: EntrySubmission, idempotencyKey: string): ReturnType<typeof createEntry>;
+  listIdentityCandidates(
+    ownerUserId: string,
+    input: IdentityCandidateRequest,
+  ): ReturnType<typeof listIdentityCandidates>;
   createEntryReanalysis(
     ownerUserId: string,
     entryId: string,
@@ -40,17 +59,24 @@ export interface CharacterTasteDataStoreStrategy {
   ): ReturnType<typeof createEntryReanalysis>;
   listEntries(ownerUserId: string): ReturnType<typeof listEntries>;
   loadEntryReview(ownerUserId: string, entryId: string): ReturnType<typeof loadEntryReview>;
-  confirmUnderstanding(ownerUserId: string, entryId: string, snapshotId: string): Promise<void>;
-  archiveEntry(ownerUserId: string, entryId: string): Promise<void>;
+  mutateUnderstandingReview(
+    ownerUserId: string,
+    snapshotId: string,
+    input: UnderstandingReviewMutation,
+    idempotencyKey: string,
+  ): ReturnType<typeof mutateUnderstandingReview>;
+  confirmUnderstanding(ownerUserId: string, snapshotId: string): ReturnType<typeof confirmUnderstanding>;
+  archiveEntry(ownerUserId: string, entryId: string): Promise<{ outboxEventId: string }>;
   processCharacterAnalysis(params: CharacterAnalysisWorkflowParams): Promise<void>;
   processPreferenceAnalysis(params: CharacterAnalysisWorkflowParams): Promise<void>;
-  retryCharacterAnalysis(ownerUserId: string, jobId: string): ReturnType<typeof retryCharacterAnalysis>;
-  activateAnalysisAndRebuild(
+  retryCharacterAnalysis(
     ownerUserId: string,
-    entryId: string,
-    analysisRunId: string,
-  ): ReturnType<typeof activateAnalysisAndRebuild>;
+    jobId: string,
+    retryId: string,
+  ): ReturnType<typeof retryCharacterAnalysis>;
+  activateAnalysisAndRebuild(ownerUserId: string, analysisRunId: string): ReturnType<typeof activateAnalysisAndRebuild>;
   loadCurrentProfile(ownerUserId: string): ReturnType<typeof loadCurrentProfile>;
+  loadProjectionFreshness(ownerUserId: string): ReturnType<typeof loadProjectionFreshness>;
   loadProfileSnapshotItems(ownerUserId: string): Promise<ProfileSnapshotItems>;
   loadCurrentGraph(
     ownerUserId: string,
@@ -62,7 +88,9 @@ export interface CharacterTasteDataStoreStrategy {
     idempotencyKey: string,
   ): ReturnType<typeof createGenerationRequest>;
   listGenerations(ownerUserId: string): ReturnType<typeof listGenerations>;
+  deleteGeneration(ownerUserId: string, generationRequestId: string): ReturnType<typeof deleteGeneration>;
   processGeneration(params: GenerationWorkflowParams): Promise<void>;
+  retryGeneration(ownerUserId: string, jobId: string, retryId: string): ReturnType<typeof retryGeneration>;
   loadJob(ownerUserId: string, jobId: string): Promise<Record<string, unknown> | null>;
 }
 
@@ -70,29 +98,67 @@ function d1Strategy(env: Env): CharacterTasteDataStoreStrategy {
   return {
     id: "d1",
     createEntry: (ownerUserId, draft, idempotencyKey) => createEntry(env, ownerUserId, draft, idempotencyKey),
+    listIdentityCandidates: (ownerUserId, input) => listIdentityCandidates(env, ownerUserId, input),
     createEntryReanalysis: (ownerUserId, entryId, input, idempotencyKey) =>
       createEntryReanalysis(env, ownerUserId, entryId, input, idempotencyKey),
     listEntries: (ownerUserId) => listEntries(env, ownerUserId),
     loadEntryReview: (ownerUserId, entryId) => loadEntryReview(env, ownerUserId, entryId),
-    confirmUnderstanding: (ownerUserId, entryId, snapshotId) =>
-      confirmUnderstanding(env, ownerUserId, entryId, snapshotId),
+    mutateUnderstandingReview: (ownerUserId, snapshotId, input, idempotencyKey) =>
+      mutateUnderstandingReview(env, ownerUserId, snapshotId, input, idempotencyKey),
+    confirmUnderstanding: (ownerUserId, snapshotId) => confirmUnderstanding(env, ownerUserId, snapshotId),
     archiveEntry: async (ownerUserId, entryId) => {
       const now = nowIso();
-      const result = await env.DB.prepare(
-        `UPDATE user_character_entries SET status='archived',archived_at=?,updated_at=?,revision=revision+1 WHERE id=? AND owner_user_id=? AND deleted_at IS NULL`,
-      )
-        .bind(now, now, entryId, ownerUserId)
-        .run();
-      if (!result.meta.changes) throw new Error("ENTRY_NOT_FOUND");
-      await rebuildProfile(env, ownerUserId, "entry_archived");
+      const state = await first<{ desired_generation: number; built_generation: number }>(
+        env.DB.prepare(
+          `SELECT desired_generation,built_generation FROM projection_rebuild_states WHERE owner_user_id=?`,
+        ).bind(ownerUserId),
+      );
+      const desiredGeneration = (state?.desired_generation ?? 0) + 1;
+      const jobId = crypto.randomUUID();
+      const outbox = await outboxStatement(
+        env,
+        ownerUserId,
+        "job",
+        jobId,
+        1,
+        {
+          type: "profile.rebuild",
+          params: { jobId, ownerUserId, desiredGeneration },
+        },
+        `profile:${ownerUserId}:${desiredGeneration}`,
+        entryId,
+      );
+      const results = await env.DB.batch([
+        env.DB.prepare(
+          `UPDATE user_character_entries SET status='archived',archived_at=?,updated_at=?,revision=revision+1
+           WHERE id=? AND owner_user_id=? AND status='active' AND deleted_at IS NULL`,
+        ).bind(now, now, entryId, ownerUserId),
+        env.DB.prepare(`
+          INSERT INTO projection_rebuild_states (owner_user_id,desired_generation,built_generation,status,updated_at)
+          VALUES (?,?,?,'queued',?) ON CONFLICT(owner_user_id) DO UPDATE SET
+            desired_generation=excluded.desired_generation,status='queued',updated_at=excluded.updated_at
+        `).bind(ownerUserId, desiredGeneration, state?.built_generation ?? 0, now),
+        env.DB.prepare(
+          `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,
+           progress_total,current_step,retryable,revision,created_at,updated_at)
+           VALUES (?,?,'profile_rebuild','queued','user',?,?,0,2,'profile',1,1,?,?)`,
+        ).bind(jobId, ownerUserId, ownerUserId, desiredGeneration, now, now),
+        outbox.statement,
+      ]);
+      if (results.some((result) => !result.success)) throw new Error("D1_ENTRY_ARCHIVE_FAILED");
+      if (!results[0].meta.changes) throw new Error("ENTRY_NOT_FOUND");
+      return { outboxEventId: outbox.id };
     },
     processCharacterAnalysis: (params) => processCharacterAnalysis(env, params),
     processPreferenceAnalysis: (params) => processPreferenceAnalysis(env, params),
-    retryCharacterAnalysis: (ownerUserId, jobId) => retryCharacterAnalysis(env, ownerUserId, jobId),
-    activateAnalysisAndRebuild: (ownerUserId, entryId, analysisRunId) =>
-      activateAnalysisAndRebuild(env, ownerUserId, entryId, analysisRunId),
+    retryCharacterAnalysis: (ownerUserId, jobId, retryId) => retryCharacterAnalysis(env, ownerUserId, jobId, retryId),
+    activateAnalysisAndRebuild: (ownerUserId, analysisRunId) =>
+      activateAnalysisAndRebuild(env, ownerUserId, analysisRunId),
     loadCurrentProfile: (ownerUserId) => loadCurrentProfile(env, ownerUserId),
+    loadProjectionFreshness: (ownerUserId) => loadProjectionFreshness(env, ownerUserId),
     loadProfileSnapshotItems: async (ownerUserId) => {
+      const freshness = await loadProjectionFreshness(env, ownerUserId);
+      if (freshness.status !== "fresh") return { snapshot: null, items: [] };
       await loadCurrentProfile(env, ownerUserId);
       const snapshot = await first<{ id: string; profile_generation: number }>(
         env.DB.prepare(
@@ -126,7 +192,9 @@ function d1Strategy(env: Env): CharacterTasteDataStoreStrategy {
     createGenerationRequest: (ownerUserId, input, idempotencyKey) =>
       createGenerationRequest(env, ownerUserId, input, idempotencyKey),
     listGenerations: (ownerUserId) => listGenerations(env, ownerUserId),
+    deleteGeneration: (ownerUserId, generationRequestId) => deleteGeneration(env, ownerUserId, generationRequestId),
     processGeneration: (params) => processGeneration(env, params),
+    retryGeneration: (ownerUserId, jobId, retryId) => retryGeneration(env, ownerUserId, jobId, retryId),
     loadJob: (ownerUserId, jobId) =>
       first<Record<string, unknown>>(
         env.DB.prepare(
