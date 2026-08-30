@@ -2,7 +2,7 @@ import { canonicalEntryInputPointer, type EvidenceReference } from "../../shared
 import { sha256Hex } from "../lib/crypto";
 
 export type ProvenanceSource = {
-  fragmentId: string;
+  sourceId: string;
   text: string;
   inputPointer: string | null;
   url: string | null;
@@ -10,7 +10,7 @@ export type ProvenanceSource = {
 };
 
 export type VerifiedEvidence = {
-  sourceFragmentId: string | null;
+  sourceId: string | null;
   evidenceOrigin: "user_input" | "source" | "model_knowledge";
   quoteStart: number | null;
   quoteEnd: number | null;
@@ -93,7 +93,7 @@ export async function verifyEvidenceReference(
       normalizedRef.includes("モデル知識")
     ) {
       return {
-        sourceFragmentId: null,
+        sourceId: null,
         evidenceOrigin: "model_knowledge",
         quoteStart: null,
         quoteEnd: null,
@@ -105,7 +105,7 @@ export async function verifyEvidenceReference(
       };
     }
     return {
-      sourceFragmentId: null,
+      sourceId: null,
       evidenceOrigin: "model_knowledge",
       quoteStart: null,
       quoteEnd: null,
@@ -121,7 +121,7 @@ export async function verifyEvidenceReference(
     const start = source.text.indexOf(quote);
     if (start < 0 && evidence.inferenceType === "direct") {
       return {
-        sourceFragmentId: source.fragmentId,
+        sourceId: source.sourceId,
         evidenceOrigin: source.origin,
         quoteStart: null,
         quoteEnd: null,
@@ -134,7 +134,7 @@ export async function verifyEvidenceReference(
     }
     if (start >= 0) {
       return {
-        sourceFragmentId: source.fragmentId,
+        sourceId: source.sourceId,
         evidenceOrigin: source.origin,
         quoteStart: start,
         quoteEnd: start + quote.length,
@@ -147,7 +147,7 @@ export async function verifyEvidenceReference(
     }
   }
   return {
-    sourceFragmentId: source.fragmentId,
+    sourceId: source.sourceId,
     evidenceOrigin: source.origin,
     quoteStart: null,
     quoteEnd: null,

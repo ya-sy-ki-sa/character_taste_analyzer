@@ -1,7 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { rejectPreferenceAnalysisItem } from "../worker/services/entries";
 import { claimJob, finishJobAttempt } from "../worker/services/jobs";
+import { dispatchPendingProfileRebuild } from "../worker/services/orchestration";
 import type { Env } from "../worker/types";
 
 type SqlValue = string | number | bigint | Uint8Array | null;
@@ -241,6 +242,65 @@ describe("preference review integration", () => {
       await expect(rejectPreferenceAnalysisItem(env, "another-owner", "run", "preference")).rejects.toThrow(
         "PREFERENCE_REVIEW_NOT_FOUND",
       );
+    } finally {
+      database.close();
+    }
+  });
+});
+
+describe("profile rebuild outbox recovery", () => {
+  it("dispatches only the pending profile rebuild owned by the current user", async () => {
+    const database = new DatabaseSync(":memory:");
+    database.exec(`
+      CREATE TABLE outbox_events (
+        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, aggregate_id TEXT NOT NULL,
+        event_type TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL, available_at TEXT NOT NULL, lease_owner TEXT,
+        lease_expires_at TEXT, last_error_code TEXT, published_at TEXT
+      );
+      CREATE TABLE jobs (
+        id TEXT PRIMARY KEY, status TEXT NOT NULL, workflow_instance_id TEXT, updated_at TEXT
+      );
+      INSERT INTO jobs VALUES ('owner-job','queued',NULL,NULL), ('other-job','queued',NULL,NULL);
+      INSERT INTO outbox_events VALUES (
+        'owner-event','owner','owner-job','profile.rebuild',
+        '{"type":"profile.rebuild","params":{"jobId":"owner-job","ownerUserId":"owner","desiredGeneration":1}}',
+        'pending',0,'2026-01-01T00:00:00.000Z',NULL,NULL,NULL,NULL
+      );
+      INSERT INTO outbox_events VALUES (
+        'other-event','other','other-job','profile.rebuild',
+        '{"type":"profile.rebuild","params":{"jobId":"other-job","ownerUserId":"other","desiredGeneration":1}}',
+        'pending',0,'2026-01-01T00:00:00.000Z',NULL,NULL,NULL,NULL
+      );
+    `);
+    const d1 = {
+      prepare(sql: string) {
+        return new TestStatement(database, sql);
+      },
+      async batch(statements: TestStatement[]) {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        return results;
+      },
+    } as unknown as D1Database;
+    const create = vi.fn(async ({ id }: { id: string }) => ({ id }));
+    const env = {
+      DB: d1,
+      PROFILE_REBUILD_WORKFLOW: { create, get: vi.fn() },
+    } as unknown as Env;
+
+    try {
+      await expect(dispatchPendingProfileRebuild(env, "owner")).resolves.toBe(true);
+      expect(create).toHaveBeenCalledWith({
+        id: "profile-owner-event",
+        params: { jobId: "owner-job", ownerUserId: "owner", desiredGeneration: 1 },
+      });
+      expect(database.prepare("SELECT status FROM outbox_events WHERE id='owner-event'").get()).toMatchObject({
+        status: "published",
+      });
+      expect(database.prepare("SELECT status FROM outbox_events WHERE id='other-event'").get()).toMatchObject({
+        status: "pending",
+      });
     } finally {
       database.close();
     }

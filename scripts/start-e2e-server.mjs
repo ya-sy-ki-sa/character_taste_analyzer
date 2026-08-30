@@ -26,7 +26,7 @@ const migration = spawnSync(
     "d1",
     "migrations",
     "apply",
-    "character-taste-lab-v2-clean-local",
+    "character-taste-lab-current-local",
     "--local",
     "--env",
     "offline",

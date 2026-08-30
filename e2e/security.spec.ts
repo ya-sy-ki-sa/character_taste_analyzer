@@ -85,7 +85,6 @@ test("CSRF・水平権限・stored XSS・実行中削除を防御する", async 
   const xssMarker = '<img src=x onerror="window.__storedXss=true">';
   const entryKey = crypto.randomUUID();
   const entryData = {
-    schemaVersion: "2" as const,
     registrationType: "original" as const,
     characterName: "安全性検証",
     characterBasicInfo: "仲間を守る責任感の強い人物。危険な状況では自分を犠牲にして仲間を逃がす。",
@@ -129,7 +128,6 @@ test("CSRF・水平権限・stored XSS・実行中削除を防御する", async 
       Origin: "https://attacker.invalid",
     },
     data: {
-      schemaVersion: "2",
       registrationType: "original",
       characterName: "攻撃元",
       characterBasicInfo: "Origin検査の対象となるオリジナルキャラクターの基本情報です。",
@@ -143,7 +141,6 @@ test("CSRF・水平権限・stored XSS・実行中削除を防御する", async 
   const missingCsrf = await page.request.post("/api/v1/entries", {
     headers: { "Idempotency-Key": crypto.randomUUID(), Origin: "http://localhost:41737" },
     data: {
-      schemaVersion: "2",
       registrationType: "original",
       characterName: "CSRF検証",
       characterBasicInfo: "CSRF検査の対象となるオリジナルキャラクターの基本情報です。",

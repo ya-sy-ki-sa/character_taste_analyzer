@@ -14,7 +14,6 @@
   },
   "vars": {
     "ENVIRONMENT": "local",
-    "DEPLOYMENT_PROFILE": "free_validation",
     "DATASTORE_STRATEGY": "d1",
     "LLM_PROVIDER": "openai",
     "LLM_MODEL": "gpt-5.6-luna",
@@ -37,8 +36,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "character-taste-lab-v2-clean-local",
-      "database_id": "00000000-0000-4000-8000-000000000002",
+      "database_name": "character-taste-lab-current-local",
+      "database_id": "00000000-0000-4000-8000-000000000003",
       "migrations_dir": "docs/詳細設計/database"
     }
   ],
@@ -79,7 +78,6 @@
       "name": "character-taste-lab-v2-offline",
       "vars": {
         "ENVIRONMENT": "local",
-        "DEPLOYMENT_PROFILE": "free_validation",
         "DATASTORE_STRATEGY": "d1",
         "LLM_PROVIDER": "replay",
         "LLM_MODEL": "replay-v1",
@@ -102,8 +100,8 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "character-taste-lab-v2-clean-local",
-          "database_id": "00000000-0000-4000-8000-000000000002",
+          "database_name": "character-taste-lab-current-local",
+          "database_id": "00000000-0000-4000-8000-000000000003",
           "migrations_dir": "docs/詳細設計/database"
         }
       ],
@@ -141,7 +139,6 @@
       "name": "character-taste-lab-staging",
       "vars": {
         "ENVIRONMENT": "preview",
-        "DEPLOYMENT_PROFILE": "free_validation",
         "DATASTORE_STRATEGY": "d1",
         "LLM_PROVIDER": "workers_ai",
         "LLM_MODEL": "@cf/openai/gpt-oss-120b",
@@ -172,12 +169,6 @@
       "ai": {
         "binding": "AI"
       },
-      "vectorize": [
-        {
-          "binding": "VECTORS",
-          "index_name": "character-taste-bge-m3-staging"
-        }
-      ],
       "r2_buckets": [
         {
           "binding": "EXPORTS",
@@ -211,7 +202,6 @@
       "name": "character-taste-lab",
       "vars": {
         "ENVIRONMENT": "production",
-        "DEPLOYMENT_PROFILE": "free_validation",
         "DATASTORE_STRATEGY": "d1",
         "LLM_PROVIDER": "openai",
         "LLM_MODEL": "gpt-5.6-sol",
@@ -242,12 +232,6 @@
       "ai": {
         "binding": "AI"
       },
-      "vectorize": [
-        {
-          "binding": "VECTORS",
-          "index_name": "character-taste-text-embedding-3-small-1536"
-        }
-      ],
       "r2_buckets": [
         {
           "binding": "EXPORTS",

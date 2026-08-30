@@ -37,7 +37,6 @@ export const loginSchema = z.object({
   accessKey: z.string().uuid(),
   turnstileToken: z.string().optional(),
 });
-export const keyRotationSchema = z.object({ currentAccessKey: z.string().uuid() });
 export const accountDeletionSchema = z.object({ usernameConfirmation: usernameSchema });
 
 export const registrationTypeSchema = z.enum(["existing", "customized_existing", "original"]);
@@ -68,11 +67,7 @@ export type PreferenceInput = z.infer<typeof preferenceInputSchema>;
 
 const commonEntryFields = {
   preferenceContext: optionalText(2_000),
-  /** @deprecated 旧ローカルデータの読込み専用。新規入力にはpreferenceContextを使用する。 */
-  knownScope: optionalText(2_000),
   referenceMaterial: optionalText(20_000),
-  /** @deprecated 旧ローカルデータの読込み専用。新規入力にはreferenceMaterialを使用する。 */
-  sourceText: optionalText(20_000),
   userCharacterView: optionalText(4_000),
   preference: preferenceInputSchema,
 };
@@ -87,60 +82,37 @@ export const identityResolutionSchema = z.discriminatedUnion("mode", [
 ]);
 export type IdentityResolution = z.infer<typeof identityResolutionSchema>;
 
-const legacyExistingEntryDraftSchema = z.object({
-  ...commonEntryFields,
-  schemaVersion: z.literal("1"),
-  registrationType: z.literal("existing"),
-  workTitle: text(200),
-  characterName: text(200),
-  mediaType: optionalText(100),
-});
-const legacyCustomizedExistingEntryDraftSchema = z.object({
-  ...commonEntryFields,
-  schemaVersion: z.literal("1"),
-  registrationType: z.literal("customized_existing"),
-  workTitle: text(200),
-  characterName: text(200),
-  mediaType: optionalText(100),
-  representationType: z.enum(["facet", "scene_state", "alternate_setting", "transformative", "user_interpretation"]),
-  customizationDescription: text(8_000, "どのように基本像から異なるか入力してください"),
-});
-const legacyOriginalEntryDraftSchema = z.object({
-  ...commonEntryFields,
-  schemaVersion: z.literal("1"),
-  registrationType: z.literal("original"),
-  characterName: text(200),
-  characterBasicInfo: text(20_000, "キャラクター基本情報を入力してください"),
-});
-
-export const existingEntryDraftSchema = z.object({
-  ...commonEntryFields,
-  schemaVersion: z.literal("2"),
-  registrationType: z.literal("existing"),
-  workTitle: text(200),
-  characterName: text(200),
-  mediaType: optionalText(100),
-  identityResolution: identityResolutionSchema,
-});
-export const customizedExistingEntryDraftSchema = z.object({
-  ...commonEntryFields,
-  schemaVersion: z.literal("2"),
-  registrationType: z.literal("customized_existing"),
-  workTitle: text(200),
-  baseCharacterName: text(200),
-  characterName: text(200),
-  mediaType: optionalText(100),
-  representationType: z.enum(["facet", "scene_state", "alternate_setting", "transformative", "user_interpretation"]),
-  customizationDescription: text(8_000, "どのように基本像から異なるか入力してください"),
-  identityResolution: identityResolutionSchema,
-});
-export const originalEntryDraftSchema = z.object({
-  ...commonEntryFields,
-  schemaVersion: z.literal("2"),
-  registrationType: z.literal("original"),
-  characterName: text(200),
-  characterBasicInfo: text(20_000, "キャラクター基本情報を入力してください"),
-});
+export const existingEntryDraftSchema = z
+  .object({
+    ...commonEntryFields,
+    registrationType: z.literal("existing"),
+    workTitle: text(200),
+    characterName: text(200),
+    mediaType: optionalText(100),
+    identityResolution: identityResolutionSchema,
+  })
+  .strict();
+export const customizedExistingEntryDraftSchema = z
+  .object({
+    ...commonEntryFields,
+    registrationType: z.literal("customized_existing"),
+    workTitle: text(200),
+    baseCharacterName: text(200),
+    characterName: text(200),
+    mediaType: optionalText(100),
+    representationType: z.enum(["facet", "scene_state", "alternate_setting", "transformative", "user_interpretation"]),
+    customizationDescription: text(8_000, "どのように基本像から異なるか入力してください"),
+    identityResolution: identityResolutionSchema,
+  })
+  .strict();
+export const originalEntryDraftSchema = z
+  .object({
+    ...commonEntryFields,
+    registrationType: z.literal("original"),
+    characterName: text(200),
+    characterBasicInfo: text(20_000, "キャラクター基本情報を入力してください"),
+  })
+  .strict();
 
 export const entrySubmissionSchema = z.discriminatedUnion("registrationType", [
   existingEntryDraftSchema,
@@ -149,14 +121,7 @@ export const entrySubmissionSchema = z.discriminatedUnion("registrationType", [
 ]);
 export const entryReanalysisSchema = z.object({ draft: entrySubmissionSchema });
 export type EntryReanalysisInput = z.infer<typeof entryReanalysisSchema>;
-export const entryDraftSchema = z.union([
-  entrySubmissionSchema,
-  z.discriminatedUnion("registrationType", [
-    legacyExistingEntryDraftSchema,
-    legacyCustomizedExistingEntryDraftSchema,
-    legacyOriginalEntryDraftSchema,
-  ]),
-]);
+export const entryDraftSchema = entrySubmissionSchema;
 export type EntryDraft = z.infer<typeof entryDraftSchema>;
 export type EntrySubmission = z.infer<typeof entrySubmissionSchema>;
 
@@ -176,7 +141,7 @@ export type IdentityCandidate = {
 };
 
 export function entryPreferenceContext(draft: EntryDraft): string | undefined {
-  return draft.preferenceContext ?? draft.knownScope;
+  return draft.preferenceContext;
 }
 
 export function entryScopeText(draft: EntryDraft): string {
@@ -184,17 +149,12 @@ export function entryScopeText(draft: EntryDraft): string {
 }
 
 export function entryReferenceMaterial(draft: EntryDraft): string | undefined {
-  return draft.referenceMaterial ?? draft.sourceText;
+  return draft.referenceMaterial;
 }
 
-/**
- * The canonical character used to resolve identities and construct the base
- * understanding. Legacy customized drafts predate the separate field, so
- * their display name is also their base character name.
- */
 export function entryBaseCharacterName(draft: EntryDraft): string {
   if (draft.registrationType !== "customized_existing") return draft.characterName;
-  return "baseCharacterName" in draft ? draft.baseCharacterName : draft.characterName;
+  return draft.baseCharacterName;
 }
 
 export type EntryInputSource = {
@@ -628,7 +588,6 @@ export type ProfileView = {
   profileSnapshotId: string;
   evidenceSetHash: string;
   dimensions: ProfileDimension[];
-  patterns: Array<{ id: string; type: string; label: string; description: string; score: number; confidence: number }>;
   valueStances: Array<{ orientation: string; stance: string; count: number; labels: string[] }>;
   entryCount: number;
   updatedAt: string;
@@ -664,7 +623,7 @@ export type AccountExportStatus = {
   id: string;
   jobId: string;
   status: "queued" | "running" | "ready" | "failed" | "expired";
-  schemaVersion: "2.0";
+  schemaVersion: "3.0";
   byteSize: number | null;
   contentHash: string | null;
   errorCode: string | null;

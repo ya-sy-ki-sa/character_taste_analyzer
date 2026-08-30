@@ -13,7 +13,7 @@ UI / HTTP / Workflow trigger
             ↓
  Domain Model ← Port interface
                     ↑
-       D1 / R2 / Vectorize / LLM / Cloudflare Adapter
+       D1 / R2 / Workflow / LLM / Embedding Adapter
 ```
 
 - domainはI/Oを行わない
@@ -201,9 +201,7 @@ interface BrowserGraphProjector {
 |---|---|---|---|
 | Repository/UoW | `D1*Repository`、`D1UnitOfWork` | `InMemory*Repository` | PostgreSQL Adapter |
 | ObjectStore | `R2ObjectStore` | memory/fake | S3-compatible |
-| VectorSearchStore | `VectorizeStore` | deterministic fake | pgvector、managed vector DB |
 | LlmProvider | `OpenAiLlmProvider`、`WorkersAiLlmProvider` | `FixtureLlmProvider`、`ReplayLlmProvider` | Provider追加、operation別routing |
-| DeploymentProfile | `FreeValidationStrategy` | test limit strategy | paid/external |
 | Graph | `GraphologyBrowserGraphEngine` | pure in-memory | server/graph DB |
 
 Adapter選択は環境変数文字列を直接各use caseで分岐せず、composition rootのfactory一箇所で行う。
@@ -223,16 +221,14 @@ Adapter選択は環境変数文字列を直接各use caseで分岐せず、compo
 
 `LLM_FALLBACK_PROVIDER`が明示され、両ProviderがDD-15の固定評価とDD-04のdata policyを通過した場合のみ、`LlmProviderRouter`が一時障害に対してfallbackできる。各実呼出しは別の`model_run_metadata`として保存し、途中切替を隠さない。
 
-Embeddingは`EmbeddingProvider` factoryでOpenAI、Workers AI、Fakeを独立選択する。ローカル標準はWorkers AIとし、productionのOpenAI Adapterは`POST /v1/embeddings`で`text-embedding-3-small`を1536次元で呼び出す。全Adapterは文書IDと入力順を保持し、応答件数、有限値、設定次元数を共通検証する。model変更時はVectorizeの次元数一致と再index計画を必須とする。
+Embeddingは`EmbeddingProvider` factoryでOpenAI、Workers AI、Fakeを独立選択する。全Adapterは文書IDと入力順を保持し、応答件数、有限値、設定次元数を共通検証する。現行はvector保存bindingを持たないが、Provider境界は将来の保存先追加に対して維持する。
 
 ```typescript
 interface ApplicationPorts {
   unitOfWork: UnitOfWork;
   objectStore: ObjectStore;
-  vectorStore: VectorSearchStore;
   llm: LlmProvider;
   embedding: EmbeddingProvider;
-  deployment: DeploymentProfileStrategy;
   clock: Clock;
   ids: IdGenerator;
 }
@@ -260,7 +256,7 @@ type OutboxHandler = (event: OutboxEvent) => Promise<
 >;
 ```
 
-Vectorize/R2の更新成功後にoutboxをpublishedへする。途中失敗時はD1正本をrollbackせず、再配送または派生再構築で回復する。
+R2やWorkflowの外部処理成功後にoutboxをpublishedへする。途中失敗時はD1正本をrollbackせず、再配送または派生再構築で回復する。
 
 ## 9. 契約test
 
@@ -285,6 +281,5 @@ Adapter交換は性能問題だけで行わず、観測値と運用要件からA
 - D1容量・write contention・query latencyがDD-14の閾値を継続超過
 - 全ユーザー横断集計やserver-side graph traversalが要件化
 - SLA、multi-region、point-in-time recovery要件が無料検証構成を超える
-- Vectorizeのfilter・index数・再構築時間が運用目標を満たさない
 
 交換時もAPI、domain、Repository契約を維持し、dual-read/writeを暗黙導入しない。backfill、検証、read切替、旧系停止を明示したmigration planを作る。

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, idempotencyKey, setCsrfToken } from "../api";
 import { Turnstile } from "../components/Turnstile";
 import { Brand, Modal, Notice, Spinner } from "../components/Ui";
@@ -22,7 +23,12 @@ export function Landing({ onLogin }: { onLogin(user: SessionUser): void }) {
     <main className="landing">
       <nav className="landing-nav">
         <Brand />
-        <span className="nav-note">好きの輪郭を、ていねいに。</span>
+        <div className="landing-nav-links">
+          <span className="nav-note">好きの輪郭を、ていねいに。</span>
+          <Link to="/about-analyzer">
+            分析器の現在地 <span aria-hidden="true">→</span>
+          </Link>
+        </div>
       </nav>
       <section className="hero">
         <div className="hero-copy">

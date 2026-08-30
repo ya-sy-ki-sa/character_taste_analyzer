@@ -13,7 +13,7 @@ import {
 import { nextQuotaSlot, quotaLimit } from "../worker/services/quota-policy";
 
 const source: ProvenanceSource = {
-  fragmentId: "fragment-1",
+  sourceId: "source-1",
   text: "彼女は最後まで自分の規範を曲げない。",
   inputPointer: "/referenceMaterial",
   url: null,
@@ -35,7 +35,7 @@ describe("provenance verifier", () => {
   it("computes offsets and hash from an exact input quote", async () => {
     const result = await verifyEvidenceReference(evidence(), [source], new Set());
     expect(result).toMatchObject({
-      sourceFragmentId: "fragment-1",
+      sourceId: "source-1",
       evidenceOrigin: "user_input",
       quoteStart: 7,
       quoteEnd: 17,
@@ -47,7 +47,7 @@ describe("provenance verifier", () => {
 
   it("canonicalizes a prompt heading accidentally included in the input pointer", async () => {
     const customizationSource: ProvenanceSource = {
-      fragmentId: "fragment-customization",
+      sourceId: "source-customization",
       text: "犯罪組織「暁」に所属しているナルト",
       inputPointer: "/customizationDescription",
       url: null,
@@ -63,7 +63,7 @@ describe("provenance verifier", () => {
       new Set(),
     );
     expect(result).toMatchObject({
-      sourceFragmentId: "fragment-customization",
+      sourceId: "source-customization",
       verificationStatus: "verified_quote",
       inputPointer: "/customizationDescription",
       quoteStart: 0,
@@ -123,7 +123,7 @@ describe("provenance verifier", () => {
   it("resolves allowed URL, sourceRef and quote-only references", async () => {
     const webSource: ProvenanceSource = {
       ...source,
-      fragmentId: "web",
+      sourceId: "web",
       inputPointer: null,
       url: "https://allowed.example",
       origin: "source",
@@ -144,7 +144,7 @@ describe("provenance verifier", () => {
       [source],
       new Set(),
     );
-    expect(byRef.sourceFragmentId).toBe(source.fragmentId);
+    expect(byRef.sourceId).toBe(source.sourceId);
 
     const byQuote = await verifyEvidenceReference(
       evidence({ sourceRef: null, inputPointer: null }),
@@ -157,7 +157,7 @@ describe("provenance verifier", () => {
   it("accepts canonical URL variants without weakening the source allowlist", async () => {
     const webSource: ProvenanceSource = {
       ...source,
-      fragmentId: "canonical-web",
+      sourceId: "canonical-web",
       inputPointer: null,
       url: "https://allowed.example/articles/hero/?utm_source=chatgpt.com#profile",
       origin: "source",
@@ -173,7 +173,7 @@ describe("provenance verifier", () => {
       new Set([webSource.url as string]),
     );
     expect(result).toMatchObject({
-      sourceFragmentId: "canonical-web",
+      sourceId: "canonical-web",
       evidenceOrigin: "source",
       verificationStatus: "source_attributed",
     });
@@ -383,7 +383,6 @@ describe("profile context preservation", () => {
   it("canonicalizes and preserves a version 2 context", () => {
     expect(
       profileConditionJson(
-        "legacy",
         JSON.stringify({
           schemaVersion: "2",
           conditions: ["夜"],
@@ -393,8 +392,8 @@ describe("profile context preservation", () => {
     ).toBe('{"conditions":["夜"],"entryScope":"全体","schemaVersion":"2"}');
   });
 
-  it("falls back safely for malformed and legacy contexts", () => {
-    expect(profileConditionJson(" 限定場面 ", "broken")).toBe('{"schemaVersion":"1","scope":"限定場面"}');
-    expect(profileConditionJson("キャラクター全体", '{"schemaVersion":"1"}')).toBe("{}");
+  it("rejects malformed and removed legacy contexts", () => {
+    expect(profileConditionJson("broken")).toBe("{}");
+    expect(profileConditionJson('{"schemaVersion":"1","scope":"限定場面"}')).toBe("{}");
   });
 });

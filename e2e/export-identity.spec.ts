@@ -38,7 +38,6 @@ test("identity候補をowner内だけでreuseし、完全exportを認証付き�
   const owner = await createUser(ownerApi, "identity-owner");
   const other = await createUser(otherApi, "identity-other");
   const character = {
-    schemaVersion: "2",
     registrationType: "existing",
     workTitle: "候補分離作品",
     characterName: "候補分離キャラクター",
@@ -111,7 +110,7 @@ test("identity候補をowner内だけでreuseし、完全exportを認証付き�
     schemaVersion: string;
     entries: { entries: unknown[]; identities: unknown[]; representations: unknown[] };
   };
-  expect(payload.schemaVersion).toBe("2.0");
+  expect(payload.schemaVersion).toBe("3.0");
   expect(payload.entries.entries).toHaveLength(2);
   expect(payload.entries.identities).toHaveLength(1);
   expect(payload.entries.representations).toHaveLength(2);

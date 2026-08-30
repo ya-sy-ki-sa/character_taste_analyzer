@@ -4,10 +4,10 @@ import { collectCharacterResearch } from "../worker/services/character-research"
 import type { Env } from "../worker/types";
 
 const existing: EntryDraft = entryDraftSchema.parse({
-  schemaVersion: "1",
   registrationType: "existing",
   workTitle: "架空作品",
   characterName: "登場人物A",
+  identityResolution: { mode: "new" },
   preference: { responseChannels: [] },
 });
 
@@ -105,10 +105,10 @@ describe("system-side character research", () => {
     const result = await collectCharacterResearch(
       env("workers_ai"),
       entryDraftSchema.parse({
-        schemaVersion: "1",
         registrationType: "existing",
         workTitle: "NARUTO",
         characterName: "うずまきナルト",
+        identityResolution: { mode: "new" },
         preference: { responseChannels: [] },
       }),
     );
@@ -150,7 +150,6 @@ describe("system-side character research", () => {
     const result = await collectCharacterResearch(
       env("workers_ai"),
       entryDraftSchema.parse({
-        schemaVersion: "2",
         registrationType: "customized_existing",
         workTitle: "NARUTO",
         baseCharacterName: "うずまきナルト",
@@ -172,7 +171,6 @@ describe("system-side character research", () => {
     const result = await collectCharacterResearch(
       env("workers_ai"),
       entryDraftSchema.parse({
-        schemaVersion: "1",
         registrationType: "original",
         characterName: "オリジナルA",
         characterBasicInfo: "自分で作ったオリジナルキャラクターの基本的な設定。",

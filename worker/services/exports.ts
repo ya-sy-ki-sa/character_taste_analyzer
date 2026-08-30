@@ -42,7 +42,7 @@ export async function createAccountExport(env: Env, ownerUserId: string, idempot
     ).bind(jobId, ownerUserId, exportId, quota.id, now, now),
     env.DB.prepare(
       `INSERT INTO account_exports (id,owner_user_id,job_id,status,schema_version,created_at,updated_at)
-       VALUES (?,?,?,'queued','2.0',?,?)`,
+       VALUES (?,?,?,'queued','3.0',?,?)`,
     ).bind(exportId, ownerUserId, jobId, now, now),
     outbox.statement,
   ]);
@@ -62,11 +62,8 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     works,
     identities,
     representations,
-    sourceDocuments,
-    sourceRevisions,
-    sourceFragments,
+    sources,
     sourceSets,
-    sourceSetVersions,
     sourceSetItems,
     understandingRuns,
     understandingSnapshots,
@@ -88,7 +85,6 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     generationPreferences,
     generationBriefs,
     generatedCharacters,
-    generatedCharacterRevisions,
     generationBasisLinks,
     generationValidations,
     modelRuns,
@@ -109,26 +105,11 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     rows(env, `SELECT * FROM works WHERE owner_user_id=?`, ownerUserId),
     rows(env, `SELECT * FROM character_identities WHERE owner_user_id=?`, ownerUserId),
     rows(env, `SELECT * FROM character_representations WHERE owner_user_id=?`, ownerUserId),
-    rows(env, `SELECT * FROM source_documents WHERE owner_user_id=?`, ownerUserId),
-    rows(
-      env,
-      `SELECT r.* FROM source_document_revisions r JOIN source_documents d ON d.id=r.source_document_id WHERE d.owner_user_id=?`,
-      ownerUserId,
-    ),
-    rows(
-      env,
-      `SELECT f.* FROM source_fragments f JOIN source_document_revisions r ON r.id=f.source_document_revision_id JOIN source_documents d ON d.id=r.source_document_id WHERE d.owner_user_id=?`,
-      ownerUserId,
-    ),
+    rows(env, `SELECT * FROM sources WHERE owner_user_id=?`, ownerUserId),
     rows(env, `SELECT * FROM source_sets WHERE owner_user_id=?`, ownerUserId),
     rows(
       env,
-      `SELECT v.* FROM source_set_versions v JOIN source_sets s ON s.id=v.source_set_id WHERE s.owner_user_id=?`,
-      ownerUserId,
-    ),
-    rows(
-      env,
-      `SELECT i.* FROM source_set_items i JOIN source_set_versions v ON v.id=i.source_set_version_id JOIN source_sets s ON s.id=v.source_set_id WHERE s.owner_user_id=?`,
+      `SELECT i.* FROM source_set_items i JOIN source_sets s ON s.id=i.source_set_id WHERE s.owner_user_id=?`,
       ownerUserId,
     ),
     rows(env, `SELECT * FROM character_understanding_runs WHERE owner_user_id=?`, ownerUserId),
@@ -177,12 +158,7 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     rows(env, `SELECT * FROM generated_characters WHERE owner_user_id=?`, ownerUserId),
     rows(
       env,
-      `SELECT r.* FROM generated_character_revisions r JOIN generated_characters c ON c.id=r.generated_character_id WHERE c.owner_user_id=?`,
-      ownerUserId,
-    ),
-    rows(
-      env,
-      `SELECT l.* FROM generation_basis_links l JOIN generated_character_revisions r ON r.id=l.generated_character_revision_id JOIN generated_characters c ON c.id=r.generated_character_id WHERE c.owner_user_id=?`,
+      `SELECT l.* FROM generation_basis_links l JOIN generated_characters c ON c.id=l.generated_character_id WHERE c.owner_user_id=?`,
       ownerUserId,
     ),
     rows(env, `SELECT * FROM generation_validation_runs WHERE owner_user_id=?`, ownerUserId),
@@ -195,18 +171,11 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     rows(env, `SELECT a.* FROM job_attempts a JOIN jobs j ON j.id=a.job_id WHERE j.owner_user_id=?`, ownerUserId),
   ]);
   return {
-    schemaVersion: "2.0",
+    schemaVersion: "3.0",
     exportedAt: nowIso(),
     user: user[0] ?? null,
     entries: { entries, revisions, works, identities, representations },
-    sources: {
-      documents: sourceDocuments,
-      revisions: sourceRevisions,
-      fragments: sourceFragments,
-      sets: sourceSets,
-      setVersions: sourceSetVersions,
-      setItems: sourceSetItems,
-    },
+    sources: { sources, sets: sourceSets, setItems: sourceSetItems },
     understanding: {
       runs: understandingRuns,
       snapshots: understandingSnapshots,
@@ -227,7 +196,6 @@ async function collectAccountData(env: Env, ownerUserId: string) {
       preferences: generationPreferences,
       briefs: generationBriefs,
       characters: generatedCharacters,
-      revisions: generatedCharacterRevisions,
       basisLinks: generationBasisLinks,
       validations: generationValidations,
     },

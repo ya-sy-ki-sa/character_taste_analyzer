@@ -27,7 +27,6 @@ type AssertionRow = {
   explicitness: "user_explicit" | "user_confirmed" | "inferred" | "model_knowledge";
   confidence: number;
   context_json: string;
-  known_scope: string | null;
   evidence_count: number;
   evidence_quality: number;
 };
@@ -149,7 +148,7 @@ function canonicalJson(input: string): string {
 async function weightAssertions(rows: AssertionRow[]): Promise<WeightedAssertion[]> {
   return Promise.all(
     rows.map(async (row) => {
-      const conditionJson = profileConditionJson(row.known_scope, row.context_json);
+      const conditionJson = profileConditionJson(row.context_json);
       const conditionHash = await sha256Hex(conditionJson);
       const stableKey = row.stable_key ?? `raw:${normalizeIdentityPart(row.normalized_label || row.raw_label)}`;
       const contribution = clamp01(
@@ -242,21 +241,21 @@ async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<
     SELECT pa.id, e.id AS entry_id, pa.entry_revision_id, pa.character_identity_id, ci.work_id,
            pa.attribute_definition_id, ad.stable_key, ad.label, ad.category, rm.raw_label,
            rm.normalized_label, pa.polarity, pa.response_channel, pa.strength, pa.explicitness,
-           pa.confidence, pa.context_json, er.known_scope,
+           pa.confidence, pa.context_json,
            COUNT(ef.id) AS evidence_count,
            COALESCE(MAX(CASE ef.verification_status
              WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
-             WHEN 'legacy_unverified' THEN 0.2 WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
+             WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
     FROM preference_assertions pa
     JOIN entry_revisions er ON er.id = pa.entry_revision_id
     JOIN user_character_entries e ON e.id = er.entry_id AND e.active_revision_number = er.revision_number
-    JOIN character_identities ci ON ci.id = pa.character_identity_id AND ci.deleted_at IS NULL
+    JOIN character_identities ci ON ci.id = pa.character_identity_id
     LEFT JOIN attribute_definitions ad ON ad.id = pa.attribute_definition_id
     JOIN raw_attribute_mentions rm ON rm.id = pa.raw_mention_id
     LEFT JOIN evidence_fragments ef ON ef.owner_type = 'preference_assertion' AND ef.owner_id = pa.id
     WHERE pa.owner_user_id = ? AND pa.status IN ('confirmed', 'corrected')
-      AND e.owner_user_id = ? AND e.status = 'active' AND e.deleted_at IS NULL
+      AND e.owner_user_id = ? AND e.status = 'active'
     GROUP BY pa.id
     ORDER BY pa.id
   `).bind(ownerUserId, ownerUserId),
@@ -271,14 +270,14 @@ async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueSta
            COALESCE(MAX(CASE ef.verification_status
              WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
-             WHEN 'legacy_unverified' THEN 0.2 WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
+             WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
     FROM value_stance_assertions vs
     JOIN analysis_runs ar ON ar.id = vs.analysis_run_id
     JOIN entry_revisions er ON er.id = ar.entry_revision_id
     JOIN user_character_entries e ON e.id = er.entry_id AND e.active_revision_number = er.revision_number
     LEFT JOIN evidence_fragments ef ON ef.owner_type = 'value_stance_assertion' AND ef.owner_id = vs.id
     WHERE vs.owner_user_id = ? AND vs.status IN ('confirmed', 'corrected')
-      AND e.owner_user_id = ? AND e.status = 'active' AND e.deleted_at IS NULL
+      AND e.owner_user_id = ? AND e.status = 'active'
     GROUP BY vs.id ORDER BY vs.id
   `).bind(ownerUserId, ownerUserId),
   );
@@ -452,9 +451,9 @@ export async function rebuildProfile(
     statements.push(
       env.DB.prepare(`
       INSERT INTO profile_snapshot_items
-        (id, profile_snapshot_id, source_dimension_id, source_pattern_id, item_type, stable_key,
+        (id, profile_snapshot_id, source_dimension_id, item_type, stable_key,
          label, payload_json, content_hash, ordinal, created_at)
-      VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         item.id,
         profileSnapshotId,
@@ -563,18 +562,6 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     WHERE pd.profile_projection_id=? ORDER BY pd.rank_order, pd.id
   `).bind(projection.id),
   );
-  const patternRows = await all<{
-    id: string;
-    pattern_type: string;
-    label: string;
-    description: string;
-    score: number;
-    confidence: number;
-  }>(
-    env.DB.prepare(
-      `SELECT id, pattern_type, label, description, score, confidence FROM profile_patterns WHERE profile_projection_id=? AND status!='rejected' ORDER BY rank_order,id`,
-    ).bind(projection.id),
-  );
   const stanceRows = await all<{ orientation: string; stance: string; count: number; labels: string }>(
     env.DB.prepare(`
     SELECT vs.orientation, vs.stance, COUNT(*) AS count,
@@ -584,13 +571,13 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
     LEFT JOIN attribute_definitions ad ON ad.stable_key=vs.target_ref AND ad.status='active'
       AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' ORDER BY created_at DESC LIMIT 1)
-    WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active' AND e.deleted_at IS NULL
+    WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active'
     GROUP BY vs.orientation,vs.stance ORDER BY count DESC,vs.orientation,vs.stance
   `).bind(ownerUserId),
   );
   const entryCount = await first<{ count: number }>(
     env.DB.prepare(
-      `SELECT COUNT(*) AS count FROM user_character_entries WHERE owner_user_id=? AND status='active' AND deleted_at IS NULL`,
+      `SELECT COUNT(*) AS count FROM user_character_entries WHERE owner_user_id=? AND status='active'`,
     ).bind(ownerUserId),
   );
   return {
@@ -612,14 +599,6 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
       identityCount: row.identity_count,
       classification: row.classification,
       flags: JSON.parse(row.flags_json) as string[],
-    })),
-    patterns: patternRows.map((row) => ({
-      id: row.id,
-      type: row.pattern_type,
-      label: row.label,
-      description: row.description,
-      score: row.score,
-      confidence: row.confidence,
     })),
     valueStances: stanceRows.map((row) => ({
       orientation: row.orientation,

@@ -171,7 +171,7 @@ account削除要求と同時にuserを`deleting`へし、全sessionを失効す�
 | error | 最大attempt | backoff | 備考 |
 |---|---:|---|---|
 | LLM 429/5xx/timeout | 4 | 10s, 30s, 2m, 10m + jitter | `Retry-After`優先 |
-| R2/Vectorize一時error | 5 | 5s〜15m exponential | 派生処理はdead letter後再構築可 |
+| R2一時error | 5 | 5s〜15m exponential | export object処理を再試行 |
 | D1 busy/transient | 3 | 1s, 3s, 10s + jitter | transaction全体を再実行 |
 | schema invalid | repair 2 | 即時 | 以後non-retryable |
 | auth/owner mismatch | 0 | なし | security event |

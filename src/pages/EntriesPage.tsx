@@ -23,6 +23,7 @@ import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stan
 import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 import { evidenceQuoteLabel, explicitnessLabel } from "../lib/analysis-labels";
+import { buildCharacterMarkdown, characterMarkdownFilename } from "../lib/entry-markdown";
 
 type EntryList = { entries: EntrySummary[] };
 type EvidenceDetail = {
@@ -181,12 +182,9 @@ function formStateFromDraft(draft: EntryDraft): FormState {
 
 function entrySubmissionFromForm(form: FormState, identityResolution: IdentityResolution): EntrySubmission {
   const common = {
-    schemaVersion: "2" as const,
     characterName: form.characterName,
     preferenceContext: form.preferenceContext || undefined,
-    knownScope: undefined,
     referenceMaterial: form.referenceMaterial || undefined,
-    sourceText: undefined,
     userCharacterView: form.userCharacterView || undefined,
     preference: {
       likedReasons: form.likedReasons || undefined,
@@ -251,7 +249,7 @@ const analysisErrorLabels: Record<string, string> = {
 
 const analysisErrorFallbackDetails: Record<string, string> = {
   EXTERNAL_CITATION_NOT_ALLOWED:
-    "LLMの構造化応答は取得できましたが、回答内の参照URLがWeb Search注釈・収集済み出典と一致しなかったため、本システムが根拠としての採用を拒否しました。このエラー自体はOpenAIの拒否やセンシティブ判定を示しません。旧記録では不一致URLを復元できません。",
+    "LLMの構造化応答は取得できましたが、回答内の参照URLがWeb Search注釈・収集済み出典と一致しなかったため、本システムが根拠としての採用を拒否しました。このエラー自体はOpenAIの拒否やセンシティブ判定を示しません。",
 };
 
 function analysisErrorDetail(code: string, detail: string | null): string {
@@ -267,6 +265,7 @@ export function EntriesPage() {
   const [detailId, setDetailId] = useState<string>();
   const [reanalysisId, setReanalysisId] = useState<string>();
   const [retryingId, setRetryingId] = useState<string>();
+  const [downloadingId, setDownloadingId] = useState<string>();
   const [notice, setNotice] = useState<{ tone: "success" | "danger" | "info"; message: string }>();
   const entries = useQuery({
     queryKey: ["entries"],
@@ -307,6 +306,30 @@ export function EntriesPage() {
     } finally {
       setRetryingId(undefined);
       await queryClient.invalidateQueries({ queryKey: ["entries"] });
+    }
+  }
+
+  async function downloadCharacterInformation(entry: EntrySummary) {
+    setDownloadingId(entry.id);
+    setNotice(undefined);
+    try {
+      const detail = await api<ReviewDetail>(`/api/v1/entries/${entry.id}`);
+      const blob = new Blob([buildCharacterMarkdown(detail)], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = characterMarkdownFilename(detail.entry.draft);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setNotice({
+        tone: "danger",
+        message: error instanceof Error ? error.message : "登録情報をダウンロードできませんでした",
+      });
+    } finally {
+      setDownloadingId(undefined);
     }
   }
 
@@ -375,6 +398,13 @@ export function EntriesPage() {
               <div className="entry-actions">
                 <button type="button" onClick={() => setDetailId(entry.id)}>
                   内容を見る
+                </button>
+                <button
+                  type="button"
+                  disabled={downloadingId === entry.id}
+                  onClick={() => void downloadCharacterInformation(entry)}
+                >
+                  {downloadingId === entry.id ? "Markdownを作成中…" : "登録情報をMarkdownで保存"}
                 </button>
                 {entry.status === "failed" && entry.job?.retryable && (
                   <button type="button" disabled={retryingId === entry.id} onClick={() => retry(entry)}>
@@ -911,7 +941,7 @@ function ReanalysisForm({
       return;
     }
     const currentResolution: IdentityResolution =
-      draft.registrationType !== "original" && draft.schemaVersion === "2" ? draft.identityResolution : { mode: "new" };
+      draft.registrationType !== "original" ? draft.identityResolution : { mode: "new" };
     const selectedCandidate = resolvedCandidates?.find((item) => item.characterIdentityId === resolvedIdentityId);
     const identityResolution: IdentityResolution = identityChanged
       ? selectedCandidate
@@ -1481,7 +1511,6 @@ const evidenceStatusLabels: Record<string, string> = {
   verified_quote: "原文照合済み",
   source_attributed: "出典のみ確認",
   model_knowledge: "モデル知識",
-  legacy_unverified: "旧データ・未検証",
   invalid: "根拠を検証できません",
 };
 

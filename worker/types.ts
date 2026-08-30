@@ -42,10 +42,8 @@ export type Env = {
   PROFILE_REBUILD_WORKFLOW?: WorkflowBinding<ProfileRebuildWorkflowParams>;
   ACCOUNT_EXPORT_WORKFLOW?: WorkflowBinding<ExportWorkflowParams>;
   EXPORTS?: R2Bucket;
-  VECTORS?: VectorizeIndex;
   ASSETS?: Fetcher;
   ENVIRONMENT: "local" | "preview" | "production";
-  DEPLOYMENT_PROFILE: "free_validation" | "cloudflare_paid" | "external_scale";
   DATASTORE_STRATEGY?: string;
   APP_ORIGIN?: string;
   AUTH_PEPPER: string;
@@ -78,7 +76,6 @@ export type Session = {
   username: string;
   csrfToken: string;
   expiresAt: string;
-  credentialGeneration: number;
 };
 
 export type AppVariables = {

@@ -50,8 +50,8 @@ type EntryContext = {
   representationId: string;
   baseRepresentationId: string | null;
   characterIdentityId: string;
-  sourceSetVersionId: string | null;
-  sourceFragmentId: string | null;
+  sourceSetId: string | null;
+  sourceId: string | null;
   payload: EntryDraft;
 };
 
@@ -135,7 +135,7 @@ export async function retryCharacterAnalysis(
       FROM jobs j
       JOIN user_character_entries e ON e.id=j.target_id AND e.owner_user_id=j.owner_user_id
       WHERE j.id=? AND j.owner_user_id=? AND j.job_type='character_analysis'
-        AND j.target_type='entry' AND e.deleted_at IS NULL
+        AND j.target_type='entry'
     `,
     ).bind(jobId, ownerUserId),
   );
@@ -177,7 +177,7 @@ export async function retryCharacterAnalysis(
     ).bind(currentStep, progressCurrent, now, jobId, ownerUserId),
     env.DB.prepare(
       `UPDATE user_character_entries SET status=?,updated_at=?,revision=revision+1
-       WHERE id=? AND owner_user_id=? AND deleted_at IS NULL`,
+       WHERE id=? AND owner_user_id=?`,
     ).bind(entryStatus, now, job.target_id, ownerUserId),
     outbox.statement,
   ]);
@@ -202,22 +202,21 @@ async function loadEntry(env: Env, ownerUserId: string, entryId: string): Promis
     representation_id: string;
     base_representation_id: string | null;
     character_identity_id: string;
-    source_set_version_id: string | null;
+    source_set_id: string | null;
     registration_payload_json: string;
-    source_fragment_id: string | null;
+    source_id: string | null;
   }>(
     env.DB.prepare(
       `
     SELECT e.id, e.owner_user_id, e.registration_type, er.id AS revision_id, er.representation_id,
-           r.base_representation_id, r.character_identity_id, er.source_set_version_id,
+           r.base_representation_id, r.character_identity_id, er.source_set_id,
            er.registration_payload_json,
-           (SELECT sf.id FROM source_set_items ssi
-            JOIN source_fragments sf ON sf.source_document_revision_id = ssi.source_document_revision_id
-            WHERE ssi.source_set_version_id = er.source_set_version_id ORDER BY ssi.priority, sf.ordinal LIMIT 1) AS source_fragment_id
+           (SELECT ssi.source_id FROM source_set_items ssi
+            WHERE ssi.source_set_id = er.source_set_id ORDER BY ssi.priority, ssi.source_id LIMIT 1) AS source_id
     FROM user_character_entries e
     JOIN entry_revisions er ON er.entry_id = e.id AND er.revision_number = e.active_revision_number
     JOIN character_representations r ON r.id = er.representation_id
-    WHERE e.id = ? AND e.owner_user_id = ? AND e.deleted_at IS NULL
+    WHERE e.id = ? AND e.owner_user_id = ?
   `,
     ).bind(entryId, ownerUserId),
   );
@@ -230,8 +229,8 @@ async function loadEntry(env: Env, ownerUserId: string, entryId: string): Promis
     representationId: row.representation_id,
     baseRepresentationId: row.base_representation_id,
     characterIdentityId: row.character_identity_id,
-    sourceSetVersionId: row.source_set_version_id,
-    sourceFragmentId: row.source_fragment_id,
+    sourceSetId: row.source_set_id,
+    sourceId: row.source_id,
     payload: entryDraftSchema.parse(JSON.parse(row.registration_payload_json)),
   };
 }
@@ -888,11 +887,11 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
     const externalProvenance = await prepareExternalProvenanceSources(
       env,
       params.ownerUserId,
-      entry.sourceSetVersionId,
+      entry.sourceSetId,
       externalSources,
     );
     const provenanceSources = [
-      ...(await loadInputProvenanceSources(env, entry.sourceSetVersionId)),
+      ...(await loadInputProvenanceSources(env, entry.sourceSetId)),
       ...externalProvenance.sources,
     ];
     const allowedUrls = new Set(externalSources.map((source) => source.url));
@@ -953,7 +952,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         env.DB.prepare(
           `
         INSERT INTO character_understanding_runs
-          (id, owner_user_id, entry_revision_id, representation_id, source_set_version_id, run_generation, status, model_run_metadata_id, revision, started_at, completed_at, created_at)
+          (id, owner_user_id, entry_revision_id, representation_id, source_set_id, run_generation, status, model_run_metadata_id, revision, started_at, completed_at, created_at)
         SELECT ?, ?, ?, ?, ?, ?, 'succeeded', ?, 1, ?, ?, ?
         WHERE EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner_user_id=? AND status='running' AND current_step=?)
       `,
@@ -962,7 +961,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           params.ownerUserId,
           entry.entryRevisionId,
           call.representationId,
-          entry.sourceSetVersionId,
+          entry.sourceSetId,
           generation,
           modelRun.id,
           now,
@@ -980,8 +979,8 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         env.DB.prepare(
           `
         INSERT INTO character_understanding_snapshots
-          (id, owner_user_id, understanding_run_id, representation_id, base_snapshot_id, source_set_version_id,
-           snapshot_generation, known_scope, status, overall_confidence, source_assessment_json, summary_json,
+          (id, owner_user_id, understanding_run_id, representation_id, base_snapshot_id, source_set_id,
+           snapshot_generation, preference_context, status, overall_confidence, source_assessment_json, summary_json,
            uncertainties_json, model_run_metadata_id, ontology_version, content_hash, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'needs_review', ?, ?, ?, ?, ?, '1.0', ?, ?)
       `,
@@ -991,9 +990,9 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           runId,
           call.representationId,
           baseSnapshotId,
-          entry.sourceSetVersionId,
+          entry.sourceSetId,
           snapshotGeneration.next_generation,
-          entryScopeText(entry.payload),
+          entry.payload.preferenceContext ?? null,
           Math.min(1, confidence),
           JSON.stringify(call.value.sourceAssessment),
           JSON.stringify(call.value.summary),
@@ -1068,16 +1067,15 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
             env.DB.prepare(
               `
               INSERT INTO evidence_fragments
-                (id,owner_user_id,owner_type,owner_id,source_fragment_id,evidence_origin,support_type,quote_start,
-                 quote_end,quote_hash,excerpt_text,user_input_path,confidence,verification_status,inference_type,
-                 provenance_schema_version,created_at)
-              VALUES (?,?,'character_assertion',?,?,?,'supports',?,?,?,?,?,?,?,?,'2',?)
+                (id,owner_user_id,owner_type,owner_id,source_id,evidence_origin,support_type,quote_start,
+                 quote_end,quote_hash,excerpt_text,user_input_path,confidence,verification_status,inference_type,created_at)
+              VALUES (?,?,'character_assertion',?,?,?,'supports',?,?,?,?,?,?,?,?,?)
             `,
             ).bind(
               crypto.randomUUID(),
               params.ownerUserId,
               assertionId,
-              verified.sourceFragmentId,
+              verified.sourceId,
               verified.evidenceOrigin,
               verified.quoteStart,
               verified.quoteEnd,
@@ -1205,7 +1203,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     );
     if (!snapshot) throw new Error("CONFIRMED_UNDERSTANDING_REQUIRED");
     const ontology = await loadOntology(env);
-    const provenanceSources = await loadInputProvenanceSources(env, entry.sourceSetVersionId);
+    const provenanceSources = await loadInputProvenanceSources(env, entry.sourceSetId);
     const allowedUrls = new Set(provenanceSources.flatMap((source) => (source.url ? [source.url] : [])));
     const characterAssertions = await all<{
       raw_label: string;
@@ -1438,15 +1436,14 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         statements.push(
           env.DB.prepare(
             `INSERT INTO evidence_fragments
-              (id,owner_user_id,owner_type,owner_id,source_fragment_id,evidence_origin,support_type,quote_start,
-               quote_end,quote_hash,excerpt_text,user_input_path,confidence,verification_status,inference_type,
-               provenance_schema_version,created_at)
-             VALUES (?,?,'preference_assertion',?,?,?,'supports',?,?,?,?,?,?,?,?,'2',?)`,
+              (id,owner_user_id,owner_type,owner_id,source_id,evidence_origin,support_type,quote_start,
+               quote_end,quote_hash,excerpt_text,user_input_path,confidence,verification_status,inference_type,created_at)
+             VALUES (?,?,'preference_assertion',?,?,?,'supports',?,?,?,?,?,?,?,?,?)`,
           ).bind(
             crypto.randomUUID(),
             params.ownerUserId,
             id,
-            verified.sourceFragmentId,
+            verified.sourceId,
             verified.evidenceOrigin,
             verified.quoteStart,
             verified.quoteEnd,
@@ -1490,15 +1487,14 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         statements.push(
           env.DB.prepare(
             `INSERT INTO evidence_fragments
-              (id,owner_user_id,owner_type,owner_id,source_fragment_id,evidence_origin,support_type,quote_start,
-               quote_end,quote_hash,excerpt_text,user_input_path,confidence,verification_status,inference_type,
-               provenance_schema_version,created_at)
-             VALUES (?,?,'value_stance_assertion',?,?,?,'supports',?,?,?,?,?,?,?,?,'2',?)`,
+              (id,owner_user_id,owner_type,owner_id,source_id,evidence_origin,support_type,quote_start,
+               quote_end,quote_hash,excerpt_text,user_input_path,confidence,verification_status,inference_type,created_at)
+             VALUES (?,?,'value_stance_assertion',?,?,?,'supports',?,?,?,?,?,?,?,?,?)`,
           ).bind(
             crypto.randomUUID(),
             params.ownerUserId,
             id,
-            verified.sourceFragmentId,
+            verified.sourceId,
             verified.evidenceOrigin,
             verified.quoteStart,
             verified.quoteEnd,

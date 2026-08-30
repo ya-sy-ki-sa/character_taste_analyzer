@@ -17,16 +17,12 @@ function canonicalJson(input: string): string {
   }
 }
 
-export function profileConditionJson(knownScope: string | null, contextJson?: string | null): string {
-  if (contextJson) {
-    try {
-      const context = JSON.parse(contextJson) as Record<string, unknown>;
-      if (context.schemaVersion === "2") return canonicalJson(contextJson);
-    } catch {
-      // A malformed historical value falls through to the stable legacy scope.
-    }
+export function profileConditionJson(contextJson?: string | null): string {
+  if (!contextJson) return "{}";
+  try {
+    const context = JSON.parse(contextJson) as Record<string, unknown>;
+    return context.schemaVersion === "2" ? canonicalJson(contextJson) : "{}";
+  } catch {
+    return "{}";
   }
-  const scope = knownScope?.normalize("NFKC").trim() ?? "";
-  if (!scope || scope === "キャラクター全体") return "{}";
-  return canonicalJson(JSON.stringify({ schemaVersion: "1", scope }));
 }

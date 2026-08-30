@@ -10,7 +10,6 @@ import {
   generationRequestInputSchema,
   identityCandidateRequestSchema,
   understandingReviewRequestSchema,
-  keyRotationSchema,
   loginSchema,
   registrationSchema,
 } from "../shared/schemas";
@@ -77,7 +76,7 @@ const definitions: RouteDefinition[] = [
   {
     method: "post",
     path: "/api/v1/entries",
-    summary: "Create schema v2 entry",
+    summary: "Create entry",
     body: entrySubmissionSchema,
     status: 202,
   },
@@ -127,7 +126,6 @@ const definitions: RouteDefinition[] = [
   },
   { method: "get", path: "/api/v1/jobs/{id}", summary: "Job status", params: idParams },
   { method: "post", path: "/api/v1/jobs/{id}/retry", summary: "Retry by job type", params: idParams, status: 202 },
-  { method: "post", path: "/api/v1/account/key-rotation", summary: "Rotate access key", body: keyRotationSchema },
   {
     method: "post",
     path: "/api/v1/account/exports",

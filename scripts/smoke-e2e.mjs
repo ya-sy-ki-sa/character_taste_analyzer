@@ -54,7 +54,6 @@ csrf = session.csrfToken;
 const created = await request("/entries", {
   method: "POST",
   body: JSON.stringify({
-    schemaVersion: "2",
     registrationType: "customized_existing",
     workTitle: "架空検証作品",
     baseCharacterName: "黒曜卿（原典）",

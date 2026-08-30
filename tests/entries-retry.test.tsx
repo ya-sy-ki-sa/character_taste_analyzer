@@ -71,7 +71,6 @@ describe("登録済みキャラクターの再分析", () => {
                 status: "active",
                 registrationType: "existing",
                 draft: {
-                  schemaVersion: "2",
                   registrationType: "existing",
                   workTitle: "架空作品",
                   characterName: "再実行テスト",
@@ -118,7 +117,6 @@ describe("登録済みキャラクターの再分析", () => {
     expect(reanalysisCall?.[1]).toEqual(expect.objectContaining({ method: "POST" }));
     expect(JSON.parse(String(reanalysisCall?.[1]?.body))).toMatchObject({
       draft: {
-        schemaVersion: "2",
         workTitle: "架空作品",
         characterName: "再実行テスト",
         mediaType: "アニメ版",

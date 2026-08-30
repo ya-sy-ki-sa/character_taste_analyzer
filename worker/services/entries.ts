@@ -42,8 +42,7 @@ export async function listIdentityCandidates(
              CASE WHEN ci.name_normalized=? AND w.title_normalized=? THEN 'exact'
                   ELSE 'work_and_character' END AS match
       FROM character_identities ci JOIN works w ON w.id=ci.work_id
-      WHERE ci.owner_user_id=? AND ci.deleted_at IS NULL
-        AND ci.name_normalized=? AND w.title_normalized=?
+      WHERE ci.owner_user_id=? AND ci.name_normalized=? AND w.title_normalized=?
       ORDER BY ci.updated_at DESC,ci.id LIMIT 20
     `).bind(
       normalizeIdentityPart(input.characterName),
@@ -95,9 +94,7 @@ async function loadEvidenceViews(
       env.DB.prepare(`
       SELECT ef.id,ef.owner_id,ef.verification_status,ef.inference_type,ef.excerpt_text,ef.user_input_path,
                sd.title,sd.citation_json
-        FROM evidence_fragments ef LEFT JOIN source_fragments sf ON sf.id=ef.source_fragment_id
-        LEFT JOIN source_document_revisions sr ON sr.id=sf.source_document_revision_id
-        LEFT JOIN source_documents sd ON sd.id=sr.source_document_id
+        FROM evidence_fragments ef LEFT JOIN sources sd ON sd.id=ef.source_id
         WHERE ef.owner_user_id=? AND ef.owner_type=? AND ef.owner_id IN (${placeholders(chunk.length)})
         ORDER BY ef.owner_id,ef.id
       `).bind(ownerUserId, ownerType, ...chunk),
@@ -138,7 +135,7 @@ export async function createEntry(
       SELECT e.id,j.id AS job_id,e.status,er.content_hash FROM user_character_entries e
       JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
       JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id
-      WHERE e.owner_user_id=? AND json_extract(e.draft_payload_json,'$.idempotencySeed')=?
+      WHERE e.owner_user_id=? AND e.creation_idempotency_hash=?
       ORDER BY e.created_at DESC LIMIT 1
     `).bind(ownerUserId, seed),
   );
@@ -154,7 +151,6 @@ export async function createEntry(
   const representationId = crypto.randomUUID();
   const baseRepresentationId = draft.registrationType === "customized_existing" ? crypto.randomUUID() : null;
   const sourceSetId = crypto.randomUUID();
-  const sourceSetVersionId = crypto.randomUUID();
   let identityId: string = crypto.randomUUID();
   let workId: string | null = draft.registrationType === "original" ? null : crypto.randomUUID();
   const resolution = draft.registrationType === "original" ? { mode: "new" as const } : draft.identityResolution;
@@ -165,7 +161,7 @@ export async function createEntry(
     const reusable = await first<{ identity_id: string; work_id: string | null }>(
       env.DB.prepare(`
         SELECT ci.id AS identity_id,ci.work_id FROM character_identities ci LEFT JOIN works w ON w.id=ci.work_id
-        WHERE ci.id=? AND ci.owner_user_id=? AND ci.deleted_at IS NULL AND ci.name_normalized=?
+        WHERE ci.id=? AND ci.owner_user_id=? AND ci.name_normalized=?
           AND (ci.work_id IS ? OR ci.work_id=?) AND (w.id IS NULL OR w.title_normalized=?)
       `).bind(
         resolution.characterIdentityId,
@@ -183,7 +179,7 @@ export async function createEntry(
     if (draft.registrationType !== "original" && workId) {
       statements.push(
         env.DB.prepare(
-          `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,'private','user_created',1,?,?)`,
+          `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,created_at,updated_at) VALUES (?,?,?,?,?,?,?)`,
         ).bind(
           workId,
           ownerUserId,
@@ -193,14 +189,11 @@ export async function createEntry(
           now,
           now,
         ),
-        env.DB.prepare(
-          `INSERT INTO work_versions (id,work_id,version_number,title,aliases_json,description,source_note,content_hash,created_by_user_id,created_at) VALUES (?,?,1,?,'[]',NULL,'ユーザー登録',?,?,?)`,
-        ).bind(crypto.randomUUID(), workId, draft.workTitle, await sha256Hex(draft.workTitle), ownerUserId, now),
       );
     }
     statements.push(
       env.DB.prepare(
-        `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,'private','user_created',1,?,?)`,
+        `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`,
       ).bind(
         identityId,
         draft.registrationType === "original" ? "original" : "existing",
@@ -218,7 +211,7 @@ export async function createEntry(
   if (baseRepresentationId && draft.registrationType === "customized_existing")
     statements.push(
       env.DB.prepare(
-        `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,NULL,?,'canonical_whole','official','whole',?,NULL,?,1,'private',1,?,?)`,
+        `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,created_at,updated_at) VALUES (?,?,NULL,?,'canonical_whole','official','whole',?,NULL,?,?,?)`,
       ).bind(
         baseRepresentationId,
         identityId,
@@ -255,7 +248,7 @@ export async function createEntry(
       : "whole";
   statements.push(
     env.DB.prepare(
-      `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,1,'private',1,?,?)`,
+      `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     ).bind(
       representationId,
       identityId,
@@ -276,52 +269,31 @@ export async function createEntry(
   const sourceSetHash = await sha256Hex(JSON.stringify(sources.map(({ pointer, text }) => ({ pointer, text }))));
   statements.push(
     env.DB.prepare(
-      `INSERT INTO source_sets (id,owner_user_id,purpose,active_version,created_at,updated_at) VALUES (?,?,'character_understanding',1,?,?)`,
-    ).bind(sourceSetId, ownerUserId, now, now),
-    env.DB.prepare(
-      `INSERT INTO source_set_versions (id,source_set_id,version,content_hash,created_at) VALUES (?,?,1,?,?)`,
-    ).bind(sourceSetVersionId, sourceSetId, sourceSetHash, now),
+      `INSERT INTO source_sets (id,owner_user_id,purpose,content_hash,created_at,updated_at) VALUES (?,?,'character_understanding',?,?,?)`,
+    ).bind(sourceSetId, ownerUserId, sourceSetHash, now, now),
   );
   for (const [ordinal, source] of sources.entries()) {
     const documentId = crypto.randomUUID();
-    const sourceRevisionId = crypto.randomUUID();
     const hash = await sha256Hex(source.text);
     statements.push(
       env.DB.prepare(
-        `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at) VALUES (?,?,?,'user_text','private',?,'user_supplied',1,1,?,?)`,
+        `INSERT INTO sources (id,owner_user_id,title,source_type,citation_json,rights_basis,mime_type,byte_size,content_hash,locator_json,text_content,token_estimate,created_at,updated_at) VALUES (?,?,?,'user_text',?,'user_supplied','text/plain',?,?,?,?,?,?,?)`,
       ).bind(
         documentId,
         ownerUserId,
         `${registrationTitle(draft)} ${source.label}`,
         JSON.stringify({ inputPointer: source.pointer }),
-        now,
-        now,
-      ),
-      env.DB.prepare(
-        `INSERT INTO source_document_revisions (id,source_document_id,revision_number,inline_text,mime_type,byte_size,content_hash,upload_status,extraction_status,finalized_at,created_at) VALUES (?,?,1,?,'text/plain',?,?,'finalized','ready',?,?)`,
-      ).bind(
-        sourceRevisionId,
-        documentId,
-        source.text,
         new TextEncoder().encode(source.text).byteLength,
         hash,
-        now,
-        now,
-      ),
-      env.DB.prepare(
-        `INSERT INTO source_fragments (id,source_document_revision_id,ordinal,locator_json,text_content,content_hash,token_estimate,created_at) VALUES (?,?,0,?,?,?,?,?)`,
-      ).bind(
-        crypto.randomUUID(),
-        sourceRevisionId,
         JSON.stringify({ type: "json_pointer", pointer: source.pointer }),
         source.text,
-        hash,
         Math.ceil(source.text.length / 3),
+        now,
         now,
       ),
       env.DB.prepare(
-        `INSERT INTO source_set_items (source_set_version_id,source_document_revision_id,priority,usage_type) VALUES (?,?,?,'user_definition')`,
-      ).bind(sourceSetVersionId, sourceRevisionId, ordinal + 1),
+        `INSERT INTO source_set_items (source_set_id,source_id,priority,usage_type) VALUES (?,?,?,'user_definition')`,
+      ).bind(sourceSetId, documentId, ordinal + 1),
     );
   }
 
@@ -341,24 +313,16 @@ export async function createEntry(
   );
   statements.push(
     env.DB.prepare(
-      `INSERT INTO user_character_entries (id,owner_user_id,registration_type,status,active_revision_number,active_generation,draft_schema_version,draft_payload_json,draft_updated_at,revision,created_at,updated_at) VALUES (?,?,?,'submitted',1,0,'2',?,?,1,?,?)`,
-    ).bind(
-      entryId,
-      ownerUserId,
-      draft.registrationType,
-      JSON.stringify({ ...draft, idempotencySeed: seed }),
-      now,
-      now,
-      now,
-    ),
+      `INSERT INTO user_character_entries (id,owner_user_id,registration_type,status,active_revision_number,active_generation,creation_idempotency_hash,revision,created_at,updated_at) VALUES (?,?,?,'submitted',1,0,?,1,?,?)`,
+    ).bind(entryId, ownerUserId, draft.registrationType, seed, now, now),
     env.DB.prepare(
-      `INSERT INTO entry_revisions (id,entry_id,revision_number,representation_id,source_set_version_id,known_scope,user_character_view,preference_input_json,registration_payload_json,content_hash,analysis_contract_version,created_at) VALUES (?,?,1,?,?,?,?,?,?,?,'2',?)`,
+      `INSERT INTO entry_revisions (id,entry_id,revision_number,representation_id,source_set_id,preference_context,user_character_view,preference_input_json,registration_payload_json,content_hash,created_at) VALUES (?,?,1,?,?,?,?,?,?,?,?)`,
     ).bind(
       revisionId,
       entryId,
       representationId,
-      sourceSetVersionId,
-      entryScopeText(draft),
+      sourceSetId,
+      draft.preferenceContext ?? null,
       draft.userCharacterView ?? null,
       JSON.stringify(draft.preference),
       payloadJson,
@@ -387,23 +351,22 @@ export async function createEntryReanalysis(
     status: string;
     active_revision_number: number;
     representation_id: string;
-    source_set_version_id: string | null;
+    source_set_id: string | null;
     character_identity_id: string;
     work_id: string | null;
-    known_scope: string;
+    preference_context: string | null;
     user_character_view: string | null;
     registration_payload_json: string;
-    entry_draft_payload_json: string;
   }>(
     env.DB.prepare(`
-      SELECT e.status,e.active_revision_number,e.draft_payload_json AS entry_draft_payload_json,
-        er.representation_id,er.source_set_version_id,er.known_scope,er.user_character_view,er.registration_payload_json,
+      SELECT e.status,e.active_revision_number,
+        er.representation_id,er.source_set_id,er.preference_context,er.user_character_view,er.registration_payload_json,
         cr.character_identity_id,ci.work_id
       FROM user_character_entries e
       JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
       JOIN character_representations cr ON cr.id=er.representation_id
       JOIN character_identities ci ON ci.id=cr.character_identity_id
-      WHERE e.id=? AND e.owner_user_id=? AND e.deleted_at IS NULL
+      WHERE e.id=? AND e.owner_user_id=?
     `).bind(entryId, ownerUserId),
   );
   if (!current) throw new Error("ENTRY_NOT_FOUND");
@@ -413,13 +376,6 @@ export async function createEntryReanalysis(
   if (nextDraft.registrationType !== previousDraft.registrationType)
     throw new Error("ENTRY_REGISTRATION_TYPE_IMMUTABLE");
   const payloadJson = JSON.stringify(nextDraft);
-  const currentMutableDraft = JSON.parse(current.entry_draft_payload_json) as Record<string, unknown>;
-  const draftPayloadJson = JSON.stringify({
-    ...nextDraft,
-    ...(typeof currentMutableDraft.idempotencySeed === "string"
-      ? { idempotencySeed: currentMutableDraft.idempotencySeed }
-      : {}),
-  });
   const contentHash = await sha256Hex(payloadJson);
   const revisionId = await deriveUuid(
     env.AUTH_PEPPER,
@@ -468,7 +424,7 @@ export async function createEntryReanalysis(
       const reusable = await first<{ identity_id: string; work_id: string | null }>(
         env.DB.prepare(`
           SELECT ci.id AS identity_id,ci.work_id FROM character_identities ci LEFT JOIN works w ON w.id=ci.work_id
-          WHERE ci.id=? AND ci.owner_user_id=? AND ci.deleted_at IS NULL AND ci.name_normalized=?
+          WHERE ci.id=? AND ci.owner_user_id=? AND ci.name_normalized=?
             AND (ci.work_id IS ? OR ci.work_id=?) AND (w.id IS NULL OR w.title_normalized=?)
         `).bind(
           nextDraft.identityResolution.characterIdentityId,
@@ -489,7 +445,7 @@ export async function createEntryReanalysis(
       if (nextDraft.registrationType !== "original" && workId) {
         preparationStatements.push(
           env.DB.prepare(
-            `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,'private','user_created',1,?,?)`,
+            `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,created_at,updated_at) VALUES (?,?,?,?,?,?,?)`,
           ).bind(
             workId,
             ownerUserId,
@@ -499,21 +455,11 @@ export async function createEntryReanalysis(
             now,
             now,
           ),
-          env.DB.prepare(
-            `INSERT INTO work_versions (id,work_id,version_number,title,aliases_json,description,source_note,content_hash,created_by_user_id,created_at) VALUES (?,?,1,?,'[]',NULL,'再分析で更新',?,?,?)`,
-          ).bind(
-            await deriveUuid(env.AUTH_PEPPER, `${revisionId}:work-version`),
-            workId,
-            nextDraft.workTitle,
-            await sha256Hex(nextDraft.workTitle),
-            ownerUserId,
-            now,
-          ),
         );
       }
       preparationStatements.push(
         env.DB.prepare(
-          `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,visibility,catalog_status,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,'private','user_created',1,?,?)`,
+          `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`,
         ).bind(
           identityId,
           nextDraft.registrationType === "original" ? "original" : "existing",
@@ -537,7 +483,7 @@ export async function createEntryReanalysis(
   if (baseRepresentationId && nextDraft.registrationType === "customized_existing")
     preparationStatements.push(
       env.DB.prepare(
-        `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,NULL,?,'canonical_whole','official','whole',?,NULL,?,1,'private',1,?,?)`,
+        `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,created_at,updated_at) VALUES (?,?,NULL,?,'canonical_whole','official','whole',?,NULL,?,?,?)`,
       ).bind(
         baseRepresentationId,
         identityId,
@@ -574,7 +520,7 @@ export async function createEntryReanalysis(
       : "whole";
   preparationStatements.push(
     env.DB.prepare(
-      `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,content_version,visibility,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,1,'private',1,?,?)`,
+      `INSERT INTO character_representations (id,character_identity_id,base_representation_id,owner_user_id,representation_type,canonicality,scope_type,scope_description,transformation_summary,source_description,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     ).bind(
       representationId,
       identityId,
@@ -593,57 +539,35 @@ export async function createEntryReanalysis(
   );
 
   const sourceSetId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-set`);
-  const sourceSetVersionId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-set-version`);
   const sources = entryInputSources(nextDraft);
   const sourceSetHash = await sha256Hex(JSON.stringify(sources.map(({ pointer, text }) => ({ pointer, text }))));
   preparationStatements.push(
     env.DB.prepare(
-      `INSERT INTO source_sets (id,owner_user_id,purpose,active_version,created_at,updated_at) VALUES (?,?,'character_understanding',1,?,?)`,
-    ).bind(sourceSetId, ownerUserId, now, now),
-    env.DB.prepare(
-      `INSERT INTO source_set_versions (id,source_set_id,version,content_hash,created_at) VALUES (?,?,1,?,?)`,
-    ).bind(sourceSetVersionId, sourceSetId, sourceSetHash, now),
+      `INSERT INTO source_sets (id,owner_user_id,purpose,content_hash,created_at,updated_at) VALUES (?,?,'character_understanding',?,?,?)`,
+    ).bind(sourceSetId, ownerUserId, sourceSetHash, now, now),
   );
   for (const [ordinal, source] of sources.entries()) {
     const documentId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-document:${ordinal}`);
-    const sourceRevisionId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-revision:${ordinal}`);
     const hash = await sha256Hex(source.text);
     preparationStatements.push(
       env.DB.prepare(
-        `INSERT INTO source_documents (id,owner_user_id,title,source_type,visibility,citation_json,rights_basis,active_revision_number,revision,created_at,updated_at) VALUES (?,?,?,'user_text','private',?,'user_supplied',1,1,?,?)`,
+        `INSERT INTO sources (id,owner_user_id,title,source_type,citation_json,rights_basis,mime_type,byte_size,content_hash,locator_json,text_content,token_estimate,created_at,updated_at) VALUES (?,?,?,'user_text',?,'user_supplied','text/plain',?,?,?,?,?,?,?)`,
       ).bind(
         documentId,
         ownerUserId,
         `${registrationTitle(nextDraft)} ${source.label}`,
         JSON.stringify({ inputPointer: source.pointer }),
-        now,
-        now,
-      ),
-      env.DB.prepare(
-        `INSERT INTO source_document_revisions (id,source_document_id,revision_number,inline_text,mime_type,byte_size,content_hash,upload_status,extraction_status,finalized_at,created_at) VALUES (?,?,1,?,'text/plain',?,?,'finalized','ready',?,?)`,
-      ).bind(
-        sourceRevisionId,
-        documentId,
-        source.text,
         new TextEncoder().encode(source.text).byteLength,
         hash,
-        now,
-        now,
-      ),
-      env.DB.prepare(
-        `INSERT INTO source_fragments (id,source_document_revision_id,ordinal,locator_json,text_content,content_hash,token_estimate,created_at) VALUES (?,?,0,?,?,?,?,?)`,
-      ).bind(
-        await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-fragment:${ordinal}`),
-        sourceRevisionId,
         JSON.stringify({ type: "json_pointer", pointer: source.pointer }),
         source.text,
-        hash,
         Math.ceil(source.text.length / 3),
+        now,
         now,
       ),
       env.DB.prepare(
-        `INSERT INTO source_set_items (source_set_version_id,source_document_revision_id,priority,usage_type) VALUES (?,?,?,'user_definition')`,
-      ).bind(sourceSetVersionId, sourceRevisionId, ordinal + 1),
+        `INSERT INTO source_set_items (source_set_id,source_id,priority,usage_type) VALUES (?,?,?,'user_definition')`,
+      ).bind(sourceSetId, documentId, ordinal + 1),
     );
   }
   const quota = await prepareQuotaReservation(env, ownerUserId, "analysis", idempotencyKey, contentHash);
@@ -690,16 +614,16 @@ export async function createEntryReanalysis(
     ...preparationStatements,
     env.DB.prepare(
       `INSERT INTO entry_revisions
-        (id,entry_id,revision_number,representation_id,source_set_version_id,known_scope,user_character_view,
-         preference_input_json,registration_payload_json,content_hash,analysis_contract_version,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,'2',?)`,
+        (id,entry_id,revision_number,representation_id,source_set_id,preference_context,user_character_view,
+         preference_input_json,registration_payload_json,content_hash,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     ).bind(
       revisionId,
       entryId,
       revisionNumber,
       representationId,
-      sourceSetVersionId,
-      entryScopeText(nextDraft),
+      sourceSetId,
+      nextDraft.preferenceContext ?? null,
       nextDraft.userCharacterView ?? null,
       JSON.stringify(nextDraft.preference),
       payloadJson,
@@ -722,10 +646,9 @@ export async function createEntryReanalysis(
   const entryUpdateIndex = statements.length;
   statements.push(
     env.DB.prepare(
-      `UPDATE user_character_entries SET status='submitted',active_revision_number=?,draft_payload_json=?,
-        draft_updated_at=?,updated_at=?,revision=revision+1
+      `UPDATE user_character_entries SET status='submitted',active_revision_number=?,updated_at=?,revision=revision+1
        WHERE id=? AND owner_user_id=? AND active_revision_number=?`,
-    ).bind(revisionNumber, draftPayloadJson, now, now, entryId, ownerUserId, current.active_revision_number),
+    ).bind(revisionNumber, now, entryId, ownerUserId, current.active_revision_number),
     outbox.statement,
   );
   if (profileOutbox)
@@ -784,7 +707,7 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
       j.error_code,j.error_detail_safe
     FROM user_character_entries e JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
     LEFT JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id AND j.input_generation=e.active_revision_number
-    WHERE e.owner_user_id=? AND e.deleted_at IS NULL ORDER BY e.updated_at DESC,e.id
+    WHERE e.owner_user_id=? ORDER BY e.updated_at DESC,e.id
   `).bind(ownerUserId),
   );
   return rows.map((row) => {
@@ -825,7 +748,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
     env.DB.prepare(`
     SELECT e.status,e.registration_type,er.registration_payload_json,er.id AS revision_id,er.representation_id
     FROM user_character_entries e JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
-    WHERE e.id=? AND e.owner_user_id=? AND e.deleted_at IS NULL
+    WHERE e.id=? AND e.owner_user_id=?
   `).bind(entryId, ownerUserId),
   );
   if (!entry) return null;

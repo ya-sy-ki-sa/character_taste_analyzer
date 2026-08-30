@@ -6,7 +6,6 @@ function localEnv(overrides: Partial<Env> = {}): Env {
   return {
     DB: {} as D1Database,
     ENVIRONMENT: "local",
-    DEPLOYMENT_PROFILE: "free_validation",
     AUTH_PEPPER: "test-pepper",
     LLM_PROVIDER: "replay",
     LLM_MODEL: "replay-v1",
@@ -64,7 +63,6 @@ describe("readiness configuration", () => {
         "AI_BINDING_MISSING",
         "APP_ORIGIN_MISSING",
         "EXPORTS_BINDING_MISSING",
-        "VECTORS_BINDING_MISSING",
         "ANALYSIS_WORKFLOW_BINDING_MISSING",
         "GENERATION_WORKFLOW_BINDING_MISSING",
         "PROFILE_WORKFLOW_BINDING_MISSING",

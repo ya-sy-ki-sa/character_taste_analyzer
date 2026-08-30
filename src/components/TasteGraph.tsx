@@ -17,7 +17,6 @@ const colors: Record<string, string> = {
   response_channel: "#9c71c7",
   value_stance: "#d0658b",
   context: "#788497",
-  profile_pattern: "#5c74b8",
 };
 
 export function TasteGraph({ projection }: { projection: GraphProjection }) {

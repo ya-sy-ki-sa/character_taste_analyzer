@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useCallback, useEffect } from "react";
-import { Navigate, NavLink, Outlet, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ApiClientError, api, setCsrfToken, setSessionExpiredHandler } from "./api";
 import { Brand, Spinner } from "./components/Ui";
 import { Landing } from "./pages/Landing";
@@ -9,20 +9,24 @@ const EntriesPage = lazy(() => import("./pages/EntriesPage").then((module) => ({
 const GeneratePage = lazy(() => import("./pages/GeneratePage").then((module) => ({ default: module.GeneratePage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((module) => ({ default: module.ProfilePage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const AnalyzerStatusPage = lazy(() =>
+  import("./pages/AnalyzerStatusPage").then((module) => ({ default: module.AnalyzerStatusPage })),
+);
 
 export type SessionUser = { id: string; username: string };
 type MeResponse = { user: SessionUser; csrfToken: string; expiresAt: string };
 
 export function App() {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const navigate = useNavigate();
   const clearAuthentication = useCallback(() => {
     setCsrfToken(undefined);
     void queryClient.cancelQueries();
     queryClient.setQueryData<MeResponse | null>(["me"], null);
     queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== "me" });
-    navigate("/", { replace: true });
-  }, [navigate, queryClient]);
+    if (location.pathname.startsWith("/app")) navigate("/", { replace: true });
+  }, [location.pathname, navigate, queryClient]);
 
   useEffect(() => setSessionExpiredHandler(clearAuthentication), [clearAuthentication]);
 
@@ -67,6 +71,7 @@ export function App() {
       }
     >
       <Routes>
+        <Route path="/about-analyzer" element={<AnalyzerStatusPage />} />
         <Route path="/" element={me.data ? <Navigate to="/app/profile" replace /> : <Landing onLogin={login} />} />
         <Route
           path="/app"

@@ -8,7 +8,7 @@
     "schemaVersion",
     "snapshotId",
     "representationId",
-    "knownScope",
+    "preferenceContext",
     "status",
     "overallConfidence",
     "sourceAssessment",
@@ -22,7 +22,7 @@
     "snapshotId": { "$ref": "#/$defs/uuid" },
     "representationId": { "$ref": "#/$defs/uuid" },
     "baseSnapshotId": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
-    "knownScope": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "preferenceContext": { "type": ["string", "null"], "maxLength": 2000 },
     "status": {
       "enum": ["proposed", "needs_review", "confirmed", "corrected", "provisional", "provisional_accepted"]
     },

@@ -77,7 +77,7 @@ export async function rebuildGraphProjection(
     JOIN character_representations cr ON cr.id=er.representation_id
     JOIN character_identities ci ON ci.id=cr.character_identity_id
     LEFT JOIN works w ON w.id=ci.work_id
-    WHERE e.owner_user_id=? AND e.status='active' AND e.deleted_at IS NULL
+    WHERE e.owner_user_id=? AND e.status='active'
     ORDER BY ci.name,cr.id
   `).bind(ownerUserId),
   );

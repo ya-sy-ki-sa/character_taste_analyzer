@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 test("ログイン後に3方式の登録画面と主要画面を操作できる", async ({ page, request }) => {
   test.setTimeout(120_000);
@@ -190,6 +191,19 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await expect(page.getByText("現在: 解析済み")).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "閉じる" }).click();
 
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "登録情報をMarkdownで保存" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("黒曜卿UI-登録情報.md");
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const markdown = await readFile(downloadPath as string, "utf8");
+  expect(markdown).toContain("# 黒曜卿UI");
+  expect(markdown).toContain("既成キャラクターの基本像");
+  expect(markdown).toContain("善への無関心を明言");
+  expect(markdown).not.toContain("純粋悪と非道徳を穏当化せず");
+  expect(markdown).not.toContain("この登録から読み取った");
+
   await page.locator('.side-nav a[href="/app/profile"]').click();
   await expect(page.getByRole("heading", { name: "惹かれる属性" })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".graph-stage")).toBeVisible();
@@ -254,7 +268,6 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   expect(revisedDetailResponse.ok()).toBe(true);
   const revisedDraft = (await revisedDetailResponse.json()).data.entry.draft as Record<string, unknown>;
   expect(revisedDraft).toMatchObject({
-    schemaVersion: "2",
     registrationType: "customized_existing",
     workTitle: "UI架空作品・改訂版",
     baseCharacterName: "黒曜卿UI原典改訂",

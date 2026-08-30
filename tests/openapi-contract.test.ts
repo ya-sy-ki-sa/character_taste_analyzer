@@ -19,4 +19,13 @@ describe("as-built OpenAPI contract", () => {
       .sort();
     expect([...asBuiltRouteKeys].sort()).toEqual(actual);
   });
+
+  it("does not expose removed compatibility contracts", () => {
+    const document = buildAsBuiltOpenApi();
+    const serialized = JSON.stringify(document);
+    expect(document.paths).not.toHaveProperty("/api/v1/account/key-rotation");
+    expect(serialized).not.toContain("knownScope");
+    expect(serialized).not.toContain("sourceText");
+    expect(serialized).not.toContain("legacy_unverified");
+  });
 });

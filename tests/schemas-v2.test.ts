@@ -13,10 +13,9 @@ import {
   understandingCandidateSchema,
 } from "../shared/schemas";
 
-describe("v2 input contracts", () => {
+describe("current input contracts", () => {
   it("persists every citable customized-entry field with canonical pointers", () => {
     const draft = entryDraftSchema.parse({
-      schemaVersion: "2",
       registrationType: "customized_existing",
       workTitle: "NARUTO",
       baseCharacterName: "うずまきナルト",
@@ -35,9 +34,8 @@ describe("v2 input contracts", () => {
     expect(canonicalEntryInputPointer("/登録情報/customizationDescription")).toBe("/customizationDescription");
   });
 
-  it("requires a base character name for a v2 customized entry", () => {
+  it("requires a base character name for a customized entry", () => {
     const result = entryDraftSchema.safeParse({
-      schemaVersion: "2",
       registrationType: "customized_existing",
       workTitle: "NARUTO",
       characterName: "暁ナルト",
@@ -51,12 +49,13 @@ describe("v2 input contracts", () => {
 
   it("accepts a customized villain preference without moral normalization", () => {
     const result = entryDraftSchema.parse({
-      schemaVersion: "1",
       registrationType: "customized_existing",
       workTitle: "架空作品",
+      baseCharacterName: "悪役A",
       characterName: "悪役A",
       representationType: "facet",
       customizationDescription: "改心しない裏人格だけ",
+      identityResolution: { mode: "new" },
       preferenceContext: "第7話で裏人格が現れている間",
       referenceMaterial: "善への無関心を貫くヴィラン。",
       preference: {
@@ -72,7 +71,6 @@ describe("v2 input contracts", () => {
 
   it("accepts an entry without a preferred time, scene, or state", () => {
     const result = entryDraftSchema.parse({
-      schemaVersion: "1",
       registrationType: "original",
       characterName: "オリジナルA",
       characterBasicInfo: "自分の価値観に忠実で、未知の世界を旅する人物。",
@@ -84,7 +82,6 @@ describe("v2 input contracts", () => {
 
   it("requires basic character information for an original character", () => {
     const result = entryDraftSchema.safeParse({
-      schemaVersion: "1",
       registrationType: "original",
       characterName: "オリジナルA",
       preference: { responseChannels: [] },
@@ -95,7 +92,6 @@ describe("v2 input contracts", () => {
   it("accepts all revised entry inputs for reanalysis", () => {
     const result = entryReanalysisSchema.parse({
       draft: {
-        schemaVersion: "2",
         registrationType: "original",
         characterName: "再入力したキャラクター",
         characterBasicInfo: "再入力した基本情報",
@@ -110,6 +106,19 @@ describe("v2 input contracts", () => {
     expect(result.draft.characterName).toBe("再入力したキャラクター");
     expect(result.draft.referenceMaterial).toContain("参考情報");
     expect(result.draft.preference.responseChannels).toHaveLength(2);
+  });
+
+  it("rejects removed compatibility fields", () => {
+    const result = entryDraftSchema.safeParse({
+      schemaVersion: "2",
+      registrationType: "original",
+      characterName: "旧形式",
+      characterBasicInfo: "旧フィールドを含む入力",
+      knownScope: "旧対象範囲",
+      sourceText: "旧参考情報",
+      preference: { responseChannels: [] },
+    });
+    expect(result.success).toBe(false);
   });
 
   it("accepts user corrections and manual additions during understanding review", () => {

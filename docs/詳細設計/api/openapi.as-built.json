@@ -4185,7 +4185,7 @@
         }
       },
       "post": {
-        "summary": "Create schema v2 entry",
+        "summary": "Create entry",
         "requestBody": {
           "required": true,
           "content": {
@@ -4199,15 +4199,7 @@
                         "type": "string",
                         "maxLength": 2000
                       },
-                      "knownScope": {
-                        "type": "string",
-                        "maxLength": 2000
-                      },
                       "referenceMaterial": {
-                        "type": "string",
-                        "maxLength": 20000
-                      },
-                      "sourceText": {
                         "type": "string",
                         "maxLength": 20000
                       },
@@ -4285,12 +4277,6 @@
                             "maxLength": 2000
                           }
                         }
-                      },
-                      "schemaVersion": {
-                        "type": "string",
-                        "enum": [
-                          "2"
-                        ]
                       },
                       "registrationType": {
                         "type": "string",
@@ -4360,12 +4346,12 @@
                     },
                     "required": [
                       "preference",
-                      "schemaVersion",
                       "registrationType",
                       "workTitle",
                       "characterName",
                       "identityResolution"
-                    ]
+                    ],
+                    "additionalProperties": false
                   },
                   {
                     "type": "object",
@@ -4374,15 +4360,7 @@
                         "type": "string",
                         "maxLength": 2000
                       },
-                      "knownScope": {
-                        "type": "string",
-                        "maxLength": 2000
-                      },
                       "referenceMaterial": {
-                        "type": "string",
-                        "maxLength": 20000
-                      },
-                      "sourceText": {
                         "type": "string",
                         "maxLength": 20000
                       },
@@ -4460,12 +4438,6 @@
                             "maxLength": 2000
                           }
                         }
-                      },
-                      "schemaVersion": {
-                        "type": "string",
-                        "enum": [
-                          "2"
-                        ]
                       },
                       "registrationType": {
                         "type": "string",
@@ -4555,7 +4527,6 @@
                     },
                     "required": [
                       "preference",
-                      "schemaVersion",
                       "registrationType",
                       "workTitle",
                       "baseCharacterName",
@@ -4563,7 +4534,8 @@
                       "representationType",
                       "customizationDescription",
                       "identityResolution"
-                    ]
+                    ],
+                    "additionalProperties": false
                   },
                   {
                     "type": "object",
@@ -4572,15 +4544,7 @@
                         "type": "string",
                         "maxLength": 2000
                       },
-                      "knownScope": {
-                        "type": "string",
-                        "maxLength": 2000
-                      },
                       "referenceMaterial": {
-                        "type": "string",
-                        "maxLength": 20000
-                      },
-                      "sourceText": {
                         "type": "string",
                         "maxLength": 20000
                       },
@@ -4659,12 +4623,6 @@
                           }
                         }
                       },
-                      "schemaVersion": {
-                        "type": "string",
-                        "enum": [
-                          "2"
-                        ]
-                      },
                       "registrationType": {
                         "type": "string",
                         "enum": [
@@ -4684,11 +4642,11 @@
                     },
                     "required": [
                       "preference",
-                      "schemaVersion",
                       "registrationType",
                       "characterName",
                       "characterBasicInfo"
-                    ]
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               }
@@ -5973,15 +5931,7 @@
                             "type": "string",
                             "maxLength": 2000
                           },
-                          "knownScope": {
-                            "type": "string",
-                            "maxLength": 2000
-                          },
                           "referenceMaterial": {
-                            "type": "string",
-                            "maxLength": 20000
-                          },
-                          "sourceText": {
                             "type": "string",
                             "maxLength": 20000
                           },
@@ -6059,12 +6009,6 @@
                                 "maxLength": 2000
                               }
                             }
-                          },
-                          "schemaVersion": {
-                            "type": "string",
-                            "enum": [
-                              "2"
-                            ]
                           },
                           "registrationType": {
                             "type": "string",
@@ -6134,12 +6078,12 @@
                         },
                         "required": [
                           "preference",
-                          "schemaVersion",
                           "registrationType",
                           "workTitle",
                           "characterName",
                           "identityResolution"
-                        ]
+                        ],
+                        "additionalProperties": false
                       },
                       {
                         "type": "object",
@@ -6148,15 +6092,7 @@
                             "type": "string",
                             "maxLength": 2000
                           },
-                          "knownScope": {
-                            "type": "string",
-                            "maxLength": 2000
-                          },
                           "referenceMaterial": {
-                            "type": "string",
-                            "maxLength": 20000
-                          },
-                          "sourceText": {
                             "type": "string",
                             "maxLength": 20000
                           },
@@ -6234,12 +6170,6 @@
                                 "maxLength": 2000
                               }
                             }
-                          },
-                          "schemaVersion": {
-                            "type": "string",
-                            "enum": [
-                              "2"
-                            ]
                           },
                           "registrationType": {
                             "type": "string",
@@ -6329,7 +6259,6 @@
                         },
                         "required": [
                           "preference",
-                          "schemaVersion",
                           "registrationType",
                           "workTitle",
                           "baseCharacterName",
@@ -6337,7 +6266,8 @@
                           "representationType",
                           "customizationDescription",
                           "identityResolution"
-                        ]
+                        ],
+                        "additionalProperties": false
                       },
                       {
                         "type": "object",
@@ -6346,15 +6276,7 @@
                             "type": "string",
                             "maxLength": 2000
                           },
-                          "knownScope": {
-                            "type": "string",
-                            "maxLength": 2000
-                          },
                           "referenceMaterial": {
-                            "type": "string",
-                            "maxLength": 20000
-                          },
-                          "sourceText": {
                             "type": "string",
                             "maxLength": 20000
                           },
@@ -6433,12 +6355,6 @@
                               }
                             }
                           },
-                          "schemaVersion": {
-                            "type": "string",
-                            "enum": [
-                              "2"
-                            ]
-                          },
                           "registrationType": {
                             "type": "string",
                             "enum": [
@@ -6458,11 +6374,11 @@
                         },
                         "required": [
                           "preference",
-                          "schemaVersion",
                           "registrationType",
                           "characterName",
                           "characterBasicInfo"
-                        ]
+                        ],
+                        "additionalProperties": false
                       }
                     ]
                   }
@@ -11004,430 +10920,6 @@
             }
           },
           "202": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {}
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Origin or CSRF denied",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "State conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "410": {
-            "description": "Resource expired",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Body exceeds 64 KiB",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Semantic validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate or quota limited",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Dependency unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "requestId": {
-                          "type": "string"
-                        },
-                        "details": {}
-                      },
-                      "required": [
-                        "code",
-                        "message",
-                        "requestId"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/account/key-rotation": {
-      "post": {
-        "summary": "Rotate access key",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "currentAccessKey": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "required": [
-                  "currentAccessKey"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
             "description": "Success",
             "content": {
               "application/json": {

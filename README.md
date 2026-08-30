@@ -44,7 +44,7 @@ npm run dev:offline
 
 `offline`環境はLLMをReplay、EmbeddingをFakeへ明示的に切り替えます。Playwrightは専用portと毎回新しい一時D1を使い、既存serverや開発D1を再利用しません。通常起動時に失敗をFake成功へ置き換える暗黙fallbackはありません。
 
-旧アプリのローカルD1と混ざらないよう、新版は`character-taste-lab-v2-clean-local`と専用local database IDを使います。migrationの正本は`docs/詳細設計/database`です。
+現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`docs/詳細設計/database`の2つのbaselineです。
 
 ## AI Provider
 
@@ -85,21 +85,20 @@ Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全bui
 P0〜P2の縦断機能を実装済みです。`AUTH-01`は仕様として現状維持し、次はP3または別途判断が必要な後続incrementです。
 
 - R2への大容量資料upload、PDF／画像抽出
-- Vectorizeを使う生成類似度検査
+- Embedding Providerを利用した生成類似度検査（保存先は未実装）
 - assertion単位の訂正・却下と履歴比較UI
 - original characterの部分修正revisionとfeedbackの嗜好候補化
 - public visibility/consent、運用console
 - 大規模GraphProjectionのcursor page、IndexedDB cache、neighbor API
 
-未使用DDLのactive/reserved/deprecated分類とP0〜P3の状態は[実装アルファ](docs/実装アルファ/README.md)に記録しています。キャラクターdomainのDataStore Strategy境界と初期D1 Adapterは実装済みです。
+現行のデータ契約は46テーブルのbaseline DDLへ統合済みです。キャラクターdomainのDataStore Strategy境界とD1 Adapterは分離して実装しています。
 
 ## Cloudflareへ配置する前に
 
 1. staging／production用D1・private R2 bucket・Workflowを作成し、`wrangler.jsonc`のplaceholderを差し替える。
 2. `AUTH_PEPPER`、`OPENAI_API_KEY`、`TURNSTILE_SECRET`を`wrangler secret`で登録する。
-3. production用Vectorize index `character-taste-text-embedding-3-small-1536`を1536次元で作成する。
-4. 各環境の`APP_ORIGIN`を実際のHTTPS originへ設定する。
-5. Cron、R2 retention、Workflow binding、readinessを確認する。
-6. `npm run db:migrate:staging`、`npm run deploy:staging`で検証してからproductionへ進める。
+3. 各環境の`APP_ORIGIN`を実際のHTTPS originへ設定する。
+4. Cron、R2 retention、Workflow binding、readinessを確認する。
+5. `npm run db:migrate:staging`、`npm run deploy:staging`で検証してからproductionへ進める。
 
-ローカル既存22 Entryのexpand migration・再分析結果と復元手順は[移行レポート](docs/実装アルファ/07_ローカル移行結果.json)に記録しています。remote resourceの作成・deployは実施していません。
+ローカルD1は現行baselineへside-by-side移行・検証済みです。remote resourceの作成・deployは実施していません。

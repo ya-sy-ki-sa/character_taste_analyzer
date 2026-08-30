@@ -22,7 +22,7 @@ describe("generation snapshot item grouping", () => {
     const second = item({
       payload: {
         responseChannel: "fascination_with_transgression",
-        condition: { schemaVersion: "1", scope: "闇堕ちしている期間" },
+        condition: { schemaVersion: "2", entryScope: "闇堕ちしている期間" },
       },
     });
     const negative = item({ type: "negative_preference" });
@@ -32,7 +32,7 @@ describe("generation snapshot item grouping", () => {
     expect(groups).toHaveLength(2);
     expect(groups[0].itemIds).toEqual([first.id, second.id]);
     expect(groups[0].responseChannels).toEqual(["narrative_interest", "fascination_with_transgression"]);
-    expect(groups[0].conditions).toEqual([{}, { schemaVersion: "1", scope: "闇堕ちしている期間" }]);
+    expect(groups[0].conditions).toEqual([{}, { schemaVersion: "2", entryScope: "闇堕ちしている期間" }]);
   });
 
   it("expands one displayed selection to every underlying snapshot item", () => {

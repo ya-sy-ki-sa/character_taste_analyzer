@@ -24,7 +24,6 @@ function providerEnv(overrides: Partial<Env>): Env {
     EMBEDDING_PROVIDER: "fake",
     EMBEDDING_MODEL: "fake-v1",
     ENVIRONMENT: "local",
-    DEPLOYMENT_PROFILE: "free_validation",
     AUTH_PEPPER: "test",
     ANALYSIS_DAILY_QUOTA: "100",
     GENERATION_DAILY_QUOTA: "100",

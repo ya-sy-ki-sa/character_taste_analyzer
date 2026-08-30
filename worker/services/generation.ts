@@ -687,7 +687,6 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
       if (!report.passed) throw new Error("GENERATION_CONSTRAINT_VIOLATION");
     }
     const characterId = crypto.randomUUID();
-    const revisionId = crypto.randomUUID();
     const outputJson = JSON.stringify(candidate);
     const completed = nowIso();
     const statements: D1PreparedStatement[] = [
@@ -696,7 +695,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
          updated_at=?,completed_at=?,revision=revision+1
          WHERE id=? AND owner_user_id=? AND status='running' AND input_generation=?`,
       ).bind(
-        JSON.stringify({ generatedCharacterId: characterId, revisionId }),
+        JSON.stringify({ generatedCharacterId: characterId }),
         completed,
         completed,
         params.jobId,
@@ -705,21 +704,23 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
       ),
       env.DB.prepare(
         `INSERT INTO generated_characters
-          (id,owner_user_id,generation_request_id,status,active_revision_number,revision,created_at,updated_at)
-         SELECT ?,?,?,'generated',1,1,?,?
+          (id,owner_user_id,generation_request_id,status,generation_brief_id,schema_version,character_json,
+           content_hash,model_run_metadata_id,created_at,updated_at)
+         SELECT ?,?,?,'generated',?,'1.0',?,?,?,?,?
          WHERE EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner_user_id=? AND status='succeeded')`,
       ).bind(
         characterId,
         params.ownerUserId,
         params.generationRequestId,
+        briefRowId,
+        outputJson,
+        await sha256Hex(outputJson),
+        modelRunId,
         completed,
         completed,
         params.jobId,
         params.ownerUserId,
       ),
-      env.DB.prepare(
-        `INSERT INTO generated_character_revisions (id,generated_character_id,generation_brief_id,parent_revision_id,revision_number,revision_scope,schema_version,character_json,content_hash,model_run_metadata_id,created_at) VALUES (?,?,?,NULL,1,'full','1.0',?,?,?,?)`,
-      ).bind(revisionId, characterId, briefRowId, outputJson, await sha256Hex(outputJson), modelRunId, completed),
       env.DB.prepare(
         `UPDATE generation_requests SET status='generated',updated_at=?,revision=revision+1
          WHERE id=? AND owner_user_id=?
@@ -734,10 +735,10 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
       for (const pointer of item.outputPointers)
         statements.push(
           env.DB.prepare(
-            `INSERT INTO generation_basis_links (id,generated_character_revision_id,profile_snapshot_item_id,output_json_pointer,use_type,explanation,created_at) VALUES (?,?,?,?,?,?,?)`,
+            `INSERT INTO generation_basis_links (id,generated_character_id,profile_snapshot_item_id,output_json_pointer,use_type,explanation,created_at) VALUES (?,?,?,?,?,?,?)`,
           ).bind(
             crypto.randomUUID(),
-            revisionId,
+            characterId,
             item.profileSnapshotItemId,
             pointer,
             item.treatment === "prohibit" ? "avoided" : item.treatment === "explore" ? "explored" : "realized",
@@ -747,7 +748,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
         );
     const results = await env.DB.batch(statements);
     if (results.some((result) => !result.success)) throw new Error("D1_GENERATION_PERSIST_FAILED");
-    if (!results[0].meta.changes || !results[3].meta.changes || !results[4].meta.changes)
+    if (!results[0].meta.changes || !results[2].meta.changes || !results[3].meta.changes)
       throw new Error("GENERATION_COMMIT_FENCE_CHANGED");
   } catch (error) {
     if (error instanceof LlmProviderError) {
@@ -812,9 +813,8 @@ export async function listGenerations(env: Env, ownerUserId: string) {
     error_code: string | null;
   }>(
     env.DB.prepare(`
-    SELECT gc.id,gr.id AS request_id,gr.status,gr.mode,gr.created_at,gcr.character_json,j.status AS job_status,j.error_code
+    SELECT gc.id,gr.id AS request_id,gr.status,gr.mode,gr.created_at,gc.character_json,j.status AS job_status,j.error_code
     FROM generation_requests gr LEFT JOIN generated_characters gc ON gc.generation_request_id=gr.id
-    LEFT JOIN generated_character_revisions gcr ON gcr.generated_character_id=gc.id AND gcr.revision_number=gc.active_revision_number
     LEFT JOIN jobs j ON j.target_type='generation_request' AND j.target_id=gr.id
     WHERE gr.owner_user_id=? ORDER BY gr.created_at DESC,gr.id
   `).bind(ownerUserId),
@@ -844,18 +844,6 @@ export async function deleteGeneration(env: Env, ownerUserId: string, generation
     WHERE gr.id=? AND gr.owner_user_id=? AND gr.status IN ('generated','failed','cancelled')
   )`;
   const statements = [
-    env.DB.prepare(
-      `UPDATE generated_character_revisions SET parent_revision_id=NULL
-       WHERE generated_character_id IN (
-         SELECT id FROM generated_characters WHERE generation_request_id=? AND owner_user_id=?
-       ) AND ${terminalGuard}`,
-    ).bind(generationRequestId, ownerUserId, generationRequestId, ownerUserId),
-    env.DB.prepare(
-      `DELETE FROM generated_character_revisions
-       WHERE generated_character_id IN (
-         SELECT id FROM generated_characters WHERE generation_request_id=? AND owner_user_id=?
-       ) AND ${terminalGuard}`,
-    ).bind(generationRequestId, ownerUserId, generationRequestId, ownerUserId),
     env.DB.prepare(
       `DELETE FROM generated_characters WHERE generation_request_id=? AND owner_user_id=? AND ${terminalGuard}`,
     ).bind(generationRequestId, ownerUserId, generationRequestId, ownerUserId),

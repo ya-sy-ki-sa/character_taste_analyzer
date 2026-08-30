@@ -37,7 +37,6 @@ export function validateConfig(env: Env): ConfigValidation {
       }
     }
     if (!env.EXPORTS) errors.push("EXPORTS_BINDING_MISSING");
-    if (!env.VECTORS) errors.push("VECTORS_BINDING_MISSING");
     if (!env.CHARACTER_ANALYSIS_WORKFLOW) errors.push("ANALYSIS_WORKFLOW_BINDING_MISSING");
     if (!env.GENERATION_WORKFLOW) errors.push("GENERATION_WORKFLOW_BINDING_MISSING");
     if (!env.PROFILE_REBUILD_WORKFLOW) errors.push("PROFILE_WORKFLOW_BINDING_MISSING");

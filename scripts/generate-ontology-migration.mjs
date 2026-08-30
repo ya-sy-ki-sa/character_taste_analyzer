@@ -46,10 +46,6 @@ for (const attribute of attributes) {
     "  (id, schema_version_id, stable_key, category, label, definition, vocabulary_tier, moral_valence, status, created_at)",
     `VALUES (${sql(id)}, ${sql(schemaId)}, ${sql(attribute.key)}, ${sql(attribute.category)}, ${sql(attribute.label)}, ${sql(`${attribute.label}を表す統制属性。`)}, 'managed', ${sql(moralValence(attribute.key))}, 'active', ${sql(createdAt)});`,
     "",
-    "INSERT INTO attribute_aliases",
-    "  (id, attribute_definition_id, locale, alias, alias_normalized, alias_type, created_at)",
-    `VALUES (${sql(uuid(`character-taste:alias:${attribute.key}:ja`))}, ${sql(id)}, 'ja', ${sql(attribute.label)}, ${sql(attribute.label.normalize("NFKC").toLocaleLowerCase("ja-JP"))}, 'surface_form', ${sql(createdAt)});`,
-    "",
   );
 }
 

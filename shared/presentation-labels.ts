@@ -40,7 +40,6 @@ const graphNodeTypeLabels: Readonly<Record<string, string>> = {
   response_channel: "惹かれ方",
   value_stance: "価値スタンス",
   context: "条件・対象範囲",
-  profile_pattern: "嗜好パターン",
 };
 
 const graphEdgeTypeLabels: Readonly<Record<string, string>> = {

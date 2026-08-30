@@ -2,15 +2,14 @@
 
 - 文書種別: 詳細設計
 - 作成日: 2026-08-29
-- 上位設計: [基本設計ベータ](../基本設計ベータ/README.md)
-- 開発前提: 既存アプリケーション資産は利用せず、新規実装する
-- 例外: ユーザー登録、UUIDアクセスキー、有効化、セッション、キー変更、ログアウト、アカウント削除の方式は上位設計の現行踏襲仕様を保持する
+- 基準: 現行Worker、共有Zod schema、生成OpenAPI、baseline DDL
+- 互換方針: 旧Entry、旧根拠、key rotation等の互換API／列／tableは保持しない
 - 初期運用: Cloudflare無料枠の`free_validation`
 - LLM: OpenAI Adapterを初期必須、Workers AI Adapterを選択可能とし、環境設定で切り替える。ローカルの手動画面確認はWorkers AIを既定とし、自動テストはFake/Replayを使う。外部LLMの費用とquotaはCloudflare無料枠管理と分離する
 
 ## 1. 文書の目的
 
-本文書群は、基本設計ベータの要求を、実装、コードレビュー、テスト、運用設計に直接渡せる契約へ展開する。本文書で未確定と明記した値以外は実装仕様とする。
+本文書群は現行機能を、実装、コードレビュー、テスト、運用設計に直接渡せる契約へ展開する。実装との差異が生じた場合は、生成OpenAPI、共有Zod schema、baseline DDLを正本として同じ変更で文書を更新する。
 
 詳細設計で次を確定する。
 
@@ -21,7 +20,7 @@
 - ドメイン型、不変条件、状態遷移
 - D1の全DDL、index、削除規則、migration規則
 - Repository、Unit of Work、Strategy、Providerの契約
-- R2のobject key、Vectorize indexと派生同期
+- R2 export objectと派生同期
 - Workflow step、Queue event、retry、再開、削除
 - LLM入出力、RAG、根拠検証、修復、固定評価
 - 属性辞書、嗜好集計式、価値スタンス
@@ -42,7 +41,7 @@
 | DD-05 | [ドメインモデル](05_ドメインモデル.md) | aggregate、entity、value object、不変条件 |
 | DD-06 | [D1データベース](06_D1データベース.md) | physical schema、index、query、migration |
 | DD-07 | [Repository・Strategy](07_Repository・Strategy.md) | Port、UnitOfWork、Adapter、契約test |
-| DD-08 | [R2・Vectorize](08_R2・Vectorize.md) | object、index、metadata、削除、縮退 |
+| DD-08 | [R2・Embedding](08_R2・Embedding.md) | export object、Embedding Provider境界 |
 | DD-09 | [Workflow・Queue・Job](09_Workflow・Queue・Job.md) | step、event、retry、DLQ、再開 |
 | DD-10 | [LLM・RAG](10_LLM・RAG.md) | Provider、prompt、schema、grounding、eval |
 | DD-11 | [属性辞書・嗜好集計](11_属性辞書・嗜好集計.md) | ontology、score、confidence、pattern |
@@ -58,8 +57,7 @@
 
 | ファイル | 用途 |
 |---|---|
-| [OpenAPI 3.1](api/openapi.yaml) | HTTP APIの正式契約 |
-| [as-built OpenAPI 3.1](api/openapi.as-built.json) | 現行routeとZodから生成する実装契約 |
+| [OpenAPI 3.1](api/openapi.as-built.json) | 現行routeとZodから生成する正式契約 |
 | [D1初期DDL](database/001_initial.sql) | 初期migration |
 | [CharacterUnderstanding Schema](schemas/character-understanding.schema.json) | キャラクター基本像のLLM出力 |
 | [PreferenceAnalysis Schema](schemas/preference-analysis.schema.json) | 嗜好・価値スタンスのLLM出力 |
@@ -71,7 +69,7 @@
 
 不整合が見つかった場合は、実装で独自解釈せずADRを追加する。優先順位は次のとおりとする。
 
-1. 基本設計のユーザー価値・内面の自由・認証不変条件
+1. ユーザー価値・内面の自由・認証不変条件
 2. 本READMEとDD-00の共通規約
 3. 分野別の詳細設計
 4. OpenAPI、JSON Schema、DDLの機械可読契約
@@ -90,9 +88,9 @@
 ## 6. 実装完了の定義
 
 - OpenAPI、Zod schema、D1 DDL、TypeScript型の一致をCIで検査できる
-- D1 Adapterとin-memory test Adapterが同一Repository契約testを通過する
+- DataStore StrategyのPortとD1 Adapterの契約testが通過する
 - 3方式の登録から基本像確認、嗜好確認、Profile更新までをE2Eで検証できる
-- ProfileSnapshotから生成、部分修正、明示的feedback反映までをE2Eで検証できる
+- ProfileSnapshotから生成、生成根拠、ExportまでをE2Eで検証できる
 - 純粋悪、非道徳、善への無関心、端役、一場面限定、二次創作改変をLLM固定評価で扱える
 - 無料枠の警戒、縮退、受付停止、回復を擬似テストで検証できる
-- exportとaccount deletionがD1、R2、Vectorize、ブラウザcacheを含めて完了する
+- exportとaccount deletionがD1、R2、ブラウザcacheを含めて完了する

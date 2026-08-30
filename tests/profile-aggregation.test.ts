@@ -23,12 +23,12 @@ function dimension(overrides: Partial<ProfileDimension> = {}): ProfileDimension 
 }
 
 describe("profile aggregation", () => {
-  it("uses only the user-entered scope as an aggregation condition", () => {
+  it("uses only the current structured context as an aggregation condition", () => {
     expect(profileConditionJson(null)).toBe("{}");
     expect(profileConditionJson(" キャラクター全体 ")).toBe("{}");
-    expect(JSON.parse(profileConditionJson("闇堕ちしている期間"))).toEqual({
-      schemaVersion: "1",
-      scope: "闇堕ちしている期間",
+    expect(JSON.parse(profileConditionJson('{"schemaVersion":"2","entryScope":"闇堕ちしている期間"}'))).toEqual({
+      schemaVersion: "2",
+      entryScope: "闇堕ちしている期間",
     });
   });
 
@@ -38,7 +38,7 @@ describe("profile aggregation", () => {
       dimension({ responseChannel: "emotional_impact", evidenceCount: 2, confidence: 0.7 }),
       dimension({
         responseChannel: "fascination_with_transgression",
-        condition: { schemaVersion: "1", scope: "闇堕ちしている期間" },
+        condition: { schemaVersion: "2", entryScope: "闇堕ちしている期間" },
       }),
     ]);
 
@@ -51,6 +51,6 @@ describe("profile aggregation", () => {
     ]);
     expect(grouped[0].evidenceCount).toBe(4);
     expect(grouped[0].confidence).toBe(0.7);
-    expect(grouped[0].conditions).toEqual([{}, { schemaVersion: "1", scope: "闇堕ちしている期間" }]);
+    expect(grouped[0].conditions).toEqual([{}, { schemaVersion: "2", entryScope: "闇堕ちしている期間" }]);
   });
 });

@@ -13,8 +13,6 @@ type SessionRow = {
   user_id: string;
   username: string;
   csrf_digest: string;
-  credential_generation: number;
-  active_generation: number;
   expires_at: string;
 };
 
@@ -24,16 +22,15 @@ export async function resolveSession(env: Env, cookieHeader?: string): Promise<S
   const tokenDigest = await sha256Hex(token);
   const row = await first<SessionRow>(
     env.DB.prepare(`
-      SELECT s.id, s.user_id, u.username, s.csrf_digest, s.credential_generation,
-             c.key_generation AS active_generation, s.expires_at
+      SELECT s.id, s.user_id, u.username, s.csrf_digest, s.expires_at
       FROM sessions s
       JOIN users u ON u.id = s.user_id
-      JOIN credentials c ON c.user_id = u.id AND c.status = 'active'
+      JOIN credentials c ON c.user_id = u.id
       WHERE s.token_digest = ? AND s.revoked_at IS NULL AND s.expires_at > ?
-        AND u.status = 'active' AND u.deleted_at IS NULL
+        AND u.status = 'active'
     `).bind(tokenDigest, nowIso()),
   );
-  if (!row || row.credential_generation !== row.active_generation) return undefined;
+  if (!row) return undefined;
   const csrfToken = await hmacHex(env.AUTH_PEPPER, `csrf\u0000${token}`);
   const csrfDigest = await sha256Hex(csrfToken);
   if (!constantTimeEqual(csrfDigest, row.csrf_digest)) return undefined;
@@ -43,7 +40,6 @@ export async function resolveSession(env: Env, cookieHeader?: string): Promise<S
     username: row.username,
     csrfToken,
     expiresAt: row.expires_at,
-    credentialGeneration: row.credential_generation,
   };
 }
 

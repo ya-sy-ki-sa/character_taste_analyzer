@@ -215,3 +215,22 @@ export async function dispatchPendingOutbox(env: Env, limit = 50): Promise<numbe
   for (const row of rows) if (await dispatchOutboxEvent(env, row.id)) delivered += 1;
   return delivered;
 }
+
+/**
+ * Recovers an owner-scoped profile rebuild that was persisted while no cron or
+ * post-commit dispatcher was running (for example, a side-by-side local D1
+ * migration). dispatchOutboxEvent owns the lease, so this is safe to race with
+ * the normal dispatcher.
+ */
+export async function dispatchPendingProfileRebuild(env: Env, ownerUserId: string): Promise<boolean> {
+  const event = await first<{ id: string }>(
+    env.DB.prepare(
+      `SELECT id FROM outbox_events
+       WHERE owner_user_id=? AND event_type='profile.rebuild'
+         AND status IN ('pending','deferred_capacity','publishing') AND available_at<=?
+         AND (lease_expires_at IS NULL OR lease_expires_at<=?) AND attempt_count<10
+       ORDER BY available_at,id LIMIT 1`,
+    ).bind(ownerUserId, nowIso(), nowIso()),
+  );
+  return event ? dispatchOutboxEvent(env, event.id) : false;
+}

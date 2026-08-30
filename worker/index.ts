@@ -12,7 +12,6 @@ import {
   entrySubmissionSchema,
   generationRequestInputSchema,
   identityCandidateRequestSchema,
-  keyRotationSchema,
   loginSchema,
   registrationSchema,
   understandingReviewRequestSchema,
@@ -37,7 +36,7 @@ import { all, first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
 import { runDailyCleanup } from "./services/cleanup";
 import { createAccountExport } from "./services/exports";
-import { dispatchOutboxEvent, dispatchPendingOutbox } from "./services/orchestration";
+import { dispatchOutboxEvent, dispatchPendingOutbox, dispatchPendingProfileRebuild } from "./services/orchestration";
 import { createDataStoreStrategy } from "./storage/strategy";
 import type { AppVariables, Env } from "./types";
 
@@ -167,7 +166,7 @@ app.get("/api/v1/users", async (context) => {
   const query = normalizeUsername(context.req.query("query") ?? "");
   const rows = await all<{ id: string; username: string }>(
     context.env.DB.prepare(
-      `SELECT id,username FROM users WHERE status='active' AND is_public=1 AND deleted_at IS NULL AND username_normalized LIKE ? ORDER BY username_normalized,id LIMIT 50`,
+      `SELECT id,username FROM users WHERE status='active' AND is_public=1 AND username_normalized LIKE ? ORDER BY username_normalized,id LIMIT 50`,
     ).bind(`%${query.replace(/[%_]/gu, "")}%`),
   );
   return context.json(data({ users: rows, nextCursor: null }));
@@ -205,7 +204,7 @@ app.post("/api/v1/users", validateJson(registrationSchema), async (context) => {
     );
   }
   const duplicate = await first<{ id: string }>(
-    context.env.DB.prepare(`SELECT id FROM users WHERE username_normalized=? AND deleted_at IS NULL`).bind(normalized),
+    context.env.DB.prepare(`SELECT id FROM users WHERE username_normalized=?`).bind(normalized),
   );
   if (duplicate) throw new HTTPException(409, { message: "そのユーザー名は既に使用されています" });
   const now = nowIso();
@@ -213,11 +212,13 @@ app.post("/api/v1/users", validateJson(registrationSchema), async (context) => {
   const digest = await hmacHex(context.env.AUTH_PEPPER, credentialDigestInput(userId, accessKey));
   const results = await context.env.DB.batch([
     context.env.DB.prepare(
-      `INSERT INTO users (id,username,username_normalized,status,is_public,pending_expires_at,revision,created_at,updated_at) VALUES (?,?,?,'pending',1,?,1,?,?)`,
+      `INSERT INTO users (id,username,username_normalized,status,is_public,pending_expires_at,created_at,updated_at) VALUES (?,?,?,'pending',1,?,?,?)`,
     ).bind(userId, username, normalized, expiresAt, now, now),
-    context.env.DB.prepare(
-      `INSERT INTO credentials (id,user_id,key_generation,key_digest,status,created_at) VALUES (?,?,1,?,'active',?)`,
-    ).bind(crypto.randomUUID(), userId, digest, now),
+    context.env.DB.prepare(`INSERT INTO credentials (user_id,key_digest,created_at) VALUES (?,?,?)`).bind(
+      userId,
+      digest,
+      now,
+    ),
   ]);
   if (results.some((result) => !result.success))
     throw new HTTPException(500, { message: "ユーザーを作成できませんでした" });
@@ -228,7 +229,7 @@ app.post("/api/v1/users/:id/activate", validateJson(activationSchema), async (co
   const userId = context.req.param("id");
   const row = await first<{ key_digest: string; status: string; pending_expires_at: string | null; username: string }>(
     context.env.DB.prepare(
-      `SELECT c.key_digest,u.status,u.pending_expires_at,u.username FROM users u JOIN credentials c ON c.user_id=u.id AND c.status='active' WHERE u.id=?`,
+      `SELECT c.key_digest,u.status,u.pending_expires_at,u.username FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.id=?`,
     ).bind(userId),
   );
   const submitted = await hmacHex(
@@ -242,9 +243,7 @@ app.post("/api/v1/users/:id/activate", validateJson(activationSchema), async (co
   if (row.status !== "pending" || !row.pending_expires_at || row.pending_expires_at <= nowIso())
     throw new HTTPException(410, { message: "REGISTRATION_EXPIRED" });
   const now = nowIso();
-  await context.env.DB.prepare(
-    `UPDATE users SET status='active',activated_at=?,updated_at=?,revision=revision+1 WHERE id=?`,
-  )
+  await context.env.DB.prepare(`UPDATE users SET status='active',activated_at=?,updated_at=? WHERE id=?`)
     .bind(now, now, userId)
     .run();
   return context.json(data({ user: { id: userId, username: row.username, status: "active" } }));
@@ -253,9 +252,9 @@ app.post("/api/v1/users/:id/activate", validateJson(activationSchema), async (co
 app.post("/api/v1/sessions", validateJson(loginSchema), async (context) => {
   const input = context.req.valid("json");
   await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
-  const row = await first<{ username: string; key_digest: string; key_generation: number }>(
+  const row = await first<{ username: string; key_digest: string }>(
     context.env.DB.prepare(
-      `SELECT u.username,c.key_digest,c.key_generation FROM users u JOIN credentials c ON c.user_id=u.id AND c.status='active' WHERE u.id=? AND u.status='active' AND u.deleted_at IS NULL`,
+      `SELECT u.username,c.key_digest FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.id=? AND u.status='active'`,
     ).bind(input.userId),
   );
   const submitted = await hmacHex(context.env.AUTH_PEPPER, credentialDigestInput(input.userId, input.accessKey));
@@ -267,18 +266,9 @@ app.post("/api/v1/sessions", validateJson(loginSchema), async (context) => {
   const days = boundedInteger(context.env.SESSION_DAYS, 30, { max: 90 });
   const expiresAt = addDaysIso(days);
   await context.env.DB.prepare(
-    `INSERT INTO sessions (id,user_id,token_digest,csrf_digest,credential_generation,expires_at,last_seen_at,created_at) VALUES (?,?,?,?,?,?,?,?)`,
+    `INSERT INTO sessions (id,user_id,token_digest,csrf_digest,expires_at,last_seen_at,created_at) VALUES (?,?,?,?,?,?,?)`,
   )
-    .bind(
-      crypto.randomUUID(),
-      input.userId,
-      await sha256Hex(token),
-      await sha256Hex(csrfToken),
-      row.key_generation,
-      expiresAt,
-      now,
-      now,
-    )
+    .bind(crypto.randomUUID(), input.userId, await sha256Hex(token), await sha256Hex(csrfToken), expiresAt, now, now)
     .run();
   context.header("Set-Cookie", sessionCookie(token, days * 86_400));
   return context.json(data({ user: { id: input.userId, username: row.username }, csrfToken, expiresAt }));
@@ -421,6 +411,8 @@ app.get("/api/v1/profile", async (context) => {
     strategy.loadCurrentProfile(session.userId),
     strategy.loadProjectionFreshness(session.userId),
   ]);
+  if (!profile && freshness.status === "rebuilding")
+    context.executionCtx.waitUntil(dispatchPendingProfileRebuild(context.env, session.userId));
   return context.json(data({ profile, freshness }));
 });
 
@@ -488,42 +480,6 @@ app.post("/api/v1/jobs/:id/retry", async (context) => {
           })();
   dispatchAfterCommit(context, result.outboxEventId);
   return context.json(data({ ...result, status: "queued" }), 202);
-});
-
-app.post("/api/v1/account/key-rotation", validateJson(keyRotationSchema), async (context) => {
-  const session = requireSession(context);
-  const active = await first<{ id: string; key_digest: string; key_generation: number }>(
-    context.env.DB.prepare(
-      `SELECT id,key_digest,key_generation FROM credentials WHERE user_id=? AND status='active'`,
-    ).bind(session.userId),
-  );
-  const submitted = await hmacHex(
-    context.env.AUTH_PEPPER,
-    credentialDigestInput(session.userId, context.req.valid("json").currentAccessKey),
-  );
-  if (!active || !constantTimeEqual(active.key_digest, submitted))
-    throw new HTTPException(401, { message: "現在のアクセスキーが無効です" });
-  const accessKey = crypto.randomUUID();
-  const now = nowIso();
-  const results = await context.env.DB.batch([
-    context.env.DB.prepare(`UPDATE credentials SET status='rotated',rotated_at=? WHERE id=?`).bind(now, active.id),
-    context.env.DB.prepare(
-      `INSERT INTO credentials (id,user_id,key_generation,key_digest,status,created_at) VALUES (?,?,?,?, 'active',?)`,
-    ).bind(
-      crypto.randomUUID(),
-      session.userId,
-      active.key_generation + 1,
-      await hmacHex(context.env.AUTH_PEPPER, credentialDigestInput(session.userId, accessKey)),
-      now,
-    ),
-    context.env.DB.prepare(
-      `UPDATE sessions SET revoked_at=?,revoke_reason='key_rotation' WHERE user_id=? AND revoked_at IS NULL`,
-    ).bind(now, session.userId),
-  ]);
-  if (results.some((result) => !result.success))
-    throw new HTTPException(500, { message: "アクセスキーを変更できませんでした" });
-  context.header("Set-Cookie", clearSessionCookie());
-  return context.json(data({ accessKey, sessionsRevoked: true }));
 });
 
 app.post("/api/v1/account/exports", validateJson(accountExportRequestSchema), async (context) => {

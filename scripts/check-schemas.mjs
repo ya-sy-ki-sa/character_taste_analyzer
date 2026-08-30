@@ -47,7 +47,7 @@ if (
 ) {
   throw new Error("response channel catalog and preference-analysis schema are inconsistent");
 }
-const responseChannelMigration = readFileSync("docs/詳細設計/database/003_expand_response_channels.sql", "utf8");
+const responseChannelMigration = readFileSync("docs/詳細設計/database/001_initial.sql", "utf8");
 if (responseChannelValues.some((value) => !responseChannelMigration.includes(`'${value}'`))) {
   throw new Error("response channel catalog and D1 migration are inconsistent");
 }
