@@ -93,6 +93,7 @@ function d1Strategy(env: Env): CharacterTasteDataStoreStrategy {
       activateAnalysisAndRebuild(env, ownerUserId, entryId, analysisRunId),
     loadCurrentProfile: (ownerUserId) => loadCurrentProfile(env, ownerUserId),
     loadProfileSnapshotItems: async (ownerUserId) => {
+      await loadCurrentProfile(env, ownerUserId);
       const snapshot = await first<{ id: string; profile_generation: number }>(
         env.DB.prepare(
           `SELECT id,profile_generation FROM profile_snapshots WHERE owner_user_id=? ORDER BY profile_generation DESC,created_at DESC LIMIT 1`,

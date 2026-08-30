@@ -371,6 +371,7 @@ export type ProfileDimension = {
   label: string;
   category: string;
   responseChannel: ResponseChannel | null;
+  condition: Record<string, unknown>;
   positiveScore: number;
   negativeScore: number;
   confidence: number;

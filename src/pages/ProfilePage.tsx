@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { responseChannelLabel } from "../../shared/response-channels";
-import type { GraphProjection, ProfileDimension, ProfileView } from "../../shared/schemas";
+import type { GraphProjection, ProfileView } from "../../shared/schemas";
 import { api } from "../api";
 import { TasteGraph } from "../components/TasteGraph";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
+import { type DisplayProfileDimension, groupProfileDimensions } from "../lib/profile-dimensions";
 
 const classificationLabels = { stable: "安定傾向", emerging: "発展中", insufficient: "データ少" } as const;
 export function ProfilePage() {
@@ -44,8 +45,8 @@ export function ProfilePage() {
         </Card>
       </>
     );
-  const likes = value.dimensions.filter((item) => item.positiveScore >= item.negativeScore);
-  const dislikes = value.dimensions.filter((item) => item.negativeScore > item.positiveScore);
+  const likes = groupProfileDimensions(value.dimensions.filter((item) => item.positiveScore >= item.negativeScore));
+  const dislikes = groupProfileDimensions(value.dimensions.filter((item) => item.negativeScore > item.positiveScore));
   return (
     <>
       <PageHeading
@@ -80,7 +81,7 @@ export function ProfilePage() {
               <b>{value.entryCount}</b>確認済み登録
             </span>
             <span>
-              <b>{value.dimensions.length}</b>嗜好次元
+              <b>{likes.length + dislikes.length}</b>表示属性
             </span>
             <span>
               <b>v{value.generation}</b>集計世代
@@ -180,16 +181,30 @@ export function ProfilePage() {
   );
 }
 
-function DimensionRow({ item, rank, negative = false }: { item: ProfileDimension; rank: number; negative?: boolean }) {
+function DimensionRow({
+  item,
+  rank,
+  negative = false,
+}: {
+  item: DisplayProfileDimension;
+  rank: number;
+  negative?: boolean;
+}) {
   const score = negative ? item.negativeScore : item.positiveScore;
+  const scopes = item.conditions.flatMap((condition) => (typeof condition.scope === "string" ? [condition.scope] : []));
+  const includesWholeCharacter = item.conditions.some((condition) => Object.keys(condition).length === 0);
+  const scopeLabel = [...(includesWholeCharacter ? ["キャラクター全体"] : []), ...scopes].join("／");
   return (
     <div className="trait-row">
       <span className="rank">{String(rank).padStart(2, "0")}</span>
       <div className="trait-copy">
         <strong>{item.label}</strong>
         <small>
-          {item.category}・{item.responseChannel ? responseChannelLabel(item.responseChannel) : "反応経路なし"}・根拠{" "}
-          {item.evidenceCount}件
+          {item.category}・
+          {item.responseChannels.length
+            ? item.responseChannels.map((channel) => responseChannelLabel(channel)).join("／")
+            : "反応経路なし"}
+          {scopeLabel ? `・対象：${scopeLabel}` : ""}・根拠 {item.evidenceCount}件
         </small>
       </div>
       <div className={`trait-meter ${negative ? "negative" : ""}`}>

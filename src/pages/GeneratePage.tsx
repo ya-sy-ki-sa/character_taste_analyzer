@@ -1,11 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
+import { responseChannelLabel } from "../../shared/response-channels";
 import type { GeneratedCharacterCandidate, GenerationRequestInput } from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
+import {
+  expandSnapshotTreatments,
+  type GenerationSnapshotItem,
+  groupGenerationSnapshotItems,
+  type SnapshotTreatment,
+} from "../lib/generation-snapshot-items";
 
-type SnapshotItem = { id: string; type: string; stableKey: string; label: string; payload: Record<string, unknown> };
-type SnapshotResponse = { snapshot: { id: string; generation: number } | null; items: SnapshotItem[] };
+type SnapshotResponse = { snapshot: { id: string; generation: number } | null; items: GenerationSnapshotItem[] };
 type GenerationRow = {
   id: string | null;
   generationRequestId: string;
@@ -33,7 +39,7 @@ export function GeneratePage() {
   const [instruction, setInstruction] = useState("");
   const [redemption, setRedemption] = useState<GenerationRequestInput["redemption"]>("not_required");
   const [hiddenGoodness, setHiddenGoodness] = useState<GenerationRequestInput["hiddenGoodness"]>("not_required");
-  const [treatments, setTreatments] = useState<Record<string, "include" | "prohibit" | "omit">>({});
+  const [treatments, setTreatments] = useState<Record<string, SnapshotTreatment>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const [detail, setDetail] = useState<GenerationRow>();
@@ -49,9 +55,10 @@ export function GeneratePage() {
         ? 2_000
         : false,
   });
+  const groupedSnapshotItems = groupGenerationSnapshotItems(snapshot.data?.items ?? []);
 
   useEffect(() => {
-    const items = snapshot.data?.items;
+    const items = groupGenerationSnapshotItems(snapshot.data?.items ?? []);
     if (!snapshot.data?.snapshot || !items?.length) return;
     setTreatments((current) => {
       if (Object.keys(current).length) return current;
@@ -72,12 +79,7 @@ export function GeneratePage() {
     event.preventDefault();
     setSubmitting(true);
     setError(undefined);
-    const selectedItemIds = Object.entries(treatments)
-      .filter(([, value]) => value === "include")
-      .map(([id]) => id);
-    const prohibitedItemIds = Object.entries(treatments)
-      .filter(([, value]) => value === "prohibit")
-      .map(([id]) => id);
+    const { selectedItemIds, prohibitedItemIds } = expandSnapshotTreatments(groupedSnapshotItems, treatments);
     try {
       await api("/api/v1/generation-requests", {
         method: "POST",
@@ -135,12 +137,16 @@ export function GeneratePage() {
               <span>嗜好項目</span>
               <span>扱い</span>
             </div>
-            {snapshot.data.items.map((item) => (
+            {groupedSnapshotItems.map((item) => (
               <div className="selection-row" key={item.id}>
                 <span>
                   <strong>{item.label}</strong>
                   <small>
-                    {item.type} / {item.stableKey}
+                    {snapshotItemTypeLabel(item.type)}
+                    {item.responseChannels.length
+                      ? `・${item.responseChannels.map((channel) => responseChannelLabel(channel)).join("／")}`
+                      : ""}
+                    {snapshotScopeLabel(item.conditions)}
                   </small>
                 </span>
                 <select
@@ -148,7 +154,7 @@ export function GeneratePage() {
                   onChange={(event) =>
                     setTreatments((current) => ({
                       ...current,
-                      [item.id]: event.target.value as "include" | "prohibit" | "omit",
+                      [item.id]: event.target.value as SnapshotTreatment,
                     }))
                   }
                 >
@@ -312,6 +318,20 @@ export function GeneratePage() {
       {detail?.character && <CharacterModal character={detail.character} onClose={() => setDetail(undefined)} />}
     </>
   );
+}
+
+function snapshotItemTypeLabel(type: string): string {
+  if (type === "dimension") return "惹かれる属性";
+  if (type === "negative_preference") return "避けたい属性";
+  if (type === "value_stance") return "価値・善悪との関わり方";
+  return type;
+}
+
+function snapshotScopeLabel(conditions: Record<string, unknown>[]): string {
+  const scopes = conditions.flatMap((condition) => (typeof condition.scope === "string" ? [condition.scope] : []));
+  const includesWholeCharacter = conditions.some((condition) => Object.keys(condition).length === 0);
+  const labels = [...(includesWholeCharacter ? ["キャラクター全体"] : []), ...scopes];
+  return labels.length ? `・対象：${labels.join("／")}` : "";
 }
 
 function CharacterModal({ character, onClose }: { character: GeneratedCharacterCandidate; onClose(): void }) {

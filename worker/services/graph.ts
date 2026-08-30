@@ -168,12 +168,12 @@ export async function rebuildGraphProjection(
     } catch {
       condition = {};
     }
-    if (condition.freeText) {
+    if (condition.scope) {
       const conditionNode = `ctx:${dimension.condition_hash.slice(0, 24)}`;
       putNode({
         id: conditionNode,
         type: "context",
-        label: String(condition.freeText),
+        label: String(condition.scope),
         weight: maximum,
         attributes: condition,
       });

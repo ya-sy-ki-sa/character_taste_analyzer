@@ -4,7 +4,7 @@ import { all, first } from "../lib/db";
 import type { Env } from "../types";
 import { rebuildGraphProjection } from "./graph";
 
-export const PROFILE_ALGORITHM_VERSION = "profile/v1.0.0";
+export const PROFILE_ALGORITHM_VERSION = "profile/v1.1.0";
 const ONTOLOGY_VERSION = "1.0";
 
 type AssertionRow = {
@@ -25,6 +25,7 @@ type AssertionRow = {
   explicitness: "user_explicit" | "user_confirmed" | "inferred" | "model_knowledge";
   confidence: number;
   context_json: string;
+  known_scope: string | null;
   evidence_count: number;
   evidence_quality: number;
 };
@@ -32,6 +33,7 @@ type AssertionRow = {
 type WeightedAssertion = AssertionRow & {
   dimensionKey: string;
   conditionHash: string;
+  conditionJson: string;
   contribution: number;
   positiveContribution: number;
   negativeContribution: number;
@@ -142,11 +144,17 @@ function canonicalJson(input: string): string {
   }
 }
 
+export function profileConditionJson(knownScope: string | null): string {
+  const scope = knownScope?.normalize("NFKC").trim() ?? "";
+  if (!scope || scope === "キャラクター全体") return "{}";
+  return canonicalJson(JSON.stringify({ schemaVersion: "1", scope }));
+}
+
 async function weightAssertions(rows: AssertionRow[]): Promise<WeightedAssertion[]> {
   return Promise.all(
     rows.map(async (row) => {
-      const context = canonicalJson(row.context_json);
-      const conditionHash = await sha256Hex(context);
+      const conditionJson = profileConditionJson(row.known_scope);
+      const conditionHash = await sha256Hex(conditionJson);
       const stableKey = row.stable_key ?? `raw:${normalizeIdentityPart(row.normalized_label || row.raw_label)}`;
       const contribution = clamp01(
         row.strength * row.confidence * explicitnessWeight(row.explicitness) * row.evidence_quality,
@@ -155,6 +163,7 @@ async function weightAssertions(rows: AssertionRow[]): Promise<WeightedAssertion
         ...row,
         dimensionKey: `${stableKey}\u0000${row.response_channel ?? ""}\u0000${conditionHash}`,
         conditionHash,
+        conditionJson,
         contribution,
         positiveContribution:
           row.polarity === "negative" ? 0 : row.polarity === "mixed" ? contribution * 0.5 : contribution,
@@ -194,11 +203,11 @@ function buildDimensions(rows: WeightedAssertion[]): BuiltDimension[] {
         : maximum >= 0.35 || explicitMaximum >= 0.5
           ? "emerging"
           : "insufficient";
-    const conditionJson = canonicalJson(firstRow.context_json);
+    const conditionJson = firstRow.conditionJson;
     const condition = JSON.parse(conditionJson) as Record<string, unknown>;
     const flags = [
       ...(!firstRow.attribute_definition_id ? ["unmapped"] : []),
-      ...(Object.keys(condition).length && condition.freeText ? ["conditional"] : []),
+      ...(typeof condition.scope === "string" && condition.scope ? ["conditional"] : []),
       ...(positiveScore >= 0.4 && negativeScore >= 0.4 ? ["contrast"] : []),
     ];
     const factor = classification === "stable" ? 1 : classification === "emerging" ? 0.8 : 0.5;
@@ -233,7 +242,7 @@ async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<
     SELECT pa.id, e.id AS entry_id, pa.entry_revision_id, pa.character_identity_id, ci.work_id,
            pa.attribute_definition_id, ad.stable_key, ad.label, ad.category, rm.raw_label,
            rm.normalized_label, pa.polarity, pa.response_channel, pa.strength, pa.explicitness,
-           pa.confidence, pa.context_json,
+           pa.confidence, pa.context_json, er.known_scope,
            COUNT(ef.id) AS evidence_count,
            COALESCE(MAX(CASE ef.evidence_origin
              WHEN 'user_input' THEN 1.0 WHEN 'review' THEN 1.0 WHEN 'source' THEN 0.9
@@ -455,12 +464,55 @@ export async function rebuildProfile(
 }
 
 export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise<ProfileView | null> {
-  const projection = await first<{ id: string; generation: number; evidence_set_hash: string; completed_at: string }>(
+  let projection = await first<{
+    id: string;
+    generation: number;
+    evidence_set_hash: string;
+    algorithm_version: string;
+    completed_at: string;
+  }>(
     env.DB.prepare(
-      `SELECT id, generation, evidence_set_hash, completed_at FROM profile_projections WHERE owner_user_id=? AND status='current'`,
+      `SELECT id, generation, evidence_set_hash, algorithm_version, completed_at FROM profile_projections WHERE owner_user_id=? AND status='current'`,
     ).bind(ownerUserId),
   );
   if (!projection) return null;
+  if (projection.algorithm_version !== PROFILE_ALGORITHM_VERSION) {
+    try {
+      await rebuildProfile(env, ownerUserId, "algorithm_upgrade");
+    } catch (error) {
+      const refreshed = await first<{
+        id: string;
+        algorithm_version: string;
+        graph_profile_projection_id: string | null;
+      }>(
+        env.DB.prepare(`
+          SELECT pp.id, pp.algorithm_version, gps.profile_projection_id AS graph_profile_projection_id
+          FROM profile_projections pp
+          LEFT JOIN graph_projection_snapshots gps
+            ON gps.owner_user_id=pp.owner_user_id AND gps.status='current'
+          WHERE pp.owner_user_id=? AND pp.status='current'
+        `).bind(ownerUserId),
+      );
+      if (
+        refreshed?.algorithm_version !== PROFILE_ALGORITHM_VERSION ||
+        refreshed.graph_profile_projection_id !== refreshed.id
+      ) {
+        throw error;
+      }
+    }
+    projection = await first<{
+      id: string;
+      generation: number;
+      evidence_set_hash: string;
+      algorithm_version: string;
+      completed_at: string;
+    }>(
+      env.DB.prepare(
+        `SELECT id, generation, evidence_set_hash, algorithm_version, completed_at FROM profile_projections WHERE owner_user_id=? AND status='current'`,
+      ).bind(ownerUserId),
+    );
+    if (!projection) return null;
+  }
   const snapshot = await first<{ id: string }>(
     env.DB.prepare(
       `SELECT id FROM profile_snapshots WHERE owner_user_id=? AND profile_projection_id=? ORDER BY created_at DESC LIMIT 1`,
@@ -474,6 +526,7 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     label: string | null;
     category: string | null;
     response_channel: ProfileDimension["responseChannel"];
+    condition_json: string;
     positive_score: number;
     negative_score: number;
     confidence: number;
@@ -483,7 +536,7 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     flags_json: string;
   }>(
     env.DB.prepare(`
-    SELECT pd.id, ad.stable_key, pd.raw_label, ad.label, ad.category, pd.response_channel,
+    SELECT pd.id, ad.stable_key, pd.raw_label, ad.label, ad.category, pd.response_channel, pd.condition_json,
            pd.positive_score, pd.negative_score, pd.confidence, pd.evidence_count, pd.identity_count,
            pd.classification, pd.flags_json
     FROM profile_dimensions pd LEFT JOIN attribute_definitions ad ON ad.id=pd.attribute_definition_id
@@ -528,6 +581,7 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
       label: row.label ?? row.raw_label ?? "未分類属性",
       category: row.category ?? "other",
       responseChannel: row.response_channel,
+      condition: JSON.parse(canonicalJson(row.condition_json)) as Record<string, unknown>,
       positiveScore: row.positive_score,
       negativeScore: row.negative_score,
       confidence: row.confidence,
