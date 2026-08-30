@@ -7,6 +7,7 @@ import {
   activationSchema,
   batchReviewSchema,
   entryDraftSchema,
+  entryReanalysisSchema,
   generationRequestInputSchema,
   keyRotationSchema,
   loginSchema,
@@ -54,10 +55,14 @@ function requireIdempotencyKey(value?: string): string {
   return parsed.data;
 }
 
-async function startAnalysis(context: Parameters<typeof requireSession>[0], params: CharacterAnalysisWorkflowParams) {
+async function startAnalysis(
+  context: Parameters<typeof requireSession>[0],
+  params: CharacterAnalysisWorkflowParams,
+  runId?: string,
+) {
   if (context.env.CHARACTER_ANALYSIS_WORKFLOW) {
     const instance = await context.env.CHARACTER_ANALYSIS_WORKFLOW.create({
-      id: `analysis-${params.jobId}-${params.stage}`,
+      id: `analysis-${params.jobId}-${params.stage}${runId ? `-${runId}` : ""}`,
       params,
     });
     await context.env.DB.prepare(`UPDATE jobs SET workflow_instance_id=? WHERE id=?`)
@@ -293,6 +298,25 @@ app.get("/api/v1/entries/:id", async (context) => {
   return context.json(data(result));
 });
 
+app.post("/api/v1/entries/:id/reanalysis", zValidator("json", entryReanalysisSchema), async (context) => {
+  const session = requireSession(context);
+  await enforceQuota(context.env, session.userId, "analysis");
+  const result = await createDataStoreStrategy(context.env).createEntryReanalysis(
+    session.userId,
+    context.req.param("id"),
+    context.req.valid("json"),
+    requireIdempotencyKey(context.req.header("Idempotency-Key")),
+  );
+  if (!result.replayed)
+    await startAnalysis(context, {
+      jobId: result.jobId,
+      ownerUserId: session.userId,
+      entryId: result.entryId,
+      stage: "understanding",
+    });
+  return context.json(data(result), 202);
+});
+
 app.post("/api/v1/entries/:id/understanding-review", zValidator("json", batchReviewSchema), async (context) => {
   const session = requireSession(context);
   const input = context.req.valid("json");
@@ -393,6 +417,26 @@ app.get("/api/v1/jobs/:id", async (context) => {
   return context.json(data({ job }));
 });
 
+app.post("/api/v1/jobs/:id/retry", async (context) => {
+  const session = requireSession(context);
+  const retryId = requireIdempotencyKey(context.req.header("Idempotency-Key"));
+  const result = await createDataStoreStrategy(context.env).retryCharacterAnalysis(
+    session.userId,
+    context.req.param("id"),
+  );
+  await startAnalysis(
+    context,
+    {
+      jobId: result.jobId,
+      ownerUserId: session.userId,
+      entryId: result.entryId,
+      stage: result.stage,
+    },
+    retryId,
+  );
+  return context.json(data({ ...result, status: "queued" }), 202);
+});
+
 app.post("/api/v1/account/key-rotation", zValidator("json", keyRotationSchema), async (context) => {
   const session = requireSession(context);
   const active = await first<{ id: string; key_digest: string; key_generation: number }>(
@@ -483,6 +527,15 @@ app.onError((error, context) => {
     GENERATION_SELECTION_CONFLICT: [422, "同じ項目を採用と禁止の両方には指定できません"],
     UNDERSTANDING_REVIEW_NOT_FOUND: [404, "確認対象が見つかりません"],
     IDEMPOTENCY_PAYLOAD_MISMATCH: [409, "同じIdempotency-Keyを異なる内容には使用できません"],
+    ANALYSIS_JOB_NOT_FOUND: [404, "解析ジョブが見つかりません"],
+    JOB_NOT_FAILED: [409, "失敗状態の解析だけ再実行できます"],
+    JOB_NOT_RETRYABLE: [409, "この解析エラーは再実行できません"],
+    JOB_SUPERSEDED: [409, "古い登録内容の解析は再実行できません"],
+    JOB_RETRY_STATE_CHANGED: [409, "解析の状態が更新されました。画面を再読み込みしてください"],
+    ENTRY_NOT_FOUND: [404, "キャラクターが見つかりません"],
+    ENTRY_ANALYSIS_IN_PROGRESS: [409, "解析中のため、完了後に再分析してください"],
+    ENTRY_REANALYSIS_UNAVAILABLE: [409, "この登録は再分析できません"],
+    ENTRY_REVISION_CONFLICT: [409, "登録内容が更新されました。画面を再読み込みしてください"],
   };
   const mapped = known[message];
   if (mapped)

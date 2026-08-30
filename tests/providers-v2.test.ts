@@ -86,9 +86,9 @@ describe("explicit LLM provider routing", () => {
         model: "gpt-5.6-sol",
         store: false,
         max_output_tokens: 100,
-        temperature: 0,
         text: { format: { type: "json_schema", strict: true } },
       });
+      expect(body).not.toHaveProperty("temperature");
       expect(headers.get("Idempotency-Key")).toBe(request.idempotencyKey);
       return Response.json({ id: "resp_test", output_text: '{"value":"openai"}', usage: {} });
     });

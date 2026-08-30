@@ -1,8 +1,19 @@
-import type { EntryDraft, GenerationRequestInput } from "../../shared/schemas";
+import type { EntryDraft, EntryReanalysisInput, GenerationRequestInput } from "../../shared/schemas";
 import { nowIso } from "../lib/crypto";
 import { all, first } from "../lib/db";
-import { activateAnalysisAndRebuild, processCharacterAnalysis, processPreferenceAnalysis } from "../services/analysis";
-import { confirmUnderstanding, createEntry, listEntries, loadEntryReview } from "../services/entries";
+import {
+  activateAnalysisAndRebuild,
+  processCharacterAnalysis,
+  processPreferenceAnalysis,
+  retryCharacterAnalysis,
+} from "../services/analysis";
+import {
+  confirmUnderstanding,
+  createEntry,
+  createEntryReanalysis,
+  listEntries,
+  loadEntryReview,
+} from "../services/entries";
 import { createGenerationRequest, listGenerations, processGeneration } from "../services/generation";
 import { loadCurrentGraph } from "../services/graph";
 import { loadCurrentProfile, rebuildProfile } from "../services/profile";
@@ -21,12 +32,19 @@ export type ProfileSnapshotItems = {
 export interface CharacterTasteDataStoreStrategy {
   readonly id: string;
   createEntry(ownerUserId: string, draft: EntryDraft, idempotencyKey: string): ReturnType<typeof createEntry>;
+  createEntryReanalysis(
+    ownerUserId: string,
+    entryId: string,
+    input: EntryReanalysisInput,
+    idempotencyKey: string,
+  ): ReturnType<typeof createEntryReanalysis>;
   listEntries(ownerUserId: string): ReturnType<typeof listEntries>;
   loadEntryReview(ownerUserId: string, entryId: string): ReturnType<typeof loadEntryReview>;
   confirmUnderstanding(ownerUserId: string, entryId: string, snapshotId: string): Promise<void>;
   archiveEntry(ownerUserId: string, entryId: string): Promise<void>;
   processCharacterAnalysis(params: CharacterAnalysisWorkflowParams): Promise<void>;
   processPreferenceAnalysis(params: CharacterAnalysisWorkflowParams): Promise<void>;
+  retryCharacterAnalysis(ownerUserId: string, jobId: string): ReturnType<typeof retryCharacterAnalysis>;
   activateAnalysisAndRebuild(
     ownerUserId: string,
     entryId: string,
@@ -52,6 +70,8 @@ function d1Strategy(env: Env): CharacterTasteDataStoreStrategy {
   return {
     id: "d1",
     createEntry: (ownerUserId, draft, idempotencyKey) => createEntry(env, ownerUserId, draft, idempotencyKey),
+    createEntryReanalysis: (ownerUserId, entryId, input, idempotencyKey) =>
+      createEntryReanalysis(env, ownerUserId, entryId, input, idempotencyKey),
     listEntries: (ownerUserId) => listEntries(env, ownerUserId),
     loadEntryReview: (ownerUserId, entryId) => loadEntryReview(env, ownerUserId, entryId),
     confirmUnderstanding: (ownerUserId, entryId, snapshotId) =>
@@ -68,6 +88,7 @@ function d1Strategy(env: Env): CharacterTasteDataStoreStrategy {
     },
     processCharacterAnalysis: (params) => processCharacterAnalysis(env, params),
     processPreferenceAnalysis: (params) => processPreferenceAnalysis(env, params),
+    retryCharacterAnalysis: (ownerUserId, jobId) => retryCharacterAnalysis(env, ownerUserId, jobId),
     activateAnalysisAndRebuild: (ownerUserId, entryId, analysisRunId) =>
       activateAnalysisAndRebuild(env, ownerUserId, entryId, analysisRunId),
     loadCurrentProfile: (ownerUserId) => loadCurrentProfile(env, ownerUserId),

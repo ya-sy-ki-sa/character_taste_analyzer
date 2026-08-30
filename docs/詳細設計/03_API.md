@@ -58,6 +58,7 @@
 | PATCH | `/entries/{entryId}/draft` | Yes | No | 200 |
 | POST | `/entries/{entryId}/submit` | Yes | analysis | 200 |
 | POST | `/entries/{entryId}/revisions` | Yes | registration | 201 |
+| POST | `/entries/{entryId}/reanalysis` | Yes | analysis | 202 |
 | DELETE | `/entries/{entryId}` | Yes | profile_rebuild | 202 |
 
 ### 3.3 Understanding・Preference
@@ -300,7 +301,16 @@ PATCHはUserCharacterEntryのmutable draft payloadを更新し、append-only Ent
 - responseにentryRevisionId、sourceSetVersionId、next actionを返す
 - LLM jobは自動開始せず、次の`character-understanding-runs`で明示開始する
 
-### 6.4 delete
+### 6.4 再分析
+
+`POST /entries/{entryId}/reanalysis`は、現在の嗜好入力を任意に修正してappend-onlyな次の`EntryRevision`を作り、キャラクター理解から再分析する。`active`、`understanding_review`、`analysis_review`、`failed`から開始できる。解析中の二重起動と`archived`からの開始は拒否する。
+
+- 過去のRevision、理解Snapshot、嗜好解析Run、ユーザー確認は履歴として保持する
+- 新しいRevisionを`activeRevisionNumber`へ設定し、旧Revisionの確認待ちJobは`superseded`にする
+- 再分析開始後、新しい嗜好解析を確認するまでは当該Entryを累積プロフィールへ混ぜない
+- 同じキャラクター表現とSourceSetVersionを参照するが、理解Snapshotと嗜好解析Runは新しいgenerationを作る
+
+### 6.5 delete
 
 - draftは関連派生データがなければ論理削除後に204を返してよい
 - activeはarchive、Profile再計算、Graph再構築をjob化し202とする

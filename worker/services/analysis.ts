@@ -44,6 +44,76 @@ type EntryContext = {
 
 type AttributeRow = { id: string; stable_key: string; label: string; category: string };
 
+export type CharacterAnalysisRetry = {
+  jobId: string;
+  entryId: string;
+  stage: CharacterAnalysisWorkflowParams["stage"];
+};
+
+export function hasPreferenceAnalysisCandidates(
+  value: Pick<PreferenceCandidate, "preferenceAssertions" | "valueStanceAssertions">,
+): boolean {
+  return value.preferenceAssertions.length > 0 || value.valueStanceAssertions.length > 0;
+}
+
+export async function retryCharacterAnalysis(
+  env: Env,
+  ownerUserId: string,
+  jobId: string,
+): Promise<CharacterAnalysisRetry> {
+  const job = await first<{
+    id: string;
+    status: string;
+    retryable: number;
+    target_id: string;
+    input_generation: number;
+    active_revision_number: number;
+    has_confirmed_understanding: number;
+  }>(
+    env.DB.prepare(`
+      SELECT j.id,j.status,j.retryable,j.target_id,j.input_generation,e.active_revision_number,
+        EXISTS (
+          SELECT 1 FROM character_understanding_snapshots s
+          JOIN character_understanding_runs r ON r.id=s.understanding_run_id
+          JOIN entry_revisions er ON er.id=r.entry_revision_id
+          WHERE er.entry_id=e.id AND er.revision_number=e.active_revision_number
+            AND s.owner_user_id=j.owner_user_id
+            AND s.status IN ('confirmed','corrected','provisional_accepted')
+        ) AS has_confirmed_understanding
+      FROM jobs j
+      JOIN user_character_entries e ON e.id=j.target_id AND e.owner_user_id=j.owner_user_id
+      WHERE j.id=? AND j.owner_user_id=? AND j.job_type='character_analysis'
+        AND j.target_type='entry' AND e.deleted_at IS NULL
+    `).bind(jobId, ownerUserId),
+  );
+  if (!job) throw new Error("ANALYSIS_JOB_NOT_FOUND");
+  if (job.status !== "failed") throw new Error("JOB_NOT_FAILED");
+  if (job.retryable !== 1) throw new Error("JOB_NOT_RETRYABLE");
+  if (job.input_generation !== job.active_revision_number) throw new Error("JOB_SUPERSEDED");
+
+  const stage: CharacterAnalysisWorkflowParams["stage"] =
+    job.has_confirmed_understanding === 1 ? "preference" : "understanding";
+  const entryStatus = stage === "preference" ? "analyzing" : "submitted";
+  const currentStep = stage === "preference" ? "preferenceAnalysis" : "queued";
+  const progressCurrent = stage === "preference" ? 8 : 0;
+  const now = nowIso();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE jobs SET status='queued',current_step=?,progress_current=?,error_code=NULL,error_detail_safe=NULL,
+        result_ref_json=NULL,workflow_instance_id=NULL,next_attempt_at=NULL,completed_at=NULL,updated_at=?,revision=revision+1
+       WHERE id=? AND owner_user_id=? AND status='failed' AND retryable=1`,
+    ).bind(currentStep, progressCurrent, now, jobId, ownerUserId),
+    env.DB.prepare(
+      `UPDATE user_character_entries SET status=?,updated_at=?,revision=revision+1
+       WHERE id=? AND owner_user_id=? AND deleted_at IS NULL`,
+    ).bind(entryStatus, now, job.target_id, ownerUserId),
+  ]);
+  if (results.some((result) => !result.success)) throw new Error("D1_JOB_RETRY_FAILED");
+  if (!results[0].meta.changes) throw new Error("JOB_RETRY_STATE_CHANGED");
+
+  return { jobId, entryId: job.target_id, stage };
+}
+
 async function loadEntry(env: Env, ownerUserId: string, entryId: string): Promise<EntryContext> {
   const row = await first<{
     id: string;
@@ -455,6 +525,12 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       statements.push(modelRun.statement);
       const runId = crypto.randomUUID();
       const snapshotId = crypto.randomUUID();
+      const snapshotGeneration = await first<{ next_generation: number }>(
+        env.DB.prepare(
+          `SELECT COALESCE(MAX(snapshot_generation),0)+1 AS next_generation FROM character_understanding_snapshots WHERE owner_user_id=? AND representation_id=?`,
+        ).bind(params.ownerUserId, call.representationId),
+      );
+      if (!snapshotGeneration) throw new Error("UNDERSTANDING_GENERATION_UNAVAILABLE");
       reviewSnapshotId = snapshotId;
       statements.push(
         env.DB.prepare(`
@@ -483,7 +559,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           (id, owner_user_id, understanding_run_id, representation_id, base_snapshot_id, source_set_version_id,
            snapshot_generation, known_scope, status, overall_confidence, source_assessment_json, summary_json,
            uncertainties_json, model_run_metadata_id, ontology_version, content_hash, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'needs_review', ?, ?, ?, ?, ?, '1.0', ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'needs_review', ?, ?, ?, ?, ?, '1.0', ?, ?)
       `).bind(
           snapshotId,
           params.ownerUserId,
@@ -491,6 +567,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           call.representationId,
           baseSnapshotId,
           entry.sourceSetVersionId,
+          snapshotGeneration.next_generation,
           entryScopeText(entry.payload),
           Math.min(1, confidence),
           JSON.stringify(call.value.sourceAssessment),
@@ -657,11 +734,18 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       customizationDeltas: [],
       uncertainties: [],
     };
+    const generation = await first<{ next_generation: number }>(
+      env.DB.prepare(
+        `SELECT COALESCE(MAX(run_generation),0)+1 AS next_generation FROM analysis_runs WHERE owner_user_id=? AND entry_revision_id=?`,
+      ).bind(params.ownerUserId, entry.entryRevisionId),
+    );
+    if (!generation) throw new Error("ANALYSIS_GENERATION_UNAVAILABLE");
+    const runGeneration = generation.next_generation;
     const messages = [
       { role: "system" as const, content: SYSTEM_INSTRUCTION },
       {
         role: "user" as const,
-        content: `確認済みキャラクター理解とユーザーの好きな理由を分け、嗜好候補を抽出してください。キャラクターが持つ全属性を自動で好きにしないでください。ヴィラン性や悪そのものへの好意を悲劇性や知性に言い換えないでください。ユーザーが選択したresponse channelは、その定義どおりに優先して使ってください。未選択のchannelを推測する場合は、好きな理由に十分な根拠があるものだけに限定してください。\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\nresponse channel定義:\n${responseChannelPrompt()}\n統制属性:\n${ontologyPrompt(ontology)}`,
+        content: `確認済みキャラクター理解とユーザーの好きな理由を分け、嗜好候補を抽出してください。キャラクターが持つ全属性を自動で好きにしないでください。ヴィラン性や悪そのものへの好意を悲劇性や知性に言い換えないでください。ユーザーが選択したresponse channelは、その定義どおりに優先して使ってください。好きな理由が未入力でも、選択済みresponse channelと確認済み理解を根拠に、最も妥当な候補を少なくとも1件提示し、推測部分はinferredかつ控えめなconfidenceにしてください。未選択のchannelを推測する場合は、好きな理由に十分な根拠があるものだけに限定してください。\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\nresponse channel定義:\n${responseChannelPrompt()}\n統制属性:\n${ontologyPrompt(ontology)}`,
       },
     ];
     const inputHash = await sha256Hex(JSON.stringify(messages));
@@ -674,7 +758,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       messages,
       maxOutputTokens: 5_000,
       temperature: 0.1,
-      idempotencyKey: `${entry.entryRevisionId}:preference`,
+      idempotencyKey: `${entry.entryRevisionId}:preference:${runGeneration}`,
       fakeFactory: () => fakePreferences(entry.payload, understanding),
     });
     const modelRun = await persistModelRun(
@@ -687,18 +771,50 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     );
     const runId = crypto.randomUUID();
     const now = nowIso();
+    if (!hasPreferenceAnalysisCandidates(result.value)) {
+      const failed = await env.DB.batch([
+        modelRun.statement,
+        env.DB.prepare(`
+          INSERT INTO analysis_runs
+            (id, owner_user_id, entry_revision_id, understanding_snapshot_id, run_generation, status,
+             model_run_metadata_id, ontology_version, summary_json, uncertainties_json, error_code,
+             revision, started_at, completed_at, created_at)
+          VALUES (?, ?, ?, ?, ?, 'failed', ?, '1.0', ?, ?, 'PREFERENCE_ANALYSIS_EMPTY', 1, ?, ?, ?)
+        `).bind(
+          runId,
+          params.ownerUserId,
+          entry.entryRevisionId,
+          snapshot.id,
+          runGeneration,
+          modelRun.id,
+          JSON.stringify(result.value.summary),
+          JSON.stringify(result.value.uncertainties),
+          now,
+          now,
+          now,
+        ),
+      ]);
+      if (failed.some((item) => !item.success)) throw new Error("D1_EMPTY_ANALYSIS_PERSIST_FAILED");
+      throw new LlmProviderError(
+        "嗜好候補を生成できませんでした",
+        "PREFERENCE_ANALYSIS_EMPTY",
+        true,
+        "嗜好候補と価値スタンスが0件でした",
+      );
+    }
     const statements: D1PreparedStatement[] = [modelRun.statement];
     statements.push(
       env.DB.prepare(`
       INSERT INTO analysis_runs
         (id, owner_user_id, entry_revision_id, understanding_snapshot_id, run_generation, status,
          model_run_metadata_id, ontology_version, summary_json, uncertainties_json, revision, started_at, completed_at, created_at)
-      VALUES (?, ?, ?, ?, 1, 'succeeded', ?, '1.0', ?, ?, 1, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, 'succeeded', ?, '1.0', ?, ?, 1, ?, ?, ?)
     `).bind(
         runId,
         params.ownerUserId,
         entry.entryRevisionId,
         snapshot.id,
+        runGeneration,
         modelRun.id,
         JSON.stringify(result.value.summary),
         JSON.stringify(result.value.uncertainties),

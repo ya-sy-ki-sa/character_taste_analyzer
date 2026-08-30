@@ -1,9 +1,18 @@
-import { type EntryDraft, type EntrySummary, entryReferenceMaterial, entryScopeText } from "../../shared/schemas";
-import { normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
+import {
+  type EntryDraft,
+  type EntryReanalysisInput,
+  type EntrySummary,
+  entryDraftSchema,
+  entryReferenceMaterial,
+  entryScopeText,
+} from "../../shared/schemas";
+import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
 import type { Env } from "../types";
+import { rebuildProfile } from "./profile";
 
 export type CreatedEntry = { entryId: string; jobId: string; status: string; replayed: boolean };
+export type ReanalyzedEntry = CreatedEntry & { entryRevisionId: string; revisionNumber: number };
 
 function registrationTitle(draft: EntryDraft): string {
   return draft.registrationType === "original" ? draft.characterName : `${draft.workTitle} / ${draft.characterName}`;
@@ -236,6 +245,119 @@ export async function createEntry(
   return { entryId: ids.entry, jobId: ids.job, status: "submitted", replayed: false };
 }
 
+export async function createEntryReanalysis(
+  env: Env,
+  ownerUserId: string,
+  entryId: string,
+  input: EntryReanalysisInput,
+  idempotencyKey: string,
+): Promise<ReanalyzedEntry> {
+  const current = await first<{
+    status: string;
+    active_revision_number: number;
+    representation_id: string;
+    source_set_version_id: string | null;
+    known_scope: string;
+    user_character_view: string | null;
+    registration_payload_json: string;
+    entry_draft_payload_json: string;
+  }>(
+    env.DB.prepare(`
+      SELECT e.status,e.active_revision_number,e.draft_payload_json AS entry_draft_payload_json,
+        er.representation_id,er.source_set_version_id,er.known_scope,er.user_character_view,er.registration_payload_json
+      FROM user_character_entries e
+      JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
+      WHERE e.id=? AND e.owner_user_id=? AND e.deleted_at IS NULL
+    `).bind(entryId, ownerUserId),
+  );
+  if (!current) throw new Error("ENTRY_NOT_FOUND");
+
+  const previousDraft = entryDraftSchema.parse(JSON.parse(current.registration_payload_json));
+  const nextDraft: EntryDraft = { ...previousDraft, preference: input.preference };
+  const payloadJson = JSON.stringify(nextDraft);
+  const currentMutableDraft = JSON.parse(current.entry_draft_payload_json) as Record<string, unknown>;
+  const draftPayloadJson = JSON.stringify({
+    ...nextDraft,
+    ...(typeof currentMutableDraft.idempotencySeed === "string"
+      ? { idempotencySeed: currentMutableDraft.idempotencySeed }
+      : {}),
+  });
+  const contentHash = await sha256Hex(payloadJson);
+  const revisionId = await deriveUuid(
+    env.AUTH_PEPPER,
+    `entry-reanalysis:revision:${ownerUserId}:${entryId}:${idempotencyKey}`,
+  );
+  const jobId = await deriveUuid(env.AUTH_PEPPER, `entry-reanalysis:job:${ownerUserId}:${entryId}:${idempotencyKey}`);
+  const replay = await first<{ revision_number: number; content_hash: string; job_id: string | null }>(
+    env.DB.prepare(`
+      SELECT er.revision_number,er.content_hash,
+        (SELECT id FROM jobs WHERE owner_user_id=? AND target_type='entry' AND target_id=er.entry_id
+          AND input_generation=er.revision_number LIMIT 1) AS job_id
+      FROM entry_revisions er WHERE er.id=? AND er.entry_id=?
+    `).bind(ownerUserId, revisionId, entryId),
+  );
+  if (replay) {
+    if (replay.content_hash !== contentHash) throw new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
+    if (!replay.job_id) throw new Error("ANALYSIS_JOB_NOT_FOUND");
+    return {
+      entryId,
+      entryRevisionId: revisionId,
+      revisionNumber: replay.revision_number,
+      jobId: replay.job_id,
+      status: current.status,
+      replayed: true,
+    };
+  }
+  if (["submitted", "understanding", "analyzing"].includes(current.status))
+    throw new Error("ENTRY_ANALYSIS_IN_PROGRESS");
+  if (!["understanding_review", "analysis_review", "active", "failed"].includes(current.status))
+    throw new Error("ENTRY_REANALYSIS_UNAVAILABLE");
+
+  const revisionNumber = current.active_revision_number + 1;
+  const now = nowIso();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO entry_revisions
+        (id,entry_id,revision_number,representation_id,source_set_version_id,known_scope,user_character_view,
+         preference_input_json,registration_payload_json,content_hash,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    ).bind(
+      revisionId,
+      entryId,
+      revisionNumber,
+      current.representation_id,
+      current.source_set_version_id,
+      current.known_scope,
+      current.user_character_view,
+      JSON.stringify(input.preference),
+      payloadJson,
+      contentHash,
+      now,
+    ),
+    env.DB.prepare(
+      `INSERT INTO jobs
+        (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,
+         current_step,retryable,revision,created_at,updated_at)
+       VALUES (?,?,'character_analysis','queued','entry',?,?,0,15,'queued',1,1,?,?)`,
+    ).bind(jobId, ownerUserId, entryId, revisionNumber, now, now),
+    env.DB.prepare(
+      `UPDATE jobs SET status='superseded',updated_at=?,completed_at=?,revision=revision+1
+       WHERE owner_user_id=? AND target_type='entry' AND target_id=? AND id<>?
+         AND status IN ('queued','waiting_for_user','retrying')`,
+    ).bind(now, now, ownerUserId, entryId, jobId),
+    env.DB.prepare(
+      `UPDATE user_character_entries SET status='submitted',active_revision_number=?,draft_payload_json=?,
+        draft_updated_at=?,updated_at=?,revision=revision+1
+       WHERE id=? AND owner_user_id=? AND active_revision_number=?`,
+    ).bind(revisionNumber, draftPayloadJson, now, now, entryId, ownerUserId, current.active_revision_number),
+  ]);
+  if (results.some((result) => !result.success)) throw new Error("D1_ENTRY_REANALYSIS_FAILED");
+  if (!results[3].meta.changes) throw new Error("ENTRY_REVISION_CONFLICT");
+  if (current.status === "active") await rebuildProfile(env, ownerUserId, "entry_reanalysis_started");
+
+  return { entryId, entryRevisionId: revisionId, revisionNumber, jobId, status: "submitted", replayed: false };
+}
+
 export async function listEntries(env: Env, ownerUserId: string): Promise<EntrySummary[]> {
   const rows = await all<{
     id: string;
@@ -247,6 +369,7 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
     review_target_id: string | null;
     job_id: string | null;
     job_status: string | null;
+    retryable: number | null;
     current_step: string | null;
     progress_current: number | null;
     progress_total: number | null;
@@ -257,7 +380,7 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
       CASE WHEN e.status='understanding_review' THEN (SELECT id FROM character_understanding_snapshots WHERE owner_user_id=e.owner_user_id AND representation_id=er.representation_id ORDER BY created_at DESC LIMIT 1)
            WHEN e.status='analysis_review' THEN (SELECT id FROM analysis_runs WHERE owner_user_id=e.owner_user_id AND entry_revision_id=er.id ORDER BY created_at DESC LIMIT 1)
            ELSE NULL END AS review_target_id,
-      j.id AS job_id,j.status AS job_status,j.current_step,j.progress_current,j.progress_total,j.error_code
+      j.id AS job_id,j.status AS job_status,j.retryable,j.current_step,j.progress_current,j.progress_total,j.error_code
     FROM user_character_entries e JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
     LEFT JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id AND j.input_generation=e.active_revision_number
     WHERE e.owner_user_id=? AND e.deleted_at IS NULL ORDER BY e.updated_at DESC,e.id
@@ -278,6 +401,7 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
         ? {
             id: row.job_id,
             status: row.job_status ?? "queued",
+            retryable: row.retryable === 1,
             currentStep: row.current_step,
             progressCurrent: row.progress_current ?? 0,
             progressTotal: row.progress_total ?? 15,

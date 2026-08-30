@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { responseChannelCatalog, responseChannelCategories } from "../shared/response-channels";
 import {
   entryDraftSchema,
+  entryReanalysisSchema,
   generatedCharacterCandidateSchema,
   generationRequestInputSchema,
   responseChannelSchema,
@@ -49,6 +50,17 @@ describe("v2 input contracts", () => {
       preference: { responseChannels: [] },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts revised preference input for reanalysis", () => {
+    const result = entryReanalysisSchema.parse({
+      preference: {
+        likedReasons: "思い出して追加した好きな理由",
+        responseChannels: ["person_liking", "admiration"],
+      },
+    });
+    expect(result.preference.likedReasons).toContain("追加した");
+    expect(result.preference.responseChannels).toHaveLength(2);
   });
 
   it("defines unique and categorized response channels from one catalog", () => {

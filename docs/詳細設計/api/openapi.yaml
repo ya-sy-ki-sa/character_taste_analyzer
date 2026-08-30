@@ -360,6 +360,22 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/ObjectData' }
         default: { $ref: '#/components/responses/Error' }
+  /entries/{entryId}/reanalysis:
+    post:
+      tags: [Entries]
+      operationId: reanalyzeEntry
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EntryReanalysisRequest' }
+      responses:
+        '202': { $ref: '#/components/responses/ObjectData' }
+        default: { $ref: '#/components/responses/Error' }
   /entries/{entryId}/character-understanding-runs:
     post:
       tags: [Understanding]
@@ -1087,6 +1103,24 @@ components:
       properties:
         entryRevisionId: { $ref: '#/components/schemas/Uuid' }
         force: { type: boolean, default: false }
+    EntryReanalysisRequest:
+      type: object
+      additionalProperties: false
+      required: [preference]
+      properties:
+        preference:
+          type: object
+          additionalProperties: false
+          required: [responseChannels]
+          properties:
+            likedReasons: { type: string, maxLength: 4000 }
+            dislikedReasons: { type: string, maxLength: 4000 }
+            responseChannels:
+              type: array
+              maxItems: 44
+              uniqueItems: true
+              items: { type: string }
+            valueStanceNote: { type: string, maxLength: 2000 }
     ReviewDecision: { type: string, enum: [confirm, correct, reject, conditional] }
     ReviewRequest:
       type: object

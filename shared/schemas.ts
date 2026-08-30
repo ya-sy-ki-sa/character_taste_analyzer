@@ -54,7 +54,7 @@ export const valueOrientationSchema = z.enum([
 ]);
 export const valueStanceSchema = z.enum(["affirm", "accept", "indifferent", "ambivalent", "reject", "unspecified"]);
 
-const preferenceInputSchema = z.object({
+export const preferenceInputSchema = z.object({
   likedReasons: optionalText(4_000),
   dislikedReasons: optionalText(4_000),
   responseChannels: z
@@ -64,6 +64,10 @@ const preferenceInputSchema = z.object({
     .default([]),
   valueStanceNote: optionalText(2_000),
 });
+export type PreferenceInput = z.infer<typeof preferenceInputSchema>;
+
+export const entryReanalysisSchema = z.object({ preference: preferenceInputSchema });
+export type EntryReanalysisInput = z.infer<typeof entryReanalysisSchema>;
 const commonEntry = {
   schemaVersion: z.literal("1"),
   preferenceContext: optionalText(2_000),
@@ -354,6 +358,7 @@ export type EntrySummary = {
   job: {
     id: string;
     status: string;
+    retryable: boolean;
     currentStep: string | null;
     progressCurrent: number;
     progressTotal: number;

@@ -1,13 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { responseChannelCatalog, responseChannelCategories } from "../../shared/response-channels";
-import type { EntrySummary, RegistrationType, ResponseChannel } from "../../shared/schemas";
+import type { EntryDraft, EntrySummary, RegistrationType, ResponseChannel } from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 
 type EntryList = { entries: EntrySummary[] };
 type ReviewDetail = {
-  entry: { id: string; status: string; registrationType: RegistrationType; draft: Record<string, unknown> };
+  entry: { id: string; status: string; registrationType: RegistrationType; draft: EntryDraft };
   understanding: null | {
     id: string;
     sourceAssessment: { coverage: string; limitations: string[] };
@@ -120,10 +120,18 @@ const statusLabels: Record<string, string> = {
   archived: "除外済み",
 };
 
+const analysisErrorLabels: Record<string, string> = {
+  PREFERENCE_ANALYSIS_EMPTY: "嗜好候補を生成できませんでした",
+};
+
+const reanalyzableStatuses = new Set(["understanding_review", "analysis_review", "active", "failed"]);
+
 export function EntriesPage() {
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string>();
+  const [reanalysisId, setReanalysisId] = useState<string>();
+  const [retryingId, setRetryingId] = useState<string>();
   const [notice, setNotice] = useState<{ tone: "success" | "danger" | "info"; message: string }>();
   const entries = useQuery({
     queryKey: ["entries"],
@@ -149,6 +157,21 @@ export function EntriesPage() {
       ]);
     } catch (error) {
       setNotice({ tone: "danger", message: error instanceof Error ? error.message : "除外できませんでした" });
+    }
+  }
+
+  async function retry(entry: EntrySummary) {
+    if (!entry.job) return;
+    setRetryingId(entry.id);
+    setNotice(undefined);
+    try {
+      await api(`/api/v1/jobs/${entry.job.id}/retry`, { method: "POST" });
+      setNotice({ tone: "info", message: `「${entry.title}」の解析を再実行しています。` });
+    } catch (error) {
+      setNotice({ tone: "danger", message: error instanceof Error ? error.message : "再実行できませんでした" });
+    } finally {
+      setRetryingId(undefined);
+      await queryClient.invalidateQueries({ queryKey: ["entries"] });
     }
   }
 
@@ -205,11 +228,23 @@ export function EntriesPage() {
             </button>
             <footer>
               <span className={`job-pill job-${entry.status}`}>{statusLabels[entry.status] ?? entry.status}</span>
-              {entry.job?.errorCode && <small className="danger-text">{entry.job.errorCode}</small>}
+              {entry.job?.errorCode && (
+                <small className="danger-text">{analysisErrorLabels[entry.job.errorCode] ?? entry.job.errorCode}</small>
+              )}
               <div className="entry-actions">
                 <button type="button" onClick={() => setDetailId(entry.id)}>
                   内容を見る
                 </button>
+                {entry.status === "failed" && entry.job?.retryable && (
+                  <button type="button" disabled={retryingId === entry.id} onClick={() => retry(entry)}>
+                    {retryingId === entry.id ? "再実行中…" : "解析を再実行"}
+                  </button>
+                )}
+                {reanalyzableStatuses.has(entry.status) && (
+                  <button type="button" onClick={() => setReanalysisId(entry.id)}>
+                    入力を見直して再分析
+                  </button>
+                )}
                 {entry.status === "active" && (
                   <button type="button" className="danger-link" onClick={() => remove(entry)}>
                     除外
@@ -238,7 +273,26 @@ export function EntriesPage() {
         <ReviewModal
           entryId={detailId}
           onClose={() => setDetailId(undefined)}
+          onReanalyze={() => {
+            setReanalysisId(detailId);
+            setDetailId(undefined);
+          }}
           onUpdated={() => {
+            void queryClient.invalidateQueries({ queryKey: ["entries"] });
+            void queryClient.invalidateQueries({ queryKey: ["profile"] });
+          }}
+        />
+      )}
+      {reanalysisId && (
+        <ReanalysisModal
+          entryId={reanalysisId}
+          onClose={() => setReanalysisId(undefined)}
+          onCreated={() => {
+            setReanalysisId(undefined);
+            setNotice({
+              tone: "info",
+              message: "入力を新しい履歴として保存し、キャラクター理解から再分析を開始しました。",
+            });
             void queryClient.invalidateQueries({ queryKey: ["entries"] });
             void queryClient.invalidateQueries({ queryKey: ["profile"] });
           }}
@@ -460,49 +514,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               onChange={(event) => update("dislikedReasons", event.target.value)}
             />
           </label>
-          <fieldset className="full channel-picker">
-            <legend>どういう意味で好きか</legend>
-            <p className="channel-picker-intro">当てはまるものを複数選べます。よく使われる項目を先に表示しています。</p>
-            <div className="channel-grid">
-              {popularChannelOptions.map((option) => (
-                <ResponseChannelOption
-                  key={option.value}
-                  option={option}
-                  selected={form.responseChannels.includes(option.value)}
-                  onChange={toggleResponseChannel}
-                />
-              ))}
-            </div>
-            <div className="channel-accordions">
-              {responseChannelCategories.map((category) => {
-                const options = detailedChannelOptions.filter((item) => item.category === category.key);
-                const selectedCount = options.filter((item) => form.responseChannels.includes(item.value)).length;
-                return (
-                  <details className="channel-accordion" key={category.key}>
-                    <summary>
-                      <span>
-                        <b>{category.label}</b>
-                        <small>{category.description}</small>
-                      </span>
-                      <span className="channel-accordion-count">
-                        {selectedCount ? `${selectedCount}件選択` : "詳細を表示"}
-                      </span>
-                    </summary>
-                    <div className="channel-grid channel-detail-grid">
-                      {options.map((option) => (
-                        <ResponseChannelOption
-                          key={option.value}
-                          option={option}
-                          selected={form.responseChannels.includes(option.value)}
-                          onChange={toggleResponseChannel}
-                        />
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
-            </div>
-          </fieldset>
+          <ResponseChannelPicker selected={form.responseChannels} onChange={toggleResponseChannel} />
           <label className="full">
             <span>善悪・価値観について残したいニュアンス</span>
             <textarea
@@ -548,7 +560,197 @@ function ResponseChannelOption({
   );
 }
 
-function ReviewModal({ entryId, onClose, onUpdated }: { entryId: string; onClose(): void; onUpdated(): void }) {
+function ResponseChannelPicker({
+  selected,
+  onChange,
+}: {
+  selected: ResponseChannel[];
+  onChange(value: ResponseChannel, selected: boolean): void;
+}) {
+  return (
+    <fieldset className="full channel-picker">
+      <legend>どういう意味で好きか</legend>
+      <p className="channel-picker-intro">当てはまるものを複数選べます。よく使われる項目を先に表示しています。</p>
+      <div className="channel-grid">
+        {popularChannelOptions.map((option) => (
+          <ResponseChannelOption
+            key={option.value}
+            option={option}
+            selected={selected.includes(option.value)}
+            onChange={onChange}
+          />
+        ))}
+      </div>
+      <div className="channel-accordions">
+        {responseChannelCategories.map((category) => {
+          const options = detailedChannelOptions.filter((item) => item.category === category.key);
+          const selectedCount = options.filter((item) => selected.includes(item.value)).length;
+          return (
+            <details className="channel-accordion" key={category.key}>
+              <summary>
+                <span>
+                  <b>{category.label}</b>
+                  <small>{category.description}</small>
+                </span>
+                <span className="channel-accordion-count">
+                  {selectedCount ? `${selectedCount}件選択` : "詳細を表示"}
+                </span>
+              </summary>
+              <div className="channel-grid channel-detail-grid">
+                {options.map((option) => (
+                  <ResponseChannelOption
+                    key={option.value}
+                    option={option}
+                    selected={selected.includes(option.value)}
+                    onChange={onChange}
+                  />
+                ))}
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+type ReanalysisFormState = {
+  likedReasons: string;
+  dislikedReasons: string;
+  responseChannels: ResponseChannel[];
+  valueStanceNote: string;
+};
+
+function ReanalysisModal({ entryId, onClose, onCreated }: { entryId: string; onClose(): void; onCreated(): void }) {
+  const detail = useQuery({
+    queryKey: ["entry", entryId],
+    queryFn: () => api<ReviewDetail>(`/api/v1/entries/${entryId}`),
+  });
+  return (
+    <Modal title="入力を見直して再分析" onClose={onClose} wide>
+      {detail.isPending && <Spinner label="現在の入力を読み込んでいます" />}
+      {detail.isError && <Notice tone="danger">現在の入力を読み込めませんでした。</Notice>}
+      {detail.data && (
+        <ReanalysisForm entryId={entryId} draft={detail.data.entry.draft} onClose={onClose} onCreated={onCreated} />
+      )}
+    </Modal>
+  );
+}
+
+function ReanalysisForm({
+  entryId,
+  draft,
+  onClose,
+  onCreated,
+}: {
+  entryId: string;
+  draft: EntryDraft;
+  onClose(): void;
+  onCreated(): void;
+}) {
+  const [form, setForm] = useState<ReanalysisFormState>({
+    likedReasons: draft.preference.likedReasons ?? "",
+    dislikedReasons: draft.preference.dislikedReasons ?? "",
+    responseChannels: draft.preference.responseChannels,
+    valueStanceNote: draft.preference.valueStanceNote ?? "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>();
+  const toggleResponseChannel = (value: ResponseChannel, selected: boolean) =>
+    setForm((current) => ({
+      ...current,
+      responseChannels: selected
+        ? current.responseChannels.includes(value)
+          ? current.responseChannels
+          : [...current.responseChannels, value]
+        : current.responseChannels.filter((item) => item !== value),
+    }));
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await api(`/api/v1/entries/${entryId}/reanalysis`, {
+        method: "POST",
+        body: JSON.stringify({
+          preference: {
+            likedReasons: form.likedReasons || undefined,
+            dislikedReasons: form.dislikedReasons || undefined,
+            responseChannels: form.responseChannels,
+            valueStanceNote: form.valueStanceNote || undefined,
+          },
+        }),
+      });
+      onCreated();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "再分析を開始できませんでした");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form className="entry-form" onSubmit={submit}>
+      <Notice tone="warning">
+        現在の解析履歴は残ります。再分析を始めると、新しい結果を確認するまでこの登録は累積プロフィールの集計対象外になります。
+      </Notice>
+      <div className="form-grid">
+        <label className="full">
+          <span>好きな理由</span>
+          <textarea
+            rows={5}
+            maxLength={4000}
+            value={form.likedReasons}
+            onChange={(event) => setForm((current) => ({ ...current, likedReasons: event.target.value }))}
+            placeholder="思い出した理由や、分析結果へ反映したい具体的な点を入力してください"
+          />
+        </label>
+        <label className="full">
+          <span>苦手な要素・このキャラで好きではない点</span>
+          <textarea
+            rows={3}
+            maxLength={4000}
+            value={form.dislikedReasons}
+            onChange={(event) => setForm((current) => ({ ...current, dislikedReasons: event.target.value }))}
+          />
+        </label>
+        <ResponseChannelPicker selected={form.responseChannels} onChange={toggleResponseChannel} />
+        <label className="full">
+          <span>善悪・価値観について残したいニュアンス</span>
+          <textarea
+            rows={3}
+            maxLength={2000}
+            value={form.valueStanceNote}
+            onChange={(event) => setForm((current) => ({ ...current, valueStanceNote: event.target.value }))}
+          />
+        </label>
+      </div>
+      <small>入力を変更せず、現在の内容でもう一度分析することもできます。</small>
+      {error && <Notice tone="danger">{error}</Notice>}
+      <div className="modal-actions">
+        <button type="button" className="button button-ghost" onClick={onClose}>
+          キャンセル
+        </button>
+        <button type="submit" className="button button-primary" disabled={submitting}>
+          {submitting ? "開始中…" : "入力を保存して再分析"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ReviewModal({
+  entryId,
+  onClose,
+  onUpdated,
+  onReanalyze,
+}: {
+  entryId: string;
+  onClose(): void;
+  onUpdated(): void;
+  onReanalyze(): void;
+}) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const detail = useQuery({
@@ -586,6 +788,11 @@ function ReviewModal({ entryId, onClose, onUpdated }: { entryId: string; onClose
           <Notice tone={value.entry.status === "failed" ? "danger" : "info"}>
             現在: {statusLabels[value.entry.status] ?? value.entry.status}
           </Notice>
+          {reanalyzableStatuses.has(value.entry.status) && (
+            <button type="button" className="button button-secondary" onClick={onReanalyze}>
+              入力を見直して再分析
+            </button>
+          )}
           {value.baseUnderstanding && (
             <Card>
               <p className="eyebrow">BASE CHARACTER UNDERSTANDING</p>
