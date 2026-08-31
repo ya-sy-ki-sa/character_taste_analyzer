@@ -25,6 +25,9 @@ function providerEnv(overrides: Partial<Env>): Env {
     EMBEDDING_MODEL: "fake-v1",
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test",
+    AI_GATEWAY_ACCOUNT_ID: "test-account",
+    AI_GATEWAY_GATEWAY_ID: "test-gateway",
+    AI_GATEWAY_TOKEN: "test-gateway-token",
     ANALYSIS_DAILY_QUOTA: "100",
     GENERATION_DAILY_QUOTA: "100",
     SESSION_DAYS: "30",
@@ -45,18 +48,20 @@ describe("explicit LLM provider routing", () => {
   });
 
   it("preserves Workers AI capacity failures without a configured fallback", async () => {
+    const run = vi.fn(async () => {
+      throw new Error("429 daily quota exceeded");
+    });
     const env = providerEnv({
       LLM_PROVIDER: "workers_ai",
       LLM_MODEL: "workers-model",
-      AI: {
-        run: async () => {
-          throw new Error("429 daily quota exceeded");
-        },
-      },
+      AI: { run },
     });
     await expect(createLlmProvider(env).generateStructured(request)).rejects.toMatchObject({
       code: "PROVIDER_CAPACITY_EXHAUSTED",
       retryable: true,
+    });
+    expect(run).toHaveBeenCalledWith("workers-model", expect.objectContaining({ messages: request.messages }), {
+      gateway: { id: "test-gateway" },
     });
   });
 
@@ -98,7 +103,6 @@ describe("explicit LLM provider routing", () => {
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     )
       .generateStructured(request)
@@ -150,7 +154,6 @@ describe("explicit LLM provider routing", () => {
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     )
       .generateStructured(request)
@@ -192,7 +195,6 @@ describe("explicit LLM provider routing", () => {
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     )
       .generateStructured(request)
@@ -238,7 +240,6 @@ describe("explicit LLM provider routing", () => {
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     )
       .generateStructured(request)
@@ -274,7 +275,6 @@ describe("explicit LLM provider routing", () => {
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     )
       .generateStructured(request)
@@ -295,11 +295,13 @@ describe("explicit LLM provider routing", () => {
   });
 
   it("sends the structured-output contract and execution limits to OpenAI Responses", async () => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       const headers = new Headers(init?.headers);
+      expect(String(input)).toBe("https://gateway.ai.cloudflare.com/v1/test-account/test-gateway/openai/responses");
       expect(body).toMatchObject({
         model: "gpt-5.6-sol",
+        service_tier: "flex",
         store: false,
         safety_identifier: "privacy-safe-user-hash",
         max_output_tokens: 100,
@@ -307,6 +309,8 @@ describe("explicit LLM provider routing", () => {
       });
       expect(body).not.toHaveProperty("temperature");
       expect(headers.get("Idempotency-Key")).toBe(`${request.idempotencyKey}:attempt-0`);
+      expect(headers.get("cf-aig-authorization")).toBe("Bearer test-gateway-token");
+      expect(headers.get("cf-aig-request-timeout")).toBe("900000");
       return Response.json({ id: "resp_test", output_text: '{"value":"openai"}', usage: {} });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -315,10 +319,10 @@ describe("explicit LLM provider routing", () => {
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-sol",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     ).generateStructured({ ...request, safetyIdentifier: "privacy-safe-user-hash" });
     expect(result.value.value).toBe("openai");
+    expect(result.metadata.effectiveSettings).toMatchObject({ serviceTier: "flex" });
     expect(result.metadata.providerRequestId).toBe("resp_test");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
@@ -337,7 +341,6 @@ describe("explicit LLM provider routing", () => {
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-sol",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     ).generateStructured({ ...request, enableWebSearch: true });
     expect(result.value.value).toBe("researched");

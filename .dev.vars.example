@@ -1,6 +1,13 @@
 # Copy to .dev.vars and replace the values. Never commit .dev.vars.
 AUTH_PEPPER=replace-with-at-least-32-random-bytes
 DATASTORE_STRATEGY=d1
-OPENAI_API_KEY=
+
+# OpenAI Provider Native API is always called through Cloudflare AI Gateway.
+OPENAI_API_KEY=replace-with-openai-api-key
+AI_GATEWAY_ACCOUNT_ID=replace-with-cloudflare-account-id
+AI_GATEWAY_GATEWAY_ID=default
+# Cloudflare API token with Account > AI Gateway > Run permission.
+AI_GATEWAY_TOKEN=replace-with-cloudflare-ai-gateway-token
+
 TURNSTILE_SECRET=
-# local-manualはwrangler.jsoncのWorkers AIを使います。`npm run dev:offline`は専用のoffline環境を選び、Replay/Fakeで動きます。
+# `npm run dev:offline`は専用のoffline環境を選び、Replay/Fakeで動くため、AI関連の値は使用しません。

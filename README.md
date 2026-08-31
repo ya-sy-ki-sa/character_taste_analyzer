@@ -34,7 +34,7 @@ npm run db:migrate:local
 npm run dev
 ```
 
-`http://localhost:5173`を開きます。ローカル標準は`.dev.vars`のOpenAI設定を使い、LLMは`gpt-5.6-luna`、Embeddingは`text-embedding-3-small`です。秘密値はbuild成果物から除外されます。
+`http://localhost:5173`を開きます。ローカル標準は`.dev.vars`のOpenAI／Cloudflare AI Gateway設定を使い、LLMは`gpt-5.6-luna`、Embeddingは`text-embedding-3-small`です。秘密値はbuild成果物から除外されます。
 
 AI quotaを使わず全導線を確認する場合は次を使います。
 
@@ -57,7 +57,25 @@ npm run dev:offline
 | `replay` | ローカルE2E／CIの再現可能な応答 |
 | `fake` | 単体試験用の決定論的応答 |
 
-OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`を設定し、`LLM_PROVIDER=openai`、`LLM_MODEL`を対象modelへ変更します。`OPENAI_TRANSPORT=ai_gateway`の場合は`AI_GATEWAY_ACCOUNT_ID`と`AI_GATEWAY_GATEWAY_ID`も設定します。
+OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
+
+ローカルの`.dev.vars`例:
+
+```dotenv
+OPENAI_API_KEY=...
+AI_GATEWAY_ACCOUNT_ID=...
+AI_GATEWAY_TOKEN=...
+```
+
+preview／productionでは対象環境へ同じ値をSecretとして登録します。
+
+```bash
+npx wrangler secret put OPENAI_API_KEY --env production
+npx wrangler secret put AI_GATEWAY_ACCOUNT_ID --env production
+npx wrangler secret put AI_GATEWAY_TOKEN --env production
+```
+
+Workers AIは`AI` bindingを使用しますが、各`env.AI.run()`へ同じGateway IDを渡すため、LLMとEmbeddingのログ・レート制限・利用量をAI Gatewayへ集約できます。Replay／Fakeは外部APIを呼ばないためGateway対象外です。
 
 EmbeddingはLLMと独立した`EmbeddingProvider` Portを使います。local/productionのOpenAI `text-embedding-3-small`は1536次元、stagingのWorkers AI BGE-M3は1024次元です。OpenAI、Workers AI、Fakeの各Adapterをfactoryで切り替え、返却vectorの件数・順序・有限値・次元数を共通契約で検証します。
 

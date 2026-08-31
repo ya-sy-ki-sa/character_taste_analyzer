@@ -4,7 +4,7 @@ export type WorkflowBinding<T> = {
 };
 
 export type AiBinding = {
-  run(model: string, input: Record<string, unknown>): Promise<unknown>;
+  run(model: string, input: Record<string, unknown>, options: { gateway: { id: string } }): Promise<unknown>;
 };
 
 export type CharacterAnalysisWorkflowParams = {
@@ -54,9 +54,9 @@ export type Env = {
   LLM_FALLBACK_PROVIDER?: "openai" | "workers_ai" | "replay" | "fake" | "";
   LLM_FALLBACK_MODEL?: string;
   OPENAI_API_KEY?: string;
-  OPENAI_TRANSPORT?: "direct" | "ai_gateway";
   AI_GATEWAY_ACCOUNT_ID?: string;
   AI_GATEWAY_GATEWAY_ID?: string;
+  AI_GATEWAY_TOKEN?: string;
   EMBEDDING_PROVIDER: "openai" | "workers_ai" | "fake";
   EMBEDDING_MODEL: string;
   EMBEDDING_DIMENSIONS?: string;

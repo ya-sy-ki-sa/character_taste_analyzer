@@ -44,7 +44,15 @@ describe("readiness configuration", () => {
           EMBEDDING_DIMENSIONS: "1024",
         }),
       ).errors,
-    ).toEqual(expect.arrayContaining(["OPENAI_API_KEY_MISSING", "EMBEDDING_DIMENSIONS_MISMATCH"]));
+    ).toEqual(
+      expect.arrayContaining([
+        "OPENAI_API_KEY_MISSING",
+        "AI_GATEWAY_GATEWAY_ID_MISSING",
+        "AI_GATEWAY_ACCOUNT_ID_MISSING",
+        "AI_GATEWAY_TOKEN_MISSING",
+        "EMBEDDING_DIMENSIONS_MISMATCH",
+      ]),
+    );
   });
 
   it("requires non-local origins and operational bindings", () => {
@@ -61,6 +69,7 @@ describe("readiness configuration", () => {
     expect(result.errors).toEqual(
       expect.arrayContaining([
         "AI_BINDING_MISSING",
+        "AI_GATEWAY_GATEWAY_ID_MISSING",
         "APP_ORIGIN_MISSING",
         "EXPORTS_BINDING_MISSING",
         "ANALYSIS_WORKFLOW_BINDING_MISSING",

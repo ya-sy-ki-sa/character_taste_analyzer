@@ -10,6 +10,9 @@ function providerEnv(overrides: Partial<Env>): Env {
     EMBEDDING_MODEL: "fake-v1",
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test",
+    AI_GATEWAY_ACCOUNT_ID: "test-account",
+    AI_GATEWAY_GATEWAY_ID: "test-gateway",
+    AI_GATEWAY_TOKEN: "test-gateway-token",
     ANALYSIS_DAILY_QUOTA: "100",
     GENERATION_DAILY_QUOTA: "100",
     SESSION_DAYS: "30",
@@ -27,8 +30,11 @@ describe("embedding provider polymorphism", () => {
 
   it("sends the OpenAI Embeddings API contract and preserves document order", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://api.openai.com/v1/embeddings");
-      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-key");
+      expect(String(input)).toBe("https://gateway.ai.cloudflare.com/v1/test-account/test-gateway/openai/embeddings");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Authorization")).toBe("Bearer test-key");
+      expect(headers.get("cf-aig-authorization")).toBe("Bearer test-gateway-token");
+      expect(headers.get("cf-aig-request-timeout")).toBe("900000");
       expect(JSON.parse(String(init?.body))).toEqual({
         model: "text-embedding-3-small",
         input: ["first text", "second text"],
@@ -53,7 +59,6 @@ describe("embedding provider polymorphism", () => {
         EMBEDDING_MODEL: "text-embedding-3-small",
         EMBEDDING_DIMENSIONS: "3",
         OPENAI_API_KEY: "test-key",
-        OPENAI_TRANSPORT: "direct",
       }),
     );
     const vectors = await provider.embed(documents);
@@ -87,7 +92,11 @@ describe("embedding provider polymorphism", () => {
     const vectors = await provider.embed(documents);
 
     expect(provider.providerId).toBe("workers_ai");
-    expect(run).toHaveBeenCalledWith("workers-embedding-model", { text: ["first text", "second text"] });
+    expect(run).toHaveBeenCalledWith(
+      "workers-embedding-model",
+      { text: ["first text", "second text"] },
+      { gateway: { id: "test-gateway" } },
+    );
     expect(vectors.map((vector) => vector.documentId)).toEqual(["document-1", "document-2"]);
   });
 

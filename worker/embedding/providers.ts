@@ -8,6 +8,7 @@ import {
 } from "./types";
 
 const MAX_BATCH_DOCUMENTS = 2_048;
+const OPENAI_REQUEST_TIMEOUT_MS = 15 * 60_000;
 
 function configuredDimensions(env: Env): number | undefined {
   const raw = env.EMBEDDING_DIMENSIONS?.trim();
@@ -96,10 +97,9 @@ class OpenAiEmbeddingProvider implements EmbeddingProvider {
   }
 
   private endpoint(): string {
-    if (this.env.OPENAI_TRANSPORT !== "ai_gateway") return "https://api.openai.com/v1/embeddings";
     if (!this.env.AI_GATEWAY_ACCOUNT_ID || !this.env.AI_GATEWAY_GATEWAY_ID)
       throw new EmbeddingProviderError("AI Gatewayの設定が足りません", "PROVIDER_CONFIGURATION_INVALID", false);
-    return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID)}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID)}/openai/v1/embeddings`;
+    return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID)}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID)}/openai/embeddings`;
   }
 
   async embed(documents: EmbeddingDocument[]): Promise<EmbeddingVector[]> {
@@ -107,6 +107,8 @@ class OpenAiEmbeddingProvider implements EmbeddingProvider {
     if (documents.length === 0) return [];
     if (!this.env.OPENAI_API_KEY)
       throw new EmbeddingProviderError("OpenAI API keyがありません", "PROVIDER_CONFIGURATION_INVALID", false);
+    if (!this.env.AI_GATEWAY_TOKEN)
+      throw new EmbeddingProviderError("AI Gateway tokenがありません", "PROVIDER_CONFIGURATION_INVALID", false);
 
     let response: Response;
     try {
@@ -114,9 +116,11 @@ class OpenAiEmbeddingProvider implements EmbeddingProvider {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.env.OPENAI_API_KEY}`,
+          "cf-aig-authorization": `Bearer ${this.env.AI_GATEWAY_TOKEN}`,
           "Content-Type": "application/json",
           "cf-aig-collect-log-payload": "false",
           "cf-aig-skip-cache": "true",
+          "cf-aig-request-timeout": String(OPENAI_REQUEST_TIMEOUT_MS),
         },
         body: JSON.stringify({
           model: this.model,
@@ -124,7 +128,7 @@ class OpenAiEmbeddingProvider implements EmbeddingProvider {
           encoding_format: "float",
           ...(this.dimensions === undefined ? {} : { dimensions: this.dimensions }),
         }),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(OPENAI_REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
       throw new EmbeddingProviderError(
@@ -189,9 +193,15 @@ class WorkersAiEmbeddingProvider implements EmbeddingProvider {
     if (documents.length === 0) return [];
     if (!this.env.AI)
       throw new EmbeddingProviderError("Workers AI bindingがありません", "PROVIDER_CONFIGURATION_INVALID", false);
+    if (!this.env.AI_GATEWAY_GATEWAY_ID)
+      throw new EmbeddingProviderError("AI Gatewayの設定が足りません", "PROVIDER_CONFIGURATION_INVALID", false);
     let payload: unknown;
     try {
-      payload = await this.env.AI.run(this.model, { text: documents.map((document) => document.text) });
+      payload = await this.env.AI.run(
+        this.model,
+        { text: documents.map((document) => document.text) },
+        { gateway: { id: this.env.AI_GATEWAY_GATEWAY_ID } },
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Workers AI request failed";
       const capacity = /429|quota|limit|capacity|daily/iu.test(detail);

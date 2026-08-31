@@ -48,7 +48,7 @@ describe("analysis error diagnostics", () => {
     safetySignal: "none" | "incomplete",
   ): LlmRunMetadata => ({
     provider: "openai",
-    transport: "direct",
+    transport: "ai_gateway",
     adapterVersion: "1.0.0",
     requestedModel: "gpt-5.6-luna",
     resolvedModel: "gpt-5.6-luna",

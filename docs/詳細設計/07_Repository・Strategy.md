@@ -210,12 +210,12 @@ Adapter選択は環境変数文字列を直接各use caseで分岐せず、compo
 
 | `LLM_PROVIDER` | Adapter | 必要な依存 | 用途 |
 |---|---|---|---|
-| `openai` | `OpenAiLlmProvider` | `OPENAI_API_KEY`、model ID | 初期必須の外部Provider Adapter |
-| `workers_ai` | `WorkersAiLlmProvider` | Cloudflare `AI` binding、model ID | 選択可能Adapter |
+| `openai` | `OpenAiLlmProvider` | `OPENAI_API_KEY`、AI Gateway設定、model ID | 初期必須の外部Provider Adapter |
+| `workers_ai` | `WorkersAiLlmProvider` | Cloudflare `AI` binding、AI Gateway ID、model ID | 選択可能Adapter |
 | `replay` | `ReplayLlmProvider` | version付きfixture | local/CIの再現試験 |
 | `fake` | `FixtureLlmProvider` | 決定論的fixture | unit/E2Eの状態試験 |
 
-`OpenAiLlmProvider`は`OPENAI_TRANSPORT=direct|ai_gateway`を受け取る。`direct`はOpenAIへ直接接続し、`ai_gateway`はCloudflare AI Gatewayを経由する。AI GatewayはProvider IDを変えず、metadataのtransport/routeとして記録する。
+`OpenAiLlmProvider`はOpenAI Provider Native endpointを通じてCloudflare AI Gatewayへ接続する。`WorkersAiLlmProvider`も`AI` bindingのgateway optionへ同じGateway IDを渡す。live ProviderからProvider APIへの直接接続は禁止し、AI GatewayはProvider IDを変えずmetadataのtransportとして記録する。
 
 `LlmProviderFactory`は設定とbinding/secretの組合せを検証し、不明なProvider、必要secret欠落、未承認modelでfail fastする。fallbackには`LLM_FALLBACK_MODEL`を使い、主系と異なるProviderだけを許可する。Provider選択はdeployment/実行profile単位とし、`local-manual`は`workers_ai`、`local-test`/CIは`replay`または`fake`を明示的に注入する。ユーザーが画面からAPI keyやProviderを指定する機能は設けない。
 

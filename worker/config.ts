@@ -20,13 +20,16 @@ export function validateConfig(env: Env): ConfigValidation {
     !env.OPENAI_API_KEY
   )
     errors.push("OPENAI_API_KEY_MISSING");
-  if (
-    (env.LLM_PROVIDER === "workers_ai" ||
-      env.LLM_FALLBACK_PROVIDER === "workers_ai" ||
-      env.EMBEDDING_PROVIDER === "workers_ai") &&
-    !env.AI
-  )
-    errors.push("AI_BINDING_MISSING");
+  const usesOpenAi =
+    env.LLM_PROVIDER === "openai" || env.LLM_FALLBACK_PROVIDER === "openai" || env.EMBEDDING_PROVIDER === "openai";
+  const usesWorkersAi =
+    env.LLM_PROVIDER === "workers_ai" ||
+    env.LLM_FALLBACK_PROVIDER === "workers_ai" ||
+    env.EMBEDDING_PROVIDER === "workers_ai";
+  if ((usesOpenAi || usesWorkersAi) && !env.AI_GATEWAY_GATEWAY_ID) errors.push("AI_GATEWAY_GATEWAY_ID_MISSING");
+  if (usesOpenAi && !env.AI_GATEWAY_ACCOUNT_ID) errors.push("AI_GATEWAY_ACCOUNT_ID_MISSING");
+  if (usesOpenAi && !env.AI_GATEWAY_TOKEN) errors.push("AI_GATEWAY_TOKEN_MISSING");
+  if (usesWorkersAi && !env.AI) errors.push("AI_BINDING_MISSING");
   if (env.ENVIRONMENT !== "local") {
     if (!env.APP_ORIGIN) errors.push("APP_ORIGIN_MISSING");
     else {

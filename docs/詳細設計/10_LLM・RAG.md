@@ -25,10 +25,8 @@ OpenAI Adapterを初期必須の実装対象とし、Workers AI Adapterを選択
 
 ```text
 LlmProvider
-├─ OpenAiLlmProvider
-│  ├─ direct transport
-│  └─ Cloudflare AI Gateway transport
-├─ WorkersAiLlmProvider
+├─ OpenAiLlmProvider ─ Provider Native ─┐
+├─ WorkersAiLlmProvider ─ AI binding ──┤─ Cloudflare AI Gateway
 ├─ ReplayLlmProvider
 └─ FixtureLlmProvider
 ```
@@ -42,7 +40,7 @@ LlmProvider
 
 `local-manual`のWorkers AI呼出しはremote AI bindingであり、完全offline実行ではない。Cloudflareへの認証、network接続、Workers AI利用可能なquotaが必要である。offline作業または定型回帰では`LLM_PROVIDER=replay`に上書きし、画面・APIの同一フローを維持する。
 
-OpenAIの`direct`/`ai_gateway`は通信経路の違いであり、どちらもProvider IDは`openai`とする。Gateway用URLは承認済みaccount/gateway IDからAdapterが組み立て、ユーザー入力の任意URLを使わない。
+OpenAIはProvider Native endpoint、Workers AIはGateway ID付き`AI` bindingを使用し、すべてのlive LLM／Embedding呼出しをCloudflare AI Gatewayへ集約する。Gateway用URLは承認済みaccount/gateway IDからAdapterが組み立て、ユーザー入力の任意URLを使わない。Replay/Fakeは外部通信を行わないため対象外とする。
 
 ### 2.2 キャラクター基本情報の取得
 
@@ -63,7 +61,7 @@ OpenAIの`direct`/`ai_gateway`は通信経路の違いであり、どちらもPr
 ```typescript
 interface LlmRunMetadata {
   provider: "openai" | "workers_ai" | "replay" | "fake";
-  transport: "direct" | "ai_gateway" | "binding" | "replay" | "fake";
+  transport: "ai_gateway" | "replay" | "fake"; // direct/bindingは既存DB行の互換値としてのみ残す
   adapterVersion: string;
   requestedModel: string;
   resolvedModel: string;

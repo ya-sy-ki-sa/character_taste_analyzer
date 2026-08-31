@@ -10,7 +10,9 @@ import type {
 } from "./types";
 import { LlmProviderError } from "./types";
 
-const ADAPTER_VERSION = "1.0.0";
+const ADAPTER_VERSION = "1.2.0";
+const OPENAI_REQUEST_TIMEOUT_MS = 15 * 60_000;
+const OPENAI_SERVICE_TIER = "flex" as const;
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -273,15 +275,21 @@ class WorkersAiLlmProvider extends RemoteProvider {
   async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[], _idempotencyKey: string) {
     if (!this.env.AI)
       throw new LlmProviderError("Workers AI bindingがありません", "EXTERNAL_PROVIDER_UNAVAILABLE", true);
+    if (!this.env.AI_GATEWAY_GATEWAY_ID)
+      throw new LlmProviderError("AI Gatewayの設定が足りません", "PROVIDER_CONFIGURATION_INVALID", false);
     const started = Date.now();
     let payload: unknown;
     try {
-      payload = await this.env.AI.run(this.model, {
-        messages,
-        max_tokens: request.maxOutputTokens,
-        temperature: request.temperature,
-        response_format: { type: "json_schema", json_schema: request.jsonSchema },
-      });
+      payload = await this.env.AI.run(
+        this.model,
+        {
+          messages,
+          max_tokens: request.maxOutputTokens,
+          temperature: request.temperature,
+          response_format: { type: "json_schema", json_schema: request.jsonSchema },
+        },
+        { gateway: { id: this.env.AI_GATEWAY_GATEWAY_ID } },
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Workers AI request failed";
       const capacity = /429|quota|limit|capacity|daily/iu.test(message);
@@ -293,7 +301,7 @@ class WorkersAiLlmProvider extends RemoteProvider {
       );
       providerError.attemptMetadata = {
         provider: this.providerId,
-        transport: "binding",
+        transport: "ai_gateway",
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
@@ -313,7 +321,7 @@ class WorkersAiLlmProvider extends RemoteProvider {
       text: normalized.text,
       metadata: {
         provider: this.providerId,
-        transport: "binding" as const,
+        transport: "ai_gateway" as const,
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
@@ -337,15 +345,16 @@ class OpenAiLlmProvider extends RemoteProvider {
   }
 
   private endpoint(): string {
-    if (this.env.OPENAI_TRANSPORT !== "ai_gateway") return "https://api.openai.com/v1/responses";
     if (!this.env.AI_GATEWAY_ACCOUNT_ID || !this.env.AI_GATEWAY_GATEWAY_ID)
       throw new LlmProviderError("AI Gatewayの設定が足りません", "PROVIDER_CONFIGURATION_INVALID", false);
-    return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID)}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID)}/openai/v1/responses`;
+    return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID)}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID)}/openai/responses`;
   }
 
   async invoke<T>(request: StructuredLlmRequest<T>, messages: LlmMessage[], idempotencyKey: string) {
     if (!this.env.OPENAI_API_KEY)
       throw new LlmProviderError("OpenAI API keyがありません", "EXTERNAL_PROVIDER_UNAVAILABLE", false);
+    if (!this.env.AI_GATEWAY_TOKEN)
+      throw new LlmProviderError("AI Gateway tokenがありません", "PROVIDER_CONFIGURATION_INVALID", false);
     const started = Date.now();
     let response: Response;
     try {
@@ -353,20 +362,23 @@ class OpenAiLlmProvider extends RemoteProvider {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.env.OPENAI_API_KEY}`,
+          "cf-aig-authorization": `Bearer ${this.env.AI_GATEWAY_TOKEN}`,
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
           "cf-aig-collect-log-payload": "false",
           "cf-aig-skip-cache": "true",
+          "cf-aig-request-timeout": String(OPENAI_REQUEST_TIMEOUT_MS),
         },
         body: JSON.stringify({
           model: this.model,
+          service_tier: OPENAI_SERVICE_TIER,
           input: messages,
           store: false,
           ...(request.safetyIdentifier ? { safety_identifier: request.safetyIdentifier.slice(0, 64) } : {}),
           max_output_tokens: request.maxOutputTokens,
           ...(request.enableWebSearch
             ? {
-                tools: [{ type: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "web_search_preview" : "web_search" }],
+                tools: [{ type: "web_search" }],
                 tool_choice: "auto",
                 max_tool_calls: 3,
                 include: ["web_search_call.action.sources"],
@@ -381,7 +393,7 @@ class OpenAiLlmProvider extends RemoteProvider {
             },
           },
         }),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(OPENAI_REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
       const providerError = new LlmProviderError(
@@ -392,7 +404,7 @@ class OpenAiLlmProvider extends RemoteProvider {
       );
       providerError.attemptMetadata = {
         provider: this.providerId,
-        transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "ai_gateway" : "direct",
+        transport: "ai_gateway",
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
@@ -400,6 +412,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         dataRetentionMode: "no_retention",
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
+          serviceTier: OPENAI_SERVICE_TIER,
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },
@@ -440,7 +453,7 @@ class OpenAiLlmProvider extends RemoteProvider {
       );
       providerError.attemptMetadata = {
         provider: this.providerId,
-        transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "ai_gateway" : "direct",
+        transport: "ai_gateway",
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
@@ -451,6 +464,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         dataRetentionMode: "no_retention",
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
+          serviceTier: OPENAI_SERVICE_TIER,
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },
@@ -462,7 +476,7 @@ class OpenAiLlmProvider extends RemoteProvider {
     const providerRequestId = diagnostics.requestId ?? diagnostics.responseId;
     const attemptMetadata: LlmRunMetadata = {
       provider: this.providerId,
-      transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? "ai_gateway" : "direct",
+      transport: "ai_gateway",
       adapterVersion: ADAPTER_VERSION,
       requestedModel: this.model,
       resolvedModel: this.model,
@@ -473,6 +487,7 @@ class OpenAiLlmProvider extends RemoteProvider {
       dataRetentionMode: "no_retention",
       effectiveSettings: {
         maxOutputTokens: request.maxOutputTokens,
+        serviceTier: OPENAI_SERVICE_TIER,
         webSearch: request.enableWebSearch === true,
         safetyIdentifier: request.safetyIdentifier ?? null,
       },
@@ -514,7 +529,7 @@ class OpenAiLlmProvider extends RemoteProvider {
       text: normalized.text,
       metadata: {
         provider: this.providerId,
-        transport: this.env.OPENAI_TRANSPORT === "ai_gateway" ? ("ai_gateway" as const) : ("direct" as const),
+        transport: "ai_gateway" as const,
         adapterVersion: ADAPTER_VERSION,
         requestedModel: this.model,
         resolvedModel: this.model,
@@ -527,6 +542,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         citations: normalized.citations,
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
+          serviceTier: OPENAI_SERVICE_TIER,
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },

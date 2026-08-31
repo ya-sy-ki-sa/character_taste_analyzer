@@ -97,11 +97,13 @@ export function createD1DataStoreStrategy(env: Env): CharacterTasteDataStoreStra
     loadProfileSnapshotItems: async (ownerUserId) => {
       const freshness = await loadProjectionFreshness(env, ownerUserId);
       if (freshness.status !== "fresh") return { snapshot: null, items: [] };
-      await loadCurrentProfile(env, ownerUserId);
       const snapshot = await first<{ id: string; profile_generation: number }>(
-        env.DB.prepare(
-          `SELECT id,profile_generation FROM profile_snapshots WHERE owner_user_id=? ORDER BY profile_generation DESC,created_at DESC LIMIT 1`,
-        ).bind(ownerUserId),
+        env.DB.prepare(`
+          SELECT ps.id,ps.profile_generation
+          FROM profile_snapshots ps JOIN profile_projections pp ON pp.id=ps.profile_projection_id
+          WHERE ps.owner_user_id=? AND pp.status='current'
+          ORDER BY ps.profile_generation DESC,ps.created_at DESC LIMIT 1
+        `).bind(ownerUserId),
       );
       if (!snapshot) return { snapshot: null, items: [] };
       const items = await all<{
