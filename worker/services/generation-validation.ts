@@ -1,4 +1,4 @@
-import type { GeneratedCharacterCandidate } from "../../shared/schemas";
+import type { AnyGeneratedCharacterCandidate } from "../../shared/schemas";
 
 export type GenerationCoverageBrief = {
   preferenceSelections: Array<{
@@ -27,7 +27,7 @@ export function jsonPointerExists(value: unknown, pointer: string): boolean {
 
 export function validateGenerationCoverage(
   brief: GenerationCoverageBrief,
-  candidate: GeneratedCharacterCandidate,
+  candidate: AnyGeneratedCharacterCandidate,
 ): string[] {
   const violations: string[] = [];
   const expected = new Map(brief.preferenceSelections.map((item) => [item.profileSnapshotItemId, item]));

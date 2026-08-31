@@ -330,9 +330,15 @@ const responseChannelByValue = new Map<string, (typeof responseChannelCatalog)[n
 );
 
 export function responseChannelLabel(value: string): string {
-  return responseChannelByValue.get(value)?.label ?? "その他の反応";
+  const standardLabel = responseChannelByValue.get(value)?.label;
+  if (standardLabel) return standardLabel;
+  return (darkResponseChannelValues as readonly string[]).includes(value)
+    ? darkResponseChannelLabel(value)
+    : "その他の反応";
 }
 
 export function responseChannelPrompt(): string {
   return responseChannelCatalog.map((item) => `${item.value}: ${item.label} — ${item.description}`).join("\n");
 }
+
+import { darkResponseChannelLabel, darkResponseChannelValues } from "./dark-response-channels";

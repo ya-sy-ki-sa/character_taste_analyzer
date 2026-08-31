@@ -35,6 +35,7 @@
     "contracts:openapi": "vitest run tests/openapi-contract.test.ts",
     "contracts:prompts": "node scripts/check-prompts.mjs",
     "contracts": "npm run contracts:ddl && npm run contracts:schemas && npm run contracts:openapi && npm run contracts:prompts",
+    "eval:dark:gate": "node scripts/check-dark-eval.mjs",
     "bundle:budget": "node scripts/check-bundle-budget.mjs",
     "secret:scan": "node scripts/check-secrets.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run contracts && npm run build && npm run secret:scan && npm run bundle:budget && npm run test:e2e"

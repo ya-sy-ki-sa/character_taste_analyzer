@@ -16,6 +16,7 @@ function dimension(overrides: Partial<ProfileDimension> = {}): ProfileDimension 
     confidence: 0.5,
     evidenceCount: 1,
     identityCount: 1,
+    workCount: 1,
     classification: "emerging",
     flags: [],
     ...overrides,

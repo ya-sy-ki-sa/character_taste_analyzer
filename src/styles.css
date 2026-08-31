@@ -2276,6 +2276,75 @@
     margin-block: 8px 0;
     padding-left: 18px;
   }
+
+  .dark-lab-theme {
+    --ink: #f2eaf5;
+    --ink-soft: #b9a9c2;
+    --paper: #0e0912;
+    --paper-deep: #160d1c;
+    --surface: #17101d;
+    --surface-strong: #211329;
+    --line: #3a2942;
+    --line-strong: #594060;
+    --accent: #c8294a;
+    --accent-dark: #f05a75;
+    --accent-pale: #391321;
+    --lavender: #a57ac0;
+    --lavender-pale: #2a1935;
+    --green: #78ae94;
+    --green-pale: #14291f;
+    --gold: #d5a45d;
+    --gold-pale: #332413;
+    --danger: #ff8291;
+    --danger-pale: #3a151f;
+    --shadow: 0 22px 60px rgba(0, 0, 0, 0.38);
+    --shadow-tight: 0 10px 30px rgba(0, 0, 0, 0.32);
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 15% 3%, rgba(96, 35, 119, 0.28), transparent 30rem),
+      radial-gradient(circle at 90% 20%, rgba(145, 15, 50, 0.2), transparent 35rem),
+      linear-gradient(145deg, #09070c 0%, var(--paper) 52%, #120913 100%);
+  }
+  .dark-lab-theme input,
+  .dark-lab-theme textarea,
+  .dark-lab-theme select {
+    color: var(--ink);
+    background: #100b15;
+    color-scheme: dark;
+  }
+  .dark-lab-theme .brand-mark {
+    background: linear-gradient(145deg, #2f173c, #8c1538);
+    box-shadow: 0 0 24px rgba(200, 41, 74, 0.22);
+  }
+  .dark-lab-mark {
+    margin: -3px 0 10px 50px;
+    color: var(--accent-dark);
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 0.25em;
+  }
+  .dark-landing::before,
+  .dark-lab-theme.analyzer-status-page::before {
+    opacity: 0.16;
+    filter: hue-rotate(235deg) saturate(1.8);
+  }
+  .dark-focus-field {
+    padding: 18px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, rgba(100, 26, 113, 0.17), rgba(139, 16, 49, 0.13));
+  }
+  .dark-archetypes,
+  .dark-channel-picker,
+  .dark-delta-card,
+  .dark-generation-detail {
+    border-color: var(--line-strong);
+    background: rgba(42, 25, 53, 0.34);
+  }
+  .signed-in-panel {
+    align-content: center;
+    min-height: 320px;
+  }
 }
 
 @layer responsive {

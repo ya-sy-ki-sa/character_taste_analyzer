@@ -1,8 +1,8 @@
 import {
+  type AnyEntryDraft,
   canonicalEntryInputPointer,
   entryBaseCharacterName,
   entryReferenceMaterial,
-  type EntryDraft,
 } from "../../shared/schemas";
 
 type MarkdownEvidence = {
@@ -44,7 +44,7 @@ type MarkdownUnderstanding = {
 };
 
 export type CharacterMarkdownSource = {
-  entry: { id: string; status: string; draft: EntryDraft };
+  entry: { id: string; status: string; draft: AnyEntryDraft };
   understanding: MarkdownUnderstanding | null;
   baseUnderstanding: MarkdownUnderstanding | null;
 };
@@ -116,7 +116,7 @@ const deltaLabels: Record<string, string> = {
 function inline(value: unknown): string {
   return String(value ?? "")
     .replace(/\\/gu, "\\\\")
-    .replace(/([`*_{}\[\]<>#+|])/gu, "\\$1")
+    .replace(/([`*_{}[\]<>#+|])/gu, "\\$1")
     .replace(/\r?\n/gu, "<br>")
     .trim();
 }
@@ -159,7 +159,7 @@ function appendEvidence(lines: string[], evidence: MarkdownEvidence[]): void {
 function appendUnderstanding(lines: string[], title: string, understanding: MarkdownUnderstanding): void {
   lines.push(`## ${title}`, "");
   lines.push(`- 情報充足度: ${coverageLabels[understanding.sourceAssessment.coverage] ?? "未分類"}`);
-  lines.push(`- 全体確信度: ${Math.round(understanding.confidence * 100)}%`, "");
+  lines.push(`- 全体登録内支持度: ${Math.round(understanding.confidence * 100)}%`, "");
   for (const [key, value] of Object.entries(understanding.summary)) {
     const normalized = Array.isArray(value) ? value.join("、") : value;
     field(lines, summaryLabels[key] ?? "その他の特徴", normalized);
@@ -170,7 +170,7 @@ function appendUnderstanding(lines: string[], title: string, understanding: Mark
       lines.push(`#### ${inline(assertion.raw_label)}`, "", paragraph(assertion.value_text), "");
       lines.push(
         `- 根拠の明示性: ${explicitnessLabels[assertion.explicitness] ?? "未分類"}`,
-        `- 確信度: ${Math.round(assertion.confidence * 100)}%`,
+        `- 登録内支持度: ${Math.round(assertion.confidence * 100)}%`,
         `- 状態: ${inline(assertion.status)}`,
         "",
       );
@@ -198,7 +198,7 @@ function appendDeltas(lines: string[], deltas: MarkdownDelta[], characterName: s
     lines.push(`- 原典の設定: ${inline(delta.before_value ?? "該当する設定なし")}`);
     lines.push(`- ${inline(characterName)}の設定: ${inline(delta.after_value ?? "このキャラクター像では適用しない")}`);
     if (delta.reason_text) lines.push(`- 判定理由: ${inline(delta.reason_text)}`);
-    lines.push(`- 確信度: ${Math.round(delta.confidence * 100)}%`, `- 状態: ${inline(delta.status)}`, "");
+    lines.push(`- 登録内支持度: ${Math.round(delta.confidence * 100)}%`, `- 状態: ${inline(delta.status)}`, "");
   }
 }
 
@@ -222,6 +222,18 @@ export function buildCharacterMarkdown(source: CharacterMarkdownSource): string 
   const referenceMaterial = entryReferenceMaterial(draft);
   if (referenceMaterial) field(lines, "解析に加えた参考情報", referenceMaterial);
   if (draft.userCharacterView) field(lines, "ユーザーのキャラクター解釈", draft.userCharacterView);
+  if ("darkContext" in draft) {
+    field(lines, "注目するダーク状態", draft.darkContext.focusDescription);
+    field(lines, "変化前・通常時", draft.darkContext.beforeState);
+    field(lines, "闇化・敵対化の契機", draft.darkContext.transitionTrigger);
+    field(lines, "支配者・影響源", draft.darkContext.controllerOrInfluence);
+    field(lines, "支配・変化の機構", draft.darkContext.controlMechanism);
+    field(lines, "認識・抵抗・自我", draft.darkContext.awarenessAndResistance);
+    field(lines, "関係の変化", draft.darkContext.relationshipChange);
+    field(lines, "責任の捉え方", draft.darkContext.responsibilityNote);
+    field(lines, "望む結末", draft.darkContext.desiredOutcome);
+    field(lines, "内容境界", draft.darkContext.contentBoundaries);
+  }
   if (source.baseUnderstanding) appendUnderstanding(lines, "既成キャラクターの基本像", source.baseUnderstanding);
   if (source.understanding)
     appendUnderstanding(
@@ -236,10 +248,14 @@ export function buildCharacterMarkdown(source: CharacterMarkdownSource): string 
     .trim()}\n`;
 }
 
-export function characterMarkdownFilename(draft: EntryDraft): string {
-  const safeName = draft.characterName
-    .normalize("NFKC")
-    .replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/gu, "_")
+export function characterMarkdownFilename(draft: AnyEntryDraft): string {
+  const forbiddenFilenameCharacters = new Set(Array.from('<>:"/\\|?*'));
+  const safeName = Array.from(draft.characterName.normalize("NFKC"))
+    .map((character) => {
+      const point = character.codePointAt(0) ?? 0;
+      return point <= 0x1f || point === 0x7f || forbiddenFilenameCharacters.has(character) ? "_" : character;
+    })
+    .join("")
     .replace(/\s+/gu, " ")
     .replace(/^\.+|\.+$/gu, "")
     .trim()

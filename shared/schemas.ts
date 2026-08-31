@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { analysisDomainValues } from "./analysis-domain";
+import { type DarkResponseChannel, darkResponseChannelValues } from "./dark-response-channels";
 import { type ResponseChannel, responseChannelValues } from "./response-channels";
 
+export type { AnalysisDomain } from "./analysis-domain";
+export type { DarkResponseChannel } from "./dark-response-channels";
 export type { ResponseChannel } from "./response-channels";
 
 function containsForbiddenControl(value: string): boolean {
@@ -41,7 +45,9 @@ export const accountDeletionSchema = z.object({ usernameConfirmation: usernameSc
 
 export const registrationTypeSchema = z.enum(["existing", "customized_existing", "original"]);
 export type RegistrationType = z.infer<typeof registrationTypeSchema>;
+export const analysisDomainSchema = z.enum(analysisDomainValues);
 export const responseChannelSchema = z.enum(responseChannelValues);
+export const darkResponseChannelSchema = z.enum(darkResponseChannelValues);
 export const valueOrientationSchema = z.enum([
   "evil",
   "immoral",
@@ -125,6 +131,106 @@ export const entryDraftSchema = entrySubmissionSchema;
 export type EntryDraft = z.infer<typeof entryDraftSchema>;
 export type EntrySubmission = z.infer<typeof entrySubmissionSchema>;
 
+export const darkArchetypeHintSchema = z.enum([
+  "villain",
+  "villain_protagonist",
+  "antagonistic_rival",
+  "antihero",
+  "dark_hero",
+  "morally_gray",
+  "fallen_hero",
+  "controlled_hero",
+  "manipulated_former_ally",
+  "betraying_ally",
+  "other_dark",
+]);
+
+export const darkContextSchema = z
+  .object({
+    focusDescription: text(2_000, "注目するダーク状態・役割を入力してください"),
+    archetypeHints: z.array(darkArchetypeHintSchema).max(10).default([]),
+    beforeState: optionalText(4_000),
+    transitionTrigger: optionalText(4_000),
+    controllerOrInfluence: optionalText(2_000),
+    controlMechanism: optionalText(2_000),
+    awarenessAndResistance: optionalText(2_000),
+    relationshipChange: optionalText(4_000),
+    responsibilityNote: optionalText(2_000),
+    desiredOutcome: optionalText(2_000),
+    contentBoundaries: optionalText(2_000),
+  })
+  .strict();
+export type DarkContext = z.infer<typeof darkContextSchema>;
+
+export const darkPreferenceInputSchema = z.object({
+  likedReasons: optionalText(4_000),
+  dislikedReasons: optionalText(4_000),
+  responseChannels: z
+    .array(darkResponseChannelSchema)
+    .max(darkResponseChannelValues.length)
+    .refine((values) => new Set(values).size === values.length, "同じ選択肢を重複して指定できません")
+    .default([]),
+  valueStanceNote: optionalText(2_000),
+});
+export type DarkPreferenceInput = z.infer<typeof darkPreferenceInputSchema>;
+
+const darkCommonEntryFields = {
+  preferenceContext: optionalText(2_000),
+  referenceMaterial: optionalText(20_000),
+  userCharacterView: optionalText(4_000),
+  darkContext: darkContextSchema,
+  preference: darkPreferenceInputSchema,
+};
+
+export const darkExistingEntryDraftSchema = z
+  .object({
+    ...darkCommonEntryFields,
+    registrationType: z.literal("existing"),
+    workTitle: text(200),
+    characterName: text(200),
+    mediaType: optionalText(100),
+    identityResolution: identityResolutionSchema,
+  })
+  .strict();
+export const darkCustomizedExistingEntryDraftSchema = z
+  .object({
+    ...darkCommonEntryFields,
+    registrationType: z.literal("customized_existing"),
+    workTitle: text(200),
+    baseCharacterName: text(200),
+    characterName: text(200),
+    mediaType: optionalText(100),
+    representationType: z.enum(["facet", "scene_state", "alternate_setting", "transformative", "user_interpretation"]),
+    customizationDescription: text(8_000, "どのように基本像から異なるか入力してください"),
+    identityResolution: identityResolutionSchema,
+  })
+  .strict();
+export const darkOriginalEntryDraftSchema = z
+  .object({
+    ...darkCommonEntryFields,
+    registrationType: z.literal("original"),
+    characterName: text(200),
+    characterBasicInfo: text(20_000, "キャラクター基本情報を入力してください"),
+  })
+  .strict();
+
+export const darkEntrySubmissionSchema = z.discriminatedUnion("registrationType", [
+  darkExistingEntryDraftSchema,
+  darkCustomizedExistingEntryDraftSchema,
+  darkOriginalEntryDraftSchema,
+]);
+export const darkEntryReanalysisSchema = z.object({ draft: darkEntrySubmissionSchema });
+export type DarkEntryDraft = z.infer<typeof darkEntrySubmissionSchema>;
+export type DarkEntrySubmission = DarkEntryDraft;
+export type AnyEntryDraft = EntryDraft | DarkEntryDraft;
+export type AnyEntrySubmission = EntrySubmission | DarkEntrySubmission;
+export type AnyEntryReanalysisInput = { draft: AnyEntryDraft };
+export const anyEntryDraftSchema = z.union([entryDraftSchema, darkEntrySubmissionSchema]);
+
+export function isDarkEntryDraft(draft: AnyEntryDraft): draft is DarkEntryDraft {
+  return "darkContext" in draft;
+}
+
 export const identityCandidateRequestSchema = z.object({
   workTitle: text(200),
   characterName: text(200),
@@ -140,19 +246,19 @@ export type IdentityCandidate = {
   match: "exact" | "work_and_character";
 };
 
-export function entryPreferenceContext(draft: EntryDraft): string | undefined {
+export function entryPreferenceContext(draft: AnyEntryDraft): string | undefined {
   return draft.preferenceContext;
 }
 
-export function entryScopeText(draft: EntryDraft): string {
+export function entryScopeText(draft: AnyEntryDraft): string {
   return entryPreferenceContext(draft) ?? "キャラクター全体";
 }
 
-export function entryReferenceMaterial(draft: EntryDraft): string | undefined {
+export function entryReferenceMaterial(draft: AnyEntryDraft): string | undefined {
   return draft.referenceMaterial;
 }
 
-export function entryBaseCharacterName(draft: EntryDraft): string {
+export function entryBaseCharacterName(draft: AnyEntryDraft): string {
   if (draft.registrationType !== "customized_existing") return draft.characterName;
   return draft.baseCharacterName;
 }
@@ -181,7 +287,7 @@ export function canonicalEntryInputPointer(pointer: string | null | undefined): 
  * Keep this list shared by entry creation, local migration and prompt construction
  * so that a JSON Pointer emitted by the model always has a persisted source.
  */
-export function entryInputSources(draft: EntryDraft): EntryInputSource[] {
+export function entryInputSources(draft: AnyEntryDraft): EntryInputSource[] {
   const referenceMaterial = entryReferenceMaterial(draft);
   const preferenceContext = entryPreferenceContext(draft);
   return [
@@ -210,6 +316,53 @@ export function entryInputSources(draft: EntryDraft): EntryInputSource[] {
     referenceMaterial ? { pointer: "/referenceMaterial", label: "追加の参考情報", text: referenceMaterial } : null,
     draft.userCharacterView
       ? { pointer: "/userCharacterView", label: "ユーザーのキャラクター観", text: draft.userCharacterView }
+      : null,
+    isDarkEntryDraft(draft)
+      ? {
+          pointer: "/darkContext/focusDescription",
+          label: "注目するダーク状態",
+          text: draft.darkContext.focusDescription,
+        }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.beforeState
+      ? { pointer: "/darkContext/beforeState", label: "変化前の状態", text: draft.darkContext.beforeState }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.transitionTrigger
+      ? { pointer: "/darkContext/transitionTrigger", label: "闇化の契機", text: draft.darkContext.transitionTrigger }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.controllerOrInfluence
+      ? {
+          pointer: "/darkContext/controllerOrInfluence",
+          label: "支配者・影響源",
+          text: draft.darkContext.controllerOrInfluence,
+        }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.controlMechanism
+      ? {
+          pointer: "/darkContext/controlMechanism",
+          label: "支配・変化の機構",
+          text: draft.darkContext.controlMechanism,
+        }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.awarenessAndResistance
+      ? {
+          pointer: "/darkContext/awarenessAndResistance",
+          label: "認識・抵抗",
+          text: draft.darkContext.awarenessAndResistance,
+        }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.relationshipChange
+      ? { pointer: "/darkContext/relationshipChange", label: "関係変化", text: draft.darkContext.relationshipChange }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.responsibilityNote
+      ? {
+          pointer: "/darkContext/responsibilityNote",
+          label: "責任の捉え方",
+          text: draft.darkContext.responsibilityNote,
+        }
+      : null,
+    isDarkEntryDraft(draft) && draft.darkContext.desiredOutcome
+      ? { pointer: "/darkContext/desiredOutcome", label: "望む結末", text: draft.darkContext.desiredOutcome }
       : null,
     draft.preference.likedReasons
       ? { pointer: "/preference/likedReasons", label: "好きな理由", text: draft.preference.likedReasons }
@@ -334,6 +487,91 @@ export const understandingCandidateSchema = z.object({
 });
 export type UnderstandingCandidate = z.infer<typeof understandingCandidateSchema>;
 
+export const darkScopeAssessmentSchema = z.object({
+  verdict: z.enum(["in_scope", "borderline", "out_of_scope"]),
+  qualifyingArchetypes: z.array(darkArchetypeHintSchema).max(10),
+  agencyOrigin: z.enum(["self_authored", "externally_imposed", "mixed", "unclear"]),
+  scope: z.enum(["whole_character", "phase", "form", "scene", "relationship", "unknown"]),
+  rationale: z.string().min(1).max(3_000),
+  limitations: z.array(z.string().max(1_000)).max(20),
+  evidence: z.array(evidenceReferenceSchema).max(6),
+  recommendedQuestions: z.array(z.string().max(500)).max(10),
+});
+export type DarkScopeAssessment = z.infer<typeof darkScopeAssessmentSchema>;
+export const darkScopeReviewRequestSchema = z.object({
+  decision: z.enum(["continue", "cancel"]),
+  reasonText: optionalText(2_000),
+});
+export type DarkScopeReviewRequest = z.infer<typeof darkScopeReviewRequestSchema>;
+
+export const darkStateModelSchema = z.object({
+  agencyOrigin: z.enum(["self_authored", "externally_imposed", "mixed", "unclear"]),
+  consent: z.enum(["chosen", "coerced", "unaware", "ambivalent", "unknown"]),
+  awareness: z.enum(["aware", "partially_aware", "unaware", "unknown"]),
+  resistance: z.enum(["active", "intermittent", "internal_only", "none", "unknown"]),
+  identityContinuity: z.enum(["intact", "fragmented", "suppressed", "replaced", "unknown"]),
+  responsibility: z.enum(["high", "reduced", "contested", "unknown"]),
+  reversibility: z.enum(["reversible", "conditional", "irreversible", "unknown"]),
+  controllerOrInfluence: z.string().max(1_000).nullable(),
+  mechanism: z.string().max(1_000).nullable(),
+  before: z.string().max(2_000).nullable(),
+  onset: z.string().max(2_000).nullable(),
+  activeState: z.string().min(1).max(3_000),
+  recoveryOrAfter: z.string().max(2_000).nullable(),
+});
+export type DarkStateModel = z.infer<typeof darkStateModelSchema>;
+
+export const darkBaselineUnderstandingSchema = z.object({
+  identity: z.string().min(1).max(2_000),
+  narrativeRole: z.array(z.string().max(500)).max(20),
+  agency: z.array(z.string().max(500)).max(20),
+  moralCommitments: z.array(z.string().max(500)).max(30),
+  protectedPeopleOrValues: z.array(z.string().max(500)).max(30),
+  relationships: z.array(z.string().max(500)).max(50),
+  abilitiesAndDuties: z.array(z.string().max(500)).max(50),
+  selfConcept: z.array(z.string().max(500)).max(30),
+  priorVulnerabilities: z.array(z.string().max(500)).max(30),
+  uncertainties: z.array(z.object({ topic: z.string().max(500), reason: z.string().max(2_000) })).max(50),
+  evidence: z.array(evidenceReferenceSchema).max(30),
+});
+export type DarkBaselineUnderstanding = z.infer<typeof darkBaselineUnderstandingSchema>;
+
+export const darkTransformationOperationSchema = z.enum([
+  "retained",
+  "amplified",
+  "suppressed",
+  "inverted",
+  "removed",
+  "introduced",
+  "ambiguous",
+]);
+
+export const darkTransformationDeltaSchema = z.object({
+  operation: darkTransformationOperationSchema,
+  aspect: z.string().min(1).max(500),
+  beforeValue: z.string().max(2_000).nullable(),
+  afterValue: z.string().max(2_000).nullable(),
+  cause: z.string().max(1_000).nullable(),
+  agencyOrigin: z.enum(["self_authored", "externally_imposed", "mixed", "unclear"]),
+  controller: z.string().max(1_000).nullable(),
+  awareness: z.enum(["aware", "partially_aware", "unaware", "unknown"]),
+  resistance: z.enum(["active", "intermittent", "internal_only", "none", "unknown"]),
+  identityContinuity: z.enum(["intact", "fragmented", "suppressed", "replaced", "unknown"]),
+  responsibility: z.enum(["high", "reduced", "contested", "unknown"]),
+  reversibility: z.enum(["reversible", "conditional", "irreversible", "unknown"]),
+  phase: z.enum(["before", "onset", "active", "recovery", "after", "unknown"]),
+  confidence: z.number().min(0).max(1),
+  evidence: z.array(evidenceReferenceSchema).max(3),
+});
+export type DarkTransformationDelta = z.infer<typeof darkTransformationDeltaSchema>;
+
+export const darkUnderstandingCandidateSchema = understandingCandidateSchema.extend({
+  darkState: darkStateModelSchema,
+  transformationDeltas: z.array(darkTransformationDeltaSchema).max(100),
+  auditNotes: z.array(z.string().max(1_000)).max(50),
+});
+export type DarkUnderstandingCandidate = z.infer<typeof darkUnderstandingCandidateSchema>;
+
 export const preferenceCandidateSchema = z.object({
   summary: z.object({
     userExplicitSummary: z.array(z.string().max(1_000)).max(50),
@@ -385,11 +623,62 @@ export const preferenceCandidateSchema = z.object({
 });
 export type PreferenceCandidate = z.infer<typeof preferenceCandidateSchema>;
 
+export const darkPreferenceCandidateSchema = preferenceCandidateSchema.extend({
+  preferenceAssertions: z
+    .array(
+      z.object({
+        attributeStableKey: z
+          .string()
+          .regex(/^dark\.[a-z0-9_.-]+$/u)
+          .max(150)
+          .nullable(),
+        rawLabel: z.string().min(1).max(200),
+        polarity: z.enum(["positive", "negative", "mixed"]),
+        responseChannel: darkResponseChannelSchema,
+        strength: z.number().min(0).max(1),
+        explicitness: z.enum(["user_explicit", "user_confirmed", "inferred", "model_knowledge"]),
+        confidence: z.number().min(0).max(1),
+        context: preferenceAssertionContextSchema,
+        evidence: z.array(evidenceReferenceSchema).max(3),
+      }),
+    )
+    .max(100),
+  auditNotes: z.array(z.string().max(1_000)).max(50),
+});
+export type DarkPreferenceCandidate = z.infer<typeof darkPreferenceCandidateSchema>;
+export type AnyPreferenceCandidate = PreferenceCandidate | DarkPreferenceCandidate;
+
 export const batchReviewSchema = z.object({
   decision: z.enum(["confirm_all", "confirm_selected", "reject_selected"]),
   targetIds: z.array(z.string().uuid()).max(300).default([]),
   reasonText: optionalText(2_000),
 });
+
+const preferenceReviewAssertionFields = {
+  rawLabel: text(200),
+  attributeStableKey: z
+    .string()
+    .regex(/^[a-z0-9_.-]+$/u)
+    .max(150)
+    .nullable()
+    .default(null),
+  polarity: z.enum(["positive", "negative", "mixed"]),
+  responseChannel: z.union([responseChannelSchema, darkResponseChannelSchema]),
+  strength: z.number().min(0).max(1),
+};
+const preferenceReviewStanceFields = {
+  targetRef: text(500),
+  stance: valueStanceSchema,
+  orientation: valueOrientationSchema,
+};
+export const preferenceReviewMutationSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("add_preference"), ...preferenceReviewAssertionFields }),
+  z.object({ action: z.literal("update_preference"), targetId: z.string().uuid(), ...preferenceReviewAssertionFields }),
+  z.object({ action: z.literal("add_value_stance"), ...preferenceReviewStanceFields }),
+  z.object({ action: z.literal("update_value_stance"), targetId: z.string().uuid(), ...preferenceReviewStanceFields }),
+]);
+export type PreferenceReviewMutation = z.infer<typeof preferenceReviewMutationSchema>;
+export const preferenceReviewRequestSchema = z.union([batchReviewSchema, preferenceReviewMutationSchema]);
 
 const reviewDeltaFields = {
   operation: z.enum(["inherit", "add", "modify", "remove", "invert", "narrow_scope", "emphasize", "unspecified"]),
@@ -404,12 +693,24 @@ export const understandingReviewMutationSchema = z
       action: z.literal("add_assertion"),
       rawLabel: text(200),
       valueText: text(2_000),
+      attributeStableKey: z
+        .string()
+        .regex(/^[a-z0-9_.-]+$/u)
+        .max(150)
+        .nullable()
+        .default(null),
     }),
     z.object({
       action: z.literal("update_assertion"),
       targetId: z.string().uuid(),
       rawLabel: text(200),
       valueText: text(2_000),
+      attributeStableKey: z
+        .string()
+        .regex(/^[a-z0-9_.-]+$/u)
+        .max(150)
+        .nullable()
+        .default(null),
     }),
     z.object({ action: z.literal("delete_assertion"), targetId: z.string().uuid() }),
     z.object({ action: z.literal("add_delta"), ...reviewDeltaFields }),
@@ -547,6 +848,43 @@ export const generatedCharacterCandidateSchema = z.object({
 });
 export type GeneratedCharacterCandidate = z.infer<typeof generatedCharacterCandidateSchema>;
 
+export const darkGeneratedCharacterCandidateSchema = generatedCharacterCandidateSchema.extend({
+  schemaVersion: z.literal("dark-1.0"),
+  darkCore: z.object({
+    archetypes: z.array(darkArchetypeHintSchema).min(1).max(10),
+    narrativeFunction: z.string().min(1).max(2_000),
+    agency: darkStateModelSchema,
+  }),
+  baselineAndTransition: z.object({
+    baseline: z.string().max(3_000).nullable(),
+    trigger: z.string().max(3_000).nullable(),
+    retained: z.array(z.string().max(500)).max(30),
+    changed: z.array(z.string().max(500)).max(30),
+  }),
+  darkMorality: z.object({
+    logic: z.string().min(1).max(3_000),
+    transgressions: z.array(z.string().max(1_000)).max(30),
+    responsibility: z.string().min(1).max(2_000),
+  }),
+  darkRelationships: z
+    .array(
+      z.object({
+        targetRole: z.string().min(1).max(300),
+        dynamic: z.string().min(1).max(2_000),
+        beforeAndAfter: z.string().max(2_000).nullable(),
+      }),
+    )
+    .max(30),
+  darkArc: z.object({
+    currentState: z.string().min(1).max(3_000),
+    possibleOutcome: z.string().min(1).max(3_000),
+    redemptionPolicy: z.string().min(1).max(2_000),
+  }),
+  darkExpression: generatedSectionSchema,
+});
+export type DarkGeneratedCharacterCandidate = z.infer<typeof darkGeneratedCharacterCandidateSchema>;
+export type AnyGeneratedCharacterCandidate = GeneratedCharacterCandidate | DarkGeneratedCharacterCandidate;
+
 export type EntrySummary = {
   id: string;
   registrationType: RegistrationType;
@@ -572,13 +910,14 @@ export type ProfileDimension = {
   stableKey: string;
   label: string;
   category: string;
-  responseChannel: ResponseChannel | null;
+  responseChannel: ResponseChannel | DarkResponseChannel | null;
   condition: Record<string, unknown>;
   positiveScore: number;
   negativeScore: number;
   confidence: number;
   evidenceCount: number;
   identityCount: number;
+  workCount: number;
   classification: "stable" | "emerging" | "insufficient";
   flags: string[];
 };

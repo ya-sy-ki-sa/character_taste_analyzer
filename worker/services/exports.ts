@@ -42,7 +42,7 @@ export async function createAccountExport(env: Env, ownerUserId: string, idempot
     ).bind(jobId, ownerUserId, exportId, quota.id, now, now),
     env.DB.prepare(
       `INSERT INTO account_exports (id,owner_user_id,job_id,status,schema_version,created_at,updated_at)
-       VALUES (?,?,?,'queued','3.0',?,?)`,
+       VALUES (?,?,?,'queued','4.0',?,?)`,
     ).bind(exportId, ownerUserId, jobId, now, now),
     outbox.statement,
   ]);
@@ -90,6 +90,9 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     modelRuns,
     jobs,
     jobAttempts,
+    darkScopeAssessments,
+    darkBaselineSnapshots,
+    darkTransformationDeltas,
   ] = await Promise.all([
     rows(
       env,
@@ -169,11 +172,32 @@ async function collectAccountData(env: Env, ownerUserId: string) {
       ownerUserId,
     ),
     rows(env, `SELECT a.* FROM job_attempts a JOIN jobs j ON j.id=a.job_id WHERE j.owner_user_id=?`, ownerUserId),
+    rows(env, `SELECT * FROM dark_scope_assessments WHERE owner_user_id=?`, ownerUserId),
+    rows(env, `SELECT * FROM dark_baseline_snapshots WHERE owner_user_id=?`, ownerUserId),
+    rows(env, `SELECT * FROM dark_transformation_deltas WHERE owner_user_id=?`, ownerUserId),
   ]);
+  const domainPartition = (analysisDomain: "standard" | "dark") => ({
+    entries: entries.filter((row) => row.analysis_domain === analysisDomain),
+    works: works.filter((row) => row.analysis_domain === analysisDomain),
+    identities: identities.filter((row) => row.analysis_domain === analysisDomain),
+    preferenceAssertions: preferenceAssertions.filter((row) => row.analysis_domain === analysisDomain),
+    profileDimensions: profileDimensions.filter((row) => row.analysis_domain === analysisDomain),
+    profileSnapshotItems: profileSnapshotItems.filter((row) => row.analysis_domain === analysisDomain),
+    graphNodes: graphNodes.filter((row) => row.analysis_domain === analysisDomain),
+    graphEdges: graphEdges.filter((row) => row.analysis_domain === analysisDomain),
+    generationRequests: generationRequests.filter((row) => row.analysis_domain === analysisDomain),
+    modelRuns: modelRuns.filter((row) => row.analysis_domain === analysisDomain),
+    jobs: jobs.filter((row) => row.analysis_domain === analysisDomain),
+    ...(analysisDomain === "dark" ? { darkScopeAssessments, darkBaselineSnapshots, darkTransformationDeltas } : {}),
+  });
   return {
-    schemaVersion: "3.0",
+    schemaVersion: "4.0",
     exportedAt: nowIso(),
     user: user[0] ?? null,
+    domains: {
+      standard: domainPartition("standard"),
+      dark: domainPartition("dark"),
+    },
     entries: { entries, revisions, works, identities, representations },
     sources: { sources, sets: sourceSets, setItems: sourceSetItems },
     understanding: {
@@ -182,6 +206,9 @@ async function collectAccountData(env: Env, ownerUserId: string) {
       assertions: characterAssertions,
       customizationDeltas,
       reviews: understandingReviews,
+      darkScopeAssessments,
+      darkBaselineSnapshots,
+      darkTransformationDeltas,
     },
     preferenceAnalysis: { runs: analysisRuns, assertions: preferenceAssertions, valueStances, evidence },
     profile: {

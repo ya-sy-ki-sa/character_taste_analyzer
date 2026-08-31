@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { api, idempotencyKey, setCsrfToken } from "../api";
 import { Turnstile } from "../components/Turnstile";
 import { Brand, Modal, Notice, Spinner } from "../components/Ui";
@@ -8,7 +9,16 @@ import { Brand, Modal, Notice, Spinner } from "../components/Ui";
 type PublicUser = { id: string; username: string };
 type SessionUser = { id: string; username: string };
 
-export function Landing({ onLogin }: { onLogin(user: SessionUser): void }) {
+export function Landing({
+  domain,
+  user,
+  onLogin,
+}: {
+  domain: AnalysisDomain;
+  user?: SessionUser;
+  onLogin(user: SessionUser): void;
+}) {
+  const dark = domain === "dark";
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<PublicUser>();
@@ -20,94 +30,115 @@ export function Landing({ onLogin }: { onLogin(user: SessionUser): void }) {
   });
 
   return (
-    <main className="landing">
+    <main className={`landing ${dark ? "dark-lab-theme dark-landing" : ""}`}>
       <nav className="landing-nav">
         <Brand />
         <div className="landing-nav-links">
-          <span className="nav-note">好きの輪郭を、ていねいに。</span>
-          <Link to="/about-analyzer">
+          <span className="nav-note">{dark ? "闇に惹かれる理由を、解像する。" : "好きの輪郭を、ていねいに。"}</span>
+          {dark && <Link to="/">通常のキャラ嗜好ラボへ</Link>}
+          <Link to={dark ? "/dark-lab/about-analyzer" : "/about-analyzer"}>
             分析器の現在地 <span aria-hidden="true">→</span>
           </Link>
         </div>
       </nav>
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">CHARACTER PREFERENCE LAB</p>
+          <p className="eyebrow">{dark ? "DARK CHARACTER PREFERENCE LAB" : "CHARACTER PREFERENCE LAB"}</p>
           <h1>
-            「好き」を集めて、
+            {dark ? "悪、堕落、支配の" : "「好き」を集めて、"}
             <br />
-            <em>まだ知らない一人</em>に出会う。
+            <em>{dark ? "どこに惹かれるのか。" : "まだ知らない一人"}</em>
+            {dark ? "" : "に出会う。"}
           </h1>
           <p className="hero-description">
-            キャラクターのどんな表情、葛藤、関係性に惹かれるのか。根拠と確かさを分けて分析し、あなただけの新しいキャラクターへつなげます。
+            {dark
+              ? "悪役、洗脳された勇者、堕落した英雄、裏切者、ヴィラン主人公、アンチヒーロー。主体性・支配・自我・道徳・変化差分を専用Ontologyで深く分析します。"
+              : "キャラクターのどんな表情、葛藤、関係性に惹かれるのか。根拠と確かさを分けて分析し、あなただけの新しいキャラクターへつなげます。"}
           </p>
           <div className="hero-metrics">
             <span>
-              <strong>根拠つき</strong>
-              <small>原文から追跡</small>
+              <strong>{dark ? "専用解析" : "根拠つき"}</strong>
+              <small>{dark ? "通常属性へ変換しない" : "原文から追跡"}</small>
             </span>
             <span>
-              <strong>育つ分析</strong>
-              <small>入力と評価で更新</small>
+              <strong>{dark ? "状態と差分" : "育つ分析"}</strong>
+              <small>{dark ? "主体性と変化を分離" : "入力と評価で更新"}</small>
             </span>
             <span>
-              <strong>非公開</strong>
-              <small>内容は本人だけ</small>
+              <strong>{dark ? "domain分離" : "非公開"}</strong>
+              <small>{dark ? "通常版へ混入しない" : "内容は本人だけ"}</small>
             </span>
           </div>
         </div>
 
-        <div className="user-panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">SELECT USER</p>
-              <h2>ユーザーを選ぶ</h2>
-            </div>
-            <button type="button" className="button button-secondary" onClick={() => setShowCreate(true)}>
-              ＋ 新規作成
-            </button>
+        {user ? (
+          <div className="user-panel signed-in-panel">
+            <p className="eyebrow">SIGNED IN</p>
+            <h2>
+              {user.username} の{dark ? "ダーク" : "キャラ"}ラボ
+            </h2>
+            <p className="muted">アカウントは両ラボで共有され、分析結果と生成履歴は分離されます。</p>
+            <Link className="button button-primary button-large" to={dark ? "/dark-lab/app/profile" : "/app/profile"}>
+              {dark ? "ダークラボに入る" : "ラボに入る"}
+            </Link>
           </div>
-          <label className="search-field">
-            <span aria-hidden="true">⌕</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ユーザー名を検索" />
-          </label>
-          <div className="user-list">
-            {users.isPending && <Spinner />}
-            {users.isError && <Notice tone="danger">ユーザー一覧を読み込めませんでした。</Notice>}
-            {users.data?.users.length === 0 && <p className="muted centered">該当するユーザーはいません。</p>}
-            {users.data?.users.map((user) => (
-              <button type="button" className="user-row" key={user.id} onClick={() => setSelectedUser(user)}>
-                <span className="avatar">{Array.from(user.username)[0]?.toUpperCase()}</span>
-                <span>
-                  <strong>{user.username}</strong>
-                  <small>{user.id.slice(0, 8)}</small>
-                </span>
-                <span className="row-arrow">→</span>
+        ) : (
+          <div className="user-panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">SELECT USER</p>
+                <h2>ユーザーを選ぶ</h2>
+              </div>
+              <button type="button" className="button button-secondary" onClick={() => setShowCreate(true)}>
+                ＋ 新規作成
               </button>
-            ))}
+            </div>
+            <label className="search-field">
+              <span aria-hidden="true">⌕</span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="ユーザー名を検索"
+              />
+            </label>
+            <div className="user-list">
+              {users.isPending && <Spinner />}
+              {users.isError && <Notice tone="danger">ユーザー一覧を読み込めませんでした。</Notice>}
+              {users.data?.users.length === 0 && <p className="muted centered">該当するユーザーはいません。</p>}
+              {users.data?.users.map((user) => (
+                <button type="button" className="user-row" key={user.id} onClick={() => setSelectedUser(user)}>
+                  <span className="avatar">{Array.from(user.username)[0]?.toUpperCase()}</span>
+                  <span>
+                    <strong>{user.username}</strong>
+                    <small>{user.id.slice(0, 8)}</small>
+                  </span>
+                  <span className="row-arrow">→</span>
+                </button>
+              ))}
+            </div>
+            <p className="privacy-note">
+              公開されるのはユーザー名だけです。分析内容や生成履歴はアクセスキーで保護されます。
+            </p>
           </div>
-          <p className="privacy-note">
-            公開されるのはユーザー名だけです。分析内容や生成履歴はアクセスキーで保護されます。
-          </p>
-        </div>
+        )}
       </section>
       <section className="process-strip" aria-label="使い方">
         <span>
           <b>01</b>
-          <strong>キャラを登録</strong>
-          <small>概要と、任意で好きな理由</small>
+          <strong>{dark ? "ダーク状態を登録" : "キャラを登録"}</strong>
+          <small>{dark ? "注目状態は必須" : "概要と、任意で好きな理由"}</small>
         </span>
         <i>→</i>
         <span>
           <b>02</b>
-          <strong>傾向を分析</strong>
-          <small>頻出と明示嗜好を分けて表示</small>
+          <strong>{dark ? "多段解析と監査" : "傾向を分析"}</strong>
+          <small>{dark ? "主体性・差分・根拠を確認" : "頻出と明示嗜好を分けて表示"}</small>
         </span>
         <i>→</i>
         <span>
           <b>03</b>
-          <strong>新しい一人を生成</strong>
-          <small>評価から分析がさらに育つ</small>
+          <strong>{dark ? "ダークキャラを生成" : "新しい一人を生成"}</strong>
+          <small>{dark ? "専用Schemaで設計" : "評価から分析がさらに育つ"}</small>
         </span>
       </section>
 

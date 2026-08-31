@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { expect, test } from "@playwright/test";
 
 test("ログイン後に3方式の登録画面と主要画面を操作できる", async ({ page, request }) => {
   test.setTimeout(120_000);
@@ -128,10 +128,10 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await expect(deltaCard.getByText("その他の変更", { exact: true })).toBeVisible();
   await expect(deltaCard.getByText("原典の設定", { exact: true })).toBeVisible();
   await expect(deltaCard.getByText("黒曜卿UIの設定", { exact: true })).toBeVisible();
-  await expect(deltaCard.locator(".confidence-pill")).toHaveText(/^確信度 \d+%$/u);
+  await expect(deltaCard.locator(".confidence-pill")).toHaveText(/^登録内支持度 \d+%$/u);
   const firstAssertion = page.locator(".assertion-list > article").first();
   await expect(firstAssertion.locator(".assertion-value")).toBeVisible();
-  await expect(firstAssertion.locator(".assertion-card-header > .confidence-pill")).toHaveText(/^確信度 \d+%$/u);
+  await expect(firstAssertion.locator(".assertion-card-header > .confidence-pill")).toHaveText(/^登録内支持度 \d+%$/u);
   const customizationEvidence = page
     .locator("details.evidence-disclosure")
     .filter({ has: page.getByText("改変内容", { exact: true }) })

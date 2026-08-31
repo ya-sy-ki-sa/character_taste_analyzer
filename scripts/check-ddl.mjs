@@ -26,8 +26,8 @@ const actual = new Set(
     .map(({ name }) => name),
 );
 for (const table of expected) if (!actual.has(table)) throw new Error(`Missing table: ${table}`);
-if (files.length !== 2) throw new Error(`Expected 2 baseline migrations, found ${files.length}`);
-if (actual.size !== 46) throw new Error(`Expected 46 application tables, found ${actual.size}`);
+if (files.length !== 3) throw new Error(`Expected 3 migrations, found ${files.length}`);
+if (actual.size !== 49) throw new Error(`Expected 49 application tables, found ${actual.size}`);
 const removedTables = [
   "consents",
   "platform_usage_counters",
@@ -76,4 +76,8 @@ const foreignKeyErrors = database.prepare("PRAGMA foreign_key_check").all();
 if (foreignKeyErrors.length) throw new Error(`Foreign key errors: ${JSON.stringify(foreignKeyErrors)}`);
 const ontologyCount = database.prepare("SELECT COUNT(*) count FROM attribute_definitions").get().count;
 if (ontologyCount < 80) throw new Error(`Ontology is unexpectedly small: ${ontologyCount}`);
+const darkOntologyCount = database
+  .prepare("SELECT COUNT(*) count FROM attribute_definitions WHERE stable_key LIKE 'dark.%'")
+  .get().count;
+if (darkOntologyCount < 100) throw new Error(`Dark ontology is unexpectedly small: ${darkOntologyCount}`);
 console.log(`DDL OK: ${files.length} migrations, ${actual.size} tables, ${ontologyCount} attributes`);

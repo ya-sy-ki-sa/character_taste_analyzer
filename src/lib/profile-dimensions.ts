@@ -45,6 +45,7 @@ export function groupProfileDimensions(dimensions: ProfileDimension[]): DisplayP
     current.confidence = Math.max(current.confidence, item.confidence);
     current.evidenceCount += item.evidenceCount;
     current.identityCount = Math.max(current.identityCount, item.identityCount);
+    current.workCount = Math.max(current.workCount, item.workCount);
     current.flags = [...new Set([...current.flags, ...item.flags])];
     if (classificationRank[item.classification] > classificationRank[current.classification]) {
       current.classification = item.classification;

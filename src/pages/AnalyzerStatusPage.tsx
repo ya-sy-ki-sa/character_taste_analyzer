@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { Brand } from "../components/Ui";
 
 const capabilities = [
@@ -45,28 +46,31 @@ const analysisSteps = [
   ["累積表示", "固定ルールで重複を補正し、一覧、グラフ、キャラクター生成に利用します。"],
 ] as const;
 
-export function AnalyzerStatusPage() {
+export function AnalyzerStatusPage({ domain }: { domain: AnalysisDomain }) {
+  const dark = domain === "dark";
   return (
-    <main className="analyzer-status-page">
+    <main className={`analyzer-status-page ${dark ? "dark-lab-theme" : ""}`}>
       <nav className="status-nav" aria-label="ページナビゲーション">
-        <Link className="brand-link" to="/" aria-label="キャラ嗜好ラボのトップへ">
+        <Link className="brand-link" to={dark ? "/dark-lab" : "/"} aria-label="キャラ嗜好ラボのトップへ">
           <Brand />
         </Link>
-        <Link className="button button-secondary" to="/">
+        <Link className="button button-secondary" to={dark ? "/dark-lab" : "/"}>
           ← トップへ戻る
         </Link>
       </nav>
 
       <header className="status-hero">
         <div>
-          <p className="eyebrow">CURRENT ANALYZER STATUS</p>
+          <p className="eyebrow">{dark ? "DARK ANALYZER STATUS" : "CURRENT ANALYZER STATUS"}</p>
           <h1>
-            この分析器が、
+            {dark ? "ダーク専用分析器が、" : "この分析器が、"}
             <br />
             <em>いま何をしているのか。</em>
           </h1>
           <p className="status-lead">
-            キャラ嗜好ラボは、好きなキャラクターの名前から性格を診断するものではありません。登録したキャラクターのどこに、どのような意味で惹かれるのかを、根拠と確認を残しながら整理するための分析器です。
+            {dark
+              ? "通常Ontologyを使わず、悪・堕落・洗脳・操作・裏切り・ダークな道徳と関係性を専用属性で扱います。適格性、主体性、状態、差分、嗜好を多段で解析し、各段階を監査します。"
+              : "キャラ嗜好ラボは、好きなキャラクターの名前から性格を診断するものではありません。登録したキャラクターのどこに、どのような意味で惹かれるのかを、根拠と確認を残しながら整理するための分析器です。"}
           </p>
         </div>
         <aside className="status-verdict" aria-label="現在の評価">
@@ -153,7 +157,7 @@ export function AnalyzerStatusPage() {
           </article>
           <article>
             <span aria-hidden="true">◎</span>
-            <h3>確信度</h3>
+            <h3>登録内支持度</h3>
             <p>根拠の強さと、キャラクター・作品・根拠件数の広がりを合わせた独自指標です。正しい確率ではありません。</p>
           </article>
           <article>
@@ -197,7 +201,7 @@ export function AnalyzerStatusPage() {
               <li>94属性・44反応経路の内容妥当性と因子構造</li>
               <li>実際のLLM抽出と人間の判断との一致率</li>
               <li>同じ入力を再分析したときの再現性</li>
-              <li>スコアと「確信度」の統計的な校正</li>
+              <li>スコアと「登録内支持度」の統計的な校正</li>
               <li>文化、言語、時点が変わった場合の同等性</li>
             </ul>
           </article>

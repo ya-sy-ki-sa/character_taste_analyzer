@@ -1,20 +1,24 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
+import type { AnalysisDomain } from "../../shared/analysis-domain";
+import { type DarkResponseChannel, darkResponseChannelCatalog } from "../../shared/dark-response-channels";
 import {
   responseChannelCatalog,
   responseChannelCategories,
   responseChannelLabel,
 } from "../../shared/response-channels";
 import {
+  type AnyEntryDraft,
+  type AnyEntrySubmission,
   canonicalEntryInputPointer,
-  type EntryDraft,
+  type DarkContext,
+  type EntrySummary,
   entryBaseCharacterName,
   entryPreferenceContext,
   entryReferenceMaterial,
-  type EntrySubmission,
-  type EntrySummary,
   type IdentityCandidate,
   type IdentityResolution,
+  type PreferenceReviewMutation,
   type RegistrationType,
   type ResponseChannel,
   type UnderstandingReviewMutation,
@@ -55,6 +59,7 @@ type CharacterAssertionDetail = {
   confidence: number;
   status: string;
   evidence: EvidenceDetail[];
+  stable_key: string | null;
 };
 
 const evidenceSourceProviderLabels: Record<string, string> = {
@@ -63,7 +68,24 @@ const evidenceSourceProviderLabels: Record<string, string> = {
   openai_web_search: "OpenAI Web Search",
 };
 type ReviewDetail = {
-  entry: { id: string; status: string; registrationType: RegistrationType; draft: EntryDraft };
+  entry: { id: string; status: string; registrationType: RegistrationType; draft: AnyEntryDraft };
+  darkScopeAssessment: null | {
+    id: string;
+    verdict: string;
+    status: string;
+    assessment: { rationale: string; limitations: string[]; recommendedQuestions: string[] };
+  };
+  darkBaseline: null | ({ id: string } & Record<string, unknown>);
+  darkTransformationDeltas: Array<{
+    id: string;
+    operation: string;
+    aspect: string;
+    before_value: string | null;
+    after_value: string | null;
+    confidence: number;
+    detail: Record<string, unknown>;
+  }>;
+  ontologyAttributes: Array<{ stableKey: string; label: string }>;
   understanding: null | {
     id: string;
     sourceAssessment: { coverage: string; limitations: string[] };
@@ -94,6 +116,7 @@ type ReviewDetail = {
       explicitness: string;
       confidence: number;
       status: string;
+      stable_key: string | null;
       evidence: EvidenceDetail[];
     }>;
     valueStances: Array<{
@@ -123,8 +146,19 @@ type FormState = {
   customizationDescription: string;
   likedReasons: string;
   dislikedReasons: string;
-  responseChannels: ResponseChannel[];
+  responseChannels: Array<ResponseChannel | DarkResponseChannel>;
   valueStanceNote: string;
+  focusDescription: string;
+  archetypeHints: DarkContext["archetypeHints"];
+  beforeState: string;
+  transitionTrigger: string;
+  controllerOrInfluence: string;
+  controlMechanism: string;
+  awarenessAndResistance: string;
+  relationshipChange: string;
+  responsibilityNote: string;
+  desiredOutcome: string;
+  contentBoundaries: string;
 };
 
 const understandingSummaryLabels: Record<string, string> = {
@@ -135,31 +169,74 @@ const understandingSummaryLabels: Record<string, string> = {
   behavior: "行動・振る舞い",
   relationships: "他者との関係",
   expression: "表現・雰囲気",
+  darkState: "主体性・支配構造",
+  auditNotes: "整合性監査メモ",
+};
+
+const darkStateLabels: Record<string, string> = {
+  agencyOrigin: "主体性の由来",
+  consent: "同意",
+  awareness: "認識",
+  resistance: "抵抗",
+  identityContinuity: "自我連続性",
+  responsibility: "責任帰属",
+  reversibility: "可逆性",
+  controllerOrInfluence: "支配者・影響源",
+  mechanism: "機構",
+  before: "変化前",
+  onset: "発生",
+  activeState: "闇状態",
+  recoveryOrAfter: "回復後・その後",
 };
 
 function understandingSummaryLabel(key: string): string {
   return understandingSummaryLabels[key] ?? "その他の特徴";
 }
 
-const emptyForm: FormState = {
-  registrationType: "existing",
-  workTitle: "",
-  baseCharacterName: "",
-  characterName: "",
-  mediaType: "",
-  preferenceContext: "",
-  characterBasicInfo: "",
-  referenceMaterial: "",
-  userCharacterView: "",
-  representationType: "user_interpretation",
-  customizationDescription: "",
-  likedReasons: "",
-  dislikedReasons: "",
-  responseChannels: ["person_liking"],
-  valueStanceNote: "",
-};
+function reviewSummaryValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map((item) => String(item)).join("、") || "—";
+  if (value && typeof value === "object")
+    return (
+      Object.entries(value)
+        .filter(([, item]) => item !== null && item !== "")
+        .map(([key, item]) => `${darkStateLabels[key] ?? key}: ${String(item)}`)
+        .join(" ／ ") || "—"
+    );
+  return String(value ?? "—");
+}
 
-function formStateFromDraft(draft: EntryDraft): FormState {
+function emptyForm(domain: AnalysisDomain): FormState {
+  return {
+    registrationType: "existing",
+    workTitle: "",
+    baseCharacterName: "",
+    characterName: "",
+    mediaType: "",
+    preferenceContext: "",
+    characterBasicInfo: "",
+    referenceMaterial: "",
+    userCharacterView: "",
+    representationType: "user_interpretation",
+    customizationDescription: "",
+    likedReasons: "",
+    dislikedReasons: "",
+    responseChannels: domain === "dark" ? ["dark_character_liking"] : ["person_liking"],
+    valueStanceNote: "",
+    focusDescription: "",
+    archetypeHints: [],
+    beforeState: "",
+    transitionTrigger: "",
+    controllerOrInfluence: "",
+    controlMechanism: "",
+    awarenessAndResistance: "",
+    relationshipChange: "",
+    responsibilityNote: "",
+    desiredOutcome: "",
+    contentBoundaries: "",
+  };
+}
+
+function formStateFromDraft(draft: AnyEntryDraft): FormState {
   return {
     registrationType: draft.registrationType,
     workTitle: draft.registrationType === "original" ? "" : draft.workTitle,
@@ -177,10 +254,25 @@ function formStateFromDraft(draft: EntryDraft): FormState {
     dislikedReasons: draft.preference.dislikedReasons ?? "",
     responseChannels: draft.preference.responseChannels,
     valueStanceNote: draft.preference.valueStanceNote ?? "",
+    focusDescription: "darkContext" in draft ? draft.darkContext.focusDescription : "",
+    archetypeHints: "darkContext" in draft ? draft.darkContext.archetypeHints : [],
+    beforeState: "darkContext" in draft ? (draft.darkContext.beforeState ?? "") : "",
+    transitionTrigger: "darkContext" in draft ? (draft.darkContext.transitionTrigger ?? "") : "",
+    controllerOrInfluence: "darkContext" in draft ? (draft.darkContext.controllerOrInfluence ?? "") : "",
+    controlMechanism: "darkContext" in draft ? (draft.darkContext.controlMechanism ?? "") : "",
+    awarenessAndResistance: "darkContext" in draft ? (draft.darkContext.awarenessAndResistance ?? "") : "",
+    relationshipChange: "darkContext" in draft ? (draft.darkContext.relationshipChange ?? "") : "",
+    responsibilityNote: "darkContext" in draft ? (draft.darkContext.responsibilityNote ?? "") : "",
+    desiredOutcome: "darkContext" in draft ? (draft.darkContext.desiredOutcome ?? "") : "",
+    contentBoundaries: "darkContext" in draft ? (draft.darkContext.contentBoundaries ?? "") : "",
   };
 }
 
-function entrySubmissionFromForm(form: FormState, identityResolution: IdentityResolution): EntrySubmission {
+function entrySubmissionFromForm(
+  form: FormState,
+  identityResolution: IdentityResolution,
+  domain: AnalysisDomain,
+): AnyEntrySubmission {
   const common = {
     characterName: form.characterName,
     preferenceContext: form.preferenceContext || undefined,
@@ -193,18 +285,43 @@ function entrySubmissionFromForm(form: FormState, identityResolution: IdentityRe
       valueStanceNote: form.valueStanceNote || undefined,
     },
   };
+  const domainFields =
+    domain === "dark"
+      ? {
+          darkContext: {
+            focusDescription: form.focusDescription,
+            archetypeHints: form.archetypeHints,
+            beforeState: form.beforeState || undefined,
+            transitionTrigger: form.transitionTrigger || undefined,
+            controllerOrInfluence: form.controllerOrInfluence || undefined,
+            controlMechanism: form.controlMechanism || undefined,
+            awarenessAndResistance: form.awarenessAndResistance || undefined,
+            relationshipChange: form.relationshipChange || undefined,
+            responsibilityNote: form.responsibilityNote || undefined,
+            desiredOutcome: form.desiredOutcome || undefined,
+            contentBoundaries: form.contentBoundaries || undefined,
+          },
+        }
+      : {};
   if (form.registrationType === "original")
-    return { ...common, registrationType: "original", characterBasicInfo: form.characterBasicInfo };
+    return {
+      ...common,
+      ...domainFields,
+      registrationType: "original",
+      characterBasicInfo: form.characterBasicInfo,
+    } as AnyEntrySubmission;
   if (form.registrationType === "existing")
     return {
       ...common,
+      ...domainFields,
       registrationType: "existing",
       workTitle: form.workTitle,
       mediaType: form.mediaType || undefined,
       identityResolution,
-    };
+    } as AnyEntrySubmission;
   return {
     ...common,
+    ...domainFields,
     registrationType: "customized_existing",
     workTitle: form.workTitle,
     baseCharacterName: form.baseCharacterName,
@@ -212,7 +329,7 @@ function entrySubmissionFromForm(form: FormState, identityResolution: IdentityRe
     representationType: form.representationType,
     customizationDescription: form.customizationDescription,
     identityResolution,
-  };
+  } as AnyEntrySubmission;
 }
 
 function identityCharacterName(form: FormState): string {
@@ -259,7 +376,9 @@ function analysisErrorDetail(code: string, detail: string | null): string {
 
 const reanalyzableStatuses = new Set(["understanding_review", "analysis_review", "active", "failed"]);
 
-export function EntriesPage() {
+export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
+  const dark = domain === "dark";
+  const apiBase = dark ? "/api/v1/dark" : "/api/v1";
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string>();
@@ -268,8 +387,8 @@ export function EntriesPage() {
   const [downloadingId, setDownloadingId] = useState<string>();
   const [notice, setNotice] = useState<{ tone: "success" | "danger" | "info"; message: string }>();
   const entries = useQuery({
-    queryKey: ["entries"],
-    queryFn: () => api<EntryList>("/api/v1/entries"),
+    queryKey: ["entries", domain],
+    queryFn: () => api<EntryList>(`${apiBase}/entries`),
     refetchInterval: (query) =>
       query.state.data?.entries.some(
         (entry) =>
@@ -283,11 +402,11 @@ export function EntriesPage() {
   async function remove(entry: EntrySummary) {
     if (!window.confirm(`「${entry.title}」を嗜好集計から除外しますか？`)) return;
     try {
-      await api(`/api/v1/entries/${entry.id}`, { method: "DELETE" });
+      await api(`${apiBase}/entries/${entry.id}`, { method: "DELETE" });
       setNotice({ tone: "success", message: "登録を除外し、嗜好プロフィールを再集計しました。" });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["entries"] }),
-        queryClient.invalidateQueries({ queryKey: ["profile"] }),
+        queryClient.invalidateQueries({ queryKey: ["entries", domain] }),
+        queryClient.invalidateQueries({ queryKey: ["profile", domain] }),
       ]);
     } catch (error) {
       setNotice({ tone: "danger", message: error instanceof Error ? error.message : "除外できませんでした" });
@@ -299,13 +418,13 @@ export function EntriesPage() {
     setRetryingId(entry.id);
     setNotice(undefined);
     try {
-      await api(`/api/v1/jobs/${entry.job.id}/retry`, { method: "POST" });
+      await api(`${apiBase}/jobs/${entry.job.id}/retry`, { method: "POST" });
       setNotice({ tone: "info", message: `「${entry.title}」の解析を再実行しています。` });
     } catch (error) {
       setNotice({ tone: "danger", message: error instanceof Error ? error.message : "再実行できませんでした" });
     } finally {
       setRetryingId(undefined);
-      await queryClient.invalidateQueries({ queryKey: ["entries"] });
+      await queryClient.invalidateQueries({ queryKey: ["entries", domain] });
     }
   }
 
@@ -313,7 +432,7 @@ export function EntriesPage() {
     setDownloadingId(entry.id);
     setNotice(undefined);
     try {
-      const detail = await api<ReviewDetail>(`/api/v1/entries/${entry.id}`);
+      const detail = await api<ReviewDetail>(`${apiBase}/entries/${entry.id}`);
       const blob = new Blob([buildCharacterMarkdown(detail)], { type: "text/markdown;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -336,9 +455,13 @@ export function EntriesPage() {
   return (
     <>
       <PageHeading
-        eyebrow="CHARACTER REGISTRATION"
-        title="キャラクター登録"
-        description="既成、既成（カスタム）、オリジナルを登録し、キャラクター理解を確認してから嗜好解析へ進みます。"
+        eyebrow={dark ? "DARK CHARACTER REGISTRATION" : "CHARACTER REGISTRATION"}
+        title={dark ? "ダークキャラクター登録" : "キャラクター登録"}
+        description={
+          dark
+            ? "注目する悪・支配・堕落・敵対状態を登録し、専用の多段解析と確認へ進みます。"
+            : "既成、既成（カスタム）、オリジナルを登録し、キャラクター理解を確認してから嗜好解析へ進みます。"
+        }
         action={
           <button type="button" className="button button-primary" onClick={() => setFormOpen(true)}>
             ＋ キャラクターを登録
@@ -428,6 +551,7 @@ export function EntriesPage() {
       </div>
       {formOpen && (
         <EntryFormModal
+          domain={domain}
           onClose={() => setFormOpen(false)}
           onCreated={() => {
             setFormOpen(false);
@@ -436,12 +560,13 @@ export function EntriesPage() {
               message:
                 "入力を保存し、キャラクター理解の抽出を開始しました。Workers AIが利用できない場合も入力は残ります。",
             });
-            void queryClient.invalidateQueries({ queryKey: ["entries"] });
+            void queryClient.invalidateQueries({ queryKey: ["entries", domain] });
           }}
         />
       )}
       {detailId && (
         <ReviewModal
+          domain={domain}
           entryId={detailId}
           onClose={() => setDetailId(undefined)}
           onReanalyze={() => {
@@ -449,13 +574,14 @@ export function EntriesPage() {
             setDetailId(undefined);
           }}
           onUpdated={() => {
-            void queryClient.invalidateQueries({ queryKey: ["entries"] });
-            void queryClient.invalidateQueries({ queryKey: ["profile"] });
+            void queryClient.invalidateQueries({ queryKey: ["entries", domain] });
+            void queryClient.invalidateQueries({ queryKey: ["profile", domain] });
           }}
         />
       )}
       {reanalysisId && (
         <ReanalysisModal
+          domain={domain}
           entryId={reanalysisId}
           onClose={() => setReanalysisId(undefined)}
           onCreated={() => {
@@ -464,8 +590,8 @@ export function EntriesPage() {
               tone: "info",
               message: "入力を新しい履歴として保存し、キャラクター理解から再分析を開始しました。",
             });
-            void queryClient.invalidateQueries({ queryKey: ["entries"] });
-            void queryClient.invalidateQueries({ queryKey: ["profile"] });
+            void queryClient.invalidateQueries({ queryKey: ["entries", domain] });
+            void queryClient.invalidateQueries({ queryKey: ["profile", domain] });
           }}
         />
       )}
@@ -473,8 +599,17 @@ export function EntriesPage() {
   );
 }
 
-function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): void }) {
-  const [form, setForm] = useState<FormState>(emptyForm);
+function EntryFormModal({
+  domain,
+  onClose,
+  onCreated,
+}: {
+  domain: AnalysisDomain;
+  onClose(): void;
+  onCreated(): void;
+}) {
+  const apiBase = domain === "dark" ? "/api/v1/dark" : "/api/v1";
+  const [form, setForm] = useState<FormState>(() => emptyForm(domain));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const [candidates, setCandidates] = useState<IdentityCandidate[]>();
@@ -486,7 +621,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
       setSelectedIdentityId("new");
     }
   };
-  const toggleResponseChannel = (value: ResponseChannel, selected: boolean) =>
+  const toggleResponseChannel = (value: ResponseChannel | DarkResponseChannel, selected: boolean) =>
     update(
       "responseChannels",
       selected
@@ -504,7 +639,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
     let resolvedIdentityId = selectedIdentityId;
     if (form.registrationType !== "original" && candidates === undefined) {
       try {
-        const result = await api<{ candidates: IdentityCandidate[] }>("/api/v1/identity-candidates", {
+        const result = await api<{ candidates: IdentityCandidate[] }>(`${apiBase}/identity-candidates`, {
           method: "POST",
           body: JSON.stringify({
             workTitle: form.workTitle,
@@ -537,9 +672,13 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
           characterIdentityId: selectedCandidate.characterIdentityId,
         }
       : { mode: "new" as const };
-    const payload = entrySubmissionFromForm(form, identityResolution);
+    const payload = entrySubmissionFromForm(form, identityResolution, domain);
     try {
-      await api("/api/v1/entries", { method: "POST", idempotencyKey: idempotencyKey(), body: JSON.stringify(payload) });
+      await api(`${apiBase}/entries`, {
+        method: "POST",
+        idempotencyKey: idempotencyKey(),
+        body: JSON.stringify(payload),
+      });
       onCreated();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "登録できませんでした");
@@ -549,7 +688,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
   }
 
   return (
-    <Modal title="キャラクターを登録" onClose={onClose} wide>
+    <Modal title={domain === "dark" ? "ダークキャラクターを登録" : "キャラクターを登録"} onClose={onClose} wide>
       <form className="entry-form" onSubmit={submit}>
         <fieldset className="segmented">
           <legend>登録方法</legend>
@@ -633,6 +772,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               <small>このオリジナルキャラクターがどのような人物か分かる、基本的な設定を入力してください。</small>
             </label>
           )}
+          {domain === "dark" && <DarkContextFields form={form} update={update} />}
           <label className="full">
             <span>特に好きな時期・場面・状態（任意）</span>
             <input
@@ -723,7 +863,7 @@ function EntryFormModal({ onClose, onCreated }: { onClose(): void; onCreated(): 
               onChange={(event) => update("dislikedReasons", event.target.value)}
             />
           </label>
-          <ResponseChannelPicker selected={form.responseChannels} onChange={toggleResponseChannel} />
+          <ResponseChannelPicker domain={domain} selected={form.responseChannels} onChange={toggleResponseChannel} />
           <label className="full">
             <span>善悪・価値観について残したいニュアンス</span>
             <textarea
@@ -786,9 +926,9 @@ function ResponseChannelOption({
   selected,
   onChange,
 }: {
-  option: (typeof responseChannelCatalog)[number];
+  option: (typeof responseChannelCatalog)[number] | (typeof darkResponseChannelCatalog)[number];
   selected: boolean;
-  onChange(value: ResponseChannel, selected: boolean): void;
+  onChange(value: ResponseChannel | DarkResponseChannel, selected: boolean): void;
 }) {
   return (
     <label className="check-row channel-option">
@@ -802,12 +942,31 @@ function ResponseChannelOption({
 }
 
 function ResponseChannelPicker({
+  domain,
   selected,
   onChange,
 }: {
-  selected: ResponseChannel[];
-  onChange(value: ResponseChannel, selected: boolean): void;
+  domain: AnalysisDomain;
+  selected: Array<ResponseChannel | DarkResponseChannel>;
+  onChange(value: ResponseChannel | DarkResponseChannel, selected: boolean): void;
 }) {
+  if (domain === "dark")
+    return (
+      <fieldset className="full channel-picker dark-channel-picker">
+        <legend>ダークな状態の、どこに惹かれるか</legend>
+        <p className="channel-picker-intro">専用の反応経路です。人物への好意と、行為への道徳的支持は別に扱われます。</p>
+        <div className="channel-grid">
+          {darkResponseChannelCatalog.map((option) => (
+            <ResponseChannelOption
+              key={option.value}
+              option={option}
+              selected={selected.includes(option.value)}
+              onChange={onChange}
+            />
+          ))}
+        </div>
+      </fieldset>
+    );
   return (
     <fieldset className="full channel-picker">
       <legend>どういう意味で好きか</legend>
@@ -855,17 +1014,122 @@ function ResponseChannelPicker({
   );
 }
 
-function ReanalysisModal({ entryId, onClose, onCreated }: { entryId: string; onClose(): void; onCreated(): void }) {
+const darkArchetypeOptions: Array<{ value: DarkContext["archetypeHints"][number]; label: string }> = [
+  { value: "villain", label: "ヴィラン" },
+  { value: "villain_protagonist", label: "ヴィラン主人公" },
+  { value: "antagonistic_rival", label: "悪役ライバル" },
+  { value: "antihero", label: "アンチヒーロー" },
+  { value: "dark_hero", label: "ダークヒーロー" },
+  { value: "morally_gray", label: "モラリー・グレー" },
+  { value: "fallen_hero", label: "堕落した英雄" },
+  { value: "controlled_hero", label: "支配された勇者" },
+  { value: "manipulated_former_ally", label: "操作された元味方" },
+  { value: "betraying_ally", label: "裏切った協力者" },
+  { value: "other_dark", label: "その他のダーク状態" },
+];
+
+function DarkContextFields({
+  form,
+  update,
+}: {
+  form: FormState;
+  update<K extends keyof FormState>(key: K, value: FormState[K]): void;
+}) {
+  return (
+    <>
+      <label className="full dark-focus-field">
+        <span>
+          注目するダーク状態・役割 <b>必須</b>
+        </span>
+        <textarea
+          required
+          rows={4}
+          maxLength={2000}
+          value={form.focusDescription}
+          onChange={(event) => update("focusDescription", event.target.value)}
+          placeholder="例：敵に洗脳され、元の仲間へ剣を向ける間。自我と正義感は残り、内側では抵抗している"
+        />
+      </label>
+      <fieldset className="full identity-resolution dark-archetypes">
+        <legend>アーキタイプ候補（任意）</legend>
+        <div className="channel-grid">
+          {darkArchetypeOptions.map((option) => (
+            <label className="check-row" key={option.value}>
+              <input
+                type="checkbox"
+                checked={form.archetypeHints.includes(option.value)}
+                onChange={(event) =>
+                  update(
+                    "archetypeHints",
+                    event.target.checked
+                      ? [...form.archetypeHints, option.value]
+                      : form.archetypeHints.filter((item) => item !== option.value),
+                  )
+                }
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {(
+        [
+          ["beforeState", "変化前・通常時", "元の役割、守っていたもの、主体性、関係性"],
+          ["transitionTrigger", "闇化・敵対化の契機", "誘惑、敗北、契約、思想転向、洗脳開始など"],
+          ["controllerOrInfluence", "支配者・影響源", "操作者、憑依者、呪い、力、思想など"],
+          ["controlMechanism", "支配・変化の機構", "洗脳方法、命令、拘束、同意の有無など"],
+          ["awarenessAndResistance", "認識・抵抗・自我", "本人は認識しているか、抵抗や自我は残るか"],
+          ["relationshipChange", "関係の変化", "元味方、支配者、宿敵との変化前後"],
+          ["responsibilityNote", "責任の捉え方", "行為の責任を本人・支配者へどう帰属させるか"],
+          ["desiredOutcome", "望む結末", "回復、闇の維持・深化、無改心、勝利など"],
+          ["contentBoundaries", "内容境界", "分析・生成で避けたい内容"],
+        ] as const
+      ).map(([key, label, placeholder]) => (
+        <label className="full" key={key}>
+          <span>{label}（任意）</span>
+          <textarea
+            rows={3}
+            maxLength={
+              key === "relationshipChange" || key === "beforeState" || key === "transitionTrigger" ? 4000 : 2000
+            }
+            value={form[key]}
+            onChange={(event) => update(key, event.target.value)}
+            placeholder={placeholder}
+          />
+        </label>
+      ))}
+    </>
+  );
+}
+
+function ReanalysisModal({
+  domain,
+  entryId,
+  onClose,
+  onCreated,
+}: {
+  domain: AnalysisDomain;
+  entryId: string;
+  onClose(): void;
+  onCreated(): void;
+}) {
+  const apiBase = domain === "dark" ? "/api/v1/dark" : "/api/v1";
   const detail = useQuery({
-    queryKey: ["entry", entryId],
-    queryFn: () => api<ReviewDetail>(`/api/v1/entries/${entryId}`),
+    queryKey: ["entry", domain, entryId],
+    queryFn: () => api<ReviewDetail>(`${apiBase}/entries/${entryId}`),
   });
   return (
     <Modal title="入力を見直して再分析" onClose={onClose} wide>
       {detail.isPending && <Spinner label="現在の入力を読み込んでいます" />}
       {detail.isError && <Notice tone="danger">現在の入力を読み込めませんでした。</Notice>}
       {detail.data && (
-        <ReanalysisForm entryId={entryId} draft={detail.data.entry.draft} onClose={onClose} onCreated={onCreated} />
+        <ReanalysisForm
+          domain={domain}
+          entryId={entryId}
+          draft={detail.data.entry.draft}
+          onClose={onClose}
+          onCreated={onCreated}
+        />
       )}
     </Modal>
   );
@@ -873,15 +1137,18 @@ function ReanalysisModal({ entryId, onClose, onCreated }: { entryId: string; onC
 
 function ReanalysisForm({
   entryId,
+  domain,
   draft,
   onClose,
   onCreated,
 }: {
   entryId: string;
-  draft: EntryDraft;
+  domain: AnalysisDomain;
+  draft: AnyEntryDraft;
   onClose(): void;
   onCreated(): void;
 }) {
+  const apiBase = domain === "dark" ? "/api/v1/dark" : "/api/v1";
   const [form, setForm] = useState<FormState>(() => formStateFromDraft(draft));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
@@ -894,7 +1161,7 @@ function ReanalysisForm({
       setSelectedIdentityId("new");
     }
   };
-  const toggleResponseChannel = (value: ResponseChannel, selected: boolean) =>
+  const toggleResponseChannel = (value: ResponseChannel | DarkResponseChannel, selected: boolean) =>
     update(
       "responseChannels",
       selected
@@ -915,7 +1182,7 @@ function ReanalysisForm({
     let resolvedIdentityId = selectedIdentityId;
     if (form.registrationType !== "original" && identityChanged && candidates === undefined) {
       try {
-        const result = await api<{ candidates: IdentityCandidate[] }>("/api/v1/identity-candidates", {
+        const result = await api<{ candidates: IdentityCandidate[] }>(`${apiBase}/identity-candidates`, {
           method: "POST",
           body: JSON.stringify({
             workTitle: form.workTitle,
@@ -953,9 +1220,9 @@ function ReanalysisForm({
         : { mode: "new" }
       : currentResolution;
     try {
-      await api(`/api/v1/entries/${entryId}/reanalysis`, {
+      await api(`${apiBase}/entries/${entryId}/reanalysis`, {
         method: "POST",
-        body: JSON.stringify({ draft: entrySubmissionFromForm(form, identityResolution) }),
+        body: JSON.stringify({ draft: entrySubmissionFromForm(form, identityResolution, domain) }),
       });
       onCreated();
     } catch (caught) {
@@ -1047,6 +1314,7 @@ function ReanalysisForm({
             />
           </label>
         )}
+        {domain === "dark" && <DarkContextFields form={form} update={update} />}
         <label className="full">
           <span>特に好きな時期・場面・状態（任意）</span>
           <input
@@ -1123,7 +1391,7 @@ function ReanalysisForm({
             onChange={(event) => update("dislikedReasons", event.target.value)}
           />
         </label>
-        <ResponseChannelPicker selected={form.responseChannels} onChange={toggleResponseChannel} />
+        <ResponseChannelPicker domain={domain} selected={form.responseChannels} onChange={toggleResponseChannel} />
         <label className="full">
           <span>善悪・価値観について残したいニュアンス</span>
           <textarea
@@ -1181,21 +1449,24 @@ function ReanalysisForm({
 }
 
 function ReviewModal({
+  domain,
   entryId,
   onClose,
   onUpdated,
   onReanalyze,
 }: {
+  domain: AnalysisDomain;
   entryId: string;
   onClose(): void;
   onUpdated(): void;
   onReanalyze(): void;
 }) {
+  const apiBase = domain === "dark" ? "/api/v1/dark" : "/api/v1";
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const detail = useQuery({
-    queryKey: ["entry", entryId],
-    queryFn: () => api<ReviewDetail>(`/api/v1/entries/${entryId}`),
+    queryKey: ["entry", domain, entryId],
+    queryFn: () => api<ReviewDetail>(`${apiBase}/entries/${entryId}`),
     refetchInterval: (query) =>
       ["submitted", "understanding", "analyzing"].includes(query.state.data?.entry.status ?? "") ? 2_000 : false,
   });
@@ -1207,8 +1478,8 @@ function ReviewModal({
     try {
       await api(
         kind === "understanding"
-          ? `/api/v1/understanding-snapshots/${targetId}/review`
-          : `/api/v1/preference-analysis-runs/${targetId}/review`,
+          ? `${apiBase}/understanding-snapshots/${targetId}/review`
+          : `${apiBase}/preference-analysis-runs/${targetId}/review`,
         {
           method: "POST",
           body: JSON.stringify({ decision: "confirm_all", targetIds: [targetId] }),
@@ -1230,7 +1501,7 @@ function ReviewModal({
     setSubmitting(true);
     setError(undefined);
     try {
-      await api(`/api/v1/understanding-snapshots/${snapshotId}/review`, {
+      await api(`${apiBase}/understanding-snapshots/${snapshotId}/review`, {
         method: "POST",
         body: JSON.stringify(input),
       });
@@ -1249,7 +1520,7 @@ function ReviewModal({
     setSubmitting(true);
     setError(undefined);
     try {
-      await api(`/api/v1/preference-analysis-runs/${runId}/review`, {
+      await api(`${apiBase}/preference-analysis-runs/${runId}/review`, {
         method: "POST",
         body: JSON.stringify({ decision: "reject_selected", targetIds: [targetId] }),
       });
@@ -1257,6 +1528,43 @@ function ReviewModal({
       onUpdated();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "嗜好候補を削除できませんでした");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+  async function mutatePreference(runId: string, input: PreferenceReviewMutation): Promise<boolean> {
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await api(`${apiBase}/preference-analysis-runs/${runId}/review`, {
+        method: "POST",
+        idempotencyKey: idempotencyKey(),
+        body: JSON.stringify(input),
+      });
+      await detail.refetch();
+      onUpdated();
+      return true;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "嗜好候補の修正を保存できませんでした");
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+  async function reviewDarkScope(decision: "continue" | "cancel") {
+    const assessmentId = detail.data?.darkScopeAssessment?.id;
+    if (!assessmentId) return;
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await api(`${apiBase}/scope-assessments/${assessmentId}/review`, {
+        method: "POST",
+        body: JSON.stringify({ decision }),
+      });
+      await detail.refetch();
+      onUpdated();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "対象範囲の判断を保存できませんでした");
     } finally {
       setSubmitting(false);
     }
@@ -1272,6 +1580,56 @@ function ReviewModal({
           <Notice tone={value.entry.status === "failed" ? "danger" : "info"}>
             現在: {statusLabels[value.entry.status] ?? "状態を確認中"}
           </Notice>
+          {value.darkScopeAssessment?.status === "proposed" && (
+            <Card>
+              <p className="eyebrow">DARK SCOPE REVIEW</p>
+              <h3>ダークラボの対象外と判定されました</h3>
+              <p>{value.darkScopeAssessment.assessment.rationale}</p>
+              {value.darkScopeAssessment.assessment.limitations.map((item) => (
+                <p className="muted" key={item}>
+                  {item}
+                </p>
+              ))}
+              <Notice tone="warning">
+                対象とする限定状態や独自解釈が明示されている場合は、判定を上書きして続行できます。
+              </Notice>
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={submitting}
+                  onClick={() => void reviewDarkScope("continue")}
+                >
+                  対象として続行
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  disabled={submitting}
+                  onClick={() => void reviewDarkScope("cancel")}
+                >
+                  登録を取り消す
+                </button>
+              </div>
+            </Card>
+          )}
+          {value.darkBaseline && (
+            <Card>
+              <p className="eyebrow">DARK BASELINE SNAPSHOT</p>
+              <h3>ダーク化前の比較ベースライン</h3>
+              <p className="section-help">通常分析器や通常嗜好属性には対応させず、差分理解だけに使います。</p>
+              <dl className="review-summary">
+                {Object.entries(value.darkBaseline)
+                  .filter(([key]) => key !== "id" && key !== "evidence" && key !== "uncertainties")
+                  .map(([key, item]) => (
+                    <div key={key}>
+                      <dt>{key}</dt>
+                      <dd>{Array.isArray(item) ? item.join("、") || "—" : String(item ?? "—")}</dd>
+                    </div>
+                  ))}
+              </dl>
+            </Card>
+          )}
           {reanalyzableStatuses.has(value.entry.status) && (
             <button type="button" className="button button-secondary" onClick={onReanalyze}>
               入力を見直して再分析
@@ -1288,7 +1646,7 @@ function ReviewModal({
                   .map(([key, item]) => (
                     <div key={key}>
                       <dt>{understandingSummaryLabel(key)}</dt>
-                      <dd>{Array.isArray(item) ? item.join("、") || "—" : item}</dd>
+                      <dd>{reviewSummaryValue(item)}</dd>
                     </div>
                   ))}
               </dl>
@@ -1306,13 +1664,14 @@ function ReviewModal({
                         <strong>{item.raw_label}</strong>
                         {item.status === "corrected" && <span className="user-corrected-badge">ユーザー修正</span>}
                       </div>
-                      <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                      <small className="confidence-pill">登録内支持度 {Math.round(item.confidence * 100)}%</small>
                     </div>
                     <p className="assertion-value">{item.value_text}</p>
                     <EvidenceList evidence={item.evidence} />
                     {value.entry.status === "understanding_review" && (
                       <AssertionReviewControls
                         item={item}
+                        ontologyAttributes={value.ontologyAttributes}
                         disabled={submitting}
                         onMutate={(input) => mutateUnderstandingSnapshot(value.baseUnderstanding?.id, input)}
                       />
@@ -1321,6 +1680,7 @@ function ReviewModal({
                 ))}
                 {value.entry.status === "understanding_review" && (
                   <AddAssertionControl
+                    ontologyAttributes={value.ontologyAttributes}
                     disabled={submitting}
                     onMutate={(input) => mutateUnderstandingSnapshot(value.baseUnderstanding?.id, input)}
                   />
@@ -1339,7 +1699,7 @@ function ReviewModal({
                   .map(([key, item]) => (
                     <div key={key}>
                       <dt>{understandingSummaryLabel(key)}</dt>
-                      <dd>{Array.isArray(item) ? item.join("、") || "—" : item}</dd>
+                      <dd>{reviewSummaryValue(item)}</dd>
                     </div>
                   ))}
               </dl>
@@ -1357,13 +1717,14 @@ function ReviewModal({
                         <strong>{item.raw_label}</strong>
                         {item.status === "corrected" && <span className="user-corrected-badge">ユーザー修正</span>}
                       </div>
-                      <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                      <small className="confidence-pill">登録内支持度 {Math.round(item.confidence * 100)}%</small>
                     </div>
                     <p className="assertion-value">{item.value_text}</p>
                     <EvidenceList evidence={item.evidence} />
                     {value.entry.status === "understanding_review" && (
                       <AssertionReviewControls
                         item={item}
+                        ontologyAttributes={value.ontologyAttributes}
                         disabled={submitting}
                         onMutate={(input) => mutateUnderstandingSnapshot(value.understanding?.id, input)}
                       />
@@ -1372,6 +1733,7 @@ function ReviewModal({
                 ))}
                 {value.entry.status === "understanding_review" && (
                   <AddAssertionControl
+                    ontologyAttributes={value.ontologyAttributes}
                     disabled={submitting}
                     onMutate={(input) => mutateUnderstandingSnapshot(value.understanding?.id, input)}
                   />
@@ -1402,6 +1764,34 @@ function ReviewModal({
                   </div>
                 </>
               )}
+              {value.darkTransformationDeltas.length > 0 && (
+                <>
+                  <h4>ダーク化前からの専用差分</h4>
+                  <p className="section-help">
+                    保持・増幅・抑圧・反転・消失・追加を、主体性と責任の情報から分離して保存しています。
+                  </p>
+                  <div className="customization-delta-list">
+                    {value.darkTransformationDeltas.map((item) => (
+                      <article key={item.id} className="dark-delta-card">
+                        <div className="assertion-card-header">
+                          <strong>
+                            {item.operation}：{item.aspect}
+                          </strong>
+                          <small className="confidence-pill">登録内支持度 {Math.round(item.confidence * 100)}%</small>
+                        </div>
+                        <p>
+                          {item.before_value ?? "—"} → {item.after_value ?? "—"}
+                        </p>
+                        <small>
+                          主体性: {String(item.detail.agencyOrigin ?? "unknown")} ／ 抵抗:{" "}
+                          {String(item.detail.resistance ?? "unknown")} ／ 責任:{" "}
+                          {String(item.detail.responsibility ?? "unknown")}
+                        </small>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              )}
               {value.entry.status === "understanding_review" && (
                 <button
                   type="button"
@@ -1424,11 +1814,17 @@ function ReviewModal({
                 </p>
               )}
               <div className="assertion-list">
+                {value.preferenceAnalysis.assertions.length === 0 &&
+                  value.preferenceAnalysis.valueStances.length === 0 && (
+                    <Notice tone="info">
+                      この登録からは嗜好を特定できませんでした。これは正常な分析結果で、候補を追加せず確認できます。
+                    </Notice>
+                  )}
                 {value.preferenceAnalysis.assertions.map((item) => (
                   <article key={item.id} className={item.polarity === "negative" ? "negative" : ""}>
                     <div className="assertion-card-header">
                       <strong>{item.raw_label}</strong>
-                      <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                      <small className="confidence-pill">登録内支持度 {Math.round(item.confidence * 100)}%</small>
                     </div>
                     <small>
                       {responseChannelLabel(item.response_channel)}・強さ {Math.round(item.strength * 100)}%・
@@ -1437,6 +1833,13 @@ function ReviewModal({
                     <EvidenceList evidence={item.evidence} />
                     {value.entry.status === "analysis_review" && (
                       <div className="review-item-actions">
+                        <PreferenceAssertionEditControl
+                          item={item}
+                          domain={domain}
+                          ontologyAttributes={value.ontologyAttributes}
+                          disabled={submitting}
+                          onMutate={(input) => mutatePreference(value.preferenceAnalysis?.id ?? "", input)}
+                        />
                         <button
                           type="button"
                           className="danger-link"
@@ -1451,6 +1854,14 @@ function ReviewModal({
                     )}
                   </article>
                 ))}
+                {value.entry.status === "analysis_review" && (
+                  <AddPreferenceAssertionControl
+                    domain={domain}
+                    ontologyAttributes={value.ontologyAttributes}
+                    disabled={submitting}
+                    onMutate={(input) => mutatePreference(value.preferenceAnalysis?.id ?? "", input)}
+                  />
+                )}
               </div>
               {value.preferenceAnalysis.valueStances.length > 0 && (
                 <>
@@ -1460,7 +1871,7 @@ function ReviewModal({
                       <article key={item.id}>
                         <div className="assertion-card-header">
                           <strong>{item.target_ref}</strong>
-                          <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+                          <small className="confidence-pill">登録内支持度 {Math.round(item.confidence * 100)}%</small>
                         </div>
                         <small>
                           対象の価値傾向：{valueOrientationLabel(item.orientation)} ／ あなたの捉え方：
@@ -1469,6 +1880,11 @@ function ReviewModal({
                         <EvidenceList evidence={item.evidence} />
                         {value.entry.status === "analysis_review" && (
                           <div className="review-item-actions">
+                            <ValueStanceEditControl
+                              item={item}
+                              disabled={submitting}
+                              onMutate={(input) => mutatePreference(value.preferenceAnalysis?.id ?? "", input)}
+                            />
                             <button
                               type="button"
                               className="danger-link"
@@ -1485,6 +1901,12 @@ function ReviewModal({
                     ))}
                   </div>
                 </>
+              )}
+              {value.entry.status === "analysis_review" && (
+                <AddValueStanceControl
+                  disabled={submitting}
+                  onMutate={(input) => mutatePreference(value.preferenceAnalysis?.id ?? "", input)}
+                />
               )}
               {value.entry.status === "analysis_review" && (
                 <>
@@ -1526,27 +1948,316 @@ const deltaOperationLabels: Record<string, { label: string; description: string 
 };
 
 type ReviewMutationHandler = (input: UnderstandingReviewMutation) => Promise<boolean>;
+type PreferenceMutationHandler = (input: PreferenceReviewMutation) => Promise<boolean>;
+
+function PreferenceAssertionForm({
+  initial,
+  domain,
+  ontologyAttributes,
+  disabled,
+  submitLabel,
+  onCancel,
+  onMutate,
+}: {
+  initial?: {
+    id: string;
+    raw_label: string;
+    stable_key: string | null;
+    polarity: string;
+    response_channel: string;
+    strength: number;
+  };
+  domain: AnalysisDomain;
+  ontologyAttributes: Array<{ stableKey: string; label: string }>;
+  disabled: boolean;
+  submitLabel: string;
+  onCancel(): void;
+  onMutate: PreferenceMutationHandler;
+}) {
+  const channels = domain === "dark" ? darkResponseChannelCatalog : responseChannelCatalog;
+  const [rawLabel, setRawLabel] = useState(initial?.raw_label ?? "");
+  const [attributeStableKey, setAttributeStableKey] = useState(initial?.stable_key ?? "");
+  const [polarity, setPolarity] = useState<"positive" | "negative" | "mixed">(
+    initial?.polarity === "negative" || initial?.polarity === "mixed" ? initial.polarity : "positive",
+  );
+  const [responseChannel, setResponseChannel] = useState(initial?.response_channel ?? channels[0].value);
+  const [strength, setStrength] = useState(initial?.strength ?? 0.8);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const common = {
+      rawLabel,
+      attributeStableKey: attributeStableKey || null,
+      polarity,
+      responseChannel: responseChannel as ResponseChannel | DarkResponseChannel,
+      strength,
+    };
+    const saved = initial
+      ? await onMutate({ action: "update_preference", targetId: initial.id, ...common })
+      : await onMutate({ action: "add_preference", ...common });
+    if (saved) onCancel();
+  }
+  return (
+    <form className="review-edit-form manual-add-form" onSubmit={submit}>
+      <label>
+        <span>嗜好属性名</span>
+        <input required maxLength={200} value={rawLabel} onChange={(event) => setRawLabel(event.target.value)} />
+      </label>
+      <label>
+        <span>Ontology属性</span>
+        <select value={attributeStableKey} onChange={(event) => setAttributeStableKey(event.target.value)}>
+          <option value="">未対応</option>
+          {ontologyAttributes.map((item) => (
+            <option key={item.stableKey} value={item.stableKey}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>反応経路</span>
+        <select value={responseChannel} onChange={(event) => setResponseChannel(event.target.value)}>
+          {channels.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>支持</span>
+        <select value={polarity} onChange={(event) => setPolarity(event.target.value as typeof polarity)}>
+          <option value="positive">好き・肯定的</option>
+          <option value="negative">苦手・否定的</option>
+          <option value="mixed">両価的</option>
+        </select>
+      </label>
+      <label>
+        <span>強さ {Math.round(strength * 100)}%</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={strength}
+          onChange={(event) => setStrength(Number(event.target.value))}
+        />
+      </label>
+      <div className="review-edit-actions">
+        <button type="button" className="button button-ghost" onClick={onCancel} disabled={disabled}>
+          キャンセル
+        </button>
+        <button type="submit" className="button button-primary" disabled={disabled}>
+          {submitLabel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PreferenceAssertionEditControl(props: {
+  item: {
+    id: string;
+    raw_label: string;
+    stable_key: string | null;
+    polarity: string;
+    response_channel: string;
+    strength: number;
+  };
+  domain: AnalysisDomain;
+  ontologyAttributes: Array<{ stableKey: string; label: string }>;
+  disabled: boolean;
+  onMutate: PreferenceMutationHandler;
+}) {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <PreferenceAssertionForm
+      initial={props.item}
+      domain={props.domain}
+      ontologyAttributes={props.ontologyAttributes}
+      disabled={props.disabled}
+      submitLabel="修正を保存"
+      onCancel={() => setOpen(false)}
+      onMutate={props.onMutate}
+    />
+  ) : (
+    <button type="button" disabled={props.disabled} onClick={() => setOpen(true)}>
+      編集
+    </button>
+  );
+}
+
+function AddPreferenceAssertionControl(props: {
+  domain: AnalysisDomain;
+  ontologyAttributes: Array<{ stableKey: string; label: string }>;
+  disabled: boolean;
+  onMutate: PreferenceMutationHandler;
+}) {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <PreferenceAssertionForm
+      domain={props.domain}
+      ontologyAttributes={props.ontologyAttributes}
+      disabled={props.disabled}
+      submitLabel="嗜好候補を追加"
+      onCancel={() => setOpen(false)}
+      onMutate={props.onMutate}
+    />
+  ) : (
+    <button type="button" className="manual-add-button" disabled={props.disabled} onClick={() => setOpen(true)}>
+      ＋ 嗜好候補を手動追加
+    </button>
+  );
+}
+
+const orientationOptions = [
+  "evil",
+  "immoral",
+  "indifferent_to_good",
+  "transgressive",
+  "self_defined",
+  "good",
+  "mixed",
+] as const;
+const stanceOptions = ["affirm", "accept", "indifferent", "ambivalent", "reject", "unspecified"] as const;
+
+function ValueStanceForm({
+  initial,
+  disabled,
+  onCancel,
+  onMutate,
+}: {
+  initial?: { id: string; target_ref: string; stance: string; orientation: string };
+  disabled: boolean;
+  onCancel(): void;
+  onMutate: PreferenceMutationHandler;
+}) {
+  const [targetRef, setTargetRef] = useState(initial?.target_ref ?? "");
+  const [stance, setStance] = useState<(typeof stanceOptions)[number]>(
+    stanceOptions.includes(initial?.stance as (typeof stanceOptions)[number])
+      ? (initial?.stance as (typeof stanceOptions)[number])
+      : "accept",
+  );
+  const [orientation, setOrientation] = useState<(typeof orientationOptions)[number]>(
+    orientationOptions.includes(initial?.orientation as (typeof orientationOptions)[number])
+      ? (initial?.orientation as (typeof orientationOptions)[number])
+      : "mixed",
+  );
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const saved = initial
+      ? await onMutate({ action: "update_value_stance", targetId: initial.id, targetRef, stance, orientation })
+      : await onMutate({ action: "add_value_stance", targetRef, stance, orientation });
+    if (saved) onCancel();
+  }
+  return (
+    <form className="review-edit-form manual-add-form" onSubmit={submit}>
+      <label>
+        <span>対象の価値・行為・結末</span>
+        <input required maxLength={500} value={targetRef} onChange={(event) => setTargetRef(event.target.value)} />
+      </label>
+      <label>
+        <span>価値傾向</span>
+        <select value={orientation} onChange={(event) => setOrientation(event.target.value as typeof orientation)}>
+          {orientationOptions.map((item) => (
+            <option key={item} value={item}>
+              {valueOrientationLabel(item)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>あなたの捉え方</span>
+        <select value={stance} onChange={(event) => setStance(event.target.value as typeof stance)}>
+          {stanceOptions.map((item) => (
+            <option key={item} value={item}>
+              {valueStanceLabel(item)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="review-edit-actions">
+        <button type="button" className="button button-ghost" onClick={onCancel} disabled={disabled}>
+          キャンセル
+        </button>
+        <button type="submit" className="button button-primary" disabled={disabled}>
+          保存
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ValueStanceEditControl(props: {
+  item: { id: string; target_ref: string; stance: string; orientation: string };
+  disabled: boolean;
+  onMutate: PreferenceMutationHandler;
+}) {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <ValueStanceForm
+      initial={props.item}
+      disabled={props.disabled}
+      onCancel={() => setOpen(false)}
+      onMutate={props.onMutate}
+    />
+  ) : (
+    <button type="button" disabled={props.disabled} onClick={() => setOpen(true)}>
+      編集
+    </button>
+  );
+}
+
+function AddValueStanceControl(props: { disabled: boolean; onMutate: PreferenceMutationHandler }) {
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <ValueStanceForm disabled={props.disabled} onCancel={() => setOpen(false)} onMutate={props.onMutate} />
+  ) : (
+    <button type="button" className="manual-add-button" disabled={props.disabled} onClick={() => setOpen(true)}>
+      ＋ 価値スタンスを手動追加
+    </button>
+  );
+}
 
 function AssertionReviewControls({
   item,
+  ontologyAttributes,
   disabled,
   onMutate,
 }: {
   item: CharacterAssertionDetail;
+  ontologyAttributes: Array<{ stableKey: string; label: string }>;
   disabled: boolean;
   onMutate: ReviewMutationHandler;
 }) {
   const [editing, setEditing] = useState(false);
   const [rawLabel, setRawLabel] = useState(item.raw_label);
   const [valueText, setValueText] = useState(item.value_text);
+  const [attributeStableKey, setAttributeStableKey] = useState(item.stable_key ?? "");
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const saved = await onMutate({ action: "update_assertion", targetId: item.id, rawLabel, valueText });
+    const saved = await onMutate({
+      action: "update_assertion",
+      targetId: item.id,
+      rawLabel,
+      valueText,
+      attributeStableKey: attributeStableKey || null,
+    });
     if (saved) setEditing(false);
   }
   if (editing)
     return (
       <form className="review-edit-form" onSubmit={submit}>
+        <label>
+          <span>Ontology属性（このラボ内だけ）</span>
+          <select value={attributeStableKey} onChange={(event) => setAttributeStableKey(event.target.value)}>
+            <option value="">未対応のまま保存</option>
+            {ontologyAttributes.map((attribute) => (
+              <option key={attribute.stableKey} value={attribute.stableKey}>
+                {attribute.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           <span>属性名</span>
           <input value={rawLabel} onChange={(event) => setRawLabel(event.target.value)} maxLength={200} required />
@@ -1591,16 +2302,31 @@ function AssertionReviewControls({
   );
 }
 
-function AddAssertionControl({ disabled, onMutate }: { disabled: boolean; onMutate: ReviewMutationHandler }) {
+function AddAssertionControl({
+  ontologyAttributes,
+  disabled,
+  onMutate,
+}: {
+  ontologyAttributes: Array<{ stableKey: string; label: string }>;
+  disabled: boolean;
+  onMutate: ReviewMutationHandler;
+}) {
   const [open, setOpen] = useState(false);
   const [rawLabel, setRawLabel] = useState("");
   const [valueText, setValueText] = useState("");
+  const [attributeStableKey, setAttributeStableKey] = useState("");
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const saved = await onMutate({ action: "add_assertion", rawLabel, valueText });
+    const saved = await onMutate({
+      action: "add_assertion",
+      rawLabel,
+      valueText,
+      attributeStableKey: attributeStableKey || null,
+    });
     if (!saved) return;
     setRawLabel("");
     setValueText("");
+    setAttributeStableKey("");
     setOpen(false);
   }
   if (!open)
@@ -1612,6 +2338,17 @@ function AddAssertionControl({ disabled, onMutate }: { disabled: boolean; onMuta
   return (
     <form className="review-edit-form manual-add-form" onSubmit={submit}>
       <strong>属性を手動追加</strong>
+      <label>
+        <span>Ontology属性（このラボ内だけ）</span>
+        <select value={attributeStableKey} onChange={(event) => setAttributeStableKey(event.target.value)}>
+          <option value="">未対応のまま保存</option>
+          {ontologyAttributes.map((attribute) => (
+            <option key={attribute.stableKey} value={attribute.stableKey}>
+              {attribute.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <label>
         <span>属性名</span>
         <input value={rawLabel} onChange={(event) => setRawLabel(event.target.value)} maxLength={200} required />
@@ -1790,7 +2527,7 @@ function CustomizationDeltaCard({
           </div>
           <p>{operation.description}</p>
         </div>
-        <small className="confidence-pill">確信度 {Math.round(item.confidence * 100)}%</small>
+        <small className="confidence-pill">登録内支持度 {Math.round(item.confidence * 100)}%</small>
       </header>
       <div className="customization-comparison">
         <section>

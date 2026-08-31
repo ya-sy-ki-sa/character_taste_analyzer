@@ -13,6 +13,7 @@ export type CharacterAnalysisWorkflowParams = {
   entryId: string;
   stage: "understanding" | "preference";
   inputGeneration: number;
+  analysisDomain: AnalysisDomain;
 };
 
 export type GenerationWorkflowParams = {
@@ -20,6 +21,7 @@ export type GenerationWorkflowParams = {
   ownerUserId: string;
   generationRequestId: string;
   inputGeneration: number;
+  analysisDomain: AnalysisDomain;
 };
 
 export type ProfileRebuildWorkflowParams = {
@@ -82,3 +84,5 @@ export type AppVariables = {
   requestId: string;
   session?: Session;
 };
+
+import type { AnalysisDomain } from "../shared/analysis-domain";

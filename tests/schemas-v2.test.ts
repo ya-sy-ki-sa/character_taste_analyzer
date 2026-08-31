@@ -9,8 +9,8 @@ import {
   generatedCharacterCandidateSchema,
   generationRequestInputSchema,
   responseChannelSchema,
-  understandingReviewMutationSchema,
   understandingCandidateSchema,
+  understandingReviewMutationSchema,
 } from "../shared/schemas";
 
 describe("current input contracts", () => {

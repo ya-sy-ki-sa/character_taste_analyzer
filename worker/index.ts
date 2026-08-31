@@ -7,12 +7,15 @@ import {
   accountDeletionSchema,
   accountExportRequestSchema,
   activationSchema,
-  batchReviewSchema,
+  darkEntryReanalysisSchema,
+  darkEntrySubmissionSchema,
+  darkScopeReviewRequestSchema,
   entryReanalysisSchema,
   entrySubmissionSchema,
   generationRequestInputSchema,
   identityCandidateRequestSchema,
   loginSchema,
+  preferenceReviewRequestSchema,
   registrationSchema,
   understandingReviewRequestSchema,
 } from "../shared/schemas";
@@ -299,13 +302,16 @@ app.get("/api/v1/me", (context) => {
 
 app.get("/api/v1/entries", async (context) => {
   const session = requireSession(context);
-  return context.json(data({ entries: await createDataStoreStrategy(context.env).listEntries(session.userId) }));
+  return context.json(
+    data({ entries: await createDataStoreStrategy(context.env).listEntries(session.userId, "standard") }),
+  );
 });
 
 app.post("/api/v1/identity-candidates", validateJson(identityCandidateRequestSchema), async (context) => {
   const session = requireSession(context);
   const candidates = await createDataStoreStrategy(context.env).listIdentityCandidates(
     session.userId,
+    "standard",
     context.req.valid("json"),
   );
   return context.json(data({ candidates }));
@@ -315,6 +321,7 @@ app.post("/api/v1/entries", validateJson(entrySubmissionSchema), async (context)
   const session = requireSession(context);
   const result = await createDataStoreStrategy(context.env).createEntry(
     session.userId,
+    "standard",
     context.req.valid("json"),
     requireIdempotencyKey(context.req.header("Idempotency-Key")),
   );
@@ -325,7 +332,11 @@ app.post("/api/v1/entries", validateJson(entrySubmissionSchema), async (context)
 
 app.get("/api/v1/entries/:id", async (context) => {
   const session = requireSession(context);
-  const result = await createDataStoreStrategy(context.env).loadEntryReview(session.userId, context.req.param("id"));
+  const result = await createDataStoreStrategy(context.env).loadEntryReview(
+    session.userId,
+    "standard",
+    context.req.param("id"),
+  );
   if (!result) throw new HTTPException(404, { message: "キャラクターが見つかりません" });
   return context.json(data(result));
 });
@@ -334,6 +345,7 @@ app.post("/api/v1/entries/:id/reanalysis", validateJson(entryReanalysisSchema), 
   const session = requireSession(context);
   const result = await createDataStoreStrategy(context.env).createEntryReanalysis(
     session.userId,
+    "standard",
     context.req.param("id"),
     context.req.valid("json"),
     requireIdempotencyKey(context.req.header("Idempotency-Key")),
@@ -353,6 +365,7 @@ app.post(
     if ("action" in input) {
       const result = await createDataStoreStrategy(context.env).mutateUnderstandingReview(
         session.userId,
+        "standard",
         snapshotId,
         input,
         requireIdempotencyKey(context.req.header("Idempotency-Key")),
@@ -361,40 +374,64 @@ app.post(
     }
     if (input.decision !== "confirm_all" || input.targetIds.length !== 1 || input.targetIds[0] !== snapshotId)
       throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
-    const result = await createDataStoreStrategy(context.env).confirmUnderstanding(session.userId, input.targetIds[0]);
-    dispatchAfterCommit(context, result.outboxEventId);
+    const result = await createDataStoreStrategy(context.env).confirmUnderstanding(
+      session.userId,
+      "standard",
+      input.targetIds[0],
+    );
+    if (result.outboxEventId) dispatchAfterCommit(context, result.outboxEventId);
     return context.json(data({ entryId: result.entryId, status: "analyzing", jobId: result.jobId }), 202);
   },
 );
 
-app.post("/api/v1/preference-analysis-runs/:runId/review", validateJson(batchReviewSchema), async (context) => {
-  const session = requireSession(context);
-  const input = context.req.valid("json");
-  const runId = context.req.param("runId");
-  if (input.decision === "reject_selected") {
-    if (input.targetIds.length !== 1)
-      throw new HTTPException(422, { message: "削除する嗜好候補を1件選択してください" });
-    const result = await createDataStoreStrategy(context.env).rejectPreferenceAnalysisItem(
+app.post(
+  "/api/v1/preference-analysis-runs/:runId/review",
+  validateJson(preferenceReviewRequestSchema),
+  async (context) => {
+    const session = requireSession(context);
+    const input = context.req.valid("json");
+    const runId = context.req.param("runId");
+    if ("action" in input) {
+      const result = await createDataStoreStrategy(context.env).mutatePreferenceReview(
+        session.userId,
+        "standard",
+        runId,
+        input,
+        requireIdempotencyKey(context.req.header("Idempotency-Key")),
+      );
+      return context.json(data(result));
+    }
+    if (input.decision === "reject_selected") {
+      if (input.targetIds.length !== 1)
+        throw new HTTPException(422, { message: "削除する嗜好候補を1件選択してください" });
+      const result = await createDataStoreStrategy(context.env).rejectPreferenceAnalysisItem(
+        session.userId,
+        "standard",
+        runId,
+        input.targetIds[0],
+      );
+      return context.json(data(result));
+    }
+    if (input.decision !== "confirm_all" || input.targetIds.length !== 1 || input.targetIds[0] !== runId)
+      throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
+    const result = await createDataStoreStrategy(context.env).activateAnalysisAndRebuild(
       session.userId,
-      runId,
+      "standard",
       input.targetIds[0],
     );
-    return context.json(data(result));
-  }
-  if (input.decision !== "confirm_all" || input.targetIds.length !== 1 || input.targetIds[0] !== runId)
-    throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
-  const result = await createDataStoreStrategy(context.env).activateAnalysisAndRebuild(
-    session.userId,
-    input.targetIds[0],
-  );
-  dispatchAfterCommit(context, result.outboxEventId);
-  return context.json(data({ status: "active", ...result }), 202);
-});
+    dispatchAfterCommit(context, result.outboxEventId);
+    return context.json(data({ status: "active", ...result }), 202);
+  },
+);
 
 app.delete("/api/v1/entries/:id", async (context) => {
   const session = requireSession(context);
   try {
-    const result = await createDataStoreStrategy(context.env).archiveEntry(session.userId, context.req.param("id"));
+    const result = await createDataStoreStrategy(context.env).archiveEntry(
+      session.userId,
+      "standard",
+      context.req.param("id"),
+    );
     dispatchAfterCommit(context, result.outboxEventId);
   } catch (error) {
     if (error instanceof Error && error.message === "ENTRY_NOT_FOUND")
@@ -404,11 +441,167 @@ app.delete("/api/v1/entries/:id", async (context) => {
   return context.body(null, 204);
 });
 
+app.get("/api/v1/dark/entries", async (context) => {
+  const session = requireSession(context);
+  return context.json(
+    data({ entries: await createDataStoreStrategy(context.env).listEntries(session.userId, "dark") }),
+  );
+});
+
+app.post("/api/v1/dark/identity-candidates", validateJson(identityCandidateRequestSchema), async (context) => {
+  const session = requireSession(context);
+  const candidates = await createDataStoreStrategy(context.env).listIdentityCandidates(
+    session.userId,
+    "dark",
+    context.req.valid("json"),
+  );
+  return context.json(data({ candidates }));
+});
+
+app.post("/api/v1/dark/entries", validateJson(darkEntrySubmissionSchema), async (context) => {
+  const session = requireSession(context);
+  const result = await createDataStoreStrategy(context.env).createEntry(
+    session.userId,
+    "dark",
+    context.req.valid("json"),
+    requireIdempotencyKey(context.req.header("Idempotency-Key")),
+  );
+  if (!result.replayed) dispatchAfterCommit(context, result.outboxEventId);
+  if (!result.replayed) dispatchAfterCommit(context, result.profileOutboxEventId);
+  return context.json(data(result), 202);
+});
+
+app.get("/api/v1/dark/entries/:id", async (context) => {
+  const session = requireSession(context);
+  const result = await createDataStoreStrategy(context.env).loadEntryReview(
+    session.userId,
+    "dark",
+    context.req.param("id"),
+  );
+  if (!result) throw new HTTPException(404, { message: "ダークキャラクターが見つかりません" });
+  return context.json(data(result));
+});
+
+app.post(
+  "/api/v1/dark/scope-assessments/:assessmentId/review",
+  validateJson(darkScopeReviewRequestSchema),
+  async (context) => {
+    const session = requireSession(context);
+    const result = await createDataStoreStrategy(context.env).reviewDarkScopeAssessment(
+      session.userId,
+      context.req.param("assessmentId"),
+      context.req.valid("json"),
+    );
+    if (result.outboxEventId) dispatchAfterCommit(context, result.outboxEventId);
+    return context.json(data(result), result.status === "queued" ? 202 : 200);
+  },
+);
+
+app.post("/api/v1/dark/entries/:id/reanalysis", validateJson(darkEntryReanalysisSchema), async (context) => {
+  const session = requireSession(context);
+  const result = await createDataStoreStrategy(context.env).createEntryReanalysis(
+    session.userId,
+    "dark",
+    context.req.param("id"),
+    context.req.valid("json"),
+    requireIdempotencyKey(context.req.header("Idempotency-Key")),
+  );
+  if (!result.replayed) dispatchAfterCommit(context, result.outboxEventId);
+  if (!result.replayed) dispatchAfterCommit(context, result.profileOutboxEventId);
+  return context.json(data(result), 202);
+});
+
+app.post(
+  "/api/v1/dark/understanding-snapshots/:snapshotId/review",
+  validateJson(understandingReviewRequestSchema),
+  async (context) => {
+    const session = requireSession(context);
+    const input = context.req.valid("json");
+    const snapshotId = context.req.param("snapshotId");
+    if ("action" in input) {
+      const result = await createDataStoreStrategy(context.env).mutateUnderstandingReview(
+        session.userId,
+        "dark",
+        snapshotId,
+        input,
+        requireIdempotencyKey(context.req.header("Idempotency-Key")),
+      );
+      return context.json(data(result));
+    }
+    if (input.decision !== "confirm_all" || input.targetIds.length !== 1 || input.targetIds[0] !== snapshotId)
+      throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
+    const result = await createDataStoreStrategy(context.env).confirmUnderstanding(
+      session.userId,
+      "dark",
+      input.targetIds[0],
+    );
+    dispatchAfterCommit(context, result.outboxEventId);
+    return context.json(data({ entryId: result.entryId, status: "analyzing", jobId: result.jobId }), 202);
+  },
+);
+
+app.post(
+  "/api/v1/dark/preference-analysis-runs/:runId/review",
+  validateJson(preferenceReviewRequestSchema),
+  async (context) => {
+    const session = requireSession(context);
+    const input = context.req.valid("json");
+    const runId = context.req.param("runId");
+    if ("action" in input) {
+      const result = await createDataStoreStrategy(context.env).mutatePreferenceReview(
+        session.userId,
+        "dark",
+        runId,
+        input,
+        requireIdempotencyKey(context.req.header("Idempotency-Key")),
+      );
+      return context.json(data(result));
+    }
+    if (input.decision === "reject_selected") {
+      if (input.targetIds.length !== 1)
+        throw new HTTPException(422, { message: "削除する嗜好候補を1件選択してください" });
+      const result = await createDataStoreStrategy(context.env).rejectPreferenceAnalysisItem(
+        session.userId,
+        "dark",
+        runId,
+        input.targetIds[0],
+      );
+      return context.json(data(result));
+    }
+    if (input.decision !== "confirm_all" || input.targetIds.length !== 1 || input.targetIds[0] !== runId)
+      throw new HTTPException(422, { message: "現在は全体確認を選択してください" });
+    const result = await createDataStoreStrategy(context.env).activateAnalysisAndRebuild(
+      session.userId,
+      "dark",
+      input.targetIds[0],
+    );
+    dispatchAfterCommit(context, result.outboxEventId);
+    return context.json(data({ status: "active", ...result }), 202);
+  },
+);
+
+app.delete("/api/v1/dark/entries/:id", async (context) => {
+  const session = requireSession(context);
+  try {
+    const result = await createDataStoreStrategy(context.env).archiveEntry(
+      session.userId,
+      "dark",
+      context.req.param("id"),
+    );
+    dispatchAfterCommit(context, result.outboxEventId);
+  } catch (error) {
+    if (error instanceof Error && error.message === "ENTRY_NOT_FOUND")
+      throw new HTTPException(404, { message: "ダークキャラクターが見つかりません" });
+    throw error;
+  }
+  return context.body(null, 204);
+});
+
 app.get("/api/v1/profile", async (context) => {
   const session = requireSession(context);
   const strategy = createDataStoreStrategy(context.env);
   const [profile, freshness] = await Promise.all([
-    strategy.loadCurrentProfile(session.userId),
+    strategy.loadCurrentProfile(session.userId, "standard"),
     strategy.loadProjectionFreshness(session.userId),
   ]);
   if (!profile && freshness.status === "rebuilding")
@@ -418,7 +611,9 @@ app.get("/api/v1/profile", async (context) => {
 
 app.get("/api/v1/profile/snapshot-items", async (context) => {
   const session = requireSession(context);
-  return context.json(data(await createDataStoreStrategy(context.env).loadProfileSnapshotItems(session.userId)));
+  return context.json(
+    data(await createDataStoreStrategy(context.env).loadProfileSnapshotItems(session.userId, "standard")),
+  );
 });
 
 app.get("/api/v1/profile/graph", async (context) => {
@@ -426,16 +621,44 @@ app.get("/api/v1/profile/graph", async (context) => {
   const detail = z.enum(["summary", "standard", "expanded"]).catch("standard").parse(context.req.query("detail"));
   const strategy = createDataStoreStrategy(context.env);
   const [graph, freshness] = await Promise.all([
-    strategy.loadCurrentGraph(session.userId, detail),
+    strategy.loadCurrentGraph(session.userId, "standard", detail),
     strategy.loadProjectionFreshness(session.userId),
   ]);
   return context.json(data({ graph, freshness }));
+});
+
+app.get("/api/v1/dark/profile", async (context) => {
+  const session = requireSession(context);
+  const strategy = createDataStoreStrategy(context.env);
+  const [profile, freshness] = await Promise.all([
+    strategy.loadCurrentProfile(session.userId, "dark"),
+    strategy.loadProjectionFreshness(session.userId),
+  ]);
+  return context.json(data({ profile, freshness }));
+});
+
+app.get("/api/v1/dark/profile/snapshot-items", async (context) => {
+  const session = requireSession(context);
+  return context.json(
+    data(await createDataStoreStrategy(context.env).loadProfileSnapshotItems(session.userId, "dark")),
+  );
+});
+
+app.get("/api/v1/dark/profile/graph", async (context) => {
+  const session = requireSession(context);
+  const detail = z.enum(["summary", "standard", "expanded"]).catch("standard").parse(context.req.query("detail"));
+  return context.json(
+    data({
+      graph: await createDataStoreStrategy(context.env).loadCurrentGraph(session.userId, "dark", detail),
+    }),
+  );
 });
 
 app.post("/api/v1/generation-requests", validateJson(generationRequestInputSchema), async (context) => {
   const session = requireSession(context);
   const result = await createDataStoreStrategy(context.env).createGenerationRequest(
     session.userId,
+    "standard",
     context.req.valid("json"),
     requireIdempotencyKey(context.req.header("Idempotency-Key")),
   );
@@ -447,19 +670,45 @@ app.post("/api/v1/generation-requests", validateJson(generationRequestInputSchem
 app.get("/api/v1/generated-characters", async (context) => {
   const session = requireSession(context);
   return context.json(
-    data({ generations: await createDataStoreStrategy(context.env).listGenerations(session.userId) }),
+    data({ generations: await createDataStoreStrategy(context.env).listGenerations(session.userId, "standard") }),
   );
 });
 
 app.delete("/api/v1/generation-requests/:id", async (context) => {
   const session = requireSession(context);
-  await createDataStoreStrategy(context.env).deleteGeneration(session.userId, context.req.param("id"));
+  await createDataStoreStrategy(context.env).deleteGeneration(session.userId, "standard", context.req.param("id"));
+  return context.body(null, 204);
+});
+
+app.post("/api/v1/dark/generation-requests", validateJson(generationRequestInputSchema), async (context) => {
+  const session = requireSession(context);
+  const result = await createDataStoreStrategy(context.env).createGenerationRequest(
+    session.userId,
+    "dark",
+    context.req.valid("json"),
+    requireIdempotencyKey(context.req.header("Idempotency-Key")),
+  );
+  if (!result.jobId) throw new HTTPException(409, { message: "生成ジョブが見つかりません" });
+  if (!result.replayed) dispatchAfterCommit(context, result.outboxEventId);
+  return context.json(data(result), 202);
+});
+
+app.get("/api/v1/dark/generations", async (context) => {
+  const session = requireSession(context);
+  return context.json(
+    data({ generations: await createDataStoreStrategy(context.env).listGenerations(session.userId, "dark") }),
+  );
+});
+
+app.delete("/api/v1/dark/generations/:id", async (context) => {
+  const session = requireSession(context);
+  await createDataStoreStrategy(context.env).deleteGeneration(session.userId, "dark", context.req.param("id"));
   return context.body(null, 204);
 });
 
 app.get("/api/v1/jobs/:id", async (context) => {
   const session = requireSession(context);
-  const job = await createDataStoreStrategy(context.env).loadJob(session.userId, context.req.param("id"));
+  const job = await createDataStoreStrategy(context.env).loadJob(session.userId, "standard", context.req.param("id"));
   if (!job) throw new HTTPException(404, { message: "ジョブが見つかりません" });
   return context.json(data({ job }));
 });
@@ -468,8 +717,33 @@ app.post("/api/v1/jobs/:id/retry", async (context) => {
   const session = requireSession(context);
   const retryId = requireIdempotencyKey(context.req.header("Idempotency-Key"));
   const strategy = createDataStoreStrategy(context.env);
-  const job = await strategy.loadJob(session.userId, context.req.param("id"));
+  const job = await strategy.loadJob(session.userId, "standard", context.req.param("id"));
   if (!job) throw new HTTPException(404, { message: "ジョブが見つかりません" });
+  const result =
+    job.job_type === "generation"
+      ? await strategy.retryGeneration(session.userId, context.req.param("id"), retryId)
+      : job.job_type === "character_analysis"
+        ? await strategy.retryCharacterAnalysis(session.userId, context.req.param("id"), retryId)
+        : (() => {
+            throw new HTTPException(409, { message: "このジョブ種別は再実行できません" });
+          })();
+  dispatchAfterCommit(context, result.outboxEventId);
+  return context.json(data({ ...result, status: "queued" }), 202);
+});
+
+app.get("/api/v1/dark/jobs/:id", async (context) => {
+  const session = requireSession(context);
+  const job = await createDataStoreStrategy(context.env).loadJob(session.userId, "dark", context.req.param("id"));
+  if (!job) throw new HTTPException(404, { message: "ダークラボのジョブが見つかりません" });
+  return context.json(data({ job }));
+});
+
+app.post("/api/v1/dark/jobs/:id/retry", async (context) => {
+  const session = requireSession(context);
+  const retryId = requireIdempotencyKey(context.req.header("Idempotency-Key"));
+  const strategy = createDataStoreStrategy(context.env);
+  const job = await strategy.loadJob(session.userId, "dark", context.req.param("id"));
+  if (!job) throw new HTTPException(404, { message: "ダークラボのジョブが見つかりません" });
   const result =
     job.job_type === "generation"
       ? await strategy.retryGeneration(session.userId, context.req.param("id"), retryId)

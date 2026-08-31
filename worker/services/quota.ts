@@ -2,7 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { deriveUuid, nowIso } from "../lib/crypto";
 import { first } from "../lib/db";
 import type { Env } from "../types";
-import { nextQuotaSlot, quotaLimit, type QuotaCapability } from "./quota-policy";
+import { nextQuotaSlot, type QuotaCapability, quotaLimit } from "./quota-policy";
 
 export type { QuotaCapability } from "./quota-policy";
 

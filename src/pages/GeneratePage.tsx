@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
+import type { AnalysisDomain } from "../../shared/analysis-domain";
 import {
   briefCoverageStatusLabel,
   briefTreatmentLabel,
@@ -8,7 +9,7 @@ import {
   snapshotItemTypeLabel,
 } from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
-import type { GeneratedCharacterCandidate, GenerationRequestInput } from "../../shared/schemas";
+import type { AnyGeneratedCharacterCandidate, GenerationRequestInput } from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 import {
@@ -25,7 +26,7 @@ type GenerationRow = {
   status: string;
   mode: GenerationRequestInput["mode"];
   createdAt: string;
-  character: GeneratedCharacterCandidate | null;
+  character: AnyGeneratedCharacterCandidate | null;
   job: { status: string | null; errorCode: string | null };
 };
 
@@ -35,7 +36,10 @@ const modes: Array<{ id: GenerationRequestInput["mode"]; symbol: string; title: 
   { id: "exploratory", symbol: "✦", title: "探索", description: "禁止条件を守りつつ、意外な組合せを探します。" },
 ];
 
-export function GeneratePage() {
+export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
+  const dark = domain === "dark";
+  const apiBase = dark ? "/api/v1/dark" : "/api/v1";
+  const generationListPath = dark ? `${apiBase}/generations` : `${apiBase}/generated-characters`;
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<GenerationRequestInput["mode"]>("balanced");
   const [purpose, setPurpose] = useState("物語に登場する一人のキャラクターを作る");
@@ -51,12 +55,12 @@ export function GeneratePage() {
   const [notice, setNotice] = useState<string>();
   const [detail, setDetail] = useState<GenerationRow>();
   const snapshot = useQuery({
-    queryKey: ["profile-snapshot-items"],
-    queryFn: () => api<SnapshotResponse>("/api/v1/profile/snapshot-items"),
+    queryKey: ["profile-snapshot-items", domain],
+    queryFn: () => api<SnapshotResponse>(`${apiBase}/profile/snapshot-items`),
   });
   const generations = useQuery({
-    queryKey: ["generated-characters"],
-    queryFn: () => api<{ generations: GenerationRow[] }>("/api/v1/generated-characters"),
+    queryKey: ["generated-characters", domain],
+    queryFn: () => api<{ generations: GenerationRow[] }>(generationListPath),
     refetchInterval: (query) =>
       query.state.data?.generations.some((item) => ["draft", "brief_ready", "generating"].includes(item.status))
         ? 2_000
@@ -88,7 +92,7 @@ export function GeneratePage() {
     setError(undefined);
     const { selectedItemIds, prohibitedItemIds } = expandSnapshotTreatments(groupedSnapshotItems, treatments);
     try {
-      await api("/api/v1/generation-requests", {
+      await api(`${apiBase}/generation-requests`, {
         method: "POST",
         idempotencyKey: idempotencyKey(),
         body: JSON.stringify({
@@ -103,7 +107,7 @@ export function GeneratePage() {
           prohibitedItemIds,
         }),
       });
-      await queryClient.invalidateQueries({ queryKey: ["generated-characters"] });
+      await queryClient.invalidateQueries({ queryKey: ["generated-characters", domain] });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "生成を開始できませんでした");
     } finally {
@@ -118,9 +122,14 @@ export function GeneratePage() {
     setError(undefined);
     setNotice(undefined);
     try {
-      await api(`/api/v1/generation-requests/${item.generationRequestId}`, { method: "DELETE" });
+      await api(
+        dark
+          ? `${apiBase}/generations/${item.generationRequestId}`
+          : `${apiBase}/generation-requests/${item.generationRequestId}`,
+        { method: "DELETE" },
+      );
       if (detail?.generationRequestId === item.generationRequestId) setDetail(undefined);
-      await queryClient.invalidateQueries({ queryKey: ["generated-characters"] });
+      await queryClient.invalidateQueries({ queryKey: ["generated-characters", domain] });
       setNotice("作成履歴を削除しました。");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "作成履歴を削除できませんでした");
@@ -340,7 +349,7 @@ function snapshotScopeLabel(conditions: Record<string, unknown>[]): string {
   return labels.length ? `・対象：${labels.join("／")}` : "";
 }
 
-function CharacterModal({ character, onClose }: { character: GeneratedCharacterCandidate; onClose(): void }) {
+function CharacterModal({ character, onClose }: { character: AnyGeneratedCharacterCandidate; onClose(): void }) {
   const sections = [
     ["外見", character.appearance],
     ["性格", character.personality],
@@ -362,11 +371,13 @@ function CharacterModal({ character, onClose }: { character: GeneratedCharacterC
                 <h3>{title}</h3>
                 <p>{section.summary}</p>
                 <ul>
-                  {section.traits.map((trait) => (
-                    <li key={trait.label}>
-                      <strong>{trait.label}</strong> — {trait.description}
-                    </li>
-                  ))}
+                  {Array.from(new Map(section.traits.map((trait) => [JSON.stringify(trait), trait])).values()).map(
+                    (trait) => (
+                      <li key={JSON.stringify(trait)}>
+                        <strong>{trait.label}</strong> — {trait.description}
+                      </li>
+                    ),
+                  )}
                 </ul>
               </div>
             </section>
@@ -411,6 +422,22 @@ function CharacterModal({ character, onClose }: { character: GeneratedCharacterC
             ))}
           </div>
         </section>
+        {character.schemaVersion === "dark-1.0" && (
+          <section className="rationale dark-generation-detail">
+            <p className="eyebrow">DARK STATE MODEL</p>
+            <h3>ダーク状態・主体性・変化</h3>
+            <p>{character.darkCore.narrativeFunction}</p>
+            <p>
+              <strong>主体性:</strong> {character.darkCore.agency.agencyOrigin} ／ <strong>同意:</strong>{" "}
+              {character.darkCore.agency.consent} ／ <strong>責任:</strong> {character.darkCore.agency.responsibility}
+            </p>
+            <p>
+              <strong>契機:</strong> {character.baselineAndTransition.trigger ?? "未確定"}
+            </p>
+            <p>{character.darkMorality.logic}</p>
+            <p>{character.darkArc.possibleOutcome}</p>
+          </section>
+        )}
       </article>
     </Modal>
   );

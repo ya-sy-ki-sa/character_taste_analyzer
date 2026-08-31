@@ -1,4 +1,4 @@
-import { type EntryDraft, entryBaseCharacterName } from "../../shared/schemas";
+import { type AnyEntryDraft, entryBaseCharacterName } from "../../shared/schemas";
 import { normalizeIdentityPart } from "../lib/crypto";
 import type { Env } from "../types";
 
@@ -184,7 +184,7 @@ async function collectWikidata(
   }
 }
 
-export async function collectCharacterResearch(env: Env, draft: EntryDraft): Promise<CharacterResearch> {
+export async function collectCharacterResearch(env: Env, draft: AnyEntryDraft): Promise<CharacterResearch> {
   if (draft.registrationType === "original") return { status: "not_applicable", sources: [] };
   if (env.LLM_PROVIDER === "replay" || env.LLM_PROVIDER === "fake") {
     return {

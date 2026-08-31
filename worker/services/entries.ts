@@ -1,20 +1,24 @@
+import type { AnalysisDomain } from "../../shared/analysis-domain";
+import { darkResponseChannelValues } from "../../shared/dark-response-channels";
+import { responseChannelValues } from "../../shared/response-channels";
 import {
-  type EntryDraft,
-  type EntryReanalysisInput,
-  type EntrySubmission,
+  type AnyEntryDraft,
+  type AnyEntryReanalysisInput,
+  type AnyEntrySubmission,
+  anyEntryDraftSchema,
+  type DarkScopeReviewRequest,
   type EntrySummary,
-  type IdentityCandidate,
-  type IdentityCandidateRequest,
-  type UnderstandingReviewMutation,
   entryBaseCharacterName,
-  entryDraftSchema,
   entryInputSources,
   entryReferenceMaterial,
   entryScopeText,
+  type IdentityCandidate,
+  type IdentityCandidateRequest,
+  type PreferenceReviewMutation,
+  type UnderstandingReviewMutation,
 } from "../../shared/schemas";
 import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
-import { all, first } from "../lib/db";
-import { placeholders } from "../lib/db";
+import { all, first, placeholders } from "../lib/db";
 import type { Env } from "../types";
 import { localizeAttributeReference, localizeUnderstandingSummary } from "./attribute-labels";
 import { outboxStatement } from "./orchestration";
@@ -33,6 +37,7 @@ export type ReanalyzedEntry = CreatedEntry & { entryRevisionId: string; revision
 export async function listIdentityCandidates(
   env: Env,
   ownerUserId: string,
+  analysisDomain: AnalysisDomain,
   input: IdentityCandidateRequest,
 ): Promise<IdentityCandidate[]> {
   return all<IdentityCandidate>(
@@ -42,19 +47,22 @@ export async function listIdentityCandidates(
              CASE WHEN ci.name_normalized=? AND w.title_normalized=? THEN 'exact'
                   ELSE 'work_and_character' END AS match
       FROM character_identities ci JOIN works w ON w.id=ci.work_id
-      WHERE ci.owner_user_id=? AND ci.name_normalized=? AND w.title_normalized=?
+      WHERE ci.owner_user_id=? AND ci.analysis_domain=? AND w.analysis_domain=?
+        AND ci.name_normalized=? AND w.title_normalized=?
       ORDER BY ci.updated_at DESC,ci.id LIMIT 20
     `).bind(
       normalizeIdentityPart(input.characterName),
       normalizeIdentityPart(input.workTitle),
       ownerUserId,
+      analysisDomain,
+      analysisDomain,
       normalizeIdentityPart(input.characterName),
       normalizeIdentityPart(input.workTitle),
     ),
   );
 }
 
-function registrationTitle(draft: EntryDraft): string {
+function registrationTitle(draft: AnyEntryDraft): string {
   return draft.registrationType === "original" ? draft.characterName : `${draft.workTitle} / ${draft.characterName}`;
 }
 
@@ -124,7 +132,8 @@ async function loadEvidenceViews(
 export async function createEntry(
   env: Env,
   ownerUserId: string,
-  draft: EntrySubmission,
+  analysisDomain: AnalysisDomain,
+  draft: AnyEntrySubmission,
   idempotencyKey: string,
 ): Promise<CreatedEntry> {
   const seed = await sha256Hex(`${ownerUserId}\u0000${idempotencyKey}`);
@@ -135,9 +144,9 @@ export async function createEntry(
       SELECT e.id,j.id AS job_id,e.status,er.content_hash FROM user_character_entries e
       JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
       JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id
-      WHERE e.owner_user_id=? AND e.creation_idempotency_hash=?
+      WHERE e.owner_user_id=? AND e.analysis_domain=? AND e.creation_idempotency_hash=?
       ORDER BY e.created_at DESC LIMIT 1
-    `).bind(ownerUserId, seed),
+    `).bind(ownerUserId, analysisDomain, seed),
   );
   if (existing) {
     if (existing.content_hash !== payloadHash) throw new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
@@ -161,11 +170,12 @@ export async function createEntry(
     const reusable = await first<{ identity_id: string; work_id: string | null }>(
       env.DB.prepare(`
         SELECT ci.id AS identity_id,ci.work_id FROM character_identities ci LEFT JOIN works w ON w.id=ci.work_id
-        WHERE ci.id=? AND ci.owner_user_id=? AND ci.name_normalized=?
+        WHERE ci.id=? AND ci.owner_user_id=? AND ci.analysis_domain=? AND ci.name_normalized=?
           AND (ci.work_id IS ? OR ci.work_id=?) AND (w.id IS NULL OR w.title_normalized=?)
       `).bind(
         resolution.characterIdentityId,
         ownerUserId,
+        analysisDomain,
         normalizeIdentityPart(baseCharacterName),
         resolution.workId,
         resolution.workId,
@@ -179,7 +189,7 @@ export async function createEntry(
     if (draft.registrationType !== "original" && workId) {
       statements.push(
         env.DB.prepare(
-          `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,created_at,updated_at) VALUES (?,?,?,?,?,?,?)`,
+          `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,created_at,updated_at,analysis_domain) VALUES (?,?,?,?,?,?,?,?)`,
         ).bind(
           workId,
           ownerUserId,
@@ -188,12 +198,13 @@ export async function createEntry(
           draft.mediaType ?? null,
           now,
           now,
+          analysisDomain,
         ),
       );
     }
     statements.push(
       env.DB.prepare(
-        `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`,
+        `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,created_at,updated_at,analysis_domain) VALUES (?,?,?,?,?,?,?,?,?)`,
       ).bind(
         identityId,
         draft.registrationType === "original" ? "original" : "existing",
@@ -203,6 +214,7 @@ export async function createEntry(
         normalizeIdentityPart(baseCharacterName),
         now,
         now,
+        analysisDomain,
       ),
     );
   }
@@ -306,15 +318,15 @@ export async function createEntry(
     1,
     {
       type: "analysis.start",
-      params: { jobId, ownerUserId, entryId, stage: "understanding", inputGeneration: 1 },
+      params: { jobId, ownerUserId, entryId, stage: "understanding", inputGeneration: 1, analysisDomain },
     },
     `analysis:${jobId}:1:understanding`,
     idempotencyKey,
   );
   statements.push(
     env.DB.prepare(
-      `INSERT INTO user_character_entries (id,owner_user_id,registration_type,status,active_revision_number,active_generation,creation_idempotency_hash,revision,created_at,updated_at) VALUES (?,?,?,'submitted',1,0,?,1,?,?)`,
-    ).bind(entryId, ownerUserId, draft.registrationType, seed, now, now),
+      `INSERT INTO user_character_entries (id,owner_user_id,registration_type,status,active_revision_number,active_generation,creation_idempotency_hash,revision,created_at,updated_at,analysis_domain) VALUES (?,?,?,'submitted',1,0,?,1,?,?,?)`,
+    ).bind(entryId, ownerUserId, draft.registrationType, seed, now, now, analysisDomain),
     env.DB.prepare(
       `INSERT INTO entry_revisions (id,entry_id,revision_number,representation_id,source_set_id,preference_context,user_character_view,preference_input_json,registration_payload_json,content_hash,created_at) VALUES (?,?,1,?,?,?,?,?,?,?,?)`,
     ).bind(
@@ -331,8 +343,8 @@ export async function createEntry(
     ),
     ...quota.statements,
     env.DB.prepare(
-      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,quota_reservation_id,created_at,updated_at) VALUES (?,?,'character_analysis','queued','entry',?,1,0,15,'queued',1,1,?,?,?)`,
-    ).bind(jobId, ownerUserId, entryId, quota.id, now, now),
+      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain) VALUES (?,?,'character_analysis','queued','entry',?,1,0,15,'queued',1,1,?,?,?,?)`,
+    ).bind(jobId, ownerUserId, entryId, quota.id, now, now, analysisDomain),
     outbox.statement,
   );
   const results = await env.DB.batch(statements);
@@ -343,8 +355,9 @@ export async function createEntry(
 export async function createEntryReanalysis(
   env: Env,
   ownerUserId: string,
+  analysisDomain: AnalysisDomain,
   entryId: string,
-  input: EntryReanalysisInput,
+  input: AnyEntryReanalysisInput,
   idempotencyKey: string,
 ): Promise<ReanalyzedEntry> {
   const current = await first<{
@@ -366,12 +379,12 @@ export async function createEntryReanalysis(
       JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
       JOIN character_representations cr ON cr.id=er.representation_id
       JOIN character_identities ci ON ci.id=cr.character_identity_id
-      WHERE e.id=? AND e.owner_user_id=?
-    `).bind(entryId, ownerUserId),
+      WHERE e.id=? AND e.owner_user_id=? AND e.analysis_domain=?
+    `).bind(entryId, ownerUserId, analysisDomain),
   );
   if (!current) throw new Error("ENTRY_NOT_FOUND");
 
-  const previousDraft = entryDraftSchema.parse(JSON.parse(current.registration_payload_json));
+  const previousDraft = anyEntryDraftSchema.parse(JSON.parse(current.registration_payload_json));
   const nextDraft = input.draft;
   if (nextDraft.registrationType !== previousDraft.registrationType)
     throw new Error("ENTRY_REGISTRATION_TYPE_IMMUTABLE");
@@ -424,11 +437,12 @@ export async function createEntryReanalysis(
       const reusable = await first<{ identity_id: string; work_id: string | null }>(
         env.DB.prepare(`
           SELECT ci.id AS identity_id,ci.work_id FROM character_identities ci LEFT JOIN works w ON w.id=ci.work_id
-          WHERE ci.id=? AND ci.owner_user_id=? AND ci.name_normalized=?
+          WHERE ci.id=? AND ci.owner_user_id=? AND ci.analysis_domain=? AND ci.name_normalized=?
             AND (ci.work_id IS ? OR ci.work_id=?) AND (w.id IS NULL OR w.title_normalized=?)
         `).bind(
           nextDraft.identityResolution.characterIdentityId,
           ownerUserId,
+          analysisDomain,
           normalizeIdentityPart(nextBaseCharacterName),
           nextDraft.identityResolution.workId,
           nextDraft.identityResolution.workId,
@@ -445,7 +459,7 @@ export async function createEntryReanalysis(
       if (nextDraft.registrationType !== "original" && workId) {
         preparationStatements.push(
           env.DB.prepare(
-            `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,created_at,updated_at) VALUES (?,?,?,?,?,?,?)`,
+            `INSERT INTO works (id,owner_user_id,title,title_normalized,media_type,created_at,updated_at,analysis_domain) VALUES (?,?,?,?,?,?,?,?)`,
           ).bind(
             workId,
             ownerUserId,
@@ -454,12 +468,13 @@ export async function createEntryReanalysis(
             nextDraft.mediaType ?? null,
             now,
             now,
+            analysisDomain,
           ),
         );
       }
       preparationStatements.push(
         env.DB.prepare(
-          `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`,
+          `INSERT INTO character_identities (id,origin_type,owner_user_id,work_id,name,name_normalized,created_at,updated_at,analysis_domain) VALUES (?,?,?,?,?,?,?,?,?)`,
         ).bind(
           identityId,
           nextDraft.registrationType === "original" ? "original" : "existing",
@@ -469,6 +484,7 @@ export async function createEntryReanalysis(
           normalizeIdentityPart(nextBaseCharacterName),
           now,
           now,
+          analysisDomain,
         ),
       );
     }
@@ -579,7 +595,7 @@ export async function createEntryReanalysis(
     1,
     {
       type: "analysis.start",
-      params: { jobId, ownerUserId, entryId, stage: "understanding", inputGeneration: revisionNumber },
+      params: { jobId, ownerUserId, entryId, stage: "understanding", inputGeneration: revisionNumber, analysisDomain },
     },
     `analysis:${jobId}:${revisionNumber}:understanding`,
     idempotencyKey,
@@ -634,9 +650,9 @@ export async function createEntryReanalysis(
     env.DB.prepare(
       `INSERT INTO jobs
         (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,
-         current_step,retryable,revision,quota_reservation_id,created_at,updated_at)
-       VALUES (?,?,'character_analysis','queued','entry',?,?,0,15,'queued',1,1,?,?,?)`,
-    ).bind(jobId, ownerUserId, entryId, revisionNumber, quota.id, now, now),
+         current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain)
+       VALUES (?,?,'character_analysis','queued','entry',?,?,0,15,'queued',1,1,?,?,?,?)`,
+    ).bind(jobId, ownerUserId, entryId, revisionNumber, quota.id, now, now, analysisDomain),
     env.DB.prepare(
       `UPDATE jobs SET status='superseded',updated_at=?,completed_at=?,revision=revision+1
       WHERE owner_user_id=? AND target_type='entry' AND target_id=? AND id<>?
@@ -680,7 +696,11 @@ export async function createEntryReanalysis(
   };
 }
 
-export async function listEntries(env: Env, ownerUserId: string): Promise<EntrySummary[]> {
+export async function listEntries(
+  env: Env,
+  ownerUserId: string,
+  analysisDomain: AnalysisDomain,
+): Promise<EntrySummary[]> {
   const rows = await all<{
     id: string;
     registration_type: EntrySummary["registrationType"];
@@ -707,11 +727,11 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
       j.error_code,j.error_detail_safe
     FROM user_character_entries e JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
     LEFT JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id AND j.input_generation=e.active_revision_number
-    WHERE e.owner_user_id=? ORDER BY e.updated_at DESC,e.id
-  `).bind(ownerUserId),
+    WHERE e.owner_user_id=? AND e.analysis_domain=? ORDER BY e.updated_at DESC,e.id
+  `).bind(ownerUserId, analysisDomain),
   );
   return rows.map((row) => {
-    const draft = JSON.parse(row.registration_payload_json) as EntryDraft;
+    const draft = JSON.parse(row.registration_payload_json) as AnyEntryDraft;
     return {
       id: row.id,
       registrationType: row.registration_type,
@@ -737,7 +757,7 @@ export async function listEntries(env: Env, ownerUserId: string): Promise<EntryS
   });
 }
 
-export async function loadEntryReview(env: Env, ownerUserId: string, entryId: string) {
+export async function loadEntryReview(env: Env, ownerUserId: string, analysisDomain: AnalysisDomain, entryId: string) {
   const entry = await first<{
     status: string;
     registration_type: string;
@@ -748,8 +768,8 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
     env.DB.prepare(`
     SELECT e.status,e.registration_type,er.registration_payload_json,er.id AS revision_id,er.representation_id
     FROM user_character_entries e JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
-    WHERE e.id=? AND e.owner_user_id=?
-  `).bind(entryId, ownerUserId),
+    WHERE e.id=? AND e.owner_user_id=? AND e.analysis_domain=?
+  `).bind(entryId, ownerUserId, analysisDomain),
   );
   if (!entry) return null;
   const snapshot = await first<{
@@ -774,10 +794,11 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         explicitness: string;
         confidence: number;
         status: string;
+        stable_key: string | null;
       }>(
         env.DB.prepare(
           `SELECT ca.id,COALESCE(ad.label,ca.raw_label) AS raw_label,ca.value_text,ca.assertion_kind,
-                  ca.explicitness,ca.confidence,ca.status
+                  ca.explicitness,ca.confidence,ca.status,ad.stable_key
            FROM character_assertions ca LEFT JOIN attribute_definitions ad ON ad.id=ca.attribute_definition_id
            WHERE ca.snapshot_id=? AND ca.status NOT IN ('rejected','superseded') ORDER BY ca.ordinal,ca.id`,
         ).bind(snapshot.id),
@@ -824,10 +845,11 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         explicitness: string;
         confidence: number;
         status: string;
+        stable_key: string | null;
       }>(
         env.DB.prepare(
           `SELECT ca.id,COALESCE(ad.label,ca.raw_label) AS raw_label,ca.value_text,ca.assertion_kind,
-                  ca.explicitness,ca.confidence,ca.status
+                  ca.explicitness,ca.confidence,ca.status,ad.stable_key
            FROM character_assertions ca LEFT JOIN attribute_definitions ad ON ad.id=ca.attribute_definition_id
            WHERE ca.snapshot_id=? AND ca.status NOT IN ('rejected','superseded') ORDER BY ca.ordinal,ca.id`,
         ).bind(baseSnapshot.id),
@@ -848,10 +870,11 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         explicitness: string;
         confidence: number;
         status: string;
+        stable_key: string | null;
       }>(
         env.DB.prepare(
           `SELECT pa.id,COALESCE(ad.label,rm.raw_label) AS raw_label,pa.polarity,pa.response_channel,
-                  pa.strength,pa.explicitness,pa.confidence,pa.status
+                  pa.strength,pa.explicitness,pa.confidence,pa.status,ad.stable_key
            FROM preference_assertions pa JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id
            LEFT JOIN attribute_definitions ad ON ad.id=pa.attribute_definition_id
            WHERE pa.analysis_run_id=? AND pa.status NOT IN ('rejected','superseded')
@@ -877,6 +900,42 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
         ).bind(analysis.id),
       )
     : [];
+  const darkScopeAssessment =
+    analysisDomain === "dark"
+      ? await first<{ id: string; verdict: string; status: string; assessment_json: string }>(
+          env.DB.prepare(
+            `SELECT id,verdict,status,assessment_json FROM dark_scope_assessments
+             WHERE owner_user_id=? AND entry_revision_id=? LIMIT 1`,
+          ).bind(ownerUserId, entry.revision_id),
+        )
+      : null;
+  const darkBaseline =
+    analysisDomain === "dark"
+      ? await first<{ id: string; baseline_json: string }>(
+          env.DB.prepare(
+            `SELECT id,baseline_json FROM dark_baseline_snapshots
+             WHERE owner_user_id=? AND entry_revision_id=? LIMIT 1`,
+          ).bind(ownerUserId, entry.revision_id),
+        )
+      : null;
+  const darkTransformationDeltas =
+    analysisDomain === "dark" && snapshot
+      ? await all<{
+          id: string;
+          operation: string;
+          aspect: string;
+          before_value: string | null;
+          after_value: string | null;
+          detail_json: string;
+          confidence: number;
+        }>(
+          env.DB.prepare(
+            `SELECT id,operation,aspect,before_value,after_value,detail_json,confidence
+             FROM dark_transformation_deltas
+             WHERE owner_user_id=? AND understanding_snapshot_id=? ORDER BY ordinal,id`,
+          ).bind(ownerUserId, snapshot.id),
+        )
+      : [];
   const [understandingEvidence, baseUnderstandingEvidence, preferenceEvidence, stanceEvidence, attributeRows] =
     await Promise.all([
       loadEvidenceViews(
@@ -909,9 +968,9 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
             SELECT d.stable_key,d.label
             FROM attribute_definitions d
             JOIN attribute_schema_versions v ON v.id=d.schema_version_id
-            WHERE v.status='active' AND d.status='active'
+            WHERE v.status='active' AND v.analysis_domain=? AND d.status='active'
             ORDER BY d.stable_key
-          `),
+          `).bind(analysisDomain),
           )
         : Promise.resolve([]),
     ]);
@@ -923,6 +982,15 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
       registrationType: entry.registration_type,
       draft: JSON.parse(entry.registration_payload_json),
     },
+    ontologyAttributes: attributeRows.map((item) => ({ stableKey: item.stable_key, label: item.label })),
+    darkScopeAssessment: darkScopeAssessment
+      ? { ...darkScopeAssessment, assessment: JSON.parse(darkScopeAssessment.assessment_json) }
+      : null,
+    darkBaseline: darkBaseline ? { id: darkBaseline.id, ...JSON.parse(darkBaseline.baseline_json) } : null,
+    darkTransformationDeltas: darkTransformationDeltas.map((item) => ({
+      ...item,
+      detail: JSON.parse(item.detail_json),
+    })),
     understanding: snapshot
       ? {
           id: snapshot.id,
@@ -967,9 +1035,100 @@ export async function loadEntryReview(env: Env, ownerUserId: string, entryId: st
   };
 }
 
+export async function reviewDarkScopeAssessment(
+  env: Env,
+  ownerUserId: string,
+  assessmentId: string,
+  input: DarkScopeReviewRequest,
+): Promise<{ entryId: string; status: "queued" | "cancelled"; outboxEventId: string | null }> {
+  const target = await first<{
+    entry_id: string;
+    revision_number: number;
+    job_id: string;
+    status: string;
+  }>(
+    env.DB.prepare(
+      `SELECT e.id AS entry_id,er.revision_number,j.id AS job_id,dsa.status
+       FROM dark_scope_assessments dsa
+       JOIN entry_revisions er ON er.id=dsa.entry_revision_id
+       JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
+       JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id
+         AND j.input_generation=er.revision_number
+       WHERE dsa.id=? AND dsa.owner_user_id=? AND e.owner_user_id=? AND e.analysis_domain='dark'
+         AND dsa.verdict='out_of_scope'`,
+    ).bind(assessmentId, ownerUserId, ownerUserId),
+  );
+  if (!target) throw new Error("DARK_SCOPE_REVIEW_NOT_FOUND");
+  if (target.status === "cancelled") return { entryId: target.entry_id, status: "cancelled", outboxEventId: null };
+  if (target.status === "overridden") return { entryId: target.entry_id, status: "queued", outboxEventId: null };
+  if (target.status !== "proposed") throw new Error("DARK_SCOPE_REVIEW_STATE_CHANGED");
+  const now = nowIso();
+  if (input.decision === "cancel") {
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE dark_scope_assessments SET status='cancelled',reviewed_at=? WHERE id=? AND owner_user_id=? AND status='proposed'`,
+      ).bind(now, assessmentId, ownerUserId),
+      env.DB.prepare(
+        `UPDATE user_character_entries SET status='archived',archived_at=?,updated_at=?,revision=revision+1
+         WHERE id=? AND owner_user_id=? AND analysis_domain='dark' AND status='understanding_review'`,
+      ).bind(now, now, target.entry_id, ownerUserId),
+      env.DB.prepare(
+        `UPDATE jobs SET status='cancelled',retryable=0,current_step='cancelled',updated_at=?,completed_at=?,revision=revision+1
+         WHERE id=? AND owner_user_id=? AND analysis_domain='dark' AND status='waiting_for_user'`,
+      ).bind(now, now, target.job_id, ownerUserId),
+    ]);
+    if (results.some((item) => !item.success || !item.meta.changes)) throw new Error("DARK_SCOPE_REVIEW_STATE_CHANGED");
+    return { entryId: target.entry_id, status: "cancelled", outboxEventId: null };
+  }
+  const outbox = await outboxStatement(
+    env,
+    ownerUserId,
+    "job",
+    target.job_id,
+    2,
+    {
+      type: "analysis.start",
+      params: {
+        jobId: target.job_id,
+        ownerUserId,
+        entryId: target.entry_id,
+        stage: "understanding",
+        inputGeneration: target.revision_number,
+        analysisDomain: "dark",
+      },
+    },
+    `dark-scope:${target.job_id}:${target.revision_number}:override`,
+    assessmentId,
+  );
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE dark_scope_assessments SET status='overridden',reviewed_at=? WHERE id=? AND owner_user_id=? AND status='proposed'`,
+    ).bind(now, assessmentId, ownerUserId),
+    env.DB.prepare(
+      `UPDATE user_character_entries SET status='submitted',updated_at=?,revision=revision+1
+       WHERE id=? AND owner_user_id=? AND analysis_domain='dark' AND status='understanding_review'`,
+    ).bind(now, target.entry_id, ownerUserId),
+    env.DB.prepare(
+      `UPDATE jobs SET status='queued',current_step='queued',progress_current=0,workflow_instance_id=NULL,
+       completed_at=NULL,updated_at=?,revision=revision+1
+       WHERE id=? AND owner_user_id=? AND analysis_domain='dark' AND status='waiting_for_user'`,
+    ).bind(now, target.job_id, ownerUserId),
+    outbox.statement,
+  ]);
+  if (
+    results.some((item) => !item.success) ||
+    !results[0].meta.changes ||
+    !results[1].meta.changes ||
+    !results[2].meta.changes
+  )
+    throw new Error("DARK_SCOPE_REVIEW_STATE_CHANGED");
+  return { entryId: target.entry_id, status: "queued", outboxEventId: outbox.id };
+}
+
 export async function rejectPreferenceAnalysisItem(
   env: Env,
   ownerUserId: string,
+  analysisDomain: AnalysisDomain,
   analysisRunId: string,
   targetId: string,
 ): Promise<{
@@ -984,9 +1143,9 @@ export async function rejectPreferenceAnalysisItem(
        FROM analysis_runs ar
        JOIN entry_revisions er ON er.id=ar.entry_revision_id
        JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
-       WHERE ar.id=? AND ar.owner_user_id=? AND e.owner_user_id=?
+       WHERE ar.id=? AND ar.owner_user_id=? AND e.owner_user_id=? AND e.analysis_domain=?
          AND ar.status='succeeded' AND e.status='analysis_review'`,
-    ).bind(analysisRunId, ownerUserId, ownerUserId),
+    ).bind(analysisRunId, ownerUserId, ownerUserId, analysisDomain),
   );
   if (!run) throw new Error("PREFERENCE_REVIEW_NOT_FOUND");
 
@@ -1025,9 +1184,190 @@ export async function rejectPreferenceAnalysisItem(
   return { analysisRunId, targetId, targetType: target.target_type, replayed: false };
 }
 
+export async function mutatePreferenceReview(
+  env: Env,
+  ownerUserId: string,
+  analysisDomain: AnalysisDomain,
+  analysisRunId: string,
+  input: PreferenceReviewMutation,
+  idempotencyKey: string,
+): Promise<{
+  analysisRunId: string;
+  changedId: string;
+  action: PreferenceReviewMutation["action"];
+  replayed: boolean;
+}> {
+  const changedId = await deriveUuid(
+    env.AUTH_PEPPER,
+    `preference-review:${ownerUserId}:${analysisDomain}:${analysisRunId}:${idempotencyKey}`,
+  );
+  const alreadyExists = await first<{ id: string }>(
+    env.DB.prepare(
+      `SELECT id FROM preference_assertions WHERE id=? AND owner_user_id=?
+       UNION ALL SELECT id FROM value_stance_assertions WHERE id=? AND owner_user_id=? LIMIT 1`,
+    ).bind(changedId, ownerUserId, changedId, ownerUserId),
+  );
+  if (alreadyExists) return { analysisRunId, changedId, action: input.action, replayed: true };
+  const run = await first<{
+    entry_revision_id: string;
+    character_identity_id: string;
+    representation_id: string;
+    registration_payload_json: string;
+  }>(
+    env.DB.prepare(
+      `SELECT ar.entry_revision_id,cr.character_identity_id,er.representation_id,er.registration_payload_json
+       FROM analysis_runs ar
+       JOIN entry_revisions er ON er.id=ar.entry_revision_id
+       JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
+       JOIN character_representations cr ON cr.id=er.representation_id
+       WHERE ar.id=? AND ar.owner_user_id=? AND e.owner_user_id=? AND e.analysis_domain=?
+         AND ar.status='succeeded' AND e.status='analysis_review'`,
+    ).bind(analysisRunId, ownerUserId, ownerUserId, analysisDomain),
+  );
+  if (!run) throw new Error("PREFERENCE_REVIEW_NOT_FOUND");
+  const now = nowIso();
+  const draft = anyEntryDraftSchema.parse(JSON.parse(run.registration_payload_json));
+  const contextJson = JSON.stringify({
+    schemaVersion: "2",
+    entryScope: entryScopeText(draft),
+    subjects: [],
+    relationships: [],
+    narrativePhases: [],
+    conditions: ["ユーザーが確認画面で追加・修正"],
+    exceptions: [],
+  });
+  if (input.action === "add_preference" || input.action === "update_preference") {
+    const allowedChannels = analysisDomain === "dark" ? darkResponseChannelValues : responseChannelValues;
+    if (!(allowedChannels as readonly string[]).includes(input.responseChannel))
+      throw new Error("RESPONSE_CHANNEL_NOT_IN_DOMAIN");
+    const attribute = input.attributeStableKey
+      ? await first<{ id: string }>(
+          env.DB.prepare(
+            `SELECT d.id FROM attribute_definitions d JOIN attribute_schema_versions v ON v.id=d.schema_version_id
+             WHERE d.stable_key=? AND d.status='active' AND v.status='active' AND v.analysis_domain=? LIMIT 1`,
+          ).bind(input.attributeStableKey, analysisDomain),
+        )
+      : null;
+    if (input.attributeStableKey && !attribute) throw new Error("ATTRIBUTE_NOT_FOUND_IN_DOMAIN");
+    const rawId = await deriveUuid(env.AUTH_PEPPER, `${changedId}:raw`);
+    const old =
+      input.action === "update_preference"
+        ? await first<{ raw_mention_id: string | null; context_json: string }>(
+            env.DB.prepare(
+              `SELECT raw_mention_id,context_json FROM preference_assertions
+               WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected')`,
+            ).bind(input.targetId, ownerUserId, analysisRunId),
+          )
+        : null;
+    if (input.action === "update_preference" && !old) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
+    const statements: D1PreparedStatement[] = [
+      ...(old?.raw_mention_id
+        ? [
+            env.DB.prepare(
+              `UPDATE attribute_mappings SET mapping_status='rejected',decided_by_user_id=?,decided_at=?
+               WHERE raw_mention_id=? AND mapping_status IN ('candidate','accepted','unmapped')`,
+            ).bind(ownerUserId, now, old.raw_mention_id),
+          ]
+        : []),
+      env.DB.prepare(
+        `INSERT INTO raw_attribute_mentions
+          (id,owner_user_id,source_type,source_ref_type,source_ref_id,raw_label,locale,normalized_label,created_at)
+         VALUES (?,?,'user','preference_assertion',?,?,'ja',?,?)`,
+      ).bind(rawId, ownerUserId, changedId, input.rawLabel, normalizeIdentityPart(input.rawLabel), now),
+      env.DB.prepare(
+        `INSERT INTO attribute_mappings
+          (id,raw_mention_id,attribute_definition_id,mapping_status,mapping_method,confidence,decided_by_user_id,created_at,decided_at)
+         VALUES (?,?,?,?, 'user',1,?,?,?)`,
+      ).bind(
+        crypto.randomUUID(),
+        rawId,
+        attribute?.id ?? null,
+        attribute ? "accepted" : "unmapped",
+        ownerUserId,
+        now,
+        now,
+      ),
+      env.DB.prepare(
+        `INSERT INTO preference_assertions
+          (id,owner_user_id,analysis_run_id,entry_revision_id,character_identity_id,representation_id,
+           attribute_definition_id,raw_mention_id,analysis_domain,polarity,response_channel,strength,explicitness,
+           confidence,context_json,status,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'user_confirmed',1,?,'corrected',?)`,
+      ).bind(
+        changedId,
+        ownerUserId,
+        analysisRunId,
+        run.entry_revision_id,
+        run.character_identity_id,
+        run.representation_id,
+        attribute?.id ?? null,
+        rawId,
+        analysisDomain,
+        input.polarity,
+        input.responseChannel,
+        input.strength,
+        old?.context_json ?? contextJson,
+        now,
+      ),
+      ...(input.action === "update_preference"
+        ? [
+            env.DB.prepare(
+              `UPDATE preference_assertions SET status='superseded',superseded_by_id=?
+               WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected')`,
+            ).bind(changedId, input.targetId, ownerUserId, analysisRunId),
+          ]
+        : []),
+    ];
+    const results = await env.DB.batch(statements);
+    if (results.some((item) => !item.success) || !results.at(-1)?.meta.changes)
+      throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+  } else {
+    const old =
+      input.action === "update_value_stance"
+        ? await first<{ scope_json: string }>(
+            env.DB.prepare(
+              `SELECT scope_json FROM value_stance_assertions
+               WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected')`,
+            ).bind(input.targetId, ownerUserId, analysisRunId),
+          )
+        : null;
+    if (input.action === "update_value_stance" && !old) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
+    const statements: D1PreparedStatement[] = [
+      env.DB.prepare(
+        `INSERT INTO value_stance_assertions
+          (id,owner_user_id,analysis_run_id,target_type,target_ref,stance,orientation,scope_json,
+           explicitness,confidence,status,created_at)
+         VALUES (?,?,?,'value',?,?,?,?, 'user_confirmed',1,'corrected',?)`,
+      ).bind(
+        changedId,
+        ownerUserId,
+        analysisRunId,
+        input.targetRef,
+        input.stance,
+        input.orientation,
+        old?.scope_json ?? contextJson,
+        now,
+      ),
+      ...(input.action === "update_value_stance"
+        ? [
+            env.DB.prepare(
+              `UPDATE value_stance_assertions SET status='superseded',superseded_by_id=?
+               WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected')`,
+            ).bind(changedId, input.targetId, ownerUserId, analysisRunId),
+          ]
+        : []),
+    ];
+    const results = await env.DB.batch(statements);
+    if (results.some((item) => !item.success) || !results.at(-1)?.meta.changes)
+      throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+  }
+  return { analysisRunId, changedId, action: input.action, replayed: false };
+}
+
 export async function mutateUnderstandingReview(
   env: Env,
   ownerUserId: string,
+  analysisDomain: AnalysisDomain,
   snapshotId: string,
   input: UnderstandingReviewMutation,
   idempotencyKey: string,
@@ -1065,8 +1405,8 @@ export async function mutateUnderstandingReview(
       JOIN entry_revisions er ON er.id=ur.entry_revision_id
       JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
       WHERE s.id=? AND s.owner_user_id=? AND e.owner_user_id=?
-        AND e.status='understanding_review' AND s.status IN ('proposed','needs_review')
-    `).bind(snapshotId, ownerUserId, ownerUserId),
+        AND e.analysis_domain=? AND e.status='understanding_review' AND s.status IN ('proposed','needs_review')
+    `).bind(snapshotId, ownerUserId, ownerUserId, analysisDomain),
   );
   if (!context) throw new Error("UNDERSTANDING_REVIEW_NOT_FOUND");
   const generation = await first<{ value: number }>(
@@ -1080,15 +1420,54 @@ export async function mutateUnderstandingReview(
     input.action === "add_assertion" || input.action === "add_delta" || input.action === "update_assertion"
       ? await deriveUuid(env.AUTH_PEPPER, `${reviewId}:changed`)
       : input.targetId;
+  const assertionAttributeKey =
+    input.action === "add_assertion" || input.action === "update_assertion" ? input.attributeStableKey : null;
+  const assertionAttribute = assertionAttributeKey
+    ? await first<{ id: string }>(
+        env.DB.prepare(
+          `SELECT d.id FROM attribute_definitions d
+           JOIN attribute_schema_versions v ON v.id=d.schema_version_id
+           WHERE d.stable_key=? AND d.status='active' AND v.status='active' AND v.analysis_domain=? LIMIT 1`,
+        ).bind(assertionAttributeKey, analysisDomain),
+      )
+    : null;
+  if (assertionAttributeKey && !assertionAttribute) throw new Error("ATTRIBUTE_NOT_FOUND_IN_DOMAIN");
+  const correctedRawId = await deriveUuid(env.AUTH_PEPPER, `${reviewId}:raw`);
 
   if (input.action === "add_assertion") {
     const correction = JSON.stringify({ action: input.action, changedId, newValue: input });
     const results = await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO raw_attribute_mentions
+          (id,owner_user_id,source_type,source_ref_type,source_ref_id,raw_label,raw_value,locale,normalized_label,created_at)
+         VALUES (?,?,'user','character_assertion',?,?,?,'ja',?,?)`,
+      ).bind(
+        correctedRawId,
+        ownerUserId,
+        changedId,
+        input.rawLabel,
+        input.valueText,
+        normalizeIdentityPart(input.rawLabel),
+        now,
+      ),
+      env.DB.prepare(
+        `INSERT INTO attribute_mappings
+          (id,raw_mention_id,attribute_definition_id,mapping_status,mapping_method,confidence,decided_by_user_id,created_at,decided_at)
+         VALUES (?,?,?,?, 'user',1,?,?,?)`,
+      ).bind(
+        crypto.randomUUID(),
+        correctedRawId,
+        assertionAttribute?.id ?? null,
+        assertionAttribute ? "accepted" : "unmapped",
+        ownerUserId,
+        now,
+        now,
+      ),
       env.DB.prepare(`
         INSERT INTO character_assertions
           (id,owner_user_id,snapshot_id,attribute_definition_id,raw_mention_id,raw_label,value_text,
            assertion_kind,scope_json,explicitness,confidence,status,ordinal,created_at)
-        SELECT ?,?,?,NULL,NULL,?,?,'user_interpretation',?,'user_explicit',1,'corrected',
+        SELECT ?,?,?,?,?,?,?,'user_interpretation',?,'user_explicit',1,'corrected',
                COALESCE((SELECT MAX(ordinal)+1 FROM character_assertions WHERE snapshot_id=?),0),?
         FROM character_understanding_snapshots s
         WHERE s.id=? AND s.owner_user_id=? AND s.status IN ('proposed','needs_review')
@@ -1096,6 +1475,8 @@ export async function mutateUnderstandingReview(
         changedId,
         ownerUserId,
         snapshotId,
+        assertionAttribute?.id ?? null,
+        correctedRawId,
         input.rawLabel,
         input.valueText,
         JSON.stringify({ schemaVersion: "1", freeText: "ユーザーが確認画面で追加" }),
@@ -1122,27 +1503,71 @@ export async function mutateUnderstandingReview(
         snapshotId,
       ),
     ]);
-    if (results.some((result) => !result.success) || !results[0].meta.changes || !results[1].meta.changes)
+    if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
       throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
   } else if (input.action === "update_assertion") {
-    const current = await first<{ raw_label: string; value_text: string }>(
+    const current = await first<{ raw_label: string; value_text: string; raw_mention_id: string | null }>(
       env.DB.prepare(
-        `SELECT raw_label,value_text FROM character_assertions
+        `SELECT raw_label,value_text,raw_mention_id FROM character_assertions
          WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
       ).bind(input.targetId, ownerUserId, snapshotId),
     );
     if (!current) throw new Error("UNDERSTANDING_REVIEW_TARGET_NOT_FOUND");
     const correction = JSON.stringify({ action: input.action, changedId, oldValue: current, newValue: input });
     const results = await env.DB.batch([
+      ...(current.raw_mention_id
+        ? [
+            env.DB.prepare(
+              `UPDATE attribute_mappings SET mapping_status='rejected',decided_by_user_id=?,decided_at=?
+               WHERE raw_mention_id=? AND mapping_status IN ('candidate','accepted','unmapped')`,
+            ).bind(ownerUserId, now, current.raw_mention_id),
+          ]
+        : []),
+      env.DB.prepare(
+        `INSERT INTO raw_attribute_mentions
+          (id,owner_user_id,source_type,source_ref_type,source_ref_id,raw_label,raw_value,locale,normalized_label,created_at)
+         VALUES (?,?,'user','character_assertion',?,?,?,'ja',?,?)`,
+      ).bind(
+        correctedRawId,
+        ownerUserId,
+        changedId,
+        input.rawLabel,
+        input.valueText,
+        normalizeIdentityPart(input.rawLabel),
+        now,
+      ),
+      env.DB.prepare(
+        `INSERT INTO attribute_mappings
+          (id,raw_mention_id,attribute_definition_id,mapping_status,mapping_method,confidence,decided_by_user_id,created_at,decided_at)
+         VALUES (?,?,?,?, 'user',1,?,?,?)`,
+      ).bind(
+        crypto.randomUUID(),
+        correctedRawId,
+        assertionAttribute?.id ?? null,
+        assertionAttribute ? "accepted" : "unmapped",
+        ownerUserId,
+        now,
+        now,
+      ),
       env.DB.prepare(`
         INSERT INTO character_assertions
           (id,owner_user_id,snapshot_id,attribute_definition_id,raw_mention_id,raw_label,value_text,
            assertion_kind,scope_json,explicitness,confidence,status,ordinal,created_at)
-        SELECT ?,owner_user_id,snapshot_id,attribute_definition_id,NULL,?,?,'user_interpretation',scope_json,
+        SELECT ?,owner_user_id,snapshot_id,?,?,?,?,'user_interpretation',scope_json,
                'user_explicit',1,'corrected',ordinal,?
         FROM character_assertions
         WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')
-      `).bind(changedId, input.rawLabel, input.valueText, now, input.targetId, ownerUserId, snapshotId),
+      `).bind(
+        changedId,
+        assertionAttribute?.id ?? null,
+        correctedRawId,
+        input.rawLabel,
+        input.valueText,
+        now,
+        input.targetId,
+        ownerUserId,
+        snapshotId,
+      ),
       env.DB.prepare(
         `UPDATE character_assertions SET status='superseded',superseded_by_id=?
          WHERE id=? AND owner_user_id=? AND snapshot_id=? AND status IN ('proposed','corrected')`,
@@ -1325,6 +1750,7 @@ export async function mutateUnderstandingReview(
 export async function confirmUnderstanding(
   env: Env,
   ownerUserId: string,
+  analysisDomain: AnalysisDomain,
   snapshotId: string,
 ): Promise<{ entryId: string; jobId: string; inputGeneration: number; outboxEventId: string }> {
   const target = await first<{
@@ -1343,8 +1769,8 @@ export async function confirmUnderstanding(
        JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id
          AND j.input_generation=er.revision_number
        WHERE s.id=? AND s.owner_user_id=? AND e.owner_user_id=?
-         AND e.status='understanding_review' AND s.status IN ('proposed','needs_review')`,
-    ).bind(snapshotId, ownerUserId, ownerUserId),
+         AND e.analysis_domain=? AND e.status='understanding_review' AND s.status IN ('proposed','needs_review')`,
+    ).bind(snapshotId, ownerUserId, ownerUserId, analysisDomain),
   );
   if (!target) throw new Error("UNDERSTANDING_REVIEW_NOT_FOUND");
   const now = nowIso();
@@ -1362,6 +1788,7 @@ export async function confirmUnderstanding(
         entryId: target.entry_id,
         stage: "preference",
         inputGeneration: target.revision_number,
+        analysisDomain,
       },
     },
     `analysis:${target.job_id}:${target.revision_number}:preference`,

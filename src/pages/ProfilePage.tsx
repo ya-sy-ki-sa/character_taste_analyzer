@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
+import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { attributeCategoryLabel } from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
 import type { GraphProjection, ProfileView, ProjectionFreshness } from "../../shared/schemas";
@@ -11,15 +12,18 @@ import { type DisplayProfileDimension, groupProfileDimensions } from "../lib/pro
 
 const classificationLabels = { stable: "安定傾向", emerging: "発展中", insufficient: "データ少" } as const;
 const TasteGraph = lazy(() => import("../components/TasteGraph").then((module) => ({ default: module.TasteGraph })));
-export function ProfilePage() {
+export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
+  const dark = domain === "dark";
+  const apiBase = dark ? "/api/v1/dark" : "/api/v1";
+  const appBase = dark ? "/dark-lab/app" : "/app";
   const profile = useQuery({
-    queryKey: ["profile"],
-    queryFn: () => api<{ profile: ProfileView | null; freshness: ProjectionFreshness }>("/api/v1/profile"),
+    queryKey: ["profile", domain],
+    queryFn: () => api<{ profile: ProfileView | null; freshness: ProjectionFreshness }>(`${apiBase}/profile`),
     refetchInterval: 10_000,
   });
   const graph = useQuery({
-    queryKey: ["profile-graph"],
-    queryFn: () => api<{ graph: GraphProjection | null }>("/api/v1/profile/graph?detail=standard"),
+    queryKey: ["profile-graph", domain],
+    queryFn: () => api<{ graph: GraphProjection | null }>(`${apiBase}/profile/graph?detail=standard`),
     enabled: Boolean(profile.data?.profile),
   });
   if (profile.isPending) return <Spinner label="嗜好プロフィールを読み込んでいます" />;
@@ -53,7 +57,7 @@ export function ProfilePage() {
             icon="⌁"
             title="確認済みの解析がまだありません"
             action={
-              <Link className="button button-primary" to="/app/entries">
+              <Link className="button button-primary" to={`${appBase}/entries`}>
                 キャラクターを登録
               </Link>
             }
@@ -72,7 +76,7 @@ export function ProfilePage() {
         title="嗜好解析結果"
         description="これまでの解析結果から、キャラクターのどこにどう惹かれるかを表示します。"
         action={
-          <Link className="button button-primary" to="/app/generate">
+          <Link className="button button-primary" to={`${appBase}/generate`}>
             ✦ この嗜好から作成
           </Link>
         }
@@ -117,7 +121,7 @@ export function ProfilePage() {
               <small>%</small>
             </strong>
           </div>
-          <p>最大傾向の確信度です。好みの確率や人格評価ではありません。</p>
+          <p>最大傾向の登録内支持度です。好みの確率や人格評価ではありません。</p>
         </Card>
       </section>
       {value.valueStances.length > 0 && (
@@ -226,7 +230,9 @@ function DimensionRow({
           {item.responseChannels.length
             ? item.responseChannels.map((channel) => responseChannelLabel(channel)).join("／")
             : "反応経路なし"}
-          {scopeLabel ? `・対象：${scopeLabel}` : ""}・根拠 {item.evidenceCount}件
+          {scopeLabel ? `・対象：${scopeLabel}` : ""}・支持 +{Math.round(item.positiveScore * 100)} / -
+          {Math.round(item.negativeScore * 100)}・確認済み {item.identityCount}人／{item.workCount}作品・独立根拠
+          {item.evidenceCount}件
         </small>
       </div>
       <div className={`trait-meter ${negative ? "negative" : ""}`}>

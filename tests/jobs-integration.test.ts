@@ -195,7 +195,8 @@ describe("preference review integration", () => {
     const database = new DatabaseSync(":memory:");
     database.exec(`
       CREATE TABLE user_character_entries (
-        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, active_revision_number INTEGER NOT NULL, status TEXT NOT NULL
+        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, active_revision_number INTEGER NOT NULL, status TEXT NOT NULL,
+        analysis_domain TEXT NOT NULL DEFAULT 'standard'
       );
       CREATE TABLE entry_revisions (
         id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, revision_number INTEGER NOT NULL
@@ -209,7 +210,7 @@ describe("preference review integration", () => {
       CREATE TABLE value_stance_assertions (
         id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, analysis_run_id TEXT NOT NULL, status TEXT NOT NULL
       );
-      INSERT INTO user_character_entries VALUES ('entry','owner',1,'analysis_review');
+      INSERT INTO user_character_entries VALUES ('entry','owner',1,'analysis_review','standard');
       INSERT INTO entry_revisions VALUES ('revision','entry',1);
       INSERT INTO analysis_runs VALUES ('run','owner','revision','succeeded');
       INSERT INTO preference_assertions VALUES ('preference','owner','run','proposed');
@@ -222,14 +223,14 @@ describe("preference review integration", () => {
     } as unknown as D1Database;
     const env = { DB: d1 } as unknown as Env;
     try {
-      await expect(rejectPreferenceAnalysisItem(env, "owner", "run", "preference")).resolves.toMatchObject({
+      await expect(rejectPreferenceAnalysisItem(env, "owner", "standard", "run", "preference")).resolves.toMatchObject({
         targetType: "preference_assertion",
         replayed: false,
       });
-      await expect(rejectPreferenceAnalysisItem(env, "owner", "run", "preference")).resolves.toMatchObject({
+      await expect(rejectPreferenceAnalysisItem(env, "owner", "standard", "run", "preference")).resolves.toMatchObject({
         replayed: true,
       });
-      await expect(rejectPreferenceAnalysisItem(env, "owner", "run", "stance")).resolves.toMatchObject({
+      await expect(rejectPreferenceAnalysisItem(env, "owner", "standard", "run", "stance")).resolves.toMatchObject({
         targetType: "value_stance_assertion",
         replayed: false,
       });
@@ -239,7 +240,7 @@ describe("preference review integration", () => {
       expect(database.prepare("SELECT status FROM value_stance_assertions WHERE id='stance'").get()).toMatchObject({
         status: "rejected",
       });
-      await expect(rejectPreferenceAnalysisItem(env, "another-owner", "run", "preference")).rejects.toThrow(
+      await expect(rejectPreferenceAnalysisItem(env, "another-owner", "standard", "run", "preference")).rejects.toThrow(
         "PREFERENCE_REVIEW_NOT_FOUND",
       );
     } finally {

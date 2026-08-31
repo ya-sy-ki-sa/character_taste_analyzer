@@ -6,9 +6,9 @@ import { isRetryableFailure, jobClaimDisposition } from "../worker/services/job-
 import { workflowInstanceIdForEvent } from "../worker/services/orchestration";
 import { profileConditionJson } from "../worker/services/profile-context";
 import {
+  type ProvenanceSource,
   ProvenanceVerificationError,
   verifyEvidenceReference,
-  type ProvenanceSource,
 } from "../worker/services/provenance-verifier";
 import { nextQuotaSlot, quotaLimit } from "../worker/services/quota-policy";
 

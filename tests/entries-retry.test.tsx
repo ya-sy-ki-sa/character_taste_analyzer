@@ -33,7 +33,7 @@ function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <EntriesPage />
+      <EntriesPage domain="standard" />
     </QueryClientProvider>,
   );
 }

@@ -116,7 +116,8 @@ export function graphNodeLabel(
     return stableKey ? (attributeLabels.get(stableKey) ?? node.label) : node.label;
   }
   if (node.type === "response_channel") {
-    return responseChannelLabel(node.id.startsWith("rc:") ? node.id.slice(3) : node.label);
+    const responseChannel = node.id.startsWith("rc:") ? node.id.split(":").at(-1) : node.label;
+    return responseChannelLabel(responseChannel ?? node.label);
   }
   if (node.type === "representation" && typeof node.attributes.representationType === "string") {
     const typeLabel = representationTypeLabel(node.attributes.representationType);

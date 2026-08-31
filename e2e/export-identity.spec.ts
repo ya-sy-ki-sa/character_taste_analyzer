@@ -109,11 +109,14 @@ test("identity候補をowner内だけでreuseし、完全exportを認証付き�
   const payload = (await download.json()) as {
     schemaVersion: string;
     entries: { entries: unknown[]; identities: unknown[]; representations: unknown[] };
+    domains: { standard: { entries: unknown[] }; dark: { entries: unknown[] } };
   };
-  expect(payload.schemaVersion).toBe("3.0");
+  expect(payload.schemaVersion).toBe("4.0");
   expect(payload.entries.entries).toHaveLength(2);
   expect(payload.entries.identities).toHaveLength(1);
   expect(payload.entries.representations).toHaveLength(2);
+  expect(payload.domains.standard.entries).toHaveLength(2);
+  expect(payload.domains.dark.entries).toHaveLength(0);
   const serialized = JSON.stringify(payload);
   for (const forbidden of ["key_digest", "token_digest", "csrf_digest", "request_rate_limits", "outbox_events"])
     expect(serialized).not.toContain(forbidden);

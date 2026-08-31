@@ -58,11 +58,13 @@ function testDatabase() {
       stable_key TEXT NOT NULL,
       label TEXT NOT NULL,
       payload_json TEXT NOT NULL,
-      ordinal INTEGER NOT NULL
+      ordinal INTEGER NOT NULL,
+      analysis_domain TEXT NOT NULL DEFAULT 'standard'
     );
     CREATE TABLE attribute_schema_versions (
       id TEXT PRIMARY KEY,
-      status TEXT NOT NULL
+      status TEXT NOT NULL,
+      analysis_domain TEXT NOT NULL DEFAULT 'standard'
     );
     CREATE TABLE attribute_definitions (
       id TEXT PRIMARY KEY,
@@ -78,8 +80,8 @@ function testDatabase() {
       ('orphan-generation-15','owner',NULL,15,'2026-01-01T00:00:00.000Z'),
       ('current-generation-1','owner','current-projection',1,'2026-01-02T00:00:00.000Z');
     INSERT INTO profile_snapshot_items VALUES
-      ('orphan-item','orphan-generation-15','dimension','orphan','古い項目','{}',0),
-      ('current-item','current-generation-1','dimension','current','現在の項目','{}',0);
+      ('orphan-item','orphan-generation-15','dimension','orphan','古い項目','{}',0,'standard'),
+      ('current-item','current-generation-1','dimension','current','現在の項目','{}',0,'standard');
   `);
   const d1 = {
     prepare(sql: string) {
@@ -99,7 +101,7 @@ describe("profile snapshot item selection", () => {
   it("returns the snapshot attached to the current projection instead of a higher orphan generation", async () => {
     current = testDatabase();
 
-    const result = await createD1DataStoreStrategy(current.env).loadProfileSnapshotItems("owner");
+    const result = await createD1DataStoreStrategy(current.env).loadProfileSnapshotItems("owner", "standard");
 
     expect(result.snapshot).toEqual({ id: "current-generation-1", generation: 1 });
     expect(result.items).toEqual([

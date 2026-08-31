@@ -1,3 +1,4 @@
+import type { AnalysisDomain } from "../../shared/analysis-domain";
 import type { ProfileDimension, ProfileView, ProjectionFreshness } from "../../shared/schemas";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
@@ -6,8 +7,8 @@ import { rebuildGraphProjection } from "./graph";
 import { claimJob, finishJobAttempt, type JobClaim } from "./jobs";
 import { profileConditionJson } from "./profile-context";
 
-export const PROFILE_ALGORITHM_VERSION = "profile/v1.1.0";
-const ONTOLOGY_VERSION = "1.0";
+export const PROFILE_ALGORITHM_VERSION = "profile/v1.2.0-domain-aware";
+const ONTOLOGY_VERSION = "standard-1.0+dark-1.0";
 
 type AssertionRow = {
   id: string;
@@ -27,8 +28,11 @@ type AssertionRow = {
   explicitness: "user_explicit" | "user_confirmed" | "inferred" | "model_knowledge";
   confidence: number;
   context_json: string;
+  status: "confirmed" | "corrected";
   evidence_count: number;
   evidence_quality: number;
+  evidence_fingerprint: string;
+  analysis_domain: AnalysisDomain;
 };
 
 type WeightedAssertion = AssertionRow & {
@@ -59,10 +63,14 @@ type BuiltDimension = {
   classification: ProfileDimension["classification"];
   flags: string[];
   rankScore: number;
+  analysisDomain: AnalysisDomain;
 };
 
 type ValueStanceRow = {
   id: string;
+  entry_id: string;
+  character_identity_id: string;
+  work_id: string | null;
   target_type: string;
   target_ref: string;
   stance: string;
@@ -71,6 +79,17 @@ type ValueStanceRow = {
   explicitness: "user_explicit" | "user_confirmed" | "inferred";
   confidence: number;
   evidence_quality: number;
+  evidence_count: number;
+  evidence_fingerprint: string;
+  status: "confirmed" | "corrected";
+  analysis_domain: AnalysisDomain;
+};
+
+type AggregatedValueStance = ValueStanceRow & {
+  aggregatedConfidence: number;
+  identityCount: number;
+  workCount: number;
+  evidenceCount: number;
 };
 
 function clamp01(value: number): number {
@@ -156,7 +175,7 @@ async function weightAssertions(rows: AssertionRow[]): Promise<WeightedAssertion
       );
       return {
         ...row,
-        dimensionKey: `${stableKey}\u0000${row.response_channel ?? ""}\u0000${conditionHash}`,
+        dimensionKey: `${row.analysis_domain}\u0000${stableKey}\u0000${row.response_channel ?? ""}\u0000${conditionHash}`,
         conditionHash,
         conditionJson,
         contribution,
@@ -228,6 +247,7 @@ function buildDimensions(rows: WeightedAssertion[]): BuiltDimension[] {
       classification,
       flags,
       rankScore: maximum * confidence * factor,
+      analysisDomain: firstRow.analysis_domain,
     });
   }
   return dimensions.sort(
@@ -235,14 +255,63 @@ function buildDimensions(rows: WeightedAssertion[]): BuiltDimension[] {
   );
 }
 
+function buildValueStances(rows: ValueStanceRow[]): AggregatedValueStance[] {
+  const groups = new Map<string, ValueStanceRow[]>();
+  for (const row of rows) {
+    const key = [
+      row.analysis_domain,
+      row.target_type,
+      normalizeIdentityPart(row.target_ref),
+      row.orientation,
+      row.stance,
+      canonicalJson(row.scope_json),
+    ].join("\u0000");
+    const group = groups.get(key) ?? [];
+    group.push(row);
+    groups.set(key, group);
+  }
+  return [...groups.values()].map((group) => {
+    const contribution = (row: ValueStanceRow) =>
+      clamp01(row.confidence * explicitnessWeight(row.explicitness) * row.evidence_quality);
+    const entryMax = new Map<string, ValueStanceRow>();
+    for (const row of group) {
+      const current = entryMax.get(row.entry_id);
+      if (!current || contribution(row) > contribution(current)) entryMax.set(row.entry_id, row);
+    }
+    const identities = new Map<string, ValueStanceRow[]>();
+    for (const row of entryMax.values()) {
+      const identityGroup = identities.get(row.character_identity_id) ?? [];
+      identityGroup.push(row);
+      identities.set(row.character_identity_id, identityGroup);
+    }
+    const works = new Map<string, number[]>();
+    for (const [identityId, identityRows] of identities) {
+      const identityScore = discountedUnion(identityRows.map(contribution), 0.25);
+      const workKey = identityRows[0]?.work_id ?? `original:${identityId}`;
+      const workGroup = works.get(workKey) ?? [];
+      workGroup.push(identityScore);
+      works.set(workKey, workGroup);
+    }
+    return {
+      ...group[0],
+      aggregatedConfidence: round6(independentUnion([...works.values()].map((values) => discountedUnion(values, 0.5)))),
+      identityCount: identities.size,
+      workCount: works.size,
+      evidenceCount: group.reduce((sum, row) => sum + row.evidence_count, 0),
+    };
+  });
+}
+
 async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<AssertionRow[]> {
   return all<AssertionRow>(
     env.DB.prepare(`
     SELECT pa.id, e.id AS entry_id, pa.entry_revision_id, pa.character_identity_id, ci.work_id,
+           e.analysis_domain,
            pa.attribute_definition_id, ad.stable_key, ad.label, ad.category, rm.raw_label,
            rm.normalized_label, pa.polarity, pa.response_channel, pa.strength, pa.explicitness,
-           pa.confidence, pa.context_json,
+           pa.confidence, pa.context_json,pa.status,
            COUNT(ef.id) AS evidence_count,
+           COALESCE(GROUP_CONCAT(ef.id || ':' || ef.verification_status || ':' || ef.support_type), '') AS evidence_fingerprint,
            COALESCE(MAX(CASE ef.verification_status
              WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
@@ -265,8 +334,10 @@ async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<
 async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueStanceRow[]> {
   return all<ValueStanceRow>(
     env.DB.prepare(`
-    SELECT vs.id, vs.target_type, vs.target_ref, vs.stance, vs.orientation, vs.scope_json,
-           vs.explicitness, vs.confidence,
+    SELECT vs.id,e.id AS entry_id,cr.character_identity_id,ci.work_id,
+           vs.target_type, vs.target_ref, vs.stance, vs.orientation, vs.scope_json,e.analysis_domain,
+           vs.explicitness, vs.confidence,vs.status,COUNT(ef.id) AS evidence_count,
+           COALESCE(GROUP_CONCAT(ef.id || ':' || ef.verification_status || ':' || ef.support_type), '') AS evidence_fingerprint,
            COALESCE(MAX(CASE ef.verification_status
              WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
@@ -275,6 +346,8 @@ async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueSta
     JOIN analysis_runs ar ON ar.id = vs.analysis_run_id
     JOIN entry_revisions er ON er.id = ar.entry_revision_id
     JOIN user_character_entries e ON e.id = er.entry_id AND e.active_revision_number = er.revision_number
+    JOIN character_representations cr ON cr.id=er.representation_id
+    JOIN character_identities ci ON ci.id=cr.character_identity_id
     LEFT JOIN evidence_fragments ef ON ef.owner_type = 'value_stance_assertion' AND ef.owner_id = vs.id
     WHERE vs.owner_user_id = ? AND vs.status IN ('confirmed', 'corrected')
       AND e.owner_user_id = ? AND e.status = 'active'
@@ -295,17 +368,45 @@ export async function rebuildProfile(
   ]);
   const weighted = await weightAssertions(assertionRows);
   const dimensions = buildDimensions(weighted);
+  const aggregatedValueStances = buildValueStances(valueStances);
   const evidenceSetHash = await sha256Hex(
-    JSON.stringify(
-      assertionRows
+    JSON.stringify({
+      algorithmVersion: PROFILE_ALGORITHM_VERSION,
+      ontologyVersion: ONTOLOGY_VERSION,
+      assertions: assertionRows
         .map((row) => ({
           id: row.id,
           entryRevisionId: row.entry_revision_id,
-          status: "confirmed",
+          status: row.status,
           ontology: row.stable_key,
+          domain: row.analysis_domain,
+          polarity: row.polarity,
+          responseChannel: row.response_channel,
+          strength: row.strength,
+          explicitness: row.explicitness,
+          confidence: row.confidence,
+          context: canonicalJson(row.context_json),
+          evidenceCount: row.evidence_count,
+          evidenceFingerprint: row.evidence_fingerprint,
         }))
         .sort((a, b) => a.id.localeCompare(b.id)),
-    ),
+      valueStances: valueStances
+        .map((row) => ({
+          id: row.id,
+          status: row.status,
+          domain: row.analysis_domain,
+          targetType: row.target_type,
+          targetRef: row.target_ref,
+          stance: row.stance,
+          orientation: row.orientation,
+          scope: canonicalJson(row.scope_json),
+          explicitness: row.explicitness,
+          confidence: row.confidence,
+          evidenceCount: row.evidence_count,
+          evidenceFingerprint: row.evidence_fingerprint,
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+    }),
   );
   const current = await first<{ generation: number }>(
     env.DB.prepare(
@@ -349,6 +450,7 @@ export async function rebuildProfile(
     stableKey: string;
     label: string;
     payload: Record<string, unknown>;
+    analysisDomain: AnalysisDomain;
   }> = [];
   for (const [index, dimension] of dimensions.entries()) {
     statements.push(
@@ -356,8 +458,8 @@ export async function rebuildProfile(
       INSERT INTO profile_dimensions
         (id, profile_projection_id, attribute_definition_id, raw_label, response_channel, condition_hash,
          condition_json, positive_score, negative_score, confidence, evidence_count, identity_count,
-         work_count, classification, flags_json, rank_order, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         work_count, classification, flags_json, rank_order, created_at,analysis_domain)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
     `).bind(
         dimension.id,
         projectionId,
@@ -376,6 +478,7 @@ export async function rebuildProfile(
         JSON.stringify(dimension.flags),
         index,
         now,
+        dimension.analysisDomain,
       ),
     );
     itemPayloads.push({
@@ -401,9 +504,10 @@ export async function rebuildProfile(
         classification: dimension.classification,
         flags: dimension.flags,
       },
+      analysisDomain: dimension.analysisDomain,
     });
   }
-  for (const stance of valueStances) {
+  for (const stance of aggregatedValueStances) {
     const targetHash = (await sha256Hex(normalizeIdentityPart(stance.target_ref))).slice(0, 24);
     itemPayloads.push({
       id: crypto.randomUUID(),
@@ -418,13 +522,20 @@ export async function rebuildProfile(
         orientation: stance.orientation,
         stance: stance.stance,
         scope: JSON.parse(canonicalJson(stance.scope_json)),
-        confidence: round6(stance.confidence * explicitnessWeight(stance.explicitness) * stance.evidence_quality),
+        confidence: stance.aggregatedConfidence,
+        evidenceSummary: {
+          identityCount: stance.identityCount,
+          workCount: stance.workCount,
+          evidenceCount: stance.evidenceCount,
+        },
       },
+      analysisDomain: stance.analysis_domain,
     });
   }
   const snapshotContent = itemPayloads.map((item) => ({
     stableKey: item.stableKey,
     type: item.type,
+    domain: item.analysisDomain,
     payload: item.payload,
   }));
   const contentHash = await sha256Hex(JSON.stringify(snapshotContent));
@@ -452,8 +563,8 @@ export async function rebuildProfile(
       env.DB.prepare(`
       INSERT INTO profile_snapshot_items
         (id, profile_snapshot_id, source_dimension_id, item_type, stable_key,
-         label, payload_json, content_hash, ordinal, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         label, payload_json, content_hash, ordinal, created_at,analysis_domain)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
     `).bind(
         item.id,
         profileSnapshotId,
@@ -465,6 +576,7 @@ export async function rebuildProfile(
         await sha256Hex(payloadJson),
         ordinal,
         now,
+        item.analysisDomain,
       ),
     );
   }
@@ -516,7 +628,11 @@ export async function rebuildProfile(
   return { projectionId, profileSnapshotId, graphProjectionId, generation };
 }
 
-export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise<ProfileView | null> {
+export async function loadCurrentProfile(
+  env: Env,
+  ownerUserId: string,
+  analysisDomain: AnalysisDomain = "standard",
+): Promise<ProfileView | null> {
   const freshness = await loadProjectionFreshness(env, ownerUserId);
   if (freshness.status !== "fresh") return null;
   const projection = await first<{
@@ -551,16 +667,17 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     confidence: number;
     evidence_count: number;
     identity_count: number;
+    work_count: number;
     classification: ProfileDimension["classification"];
     flags_json: string;
   }>(
     env.DB.prepare(`
     SELECT pd.id, ad.stable_key, pd.raw_label, ad.label, ad.category, pd.response_channel, pd.condition_json,
-           pd.positive_score, pd.negative_score, pd.confidence, pd.evidence_count, pd.identity_count,
+           pd.positive_score, pd.negative_score, pd.confidence, pd.evidence_count, pd.identity_count,pd.work_count,
            pd.classification, pd.flags_json
     FROM profile_dimensions pd LEFT JOIN attribute_definitions ad ON ad.id=pd.attribute_definition_id
-    WHERE pd.profile_projection_id=? ORDER BY pd.rank_order, pd.id
-  `).bind(projection.id),
+    WHERE pd.profile_projection_id=? AND pd.analysis_domain=? ORDER BY pd.rank_order, pd.id
+  `).bind(projection.id, analysisDomain),
   );
   const stanceRows = await all<{ orientation: string; stance: string; count: number; labels: string }>(
     env.DB.prepare(`
@@ -570,15 +687,15 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
     JOIN entry_revisions er ON er.id=ar.entry_revision_id
     JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
     LEFT JOIN attribute_definitions ad ON ad.stable_key=vs.target_ref AND ad.status='active'
-      AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' ORDER BY created_at DESC LIMIT 1)
-    WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active'
+      AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' AND analysis_domain=? ORDER BY created_at DESC LIMIT 1)
+    WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active' AND e.analysis_domain=?
     GROUP BY vs.orientation,vs.stance ORDER BY count DESC,vs.orientation,vs.stance
-  `).bind(ownerUserId),
+  `).bind(analysisDomain, ownerUserId, analysisDomain),
   );
   const entryCount = await first<{ count: number }>(
     env.DB.prepare(
-      `SELECT COUNT(*) AS count FROM user_character_entries WHERE owner_user_id=? AND status='active'`,
-    ).bind(ownerUserId),
+      `SELECT COUNT(*) AS count FROM user_character_entries WHERE owner_user_id=? AND analysis_domain=? AND status='active'`,
+    ).bind(ownerUserId, analysisDomain),
   );
   return {
     projectionId: projection.id,
@@ -597,6 +714,7 @@ export async function loadCurrentProfile(env: Env, ownerUserId: string): Promise
       confidence: row.confidence,
       evidenceCount: row.evidence_count,
       identityCount: row.identity_count,
+      workCount: row.work_count,
       classification: row.classification,
       flags: JSON.parse(row.flags_json) as string[],
     })),

@@ -1,6 +1,7 @@
+import type { AnalysisDomain } from "../../shared/analysis-domain";
 import type {
-  EntryReanalysisInput,
-  EntrySubmission,
+  AnyEntryReanalysisInput,
+  AnyEntrySubmission,
   GenerationRequestInput,
   IdentityCandidateRequest,
   UnderstandingReviewMutation,
@@ -15,11 +16,13 @@ import type {
   confirmUnderstanding,
   createEntry,
   createEntryReanalysis,
-  listIdentityCandidates,
   listEntries,
+  listIdentityCandidates,
   loadEntryReview,
+  mutatePreferenceReview,
   mutateUnderstandingReview,
   rejectPreferenceAnalysisItem,
+  reviewDarkScopeAssessment,
 } from "../services/entries";
 import type {
   createGenerationRequest,
@@ -41,32 +44,65 @@ export type ProfileSnapshotItems = {
 /** Domain storage port. Adapters may change without changing HTTP or Workflow orchestration. */
 export interface CharacterTasteDataStoreStrategy {
   readonly id: string;
-  createEntry(ownerUserId: string, draft: EntrySubmission, idempotencyKey: string): ReturnType<typeof createEntry>;
+  createEntry(
+    ownerUserId: string,
+    analysisDomain: AnalysisDomain,
+    draft: AnyEntrySubmission,
+    idempotencyKey: string,
+  ): ReturnType<typeof createEntry>;
   listIdentityCandidates(
     ownerUserId: string,
+    analysisDomain: AnalysisDomain,
     input: IdentityCandidateRequest,
   ): ReturnType<typeof listIdentityCandidates>;
   createEntryReanalysis(
     ownerUserId: string,
+    analysisDomain: AnalysisDomain,
     entryId: string,
-    input: EntryReanalysisInput,
+    input: AnyEntryReanalysisInput,
     idempotencyKey: string,
   ): ReturnType<typeof createEntryReanalysis>;
-  listEntries(ownerUserId: string): ReturnType<typeof listEntries>;
-  loadEntryReview(ownerUserId: string, entryId: string): ReturnType<typeof loadEntryReview>;
+  listEntries(ownerUserId: string, analysisDomain: AnalysisDomain): ReturnType<typeof listEntries>;
+  loadEntryReview(
+    ownerUserId: string,
+    analysisDomain: AnalysisDomain,
+    entryId: string,
+  ): ReturnType<typeof loadEntryReview>;
   mutateUnderstandingReview(
     ownerUserId: string,
+    analysisDomain: AnalysisDomain,
     snapshotId: string,
     input: UnderstandingReviewMutation,
     idempotencyKey: string,
   ): ReturnType<typeof mutateUnderstandingReview>;
-  confirmUnderstanding(ownerUserId: string, snapshotId: string): ReturnType<typeof confirmUnderstanding>;
+  confirmUnderstanding(
+    ownerUserId: string,
+    analysisDomain: AnalysisDomain,
+    snapshotId: string,
+  ): ReturnType<typeof confirmUnderstanding>;
   rejectPreferenceAnalysisItem(
     ownerUserId: string,
+    analysisDomain: AnalysisDomain,
     analysisRunId: string,
     targetId: string,
   ): ReturnType<typeof rejectPreferenceAnalysisItem>;
-  archiveEntry(ownerUserId: string, entryId: string): Promise<{ outboxEventId: string }>;
+  mutatePreferenceReview(
+    ownerUserId: string,
+    analysisDomain: AnalysisDomain,
+    analysisRunId: string,
+    input: import("../../shared/schemas").PreferenceReviewMutation,
+    idempotencyKey: string,
+  ): ReturnType<typeof mutatePreferenceReview>;
+  reviewDarkScopeAssessment(
+    ownerUserId: string,
+    assessmentId: string,
+    input: import("../../shared/schemas").DarkScopeReviewRequest,
+  ): ReturnType<typeof reviewDarkScopeAssessment>;
+  archiveEntry(
+    ownerUserId: string,
+    analysisDomain: AnalysisDomain,
+    entryId: string,
+  ): Promise<{ outboxEventId: string }>;
   processCharacterAnalysis(params: CharacterAnalysisWorkflowParams): ReturnType<typeof processCharacterAnalysis>;
   processPreferenceAnalysis(params: CharacterAnalysisWorkflowParams): ReturnType<typeof processPreferenceAnalysis>;
   retryCharacterAnalysis(
@@ -74,24 +110,34 @@ export interface CharacterTasteDataStoreStrategy {
     jobId: string,
     retryId: string,
   ): ReturnType<typeof retryCharacterAnalysis>;
-  activateAnalysisAndRebuild(ownerUserId: string, analysisRunId: string): ReturnType<typeof activateAnalysisAndRebuild>;
-  loadCurrentProfile(ownerUserId: string): ReturnType<typeof loadCurrentProfile>;
+  activateAnalysisAndRebuild(
+    ownerUserId: string,
+    analysisDomain: AnalysisDomain,
+    analysisRunId: string,
+  ): ReturnType<typeof activateAnalysisAndRebuild>;
+  loadCurrentProfile(ownerUserId: string, analysisDomain: AnalysisDomain): ReturnType<typeof loadCurrentProfile>;
   loadProjectionFreshness(ownerUserId: string): ReturnType<typeof loadProjectionFreshness>;
-  loadProfileSnapshotItems(ownerUserId: string): Promise<ProfileSnapshotItems>;
+  loadProfileSnapshotItems(ownerUserId: string, analysisDomain: AnalysisDomain): Promise<ProfileSnapshotItems>;
   loadCurrentGraph(
     ownerUserId: string,
+    analysisDomain: AnalysisDomain,
     detail: "summary" | "standard" | "expanded",
   ): ReturnType<typeof loadCurrentGraph>;
   createGenerationRequest(
     ownerUserId: string,
+    analysisDomain: AnalysisDomain,
     input: GenerationRequestInput,
     idempotencyKey: string,
   ): ReturnType<typeof createGenerationRequest>;
-  listGenerations(ownerUserId: string): ReturnType<typeof listGenerations>;
-  deleteGeneration(ownerUserId: string, generationRequestId: string): ReturnType<typeof deleteGeneration>;
+  listGenerations(ownerUserId: string, analysisDomain: AnalysisDomain): ReturnType<typeof listGenerations>;
+  deleteGeneration(
+    ownerUserId: string,
+    analysisDomain: AnalysisDomain,
+    generationRequestId: string,
+  ): ReturnType<typeof deleteGeneration>;
   processGeneration(params: GenerationWorkflowParams): ReturnType<typeof processGeneration>;
   retryGeneration(ownerUserId: string, jobId: string, retryId: string): ReturnType<typeof retryGeneration>;
-  loadJob(ownerUserId: string, jobId: string): Promise<Record<string, unknown> | null>;
+  loadJob(ownerUserId: string, analysisDomain: AnalysisDomain, jobId: string): Promise<Record<string, unknown> | null>;
 }
 
 type DataStoreStrategyFactory = (env: Env) => CharacterTasteDataStoreStrategy;
