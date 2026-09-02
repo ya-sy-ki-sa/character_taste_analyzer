@@ -8,12 +8,19 @@ import {
   entryReanalysisSchema,
   generatedCharacterCandidateSchema,
   generationRequestInputSchema,
+  loginSchema,
   responseChannelSchema,
   understandingCandidateSchema,
   understandingReviewMutationSchema,
 } from "../shared/schemas";
 
 describe("current input contracts", () => {
+  it("accepts login by username and rejects the removed user ID contract", () => {
+    const accessKey = crypto.randomUUID();
+    expect(loginSchema.safeParse({ username: "ログインユーザー", accessKey }).success).toBe(true);
+    expect(loginSchema.safeParse({ userId: crypto.randomUUID(), accessKey }).success).toBe(false);
+  });
+
   it("persists every citable customized-entry field with canonical pointers", () => {
     const draft = entryDraftSchema.parse({
       registrationType: "customized_existing",

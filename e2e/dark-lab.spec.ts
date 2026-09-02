@@ -21,10 +21,11 @@ test("隠しURLだけから入り、通常トップには導線を出さず、�
   });
   expect(activatedResponse.ok()).toBe(true);
 
-  await page.getByPlaceholder("ユーザー名を検索").fill(username);
-  await page.getByRole("button", { name: new RegExp(username, "u") }).click();
-  await page.getByLabel("アクセスキー").fill(created.accessKey);
-  await page.getByRole("button", { name: "ラボに入る" }).click();
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  await loginDialog.getByLabel("ユーザー名").fill(username);
+  await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
+  await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
   await expect(page).toHaveURL(/\/dark-lab\/app\/profile/u);
 
   await page.goto("/app/profile");
@@ -48,10 +49,11 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
   });
 
   await page.goto("/dark-lab");
-  await page.getByPlaceholder("ユーザー名を検索").fill(username);
-  await page.getByRole("button", { name: new RegExp(username, "u") }).click();
-  await page.getByLabel("アクセスキー").fill(created.accessKey);
-  await page.getByRole("button", { name: "ラボに入る" }).click();
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  await loginDialog.getByLabel("ユーザー名").fill(username);
+  await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
+  await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
   await page.goto("/dark-lab/app/entries");
   await page.getByRole("button", { name: "＋ キャラクターを登録" }).click();
   const form = page.getByRole("dialog", { name: "ダークキャラクターを登録" });
@@ -144,10 +146,11 @@ test("対象外判定だけはユーザー確認で続行できる", async ({ pa
     data: { accessKey: created.accessKey },
   });
   await page.goto("/dark-lab");
-  await page.getByPlaceholder("ユーザー名を検索").fill(username);
-  await page.getByRole("button", { name: new RegExp(username, "u") }).click();
-  await page.getByLabel("アクセスキー").fill(created.accessKey);
-  await page.getByRole("button", { name: "ラボに入る" }).click();
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  await loginDialog.getByLabel("ユーザー名").fill(username);
+  await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
+  await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
   await page.goto("/dark-lab/app/entries");
   await page.getByRole("button", { name: "＋ キャラクターを登録" }).click();
   const form = page.getByRole("dialog", { name: "ダークキャラクターを登録" });

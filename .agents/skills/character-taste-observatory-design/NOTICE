@@ -1,0 +1,24 @@
+Character Taste Observatory Design Skill
+
+This project-specific Codex skill was created for Character Taste Lab
+(character_taste_analyzer). It was informed by the design workflow and skill
+structure of the following Apache-2.0-licensed works:
+
+1. `frontend-design` by Anthropic <support@anthropic.com>
+   Project reference: anthropics/frontend-design
+   Upstream learning reference:
+   https://github.com/anthropics/claude-cookbooks/blob/main/coding/prompting_for_frontend_aesthetics.ipynb
+
+2. `frontend-design-codex` from KilimiaoSix/agent-skills
+   https://github.com/KilimiaoSix/agent-skills/tree/main/skills/frontend-design-codex
+   This work is itself a Codex-native adaptation of Anthropic's public
+   `frontend-design` workflow.
+
+The present skill substantially customizes those general frontend-design ideas
+into a self-contained visual system, page grammar, implementation workflow,
+and browser-verification checklist for a "dedicated astronomical instrument
+for observing character preferences." It does not require either referenced
+skill at runtime.
+
+The names Anthropic, Claude, OpenAI, and Codex are used only to describe origin
+and compatibility. This project does not claim affiliation or endorsement.

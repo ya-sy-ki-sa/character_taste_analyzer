@@ -1,0 +1,4 @@
+interface:
+  display_name: "キャラ嗜好観測装置デザイン・dark版"
+  short_description: "通常版と同じ機能骨格で、黒蝕したdark版UIを設計します"
+  default_prompt: "Use $character-taste-dark-observatory-design to design and browser-verify the dark Character Taste Lab screen as the black-eclipsed state of the normal observatory instrument."

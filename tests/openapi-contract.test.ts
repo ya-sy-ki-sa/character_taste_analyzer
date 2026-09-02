@@ -24,6 +24,7 @@ describe("as-built OpenAPI contract", () => {
     const document = buildAsBuiltOpenApi();
     const serialized = JSON.stringify(document);
     expect(document.paths).not.toHaveProperty("/api/v1/account/key-rotation");
+    expect(document.paths?.["/api/v1/users"]).not.toHaveProperty("get");
     expect(serialized).not.toContain("knownScope");
     expect(serialized).not.toContain("sourceText");
     expect(serialized).not.toContain("legacy_unverified");

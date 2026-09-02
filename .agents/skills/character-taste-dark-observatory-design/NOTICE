@@ -1,0 +1,28 @@
+Character Taste Dark Observatory Design Skill
+
+This Apache-2.0 project-specific Codex skill was created for Character Taste
+Lab (character_taste_analyzer). It builds on the project's Apache-2.0
+`character-taste-observatory-design` skill.
+
+Its independently written dark art direction was informed by the following
+MIT-licensed skills from arjun988/blender-skills:
+
+Source revision inspected: 8f778d2405a214b508d4c7d80742be8e43acdd52
+
+- `dark-gritty-mood`
+  https://github.com/arjun988/blender-skills/tree/main/.claude/skills/dark-gritty-mood
+- `horror-style`
+  https://github.com/arjun988/blender-skills/tree/main/.claude/skills/horror-style
+- `cosmic-eldritch-horror`
+  https://github.com/arjun988/blender-skills/tree/main/.claude/skills/cosmic-eldritch-horror
+
+Those sources contributed general ideas concerning meaningful wear, restrained
+psychological tension, and cosmic spatial wrongness. Their Blender-specific
+instructions and source text are not redistributed in this skill, and the
+present skill does not depend on them at runtime.
+
+The referenced MIT license is available at:
+https://github.com/arjun988/blender-skills/blob/main/LICENSE
+
+The names of third-party projects are used only to describe origin and do not
+imply affiliation or endorsement.

@@ -165,16 +165,6 @@ app.get("/api/v1/health/ready", async (context) => {
   );
 });
 
-app.get("/api/v1/users", async (context) => {
-  const query = normalizeUsername(context.req.query("query") ?? "");
-  const rows = await all<{ id: string; username: string }>(
-    context.env.DB.prepare(
-      `SELECT id,username FROM users WHERE status='active' AND is_public=1 AND username_normalized LIKE ? ORDER BY username_normalized,id LIMIT 50`,
-    ).bind(`%${query.replace(/[%_]/gu, "")}%`),
-  );
-  return context.json(data({ users: rows, nextCursor: null }));
-});
-
 app.post("/api/v1/users", validateJson(registrationSchema), async (context) => {
   const input = context.req.valid("json");
   await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
@@ -255,14 +245,17 @@ app.post("/api/v1/users/:id/activate", validateJson(activationSchema), async (co
 app.post("/api/v1/sessions", validateJson(loginSchema), async (context) => {
   const input = context.req.valid("json");
   await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
-  const row = await first<{ username: string; key_digest: string }>(
+  const row = await first<{ id: string; username: string; key_digest: string }>(
     context.env.DB.prepare(
-      `SELECT u.username,c.key_digest FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.id=? AND u.status='active'`,
-    ).bind(input.userId),
+      `SELECT u.id,u.username,c.key_digest FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.username_normalized=? AND u.status='active'`,
+    ).bind(normalizeUsername(input.username)),
   );
-  const submitted = await hmacHex(context.env.AUTH_PEPPER, credentialDigestInput(input.userId, input.accessKey));
+  const submitted = await hmacHex(
+    context.env.AUTH_PEPPER,
+    credentialDigestInput(row?.id ?? "00000000-0000-0000-0000-000000000000", input.accessKey),
+  );
   if (!row || !constantTimeEqual(row.key_digest, submitted))
-    throw new HTTPException(401, { message: "ユーザーIDまたはアクセスキーが無効です" });
+    throw new HTTPException(401, { message: "ユーザー名またはログインキーが無効です" });
   const token = randomToken(32);
   const csrfToken = await hmacHex(context.env.AUTH_PEPPER, `csrf\u0000${token}`);
   const now = nowIso();
@@ -271,10 +264,10 @@ app.post("/api/v1/sessions", validateJson(loginSchema), async (context) => {
   await context.env.DB.prepare(
     `INSERT INTO sessions (id,user_id,token_digest,csrf_digest,expires_at,last_seen_at,created_at) VALUES (?,?,?,?,?,?,?)`,
   )
-    .bind(crypto.randomUUID(), input.userId, await sha256Hex(token), await sha256Hex(csrfToken), expiresAt, now, now)
+    .bind(crypto.randomUUID(), row.id, await sha256Hex(token), await sha256Hex(csrfToken), expiresAt, now, now)
     .run();
   context.header("Set-Cookie", sessionCookie(token, days * 86_400));
-  return context.json(data({ user: { id: input.userId, username: row.username }, csrfToken, expiresAt }));
+  return context.json(data({ user: { id: row.id, username: row.username }, csrfToken, expiresAt }));
 });
 
 app.delete("/api/v1/sessions", async (context) => {

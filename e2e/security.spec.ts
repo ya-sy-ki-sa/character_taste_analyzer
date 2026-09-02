@@ -15,7 +15,7 @@ async function createUser(api: APIRequestContext, prefix: string) {
   expect(activation.ok()).toBe(true);
   const login = await api.post("/api/v1/sessions", {
     headers: { "Idempotency-Key": crypto.randomUUID(), Origin: "http://localhost:41737" },
-    data: { userId: created.user.id, accessKey: created.accessKey },
+    data: { username, accessKey: created.accessKey },
   });
   expect(login.ok()).toBe(true);
   const loginData = (await login.json()).data as { csrfToken: string };

@@ -21,6 +21,13 @@ export function App() {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
+  const darkTheme = location.pathname.startsWith("/dark-lab");
+
+  useEffect(() => {
+    document.body.classList.toggle("dark-lab-theme", darkTheme);
+    return () => document.body.classList.remove("dark-lab-theme");
+  }, [darkTheme]);
+
   const clearAuthentication = useCallback(() => {
     setCsrfToken(undefined);
     void queryClient.cancelQueries();

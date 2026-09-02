@@ -67,7 +67,12 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
         edgeType: edge.type,
       });
     }
-    const renderer = new Sigma(graph, container.current, { renderEdgeLabels: false, allowInvalidContainer: true });
+    const labelColor = getComputedStyle(container.current).color;
+    const renderer = new Sigma(graph, container.current, {
+      renderEdgeLabels: false,
+      allowInvalidContainer: true,
+      labelColor: { color: labelColor },
+    });
     renderer.on("clickNode", ({ node }) => {
       const attrs = graph.getNodeAttributes(node);
       setSelected({

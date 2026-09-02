@@ -6,6 +6,7 @@
       "**",
       "!!**/node_modules",
       "!!**/dist",
+      "!!**/.agents/skills",
       "!!**/.wrangler",
       "!!**/coverage",
       "!!**/playwright-report",

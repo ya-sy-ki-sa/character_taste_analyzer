@@ -12,7 +12,7 @@ API prefixは`/api/v1`を維持する。routeとrequest schemaの正式契約は
 |---|---|---|
 | GET | `/health/live` | process liveness |
 | GET | `/health/ready` | D1、Provider、必須bindingのreadiness |
-| GET / POST | `/users` | 公開ユーザー検索／仮登録 |
+| POST | `/users` | 仮登録 |
 | POST | `/users/{id}/activate` | access keyによる有効化 |
 | POST / DELETE | `/sessions` | login／logout |
 | GET | `/me` | 現在のsession |

@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="ja" data-observatory-theme="normal">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>トップ画面モック 01 — 嗜好天体観測装置</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --void: #06080a;
+        --chassis: #101315;
+        --panel: #15191b;
+        --glass: #080d0e;
+        --bone: #eee6d6;
+        --muted: #a6adaf;
+        --steel: #667176;
+        --brass: #c49a5a;
+        --action: #9f382b;
+        --signal: #f15d48;
+        --local-light: #ffd0a5;
+        --line: rgba(238, 230, 214, 0.15);
+        --metal-line: rgba(196, 154, 90, 0.32);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--void);
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        color: var(--bone);
+        background:
+          radial-gradient(circle at 68% 42%, rgba(196, 154, 90, 0.08), transparent 32rem),
+          var(--void);
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--signal);
+        outline-offset: 3px;
+      }
+
+      .observatory {
+        min-height: 100svh;
+        padding: 10px;
+      }
+
+      .chassis {
+        position: relative;
+        isolation: isolate;
+        display: grid;
+        grid-template-columns: minmax(270px, 340px) minmax(0, 1fr) 64px;
+        grid-template-rows: 72px minmax(620px, calc(100svh - 146px)) 54px;
+        min-height: calc(100svh - 20px);
+        overflow: hidden;
+        border: 1px solid #2a2f31;
+        background: var(--chassis);
+        box-shadow:
+          0 0 0 3px #050607,
+          0 0 0 4px rgba(196, 154, 90, 0.28),
+          0 28px 90px rgba(0, 0, 0, 0.72);
+      }
+
+      .chassis::before {
+        position: absolute;
+        z-index: -1;
+        inset: 0;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(116deg, transparent 0 8px, rgba(255, 255, 255, 0.012) 9px, transparent 10px),
+          radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.035), transparent 22rem);
+        content: "";
+      }
+
+      .topbar {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(270px, 340px) 1fr auto;
+        align-items: center;
+        border-bottom: 1px solid var(--metal-line);
+        background: rgba(6, 8, 10, 0.54);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        align-self: stretch;
+        gap: 13px;
+        padding-inline: 24px;
+        border-right: 1px solid var(--metal-line);
+      }
+
+      .brand-mark {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        flex: 0 0 auto;
+        border: 1px solid var(--brass);
+        border-radius: 50%;
+      }
+
+      .brand-mark::before,
+      .brand-mark::after {
+        position: absolute;
+        background: var(--brass);
+        content: "";
+      }
+
+      .brand-mark::before {
+        width: 50px;
+        height: 1px;
+      }
+
+      .brand-mark::after {
+        width: 1px;
+        height: 50px;
+      }
+
+      .brand-mark span {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        color: var(--void);
+        background: var(--bone);
+        font: 800 0.65rem Georgia, serif;
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 5px;
+        line-height: 1;
+      }
+
+      .brand-copy strong {
+        font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+        font-size: 1.05rem;
+        letter-spacing: 0.07em;
+      }
+
+      .brand-copy small,
+      .device-id,
+      .ready,
+      .utility-label,
+      .footer,
+      .instrument-label,
+      .dialog-code {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        letter-spacing: 0.11em;
+      }
+
+      .brand-copy small {
+        color: var(--brass);
+        font-size: 0.68rem;
+      }
+
+      .device-id {
+        padding-left: 22px;
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+
+      .ready {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding-right: 22px;
+        color: var(--bone);
+        font-size: 0.72rem;
+      }
+
+      .ready::before {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--signal);
+        box-shadow: 0 0 10px rgba(241, 93, 72, 0.72);
+        content: "";
+      }
+
+      .control-panel {
+        grid-column: 1;
+        grid-row: 2;
+        display: flex;
+        flex-direction: column;
+        padding: clamp(30px, 4.4vh, 48px) 24px 28px;
+        border-right: 1px solid var(--metal-line);
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.018), transparent 34%),
+          #0d1012;
+      }
+
+      .instrument-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        color: var(--brass);
+        font-size: 0.7rem;
+      }
+
+      .instrument-label::before {
+        width: 30px;
+        height: 1px;
+        background: var(--brass);
+        content: "";
+      }
+
+      h1 {
+        margin: 28px 0 0;
+        font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+        font-size: clamp(2.95rem, 3.3vw, 3.2rem);
+        font-weight: 500;
+        letter-spacing: -0.075em;
+        line-height: 1.18;
+      }
+
+      h1 em {
+        display: inline-block;
+        color: var(--signal);
+        font-style: normal;
+        white-space: nowrap;
+      }
+
+      .lead {
+        margin: 26px 0 0;
+        color: var(--muted);
+        font-size: 0.94rem;
+        line-height: 2;
+      }
+
+      .actions {
+        display: grid;
+        gap: 11px;
+        margin-top: auto;
+        padding-top: 34px;
+      }
+
+      .button {
+        position: relative;
+        min-height: 54px;
+        padding: 12px 18px;
+        overflow: hidden;
+        border: 1px solid var(--brass);
+        border-radius: 2px;
+        color: var(--bone);
+        background: #111416;
+        box-shadow:
+          inset 0 0 0 3px #090b0c,
+          inset 0 0 0 4px rgba(196, 154, 90, 0.22);
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        transition: color 180ms ease, border-color 180ms ease, transform 180ms ease;
+      }
+
+      .button::after {
+        position: absolute;
+        top: 50%;
+        left: 12px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--brass);
+        box-shadow: 0 0 8px rgba(196, 154, 90, 0.55);
+        content: "";
+        transform: translateY(-50%);
+      }
+
+      .button:hover {
+        color: #fff;
+        border-color: var(--bone);
+        transform: translateY(-2px);
+      }
+
+      .button.primary {
+        border-color: var(--signal);
+        background: var(--action);
+        box-shadow:
+          inset 0 0 0 3px #1d0c09,
+          inset 0 0 0 4px rgba(255, 210, 180, 0.2),
+          0 10px 28px rgba(103, 29, 21, 0.28);
+      }
+
+      .button.primary::after {
+        background: var(--local-light);
+        box-shadow: 0 0 9px rgba(255, 174, 112, 0.8);
+      }
+
+      .privacy {
+        margin: 22px 0 0;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.875rem;
+        line-height: 1.7;
+      }
+
+      .privacy::before {
+        display: inline-block;
+        width: 5px;
+        height: 5px;
+        margin-right: 8px;
+        border-radius: 50%;
+        background: var(--brass);
+        content: "";
+        vertical-align: 0.12em;
+      }
+
+      .scope-bay {
+        position: relative;
+        grid-column: 2;
+        grid-row: 2;
+        display: grid;
+        place-items: center;
+        min-width: 0;
+        overflow: hidden;
+        background:
+          linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+          linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+        background-size: 44px 44px;
+      }
+
+      .scope-bay::before,
+      .scope-bay::after {
+        position: absolute;
+        width: 9px;
+        height: 9px;
+        border: 1px solid rgba(196, 154, 90, 0.56);
+        border-radius: 50%;
+        background: #090b0c;
+        box-shadow: inset 0 0 0 2px #22272a;
+        content: "";
+      }
+
+      .scope-bay::before {
+        top: 15px;
+        left: 15px;
+      }
+
+      .scope-bay::after {
+        right: 15px;
+        bottom: 15px;
+      }
+
+      .scope {
+        --look-x: 52%;
+        --look-y: 42%;
+        position: relative;
+        width: min(78vh, calc(100% - 58px), 780px);
+        aspect-ratio: 1;
+        border: 2px solid #050607;
+        border-radius: 50%;
+        background:
+          repeating-conic-gradient(from -1deg, var(--brass) 0 0.45deg, transparent 0.45deg 2.5deg),
+          #171b1d;
+        box-shadow:
+          0 0 0 8px #090b0c,
+          0 0 0 10px var(--brass),
+          0 0 0 15px #1c2022,
+          0 0 0 17px rgba(196, 154, 90, 0.55),
+          0 25px 65px rgba(0, 0, 0, 0.68);
+      }
+
+      .scope::before {
+        position: absolute;
+        z-index: 5;
+        inset: 18px;
+        pointer-events: none;
+        border: 1px solid rgba(238, 230, 214, 0.28);
+        border-radius: 50%;
+        box-shadow:
+          inset 0 0 0 8px rgba(0, 0, 0, 0.62),
+          inset 0 0 35px rgba(0, 0, 0, 0.94);
+        content: "";
+      }
+
+      .lens {
+        position: absolute;
+        inset: 29px;
+        overflow: hidden;
+        border: 1px solid #373b38;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at var(--look-x) var(--look-y), rgba(196, 154, 90, 0.13), transparent 22%),
+          radial-gradient(circle at 50% 50%, transparent 0 9%, rgba(196, 154, 90, 0.12) 9.2% 9.45%, transparent 9.7% 20%, rgba(196, 154, 90, 0.09) 20.2% 20.45%, transparent 20.7% 33%, rgba(196, 154, 90, 0.09) 33.2% 33.45%, transparent 33.7% 46%, rgba(196, 154, 90, 0.08) 46.2% 46.45%, transparent 46.7%),
+          radial-gradient(circle, rgba(238, 230, 214, 0.85) 0 0.8px, transparent 1px),
+          #070b0c;
+        background-size: auto, auto, 39px 39px, auto;
+        box-shadow: inset 0 0 95px #000;
+      }
+
+      .lens::before,
+      .lens::after {
+        position: absolute;
+        z-index: 1;
+        pointer-events: none;
+        background: linear-gradient(90deg, transparent, rgba(196, 154, 90, 0.34), transparent);
+        content: "";
+      }
+
+      .lens::before {
+        top: 50%;
+        right: 4%;
+        left: 4%;
+        height: 1px;
+      }
+
+      .lens::after {
+        top: 4%;
+        bottom: 4%;
+        left: 50%;
+        width: 1px;
+        background: linear-gradient(transparent, rgba(196, 154, 90, 0.34), transparent);
+      }
+
+      .constellation {
+        position: absolute;
+        z-index: 2;
+        inset: 8%;
+        width: 84%;
+        height: 84%;
+        overflow: visible;
+      }
+
+      .constellation .path {
+        fill: none;
+        stroke: rgba(238, 230, 214, 0.48);
+        stroke-dasharray: 1.2 2.2;
+        stroke-width: 0.23;
+      }
+
+      .constellation .trace {
+        fill: none;
+        stroke: rgba(241, 93, 72, 0.72);
+        stroke-width: 0.18;
+      }
+
+      .constellation .star {
+        fill: var(--bone);
+        filter: drop-shadow(0 0 1.4px var(--bone));
+      }
+
+      .constellation .minor {
+        fill: var(--brass);
+        opacity: 0.72;
+      }
+
+      .scan {
+        position: absolute;
+        z-index: 1;
+        inset: 3%;
+        border-radius: 50%;
+        background: conic-gradient(from 15deg, transparent 0 77%, rgba(241, 93, 72, 0.1) 81%, rgba(241, 93, 72, 0.32) 83%, transparent 83.4%);
+        animation: scan 18s linear infinite;
+        mix-blend-mode: screen;
+      }
+
+      .target {
+        position: absolute;
+        z-index: 4;
+        top: 50%;
+        left: 50%;
+        display: grid;
+        place-items: center;
+        width: 76px;
+        height: 76px;
+        border: 1px solid rgba(241, 93, 72, 0.7);
+        border-radius: 50%;
+        box-shadow:
+          0 0 0 8px rgba(241, 93, 72, 0.07),
+          0 0 25px rgba(241, 93, 72, 0.13);
+        transform: translate(-50%, -50%);
+      }
+
+      .target::before,
+      .target::after {
+        position: absolute;
+        background: var(--signal);
+        content: "";
+      }
+
+      .target::before {
+        width: 96px;
+        height: 1px;
+      }
+
+      .target::after {
+        width: 1px;
+        height: 96px;
+      }
+
+      .target span {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        color: var(--void);
+        background: var(--bone);
+        font: 800 0.72rem/1 "SFMono-Regular", Consolas, monospace;
+        letter-spacing: 0.08em;
+      }
+
+      .signal-node {
+        position: absolute;
+        z-index: 4;
+        color: var(--bone);
+        text-shadow: 0 2px 7px #000;
+      }
+
+      .signal-node::before {
+        position: absolute;
+        top: 9px;
+        left: -22px;
+        width: 9px;
+        height: 9px;
+        border: 1px solid var(--node-color, var(--brass));
+        border-radius: 50%;
+        background: var(--node-color, var(--brass));
+        box-shadow:
+          0 0 0 7px color-mix(in srgb, var(--node-color, var(--brass)) 12%, transparent),
+          0 0 13px var(--node-color, var(--brass));
+        content: "";
+      }
+
+      .signal-node b {
+        display: block;
+        font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+        font-size: clamp(0.92rem, 1.25vw, 1.16rem);
+        letter-spacing: 0.08em;
+      }
+
+      .signal-node small {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: clamp(0.63rem, 0.8vw, 0.72rem);
+      }
+
+      .expression {
+        --node-color: #e8d59e;
+        top: 23%;
+        left: 29%;
+      }
+
+      .belief {
+        --node-color: var(--signal);
+        top: 29%;
+        left: 70%;
+      }
+
+      .relation {
+        --node-color: var(--brass);
+        top: 66%;
+        left: 25%;
+      }
+
+      .conflict {
+        --node-color: #c2d0d3;
+        top: 70%;
+        left: 68%;
+      }
+
+      .degree {
+        position: absolute;
+        z-index: 8;
+        color: var(--brass);
+        font: 0.62rem/1 "SFMono-Regular", Consolas, monospace;
+      }
+
+      .d0 {
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .d90 {
+        top: 50%;
+        right: 4px;
+        transform: translateY(-50%) rotate(90deg);
+      }
+
+      .d180 {
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .d270 {
+        top: 50%;
+        left: 4px;
+        transform: translateY(-50%) rotate(-90deg);
+      }
+
+      .calibrator {
+        grid-column: 3;
+        grid-row: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 23px 0;
+        border-left: 1px solid var(--metal-line);
+        background: #0b0e0f;
+      }
+
+      .utility-label {
+        color: var(--muted);
+        font-size: 0.66rem;
+        writing-mode: vertical-rl;
+      }
+
+      .scale {
+        position: relative;
+        width: 11px;
+        flex: 1;
+        max-height: 380px;
+        border-inline: 1px solid rgba(196, 154, 90, 0.34);
+        background: repeating-linear-gradient(to bottom, transparent 0 11px, rgba(238, 230, 214, 0.45) 11px 12px);
+      }
+
+      .scale::after {
+        position: absolute;
+        top: 37%;
+        right: -8px;
+        width: 25px;
+        height: 3px;
+        border: 1px solid var(--brass);
+        background: var(--signal);
+        box-shadow: 0 0 9px rgba(241, 93, 72, 0.35);
+        content: "";
+      }
+
+      .dial {
+        position: relative;
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--brass);
+        border-radius: 50%;
+        background: radial-gradient(circle, #252a2c 0 27%, #090b0c 29% 100%);
+        box-shadow: 0 0 0 4px #1a1e20;
+      }
+
+      .dial::after {
+        position: absolute;
+        top: 3px;
+        left: 50%;
+        width: 1px;
+        height: 13px;
+        background: var(--signal);
+        content: "";
+        transform: rotate(28deg);
+        transform-origin: bottom;
+      }
+
+      .footer {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 22px;
+        border-top: 1px solid var(--metal-line);
+        color: var(--muted);
+        background: #090b0c;
+        font-size: 0.68rem;
+      }
+
+      .footer span:first-child {
+        color: var(--bone);
+      }
+
+      dialog {
+        width: min(92vw, 470px);
+        padding: 0;
+        color: var(--bone);
+        border: 1px solid var(--brass);
+        border-radius: 2px;
+        background: #101315;
+        box-shadow:
+          0 0 0 4px #070809,
+          0 0 0 5px rgba(196, 154, 90, 0.3),
+          0 32px 100px rgba(0, 0, 0, 0.72);
+      }
+
+      dialog::backdrop {
+        background: rgba(2, 3, 4, 0.78);
+        backdrop-filter: blur(4px);
+      }
+
+      .dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 19px 22px;
+        border-bottom: 1px solid var(--metal-line);
+        background: #0a0c0d;
+      }
+
+      .dialog-head h2 {
+        margin: 0;
+        font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+        font-size: 1.3rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+      }
+
+      .dialog-code {
+        margin: 0 0 3px;
+        color: var(--brass);
+        font-size: 0.67rem;
+      }
+
+      .close {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        color: var(--bone);
+        border: 1px solid var(--steel);
+        border-radius: 1px;
+        background: #080a0b;
+        font-size: 1.2rem;
+      }
+
+      form {
+        display: grid;
+        gap: 17px;
+        padding: 23px 22px 24px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 0.875rem;
+        font-weight: 700;
+      }
+
+      input {
+        width: 100%;
+        min-height: 48px;
+        padding: 12px 13px;
+        color: var(--bone);
+        border: 1px solid var(--steel);
+        border-radius: 1px;
+        background: #080a0b;
+      }
+
+      form .button {
+        width: 100%;
+        margin-top: 3px;
+      }
+
+      @keyframes scan {
+        to {
+          transform: rotate(1turn);
+        }
+      }
+
+      @media (max-width: 980px) {
+        .chassis {
+          grid-template-columns: 310px minmax(0, 1fr) 52px;
+        }
+
+        .topbar {
+          grid-template-columns: 310px 1fr auto;
+        }
+
+        .scope {
+          width: min(68vw, 67vh, 650px);
+        }
+
+        .signal-node small {
+          display: none;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .observatory {
+          padding: 0;
+        }
+
+        .chassis {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: 74px auto 430px 46px;
+          min-height: 100svh;
+          border-inline: 0;
+        }
+
+        .topbar {
+          grid-column: 1;
+          grid-template-columns: 1fr auto;
+        }
+
+        .brand {
+          padding-inline: 18px;
+          border-right: 0;
+        }
+
+        .device-id {
+          display: none;
+        }
+
+        .ready {
+          padding-right: 17px;
+          font-size: 0;
+        }
+
+        .control-panel {
+          grid-column: 1;
+          grid-row: 2;
+          padding: 35px 18px 28px;
+          border-right: 0;
+          border-bottom: 1px solid var(--metal-line);
+        }
+
+        h1 {
+          max-width: 560px;
+          font-size: clamp(2.85rem, 14.5vw, 4.8rem);
+        }
+
+        .lead {
+          max-width: 560px;
+          font-size: 0.91rem;
+        }
+
+        .actions {
+          grid-template-columns: 1fr 1fr;
+          margin-top: 31px;
+          padding-top: 0;
+        }
+
+        .privacy {
+          margin-top: 20px;
+        }
+
+        .scope-bay {
+          grid-column: 1;
+          grid-row: 3;
+        }
+
+        .scope {
+          width: min(103vw, 430px);
+          transform: translateX(4%);
+        }
+
+        .calibrator {
+          display: none;
+        }
+
+        .footer {
+          grid-column: 1;
+          grid-row: 4;
+          padding-inline: 17px;
+        }
+
+        .footer span:last-child {
+          display: none;
+        }
+      }
+
+      @media (max-width: 430px) {
+        .brand-copy strong {
+          font-size: 0.96rem;
+        }
+
+        .brand-copy small {
+          font-size: 0.62rem;
+        }
+
+        .actions {
+          grid-template-columns: 1fr;
+        }
+
+        .scope {
+          width: min(106vw, 410px);
+        }
+
+        .scope::before {
+          inset: 15px;
+        }
+
+        .lens {
+          inset: 25px;
+        }
+
+        .signal-node b {
+          font-size: 0.82rem;
+        }
+
+        .expression {
+          left: 26%;
+        }
+
+        .belief {
+          left: 72%;
+        }
+
+        .relation {
+          left: 21%;
+        }
+
+        .conflict {
+          left: 69%;
+        }
+
+        .target {
+          width: 62px;
+          height: 62px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scan {
+          animation: none;
+        }
+
+        .button {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="observatory">
+      <div class="chassis">
+        <header class="topbar">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true"><span>C</span></span>
+            <span class="brand-copy"><strong>キャラ嗜好ラボ</strong><small>嗜好天体観測装置</small></span>
+          </div>
+          <span class="device-id">CHARACTER TASTE OBSERVATORY / CTL–01</span>
+          <span class="ready">観測準備完了</span>
+        </header>
+
+        <main class="control-panel">
+          <p class="instrument-label">観測をはじめる</p>
+          <h1>好きは、<br /><em>観測できる。</em></h1>
+          <p class="lead">惹かれた表情、譲れない信念、忘れられない関係性。その軌跡を結び、まだ言葉になっていない嗜好の座標を見つけます。</p>
+          <div class="actions">
+            <button class="button primary" type="button" data-dialog="signup">新規ユーザ作成</button>
+            <button class="button" type="button" data-dialog="login">ログイン</button>
+          </div>
+          <p class="privacy">分析内容と生成履歴はログインキーで保護されます</p>
+        </main>
+
+        <section class="scope-bay" aria-label="キャラクター嗜好の観測スコープ">
+          <div class="scope" role="img" aria-label="表情、信念、関係性、葛藤の四つの観測軸を結ぶ嗜好星図">
+            <span class="degree d0">000°</span><span class="degree d90">090°</span><span class="degree d180">180°</span><span class="degree d270">270°</span>
+            <div class="lens">
+              <div class="scan" aria-hidden="true"></div>
+              <svg class="constellation" viewBox="0 0 100 100" aria-hidden="true">
+                <path class="path" d="M28 27 L69 31 L70 69 L26 66 Z M28 27 L50 50 L69 31 M26 66 L50 50 L70 69" />
+                <path class="trace" d="M12 54 C24 42 35 32 50 50 S74 70 89 43" />
+                <circle class="star" cx="28" cy="27" r="0.9" /><circle class="star" cx="69" cy="31" r="1.1" /><circle class="star" cx="70" cy="69" r="0.85" /><circle class="star" cx="26" cy="66" r="1" />
+                <circle class="minor" cx="19" cy="41" r="0.45" /><circle class="minor" cx="38" cy="18" r="0.38" /><circle class="minor" cx="57" cy="23" r="0.42" /><circle class="minor" cx="81" cy="45" r="0.5" /><circle class="minor" cx="80" cy="78" r="0.38" /><circle class="minor" cx="48" cy="83" r="0.46" /><circle class="minor" cx="17" cy="76" r="0.35" />
+              </svg>
+              <div class="target"><span>嗜好</span></div>
+              <div class="signal-node expression"><b>表情</b><small>感情の現れ方</small></div>
+              <div class="signal-node belief"><b>信念</b><small>譲れない価値観</small></div>
+              <div class="signal-node relation"><b>関係性</b><small>距離の築き方</small></div>
+              <div class="signal-node conflict"><b>葛藤</b><small>選択と矛盾</small></div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="calibrator" aria-hidden="true">
+          <span class="utility-label">焦点調整</span>
+          <span class="scale"></span>
+          <span class="dial"></span>
+        </aside>
+
+        <footer class="footer"><span>PRIVATE OBSERVATION / LOGIN KEY REQUIRED</span><span>CHARACTER TASTE LABORATORY</span></footer>
+      </div>
+    </div>
+
+    <dialog id="login" aria-labelledby="login-title">
+      <div class="dialog-head">
+        <div><p class="dialog-code">ACCESS / EXISTING OBSERVER</p><h2 id="login-title">観測記録を開く</h2></div>
+        <button class="close" type="button" data-close aria-label="閉じる">×</button>
+      </div>
+      <form method="dialog">
+        <label>ユーザー名<input name="username" autocomplete="username" required /></label>
+        <label>ログインキー<input name="login-key" type="password" autocomplete="current-password" required /></label>
+        <button class="button primary" type="submit">ログイン</button>
+      </form>
+    </dialog>
+
+    <dialog id="signup" aria-labelledby="signup-title">
+      <div class="dialog-head">
+        <div><p class="dialog-code">REGISTER / NEW OBSERVER</p><h2 id="signup-title">観測者を登録する</h2></div>
+        <button class="close" type="button" data-close aria-label="閉じる">×</button>
+      </div>
+      <form method="dialog">
+        <label>ユーザー名<input name="new-username" autocomplete="username" required /></label>
+        <label>ログインキー<input name="new-login-key" type="password" autocomplete="new-password" required /></label>
+        <button class="button primary" type="submit">新規ユーザ作成</button>
+      </form>
+    </dialog>
+
+    <script>
+      for (const trigger of document.querySelectorAll("[data-dialog]")) {
+        trigger.addEventListener("click", () => {
+          const dialog = document.getElementById(trigger.dataset.dialog);
+          dialog?.showModal();
+          requestAnimationFrame(() => dialog?.querySelector("input")?.focus());
+        });
+      }
+
+      for (const dialog of document.querySelectorAll("dialog")) {
+        dialog.querySelector("[data-close]")?.addEventListener("click", () => dialog.close());
+        dialog.addEventListener("click", (event) => {
+          if (event.target === dialog) dialog.close();
+        });
+      }
+
+      const lens = document.querySelector(".lens");
+      lens?.addEventListener("pointermove", (event) => {
+        const bounds = lens.getBoundingClientRect();
+        lens.style.setProperty("--look-x", `${((event.clientX - bounds.left) / bounds.width) * 100}%`);
+        lens.style.setProperty("--look-y", `${((event.clientY - bounds.top) / bounds.height) * 100}%`);
+      });
+      lens?.addEventListener("pointerleave", () => {
+        lens.style.setProperty("--look-x", "52%");
+        lens.style.setProperty("--look-y", "42%");
+      });
+    </script>
+  </body>
+</html>

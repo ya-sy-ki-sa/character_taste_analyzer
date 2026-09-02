@@ -37,7 +37,7 @@ export const registrationSchema = z.object({
 });
 export const activationSchema = z.object({ accessKey: z.string().uuid() });
 export const loginSchema = z.object({
-  userId: z.string().uuid(),
+  username: usernameSchema,
   accessKey: z.string().uuid(),
   turnstileToken: z.string().optional(),
 });

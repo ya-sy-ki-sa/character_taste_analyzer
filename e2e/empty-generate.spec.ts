@@ -18,10 +18,11 @@ test("登録・嗜好解析が0件でもオリジナルキャラクター作成�
   expect(activatedResponse.ok()).toBe(true);
 
   await page.goto("/");
-  await page.getByPlaceholder("ユーザー名を検索").fill(username);
-  await page.getByRole("button", { name: new RegExp(username) }).click();
-  await page.getByLabel("アクセスキー").fill(created.accessKey);
-  await page.getByRole("button", { name: "ラボに入る" }).click();
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  await loginDialog.getByLabel("ユーザー名").fill(username);
+  await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
+  await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile/u);
 
   await page.goto("/app/entries");

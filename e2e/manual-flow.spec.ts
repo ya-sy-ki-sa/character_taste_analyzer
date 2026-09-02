@@ -20,10 +20,11 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   expect(activated.ok()).toBe(true);
 
   await page.goto("/");
-  await page.getByPlaceholder("ユーザー名を検索").fill(username);
-  await page.getByRole("button", { name: new RegExp(username) }).click();
-  await page.getByLabel("アクセスキー").fill(created.accessKey);
-  await page.getByRole("button", { name: "ラボに入る" }).click();
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  await loginDialog.getByLabel("ユーザー名").fill(username);
+  await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
+  await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile/u);
   await expect(page.getByRole("heading", { name: "嗜好解析結果" })).toBeVisible();
 

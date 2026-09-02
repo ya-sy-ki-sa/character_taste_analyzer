@@ -3,7 +3,10 @@ import { expect, test } from "@playwright/test";
 test("ログアウトとセッション失効時にトップページへ戻れる", async ({ page, context }) => {
   const username = `session-e2e-${Date.now()}`;
   await page.goto("/");
-  await page.getByRole("button", { name: "＋ 新規作成" }).click();
+  await expect(page.getByRole("button", { name: "新規ユーザ作成" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "ログイン", exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("ユーザー名を検索")).toHaveCount(0);
+  await page.getByRole("button", { name: "新規ユーザ作成" }).click();
   await page.getByLabel("ユーザー名").fill(username);
   await page.getByRole("button", { name: "アクセスキーを発行" }).click();
   const accessKey = await page.locator(".credential-box code").textContent();
@@ -13,9 +16,11 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
   await page.getByRole("button", { name: "保存を確認してユーザーを作成" }).click();
 
   async function login() {
-    await page.getByRole("button", { name: new RegExp(username, "u") }).click();
-    await page.getByLabel("アクセスキー").fill(accessKey);
-    await page.getByRole("button", { name: "ラボに入る" }).click();
+    await page.getByRole("button", { name: "ログイン", exact: true }).click();
+    const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+    await loginDialog.getByLabel("ユーザー名").fill(username);
+    await loginDialog.getByLabel("ログインキー").fill(accessKey);
+    await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
     await expect(page.getByRole("heading", { name: "嗜好解析結果" })).toBeVisible();
   }
 

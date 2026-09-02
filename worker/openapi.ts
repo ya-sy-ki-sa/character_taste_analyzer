@@ -58,7 +58,6 @@ type RouteDefinition = {
 const definitions: RouteDefinition[] = [
   { method: "get", path: "/api/v1/health/live", summary: "Liveness" },
   { method: "get", path: "/api/v1/health/ready", summary: "Readiness" },
-  { method: "get", path: "/api/v1/users", summary: "Public user search" },
   { method: "post", path: "/api/v1/users", summary: "Register user", body: registrationSchema, status: 201 },
   {
     method: "post",

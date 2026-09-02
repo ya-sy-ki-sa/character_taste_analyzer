@@ -1,0 +1,4 @@
+interface:
+  display_name: "キャラ嗜好観測装置デザイン・通常版"
+  short_description: "通常版UIと、通常・dark両テーマの共通基盤を設計します"
+  default_prompt: "Use $character-taste-observatory-design to design, implement, and browser-verify the normal Character Taste Lab screen as a maintained preference observatory instrument."
