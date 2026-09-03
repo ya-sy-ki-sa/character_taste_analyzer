@@ -4,6 +4,7 @@ DATASTORE_STRATEGY=d1
 
 # OpenAI Provider Native API is always called through Cloudflare AI Gateway.
 OPENAI_API_KEY=replace-with-openai-api-key
+OPENAI_FLEX_ENABLED=false
 AI_GATEWAY_ACCOUNT_ID=replace-with-cloudflare-account-id
 AI_GATEWAY_GATEWAY_ID=default
 # Cloudflare API token with Account > AI Gateway > Run permission.

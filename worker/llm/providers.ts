@@ -12,7 +12,10 @@ import { LlmProviderError } from "./types";
 
 const ADAPTER_VERSION = "1.2.0";
 const OPENAI_REQUEST_TIMEOUT_MS = 15 * 60_000;
-const OPENAI_SERVICE_TIER = "flex" as const;
+
+function openAiServiceTier(env: Env): "flex" | undefined {
+  return env.OPENAI_FLEX_ENABLED === "true" ? "flex" : undefined;
+}
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -356,6 +359,7 @@ class OpenAiLlmProvider extends RemoteProvider {
     if (!this.env.AI_GATEWAY_TOKEN)
       throw new LlmProviderError("AI Gateway tokenがありません", "PROVIDER_CONFIGURATION_INVALID", false);
     const started = Date.now();
+    const serviceTier = openAiServiceTier(this.env);
     let response: Response;
     try {
       response = await fetch(this.endpoint(), {
@@ -371,7 +375,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          service_tier: OPENAI_SERVICE_TIER,
+          ...(serviceTier ? { service_tier: serviceTier } : {}),
           input: messages,
           store: false,
           ...(request.safetyIdentifier ? { safety_identifier: request.safetyIdentifier.slice(0, 64) } : {}),
@@ -412,7 +416,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         dataRetentionMode: "no_retention",
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
-          serviceTier: OPENAI_SERVICE_TIER,
+          serviceTier: serviceTier ?? "auto",
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },
@@ -464,7 +468,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         dataRetentionMode: "no_retention",
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
-          serviceTier: OPENAI_SERVICE_TIER,
+          serviceTier: serviceTier ?? "auto",
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },
@@ -487,7 +491,7 @@ class OpenAiLlmProvider extends RemoteProvider {
       dataRetentionMode: "no_retention",
       effectiveSettings: {
         maxOutputTokens: request.maxOutputTokens,
-        serviceTier: OPENAI_SERVICE_TIER,
+        serviceTier: serviceTier ?? "auto",
         webSearch: request.enableWebSearch === true,
         safetyIdentifier: request.safetyIdentifier ?? null,
       },
@@ -542,7 +546,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         citations: normalized.citations,
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
-          serviceTier: OPENAI_SERVICE_TIER,
+          serviceTier: serviceTier ?? "auto",
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },

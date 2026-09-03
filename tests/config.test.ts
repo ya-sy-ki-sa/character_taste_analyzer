@@ -33,6 +33,17 @@ describe("readiness configuration", () => {
     ).toContain("LLM_FALLBACK_DUPLICATES_PRIMARY");
   });
 
+  it("defaults OpenAI Flex to off and rejects invalid flag values", () => {
+    expect(validateConfig(localEnv()).errors).not.toContain("OPENAI_FLEX_ENABLED_INVALID");
+    expect(validateConfig(localEnv({ OPENAI_FLEX_ENABLED: "false" })).errors).not.toContain(
+      "OPENAI_FLEX_ENABLED_INVALID",
+    );
+    expect(validateConfig(localEnv({ OPENAI_FLEX_ENABLED: "true" })).errors).not.toContain(
+      "OPENAI_FLEX_ENABLED_INVALID",
+    );
+    expect(validateConfig(localEnv({ OPENAI_FLEX_ENABLED: "on" })).errors).toContain("OPENAI_FLEX_ENABLED_INVALID");
+  });
+
   it("validates provider keys and embedding dimensions", () => {
     expect(
       validateConfig(

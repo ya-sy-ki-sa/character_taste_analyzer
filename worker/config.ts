@@ -15,6 +15,8 @@ export function validateConfig(env: Env): ConfigValidation {
     env.LLM_FALLBACK_MODEL === env.LLM_MODEL
   )
     errors.push("LLM_FALLBACK_DUPLICATES_PRIMARY");
+  if (env.OPENAI_FLEX_ENABLED !== undefined && !["true", "false"].includes(env.OPENAI_FLEX_ENABLED))
+    errors.push("OPENAI_FLEX_ENABLED_INVALID");
   if (
     (env.LLM_PROVIDER === "openai" || env.LLM_FALLBACK_PROVIDER === "openai" || env.EMBEDDING_PROVIDER === "openai") &&
     !env.OPENAI_API_KEY

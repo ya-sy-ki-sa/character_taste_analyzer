@@ -59,10 +59,13 @@ npm run dev:offline
 
 OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
 
+OpenAI Responses APIのFlex Processingは`OPENAI_FLEX_ENABLED=true`の場合だけ`service_tier: "flex"`を送信します。既定値は`false`で、未設定または`false`の場合は`service_tier`を送信せず、OpenAI側の`auto`動作を使用します。
+
 ローカルの`.dev.vars`例:
 
 ```dotenv
 OPENAI_API_KEY=...
+OPENAI_FLEX_ENABLED=false
 AI_GATEWAY_ACCOUNT_ID=...
 AI_GATEWAY_TOKEN=...
 ```

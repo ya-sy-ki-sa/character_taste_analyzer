@@ -301,12 +301,12 @@ describe("explicit LLM provider routing", () => {
       expect(String(input)).toBe("https://gateway.ai.cloudflare.com/v1/test-account/test-gateway/openai/responses");
       expect(body).toMatchObject({
         model: "gpt-5.6-sol",
-        service_tier: "flex",
         store: false,
         safety_identifier: "privacy-safe-user-hash",
         max_output_tokens: 100,
         text: { format: { type: "json_schema", strict: true } },
       });
+      expect(body).not.toHaveProperty("service_tier");
       expect(body).not.toHaveProperty("temperature");
       expect(headers.get("Idempotency-Key")).toBe(`${request.idempotencyKey}:attempt-0`);
       expect(headers.get("cf-aig-authorization")).toBe("Bearer test-gateway-token");
@@ -322,8 +322,27 @@ describe("explicit LLM provider routing", () => {
       }),
     ).generateStructured({ ...request, safetyIdentifier: "privacy-safe-user-hash" });
     expect(result.value.value).toBe("openai");
-    expect(result.metadata.effectiveSettings).toMatchObject({ serviceTier: "flex" });
+    expect(result.metadata.effectiveSettings).toMatchObject({ serviceTier: "auto" });
     expect(result.metadata.providerRequestId).toBe("resp_test");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("sends the flex service tier only when explicitly enabled", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      expect(body.service_tier).toBe("flex");
+      return Response.json({ id: "resp_flex", output_text: '{"value":"openai"}', usage: {} });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await createLlmProvider(
+      providerEnv({
+        LLM_PROVIDER: "openai",
+        LLM_MODEL: "gpt-5.6-sol",
+        OPENAI_FLEX_ENABLED: "true",
+        OPENAI_API_KEY: "test-key",
+      }),
+    ).generateStructured(request);
+    expect(result.metadata.effectiveSettings).toMatchObject({ serviceTier: "flex" });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

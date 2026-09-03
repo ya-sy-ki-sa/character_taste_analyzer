@@ -38,6 +38,8 @@ LlmProvider
 
 `LLM_PROVIDER`は`openai|workers_ai|replay|fake`のいずれかとし、composition rootの`LlmProviderFactory`以外で分岐しない。`local-manual`は`workers_ai`を既定とし、`local-test`/CIは`replay`または`fake`を明示設定する。operation別routingは将来拡張とし、導入時はoperationごとの評価ゲートを必須とする。
 
+OpenAI Responses APIのFlex Processingは`OPENAI_FLEX_ENABLED=true`の場合だけ有効にする。既定値は`false`とし、未設定または`false`ではrequestから`service_tier`を省略する。`true`と`false`以外はreadiness errorにして、設定ミスを暗黙のoffとして扱わない。
+
 `local-manual`のWorkers AI呼出しはremote AI bindingであり、完全offline実行ではない。Cloudflareへの認証、network接続、Workers AI利用可能なquotaが必要である。offline作業または定型回帰では`LLM_PROVIDER=replay`に上書きし、画面・APIの同一フローを維持する。
 
 OpenAIはProvider Native endpoint、Workers AIはGateway ID付き`AI` bindingを使用し、すべてのlive LLM／Embedding呼出しをCloudflare AI Gatewayへ集約する。Gateway用URLは承認済みaccount/gateway IDからAdapterが組み立て、ユーザー入力の任意URLを使わない。Replay/Fakeは外部通信を行わないため対象外とする。

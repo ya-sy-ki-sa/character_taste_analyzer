@@ -55,6 +55,7 @@ export type Env = {
   LLM_MODEL: string;
   LLM_FALLBACK_PROVIDER?: "openai" | "workers_ai" | "replay" | "fake" | "";
   LLM_FALLBACK_MODEL?: string;
+  OPENAI_FLEX_ENABLED?: string;
   OPENAI_API_KEY?: string;
   AI_GATEWAY_ACCOUNT_ID?: string;
   AI_GATEWAY_GATEWAY_ID?: string;
