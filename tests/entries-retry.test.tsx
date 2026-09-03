@@ -214,6 +214,87 @@ describe("解析エラーの再実行", () => {
 });
 
 describe("嗜好候補の確認", () => {
+  it("同じ属性を一つにまとめ、惹かれ方を個別に表示する", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const path = String(input);
+      if (path.endsWith("/api/v1/entries/9fd3b2d6-cd4b-4f3a-8907-a0f1281270d7")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              entry: {
+                id: "9fd3b2d6-cd4b-4f3a-8907-a0f1281270d7",
+                status: "analysis_review",
+                registrationType: "existing",
+                draft: { characterName: "再実行テスト" },
+              },
+              understanding: null,
+              baseUnderstanding: null,
+              ontologyAttributes: [{ stableKey: "role.villain", label: "ヴィラン" }],
+              preferenceAnalysis: {
+                id: "a4cc0ce8-4b28-48c2-a40f-b45e3f3f5517",
+                summary: { userExplicitSummary: [], inferredSummary: [], limitations: [] },
+                uncertainties: [],
+                assertions: [
+                  {
+                    id: "villain-transgression",
+                    raw_label: "ヴィラン",
+                    stable_key: "role.villain",
+                    polarity: "positive",
+                    response_channel: "fascination_with_transgression",
+                    strength: 0.95,
+                    explicitness: "user_explicit",
+                    confidence: 0.96,
+                    status: "proposed",
+                    evidence: [],
+                  },
+                  {
+                    id: "villain-emotion",
+                    raw_label: "ヴィラン",
+                    stable_key: "role.villain",
+                    polarity: "positive",
+                    response_channel: "emotional_impact",
+                    strength: 0.72,
+                    explicitness: "inferred",
+                    confidence: 0.68,
+                    status: "proposed",
+                    evidence: [],
+                  },
+                  {
+                    id: "villain-immersion",
+                    raw_label: "ヴィラン",
+                    stable_key: "role.villain",
+                    polarity: "positive",
+                    response_channel: "escapist_immersion",
+                    strength: 0.45,
+                    explicitness: "inferred",
+                    confidence: 0.42,
+                    status: "proposed",
+                    evidence: [],
+                  },
+                ],
+                valueStances: [],
+              },
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ data: { entries: [entry("analysis_review", false)] } }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "内容を見る" }));
+    const group = (await screen.findByRole("heading", { name: "ヴィラン" })).closest(".preference-attribute-group");
+    expect(group).not.toBeNull();
+    expect(within(group as HTMLElement).getByText("惹かれ方 3件")).toBeInTheDocument();
+    expect(group?.querySelectorAll(".preference-channel-item")).toHaveLength(3);
+    expect(within(group as HTMLElement).getByText("逸脱や禁忌に惹かれる")).toBeInTheDocument();
+    expect(within(group as HTMLElement).getByText("強く心を動かされる")).toBeInTheDocument();
+    expect(within(group as HTMLElement).getByText("現実を離れて没入できる")).toBeInTheDocument();
+  });
+
   it("個別の好き候補と価値スタンスを削除できる", async () => {
     const runId = "a4cc0ce8-4b28-48c2-a40f-b45e3f3f5517";
     const preferenceId = "eb4b5a7f-bd53-43cb-bef1-8556b4e5b18a";
@@ -290,7 +371,11 @@ describe("嗜好候補の確認", () => {
 
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "内容を見る" }));
-    const preferenceCard = (await screen.findByText("物語上の反転が好き")).closest("article");
+    const preferenceGroup = (await screen.findByRole("heading", { name: "物語上の反転が好き" })).closest(
+      ".preference-attribute-group",
+    );
+    expect(preferenceGroup).not.toBeNull();
+    const preferenceCard = preferenceGroup?.querySelector(".preference-channel-item") ?? null;
     expect(preferenceCard).not.toBeNull();
     fireEvent.click(within(preferenceCard as HTMLElement).getByRole("button", { name: "削除" }));
     await waitFor(() => expect(screen.queryByText("物語上の反転が好き")).not.toBeInTheDocument());

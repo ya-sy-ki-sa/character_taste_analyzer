@@ -28,6 +28,7 @@ import { api, idempotencyKey } from "../api";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 import { evidenceQuoteLabel, explicitnessLabel } from "../lib/analysis-labels";
 import { buildCharacterMarkdown, characterMarkdownFilename } from "../lib/entry-markdown";
+import { groupPreferenceAssertions, normalizePreferenceLabel } from "../lib/preference-assertion-groups";
 
 type EntryList = { entries: EntrySummary[] };
 type EvidenceDetail = {
@@ -1813,46 +1814,77 @@ function ReviewModal({
                   認識と違う候補は個別に削除できます。削除した候補はプロフィールへ反映されません。
                 </p>
               )}
-              <div className="assertion-list">
+              <div className="preference-attribute-list">
                 {value.preferenceAnalysis.assertions.length === 0 &&
                   value.preferenceAnalysis.valueStances.length === 0 && (
                     <Notice tone="info">
                       この登録からは嗜好を特定できませんでした。これは正常な分析結果で、候補を追加せず確認できます。
                     </Notice>
                   )}
-                {value.preferenceAnalysis.assertions.map((item) => (
-                  <article key={item.id} className={item.polarity === "negative" ? "negative" : ""}>
-                    <div className="assertion-card-header">
-                      <strong>{item.raw_label}</strong>
-                      <small className="confidence-pill">登録内支持度 {Math.round(item.confidence * 100)}%</small>
+                {groupPreferenceAssertions(value.preferenceAnalysis.assertions).map((group) => (
+                  <section className="preference-attribute-group" key={group.id}>
+                    <header className="preference-attribute-header">
+                      <h4>{group.label}</h4>
+                      <small>惹かれ方 {group.items.length}件</small>
+                    </header>
+                    <div className="preference-channel-list">
+                      {group.items.map((item) => {
+                        const itemLabelDiffers =
+                          normalizePreferenceLabel(item.raw_label) !== normalizePreferenceLabel(group.label);
+                        return (
+                          <article key={item.id} className={`preference-channel-item preference-${item.polarity}`}>
+                            <div className="assertion-card-header">
+                              <div className="preference-channel-title">
+                                <strong>{responseChannelLabel(item.response_channel)}</strong>
+                                <span className="preference-polarity">
+                                  {item.polarity === "negative"
+                                    ? "苦手・否定的"
+                                    : item.polarity === "mixed"
+                                      ? "好き嫌いが混在"
+                                      : "好き・肯定的"}
+                                </span>
+                              </div>
+                              <small className="confidence-pill">
+                                登録内支持度 {Math.round(item.confidence * 100)}%
+                              </small>
+                            </div>
+                            {itemLabelDiffers && (
+                              <small className="preference-source-label">表現：{item.raw_label}</small>
+                            )}
+                            <small>
+                              強さ {Math.round(item.strength * 100)}%・{explicitnessLabel(item.explicitness)}
+                            </small>
+                            <EvidenceList evidence={item.evidence} />
+                            {value.entry.status === "analysis_review" && (
+                              <div className="review-item-actions">
+                                <PreferenceAssertionEditControl
+                                  item={item}
+                                  domain={domain}
+                                  ontologyAttributes={value.ontologyAttributes}
+                                  disabled={submitting}
+                                  onMutate={(input) => mutatePreference(value.preferenceAnalysis?.id ?? "", input)}
+                                />
+                                <button
+                                  type="button"
+                                  className="danger-link"
+                                  disabled={submitting}
+                                  onClick={() =>
+                                    void rejectPreferenceItem(
+                                      value.preferenceAnalysis?.id ?? "",
+                                      item.id,
+                                      `${group.label}／${responseChannelLabel(item.response_channel)}`,
+                                    )
+                                  }
+                                >
+                                  削除
+                                </button>
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
                     </div>
-                    <small>
-                      {responseChannelLabel(item.response_channel)}・強さ {Math.round(item.strength * 100)}%・
-                      {explicitnessLabel(item.explicitness)}
-                    </small>
-                    <EvidenceList evidence={item.evidence} />
-                    {value.entry.status === "analysis_review" && (
-                      <div className="review-item-actions">
-                        <PreferenceAssertionEditControl
-                          item={item}
-                          domain={domain}
-                          ontologyAttributes={value.ontologyAttributes}
-                          disabled={submitting}
-                          onMutate={(input) => mutatePreference(value.preferenceAnalysis?.id ?? "", input)}
-                        />
-                        <button
-                          type="button"
-                          className="danger-link"
-                          disabled={submitting}
-                          onClick={() =>
-                            void rejectPreferenceItem(value.preferenceAnalysis?.id ?? "", item.id, item.raw_label)
-                          }
-                        >
-                          削除
-                        </button>
-                      </div>
-                    )}
-                  </article>
+                  </section>
                 ))}
                 {value.entry.status === "analysis_review" && (
                   <AddPreferenceAssertionControl

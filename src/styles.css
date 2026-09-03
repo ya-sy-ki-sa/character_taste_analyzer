@@ -1545,6 +1545,73 @@
     display: grid;
     gap: 10px;
   }
+  .preference-attribute-list {
+    display: grid;
+    gap: 12px;
+  }
+  .preference-attribute-group {
+    border: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .preference-attribute-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .preference-attribute-header h4 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 0.96rem;
+    line-height: 1.5;
+  }
+  .preference-attribute-header small {
+    flex: none;
+    color: var(--lavender);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .preference-channel-list {
+    display: grid;
+  }
+  .preference-channel-item {
+    display: grid;
+    gap: 5px;
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .preference-channel-item:last-child {
+    border-bottom: 0;
+  }
+  .preference-channel-item > small {
+    color: var(--ink-soft);
+    font-size: 0.73rem;
+  }
+  .preference-channel-item.preference-negative {
+    background: var(--danger-pale);
+    box-shadow: inset 2px 0 var(--danger);
+  }
+  .preference-channel-title {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+  .preference-channel-title > strong {
+    color: var(--ink);
+    font-size: 0.86rem;
+  }
+  .preference-polarity {
+    color: var(--ink-soft);
+    font-size: 0.7rem;
+  }
+  .preference-channel-item > .preference-source-label {
+    color: var(--lavender);
+  }
 
   .generation-config {
     display: grid;

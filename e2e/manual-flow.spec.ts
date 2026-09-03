@@ -148,30 +148,36 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
     timeout: 20_000,
   });
   const reviewDialog = page.getByRole("dialog", { name: "解析内容の確認" });
-  await expect(reviewDialog.getByText(/人物として好き・強さ/u).first()).toBeVisible();
+  await expect(reviewDialog.getByText("人物として好き", { exact: true }).first()).toBeVisible();
+  await expect(reviewDialog.getByText(/強さ \d+%/u).first()).toBeVisible();
   await expect(reviewDialog.getByText("person_liking", { exact: true })).toHaveCount(0);
   await expect(reviewDialog.getByText("user_explicit", { exact: true })).toHaveCount(0);
   await expect(reviewDialog.locator("code").filter({ hasText: /^\//u })).toHaveCount(0);
   const preferenceReviewCard = reviewDialog
     .getByRole("heading", { name: "この登録から読み取った「好き」" })
     .locator("..");
-  const preferenceList = preferenceReviewCard.locator(".assertion-list").first();
-  const rejectedPreferenceLabel = await preferenceList.locator(":scope > article strong").first().textContent();
+  const preferenceList = preferenceReviewCard.locator(".preference-attribute-list");
+  await expect(preferenceList.locator(".preference-attribute-group").first()).toBeVisible();
+  expect(await preferenceList.locator(".preference-channel-item").count()).toBeGreaterThan(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await preferenceList.scrollIntoViewIfNeeded();
+  expect(await reviewDialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const rejectedPreferenceLabel = await preferenceList
+    .locator(".preference-attribute-header > h4")
+    .first()
+    .textContent();
   expect(rejectedPreferenceLabel).toBeTruthy();
-  const rejectedPreference = preferenceList
-    .locator(":scope > article")
+  const rejectedPreferenceGroup = preferenceList
+    .locator(".preference-attribute-group")
     .filter({ hasText: rejectedPreferenceLabel ?? "" })
     .first();
-  const matchingPreferenceCount = await preferenceList
-    .locator(":scope > article")
-    .filter({ hasText: rejectedPreferenceLabel ?? "" })
-    .count();
+  const rejectedPreference = rejectedPreferenceGroup.locator(".preference-channel-item").first();
+  const matchingPreferenceCount = await rejectedPreferenceGroup.locator(".preference-channel-item").count();
   page.once("dialog", (dialog) => dialog.accept());
   await rejectedPreference.getByRole("button", { name: "削除", exact: true }).click();
-  await expect(
-    preferenceList.locator(":scope > article").filter({ hasText: rejectedPreferenceLabel ?? "" }),
-  ).toHaveCount(matchingPreferenceCount - 1);
-  const valueStanceList = preferenceReviewCard.locator(".assertion-list").nth(1);
+  await expect(rejectedPreferenceGroup.locator(".preference-channel-item")).toHaveCount(matchingPreferenceCount - 1);
+  const valueStanceList = preferenceReviewCard.locator(".assertion-list").first();
   const rejectedStanceLabel = await valueStanceList.locator(":scope > article strong").first().textContent();
   expect(rejectedStanceLabel).toBeTruthy();
   const matchingStanceCount = await valueStanceList
