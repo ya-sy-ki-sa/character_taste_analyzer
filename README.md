@@ -24,7 +24,7 @@
 
 ## ローカル起動
 
-Node.js 22以上とnpmを使用します。
+Node.js 24 LTSとnpmを使用します。nvmを利用する場合は、リポジトリ直下で `nvm use` を実行してください。
 
 ```bash
 npm install
