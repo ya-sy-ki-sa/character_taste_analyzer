@@ -155,13 +155,13 @@
         "PUBLIC_WRITE_LIMIT_10_MIN": "30",
         "USER_WRITE_LIMIT_PER_MIN": "60",
         "IP_WRITE_LIMIT_PER_MIN": "120",
-        "APP_ORIGIN": ""
+        "APP_ORIGIN": "https://character-taste-lab-staging.toshitaka-portfolio-account.workers.dev"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "character-taste-lab-v2-staging",
-          "database_id": "replace-with-staging-d1-id",
+          "database_id": "f4ef85cc-ca2c-4e97-93c6-bc77cdca65fb",
           "migrations_dir": "docs/詳細設計/database"
         }
       ],
@@ -218,13 +218,13 @@
         "PUBLIC_WRITE_LIMIT_10_MIN": "30",
         "USER_WRITE_LIMIT_PER_MIN": "60",
         "IP_WRITE_LIMIT_PER_MIN": "120",
-        "APP_ORIGIN": ""
+        "APP_ORIGIN": "https://character-taste-lab.toshitaka-portfolio-account.workers.dev"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "character-taste-lab",
-          "database_id": "replace-with-production-d1-id",
+          "database_id": "5e4c10b5-8d80-4f54-90e4-3624470ce482",
           "migrations_dir": "docs/詳細設計/database"
         }
       ],
