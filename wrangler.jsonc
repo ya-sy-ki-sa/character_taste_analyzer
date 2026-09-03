@@ -198,7 +198,7 @@
       ]
     },
     "production": {
-      "name": "character-taste-lab",
+      "name": "character-taste-analyzer",
       "vars": {
         "ENVIRONMENT": "production",
         "DATASTORE_STRATEGY": "d1",
@@ -218,7 +218,7 @@
         "PUBLIC_WRITE_LIMIT_10_MIN": "30",
         "USER_WRITE_LIMIT_PER_MIN": "60",
         "IP_WRITE_LIMIT_PER_MIN": "120",
-        "APP_ORIGIN": "https://character-taste-lab.toshitaka-portfolio-account.workers.dev"
+        "APP_ORIGIN": "https://character-taste-analyzer.toshitaka-portfolio-account.workers.dev"
       },
       "d1_databases": [
         {
