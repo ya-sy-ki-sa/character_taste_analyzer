@@ -98,6 +98,10 @@ npm run verify
 
 Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全build scriptは終了時に`dist`配下を検査し、path検証済みの秘密artifactだけを削除します。`dist`に`.dev.vars`が残るbuildは失敗として扱ってください。
 
+## ライセンス
+
+本プロジェクトのソースコードは[MIT License](LICENSE)で公開します。利用している依存パッケージにはそれぞれのライセンスが適用され、Webサイトのトップ画面から[サードパーティライセンス一覧](public/third-party-licenses.html)を確認できます。
+
 ## 現在の実装境界
 
 P0〜P2の縦断機能を実装済みです。`AUTH-01`は仕様として現状維持し、次はP3または別途判断が必要な後続incrementです。

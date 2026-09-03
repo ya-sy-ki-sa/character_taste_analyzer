@@ -2,6 +2,7 @@
   "name": "character-taste-lab",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -38,7 +39,9 @@
     "eval:dark:gate": "node scripts/check-dark-eval.mjs",
     "bundle:budget": "node scripts/check-bundle-budget.mjs",
     "secret:scan": "node scripts/check-secrets.mjs",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run contracts && npm run build && npm run secret:scan && npm run bundle:budget && npm run test:e2e"
+    "licenses:generate": "node scripts/generate-third-party-licenses.mjs",
+    "licenses:check": "node scripts/generate-third-party-licenses.mjs --check",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run contracts && npm run licenses:check && npm run build && npm run secret:scan && npm run bundle:budget && npm run test:e2e"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.1",

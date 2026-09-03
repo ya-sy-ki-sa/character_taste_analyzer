@@ -110,6 +110,9 @@ export function Landing({
           <small>{dark ? "専用Schemaで設計" : "評価から分析がさらに育つ"}</small>
         </span>
       </section>
+      <footer className="landing-footer">
+        <a href="/third-party-licenses.html">サードパーティライセンス</a>
+      </footer>
 
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={onLogin} />}
       {showCreate && <CreateUserModal onClose={() => setShowCreate(false)} />}
