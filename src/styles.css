@@ -712,6 +712,21 @@
     color: var(--line-strong);
     font-style: normal;
   }
+  .landing-footer {
+    display: flex;
+    justify-content: center;
+    max-width: 1080px;
+    margin: 22px auto 0;
+  }
+  .landing-footer a {
+    color: var(--ink-soft);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-underline-offset: 4px;
+  }
+  .landing-footer a:hover {
+    color: var(--accent-dark);
+  }
 
   .analyzer-status-page {
     width: min(100%, 1320px);
