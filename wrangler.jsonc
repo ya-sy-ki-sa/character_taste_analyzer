@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "character-taste-lab-v2",
   "main": "worker/index.ts",
-  "compatibility_date": "2026-08-04",
+  "compatibility_date": "2026-09-03",
   "assets": {
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
