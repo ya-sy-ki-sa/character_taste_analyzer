@@ -10,6 +10,13 @@ import { profileConditionJson } from "./profile-context";
 export const PROFILE_ALGORITHM_VERSION = "profile/v1.2.0-domain-aware";
 const ONTOLOGY_VERSION = "standard-1.0+dark-1.0";
 
+export type ProfileAlgorithmRebuild = {
+  jobId: string | null;
+  outboxEventId: string | null;
+  desiredGeneration: number;
+  builtGeneration: number;
+};
+
 type AssertionRow = {
   id: string;
   entry_id: string;
@@ -354,6 +361,135 @@ async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueSta
     GROUP BY vs.id ORDER BY vs.id
   `).bind(ownerUserId, ownerUserId),
   );
+}
+
+async function loadProfileRebuildEvent(env: Env, ownerUserId: string, desiredGeneration: number) {
+  return first<{ id: string; aggregate_id: string }>(
+    env.DB.prepare(
+      `SELECT id,aggregate_id FROM outbox_events
+       WHERE owner_user_id=? AND event_type='profile.rebuild' AND deduplication_key=?
+       ORDER BY created_at DESC LIMIT 1`,
+    ).bind(ownerUserId, `profile:${ownerUserId}:${desiredGeneration}`),
+  );
+}
+
+/**
+ * Schedules one new profile generation when the current projection was built by
+ * a different algorithm version. The generation/job/outbox uniqueness fences
+ * make repeated profile reads and concurrent requests converge on one rebuild.
+ */
+export async function ensureCurrentProfileAlgorithm(
+  env: Env,
+  ownerUserId: string,
+  analysisDomain: AnalysisDomain = "standard",
+): Promise<ProfileAlgorithmRebuild | null> {
+  const current = await first<{ id: string; generation: number; algorithm_version: string }>(
+    env.DB.prepare(
+      `SELECT id,generation,algorithm_version FROM profile_projections
+       WHERE owner_user_id=? AND status='current'`,
+    ).bind(ownerUserId),
+  );
+  if (!current || current.algorithm_version === PROFILE_ALGORITHM_VERSION) return null;
+
+  const state = await first<{
+    desired_generation: number;
+    built_generation: number;
+    status: string;
+  }>(
+    env.DB.prepare(
+      `SELECT desired_generation,built_generation,status FROM projection_rebuild_states WHERE owner_user_id=?`,
+    ).bind(ownerUserId),
+  );
+  if (state && state.desired_generation > state.built_generation && ["queued", "building"].includes(state.status)) {
+    const existing = await loadProfileRebuildEvent(env, ownerUserId, state.desired_generation);
+    return {
+      jobId: existing?.aggregate_id ?? null,
+      outboxEventId: existing?.id ?? null,
+      desiredGeneration: state.desired_generation,
+      builtGeneration: state.built_generation,
+    };
+  }
+
+  const builtGeneration = state?.built_generation ?? current.generation;
+  const desiredGeneration = Math.max(state?.desired_generation ?? 0, current.generation) + 1;
+  const jobId = crypto.randomUUID();
+  const outboxEventId = crypto.randomUUID();
+  const now = nowIso();
+  const deduplicationKey = `profile:${ownerUserId}:${desiredGeneration}`;
+  const payloadJson = JSON.stringify({
+    type: "profile.rebuild",
+    params: { jobId, ownerUserId, desiredGeneration },
+  });
+  const payloadHash = await sha256Hex(payloadJson);
+
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO projection_rebuild_states
+         (owner_user_id,desired_generation,built_generation,status,lease_owner,lease_expires_at,last_error_code,updated_at)
+       VALUES (?,?,?,'queued',NULL,NULL,NULL,?)
+       ON CONFLICT(owner_user_id) DO UPDATE SET
+         desired_generation=excluded.desired_generation,status='queued',lease_owner=NULL,lease_expires_at=NULL,
+         last_error_code=NULL,updated_at=excluded.updated_at
+       WHERE projection_rebuild_states.desired_generation=?
+         AND projection_rebuild_states.built_generation=?`,
+    ).bind(
+      ownerUserId,
+      desiredGeneration,
+      builtGeneration,
+      now,
+      state?.desired_generation ?? 0,
+      state?.built_generation ?? 0,
+    ),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO jobs
+         (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,
+          current_step,retryable,revision,created_at,updated_at,analysis_domain)
+       SELECT ?,?,'profile_rebuild','queued','user',?,?,0,2,'profile',1,1,?,?,?
+       WHERE EXISTS (
+         SELECT 1 FROM projection_rebuild_states
+         WHERE owner_user_id=? AND desired_generation=? AND built_generation<?
+       )`,
+    ).bind(
+      jobId,
+      ownerUserId,
+      ownerUserId,
+      desiredGeneration,
+      now,
+      now,
+      analysisDomain,
+      ownerUserId,
+      desiredGeneration,
+      desiredGeneration,
+    ),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO outbox_events
+         (id,owner_user_id,aggregate_type,aggregate_id,aggregate_revision,event_type,event_version,
+          payload_json,payload_hash,correlation_id,deduplication_key,status,attempt_count,available_at,created_at)
+       SELECT ?,?,'job',?,1,'profile.rebuild',1,?,?,?,?,'pending',0,?,?
+       WHERE EXISTS (SELECT 1 FROM jobs WHERE id=?)`,
+    ).bind(
+      outboxEventId,
+      ownerUserId,
+      jobId,
+      payloadJson,
+      payloadHash,
+      `profile-algorithm:${current.id}`,
+      deduplicationKey,
+      now,
+      now,
+      jobId,
+    ),
+  ]);
+  if (results.some((result) => !result.success)) throw new Error("D1_PROFILE_REBUILD_ENQUEUE_FAILED");
+
+  const scheduled = await loadProfileRebuildEvent(env, ownerUserId, desiredGeneration);
+  if (!scheduled) throw new Error("PROFILE_REBUILD_ENQUEUE_FAILED");
+  return {
+    jobId: scheduled.aggregate_id,
+    outboxEventId: scheduled.id,
+    desiredGeneration,
+    builtGeneration,
+  };
 }
 
 export async function rebuildProfile(
@@ -730,37 +866,48 @@ export async function loadCurrentProfile(
 }
 
 export async function loadProjectionFreshness(env: Env, ownerUserId: string): Promise<ProjectionFreshness> {
-  const state = await first<{
-    desired_generation: number;
-    built_generation: number;
-    status: string;
-    last_error_code: string | null;
-  }>(
-    env.DB.prepare(
-      `SELECT desired_generation,built_generation,status,last_error_code FROM projection_rebuild_states WHERE owner_user_id=?`,
-    ).bind(ownerUserId),
-  );
+  const [state, current] = await Promise.all([
+    first<{
+      desired_generation: number;
+      built_generation: number;
+      status: string;
+      last_error_code: string | null;
+    }>(
+      env.DB.prepare(
+        `SELECT desired_generation,built_generation,status,last_error_code FROM projection_rebuild_states WHERE owner_user_id=?`,
+      ).bind(ownerUserId),
+    ),
+    first<{ generation: number; algorithm_version: string }>(
+      env.DB.prepare(
+        `SELECT generation,algorithm_version FROM profile_projections WHERE owner_user_id=? AND status='current'`,
+      ).bind(ownerUserId),
+    ),
+  ]);
   if (state) {
+    const algorithmRebuildRequired =
+      current?.algorithm_version !== undefined &&
+      current.algorithm_version !== PROFILE_ALGORITHM_VERSION &&
+      state.desired_generation === state.built_generation;
     return {
       status:
         state.status === "failed"
           ? "failed"
-          : state.desired_generation === state.built_generation && state.status === "current"
+          : state.desired_generation === state.built_generation &&
+              state.status === "current" &&
+              !algorithmRebuildRequired
             ? "fresh"
             : "rebuilding",
-      desiredGeneration: state.desired_generation,
+      desiredGeneration: algorithmRebuildRequired
+        ? Math.max(state.desired_generation, current?.generation ?? 0) + 1
+        : state.desired_generation,
       builtGeneration: state.built_generation,
       errorCode: state.last_error_code,
     };
   }
-  const current = await first<{ generation: number }>(
-    env.DB.prepare(`SELECT generation FROM profile_projections WHERE owner_user_id=? AND status='current'`).bind(
-      ownerUserId,
-    ),
-  );
+  const algorithmRebuildRequired = current?.algorithm_version !== PROFILE_ALGORITHM_VERSION;
   return {
-    status: current ? "fresh" : "unavailable",
-    desiredGeneration: current?.generation ?? 0,
+    status: current ? (algorithmRebuildRequired ? "rebuilding" : "fresh") : "unavailable",
+    desiredGeneration: current ? current.generation + (algorithmRebuildRequired ? 1 : 0) : 0,
     builtGeneration: current?.generation ?? 0,
     errorCode: null,
   };

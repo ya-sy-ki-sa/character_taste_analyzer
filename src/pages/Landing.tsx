@@ -23,97 +23,145 @@ export function Landing({
 
   return (
     <main className={`landing ${dark ? "dark-lab-theme dark-landing" : ""}`}>
-      <nav className="landing-nav">
-        <Brand />
-        <div className="landing-nav-links">
-          <span className="nav-note">{dark ? "闇に惹かれる理由を、解像する。" : "好きの輪郭を、ていねいに。"}</span>
-          {dark && <Link to="/">通常のキャラ嗜好ラボへ</Link>}
-          <Link to={dark ? "/dark-lab/about-analyzer" : "/about-analyzer"}>
-            分析器の現在地 <span aria-hidden="true">→</span>
-          </Link>
-        </div>
-      </nav>
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">{dark ? "DARK CHARACTER PREFERENCE LAB" : "CHARACTER PREFERENCE LAB"}</p>
-          <h1>
-            {dark ? "悪、堕落、支配の" : "「好き」を集めて、"}
-            <br />
-            <em>{dark ? "どこに惹かれるのか。" : "まだ知らない一人"}</em>
-            {dark ? "" : "に出会う。"}
-          </h1>
-          <p className="hero-description">
-            {dark
-              ? "悪役、洗脳された勇者、堕落した英雄、裏切者、ヴィラン主人公、アンチヒーロー。主体性・支配・自我・道徳・変化差分を専用Ontologyで深く分析します。"
-              : "キャラクターのどんな表情、葛藤、関係性に惹かれるのか。根拠と確かさを分けて分析し、あなただけの新しいキャラクターへつなげます。"}
-          </p>
-          <div className="hero-metrics">
-            <span>
-              <strong>{dark ? "専用解析" : "根拠つき"}</strong>
-              <small>{dark ? "通常属性へ変換しない" : "原文から追跡"}</small>
-            </span>
-            <span>
-              <strong>{dark ? "状態と差分" : "育つ分析"}</strong>
-              <small>{dark ? "主体性と変化を分離" : "入力と評価で更新"}</small>
-            </span>
-            <span>
-              <strong>{dark ? "domain分離" : "非公開"}</strong>
-              <small>{dark ? "通常版へ混入しない" : "内容は本人だけ"}</small>
-            </span>
+      <div className="landing-chassis">
+        <header className="landing-nav">
+          <Brand />
+          <span className="landing-device-id">
+            {dark ? "黒蝕式嗜好観測機 / CTL–ECLIPSE" : "CHARACTER TASTE OBSERVATORY / CTL–01"}
+          </span>
+          <div className="landing-nav-links">
+            {dark && <Link to="/">通常観測機へ</Link>}
+            <Link to={dark ? "/dark-lab/about-analyzer" : "/about-analyzer"}>分析器の現在地</Link>
+            <span className="observatory-ready">観測準備完了</span>
           </div>
-        </div>
+        </header>
 
-        {user ? (
-          <div className="user-panel signed-in-panel">
-            <p className="eyebrow">SIGNED IN</p>
-            <h2>
-              {user.username} の{dark ? "ダーク" : "キャラ"}ラボ
-            </h2>
-            <p className="muted">アカウントは両ラボで共有され、分析結果と生成履歴は分離されます。</p>
-            <Link className="button button-primary button-large" to={dark ? "/dark-lab/app/profile" : "/app/profile"}>
-              {dark ? "ダークラボに入る" : "ラボに入る"}
-            </Link>
+        <section className="hero">
+          <div className="hero-copy">
+            <p className="eyebrow">{dark ? "黒蝕を観測する" : "観測をはじめる"}</p>
+            <h1>
+              {dark ? (
+                <>
+                  <span>光が欠けるほど、</span>
+                  <em>嗜好は満ちる。</em>
+                </>
+              ) : (
+                <>
+                  <span>好きは、</span>
+                  <em>観測できる。</em>
+                </>
+              )}
+            </h1>
+            <p className="hero-description">
+              {dark
+                ? "惹かれた表情、譲れない信念、忘れられない関係性。日食の暗がりにだけ現れる軌道から、まだ言葉にならない「好き」の輪郭を観測します。"
+                : "惹かれた表情、譲れない信念、忘れられない関係性。その軌跡を結び、まだ言葉になっていない「好き」の座標を見つけます。"}
+            </p>
+
+            {user ? (
+              <div className="landing-session">
+                <p>
+                  <span className="session-light" aria-hidden="true" />
+                  {user.username} の観測記録を開けます
+                </p>
+                <Link
+                  className="button button-primary button-large"
+                  to={dark ? "/dark-lab/app/profile" : "/app/profile"}
+                >
+                  {dark ? "黒蝕式観測機に入る" : "観測記録を開く"}
+                </Link>
+              </div>
+            ) : (
+              <div className="landing-access-panel">
+                <div className="landing-actions">
+                  <button
+                    type="button"
+                    className="button button-primary button-large"
+                    onClick={() => setShowCreate(true)}
+                  >
+                    新規ユーザ作成
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-secondary button-large"
+                    onClick={() => setShowLogin(true)}
+                  >
+                    ログイン
+                  </button>
+                </div>
+                <p className="landing-privacy">分析内容と生成履歴はログインキーで保護されます</p>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="user-panel landing-access-panel">
-            <div>
-              <p className="eyebrow">WELCOME</p>
-              <h2>ラボをはじめる</h2>
-            </div>
-            <div className="landing-actions">
-              <button type="button" className="button button-primary button-large" onClick={() => setShowCreate(true)}>
-                新規ユーザ作成
-              </button>
-              <button type="button" className="button button-secondary button-large" onClick={() => setShowLogin(true)}>
-                ログイン
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-      <section className="process-strip" aria-label="使い方">
-        <span>
-          <b>01</b>
-          <strong>{dark ? "ダーク状態を登録" : "キャラを登録"}</strong>
-          <small>{dark ? "注目状態は必須" : "概要と、任意で好きな理由"}</small>
-        </span>
-        <i>→</i>
-        <span>
-          <b>02</b>
-          <strong>{dark ? "多段解析と監査" : "傾向を分析"}</strong>
-          <small>{dark ? "主体性・差分・根拠を確認" : "頻出と明示嗜好を分けて表示"}</small>
-        </span>
-        <i>→</i>
-        <span>
-          <b>03</b>
-          <strong>{dark ? "ダークキャラを生成" : "新しい一人を生成"}</strong>
-          <small>{dark ? "専用Schemaで設計" : "評価から分析がさらに育つ"}</small>
-        </span>
-      </section>
+
+          <ObservatoryScope dark={dark} />
+        </section>
+
+        <footer className="process-strip">
+          <span>
+            <b>観測</b>
+            <small>{dark ? "ダーク状態と変化差分を登録" : "好きなキャラクターと理由を登録"}</small>
+          </span>
+          <span>
+            <b>解析</b>
+            <small>{dark ? "主体性・支配・道徳を専用解析" : "表情・信念・関係性・葛藤を整理"}</small>
+          </span>
+          <span>
+            <b>記録</b>
+            <small>{dark ? "通常版と分離して安全に保存" : "根拠と確かさを分けて蓄積"}</small>
+          </span>
+        </footer>
+      </div>
 
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={onLogin} />}
       {showCreate && <CreateUserModal onClose={() => setShowCreate(false)} />}
     </main>
+  );
+}
+
+function ObservatoryScope({ dark }: { dark: boolean }) {
+  return (
+    <section className="scope-bay" aria-label={dark ? "黒蝕式嗜好観測スコープ" : "嗜好観測スコープ"}>
+      <div
+        className={`observatory-scope ${dark ? "eclipse-scope" : "constellation-scope"}`}
+        role="img"
+        aria-label={
+          dark
+            ? "欠けた目盛りと偏心した日食の中で、表情、信念、関係性、葛藤を結ぶ閉じない軌道を捉えています"
+            : "均等な目盛りを持つ円形スコープで、表情、信念、関係性、葛藤の四つの嗜好軸を観測します"
+        }
+      >
+        <span className="scope-degree degree-0">000°</span>
+        <span className="scope-degree degree-90">090°</span>
+        <span className="scope-degree degree-180">180°</span>
+        <span className="scope-degree degree-270">270°</span>
+        <span className="scope-corrosion" aria-hidden="true" />
+        <div className="scope-glass">
+          <span className="scope-scan" aria-hidden="true" />
+          {dark && <span className="eclipse-occluder" aria-hidden="true" />}
+          <svg className="scope-orbit" viewBox="0 0 100 100" aria-hidden="true">
+            <path className="scope-frame" d="M29 30 L72 34 L70 72 L27 68 Z M29 30 L50 50 L72 34 M27 68 L50 50 L70 72" />
+            <path
+              className="scope-path"
+              d={
+                dark ? "M-8 81 C12 62 24 68 38 49 S64 21 75 39 S92 69 109 12" : "M16 56 C30 36 39 38 50 53 S72 75 85 43"
+              }
+            />
+            {dark && <path className="scope-path-fade" d="M70 72 C81 81 91 87 109 92" />}
+            <circle cx="29" cy="30" r="0.85" />
+            <circle cx="72" cy="34" r="0.85" />
+            <circle cx="70" cy="72" r="0.85" />
+            <circle cx="27" cy="68" r="0.85" />
+          </svg>
+          <span className="scope-axis axis-expression">表情</span>
+          <span className="scope-axis axis-belief">信念</span>
+          <span className="scope-axis axis-relation">関係性</span>
+          <span className="scope-axis axis-conflict">葛藤</span>
+          <span className="scope-core">嗜好</span>
+        </div>
+      </div>
+      <p className="scope-note">{dark ? "閉じない軌道を検出" : "四つの軸を校正済み"}</p>
+    </section>
   );
 }
 
@@ -143,7 +191,7 @@ function LoginModal({ onClose, onLogin }: { onClose(): void; onLogin(user: Sessi
   }
 
   return (
-    <Modal title="ログイン" onClose={onClose}>
+    <Modal title="観測記録を開く" onClose={onClose}>
       <form className="stack-form" onSubmit={submit}>
         <p className="muted">ユーザー作成時のユーザー名とログインキーを入力してください。</p>
         <label>
@@ -240,7 +288,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
 
   if (created) {
     return (
-      <Modal title="アクセスキーを保存" onClose={onClose}>
+      <Modal title="ログインキーを保存" onClose={onClose}>
         <div className="stack-form">
           <Notice tone="warning">
             <strong>この画面を閉じると、キーは二度と表示できません。</strong>
@@ -285,7 +333,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
   }
 
   return (
-    <Modal title="新しいユーザーを作成" onClose={onClose}>
+    <Modal title="観測者を登録する" onClose={onClose}>
       <form className="stack-form" onSubmit={create}>
         <label>
           <span>ユーザー名</span>
@@ -296,6 +344,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
               requestKey.current = idempotencyKey();
             }}
             maxLength={32}
+            autoComplete="username"
             required
             placeholder="表示する名前"
           />

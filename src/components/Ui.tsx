@@ -5,11 +5,11 @@ export function Brand() {
   return (
     <div className="brand">
       <span className="brand-mark" aria-hidden="true">
-        C
+        <span>C</span>
       </span>
       <span>
-        <strong>キャラ嗜好</strong>
-        <small>LABORATORY</small>
+        <strong>キャラ嗜好ラボ</strong>
+        <small>嗜好天体観測装置</small>
       </span>
     </div>
   );
@@ -124,7 +124,12 @@ export function Modal({
     const inerted = [...document.body.children].filter((item) => item !== backdrop.current);
     for (const item of inerted) item.setAttribute("inert", "");
     document.addEventListener("keydown", handleKeyDown);
-    dialog.current?.focus();
+    const firstControl =
+      dialog.current?.querySelector<HTMLElement>(
+        "input:not([disabled]),select:not([disabled]),textarea:not([disabled])",
+      ) ?? dialog.current?.querySelector<HTMLElement>("button:not([disabled])");
+    if (firstControl) firstControl.focus();
+    else dialog.current?.focus();
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       for (const item of inerted) item.removeAttribute("inert");

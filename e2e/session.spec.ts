@@ -17,7 +17,7 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
 
   async function login() {
     await page.getByRole("button", { name: "ログイン", exact: true }).click();
-    const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+    const loginDialog = page.getByRole("dialog", { name: "観測記録を開く" });
     await loginDialog.getByLabel("ユーザー名").fill(username);
     await loginDialog.getByLabel("ログインキー").fill(accessKey);
     await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
@@ -26,12 +26,12 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
 
   await login();
   await page.getByRole("button", { name: "ログアウトしてトップページに戻る" }).click();
-  await expect(page.getByRole("heading", { name: /「好き」を集めて/u })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /好きは、/u })).toBeVisible();
 
   await login();
   await context.clearCookies();
   await page.locator('.side-nav a[href="/app/entries"]').click();
-  await expect(page.getByRole("heading", { name: /「好き」を集めて/u })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /好きは、/u })).toBeVisible();
 
   await login();
   await page.locator('.side-nav a[href="/app/settings"]').click();
@@ -40,5 +40,5 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
   await page.getByRole("button", { name: "アカウントを削除" }).click();
   await page.getByLabel(new RegExp(`確認のため「${username}」と入力`, "u")).fill(username);
   await page.getByRole("button", { name: "完全に削除" }).click();
-  await expect(page.getByRole("heading", { name: /「好き」を集めて/u })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /好きは、/u })).toBeVisible();
 });

@@ -19,7 +19,7 @@ test("登録・嗜好解析が0件でもオリジナルキャラクター作成�
 
   await page.goto("/");
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
-  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  const loginDialog = page.getByRole("dialog", { name: "観測記録を開く" });
   await loginDialog.getByLabel("ユーザー名").fill(username);
   await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
   await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();

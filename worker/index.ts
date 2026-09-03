@@ -593,11 +593,13 @@ app.delete("/api/v1/dark/entries/:id", async (context) => {
 app.get("/api/v1/profile", async (context) => {
   const session = requireSession(context);
   const strategy = createDataStoreStrategy(context.env);
+  const algorithmRebuild = await strategy.ensureCurrentProfileAlgorithm(session.userId, "standard");
+  if (algorithmRebuild?.outboxEventId) dispatchAfterCommit(context, algorithmRebuild.outboxEventId);
   const [profile, freshness] = await Promise.all([
     strategy.loadCurrentProfile(session.userId, "standard"),
     strategy.loadProjectionFreshness(session.userId),
   ]);
-  if (!profile && freshness.status === "rebuilding")
+  if (!profile && freshness.status === "rebuilding" && !algorithmRebuild?.outboxEventId)
     context.executionCtx.waitUntil(dispatchPendingProfileRebuild(context.env, session.userId));
   return context.json(data({ profile, freshness }));
 });
@@ -623,10 +625,14 @@ app.get("/api/v1/profile/graph", async (context) => {
 app.get("/api/v1/dark/profile", async (context) => {
   const session = requireSession(context);
   const strategy = createDataStoreStrategy(context.env);
+  const algorithmRebuild = await strategy.ensureCurrentProfileAlgorithm(session.userId, "dark");
+  if (algorithmRebuild?.outboxEventId) dispatchAfterCommit(context, algorithmRebuild.outboxEventId);
   const [profile, freshness] = await Promise.all([
     strategy.loadCurrentProfile(session.userId, "dark"),
     strategy.loadProjectionFreshness(session.userId),
   ]);
+  if (!profile && freshness.status === "rebuilding" && !algorithmRebuild?.outboxEventId)
+    context.executionCtx.waitUntil(dispatchPendingProfileRebuild(context.env, session.userId));
   return context.json(data({ profile, freshness }));
 });
 

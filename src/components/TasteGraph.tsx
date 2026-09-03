@@ -7,16 +7,16 @@ import { graphEdgeTypeLabel, graphNodeLabel, graphNodeTypeLabel } from "../../sh
 import type { GraphProjection } from "../../shared/schemas";
 import { graphAttributeEntries } from "../lib/graph-labels";
 
-const colors: Record<string, string> = {
-  user: "#7c5cff",
-  work: "#4f8fd8",
-  character_identity: "#27a58b",
-  representation: "#76b8a7",
-  attribute: "#e58a45",
-  raw_attribute: "#d5a14d",
-  response_channel: "#9c71c7",
-  value_stance: "#d0658b",
-  context: "#788497",
+const colorRoles: Record<string, string> = {
+  user: "--graph-user",
+  work: "--graph-work",
+  character_identity: "--graph-identity",
+  representation: "--graph-representation",
+  attribute: "--graph-attribute",
+  raw_attribute: "--graph-raw-attribute",
+  response_channel: "--graph-response",
+  value_stance: "--graph-value",
+  context: "--graph-context",
 };
 
 export function TasteGraph({ projection }: { projection: GraphProjection }) {
@@ -44,6 +44,8 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
 
   useEffect(() => {
     if (!container.current) return;
+    const styles = getComputedStyle(container.current);
+    const graphColor = (role: string, fallback: string) => styles.getPropertyValue(role).trim() || fallback;
     const graph = new MultiDirectedGraph({ allowSelfLoops: false });
     const visible = visibleNodes;
     const nodeIds = new Set(visible.map((node) => node.id));
@@ -54,7 +56,7 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
         x: Math.cos(angle),
         y: Math.sin(angle),
         size: Math.min(24, 6 + 18 * Math.sqrt(node.weight)),
-        color: colors[node.type] ?? "#7a8494",
+        color: graphColor(colorRoles[node.type] ?? "--graph-context", "#8b9498"),
         nodeType: node.type,
         payload: node.attributes,
       });
@@ -63,7 +65,10 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
       if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target) || graph.hasEdge(edge.id)) continue;
       graph.addDirectedEdgeWithKey(edge.id, edge.source, edge.target, {
         size: 0.5 + edge.weight * 2,
-        color: edge.type === "dislikes" ? "#c75c6d" : "#a7afbd",
+        color:
+          edge.type === "dislikes"
+            ? graphColor("--graph-edge-negative", "#c7756b")
+            : graphColor("--graph-edge", "#a7afbd"),
         edgeType: edge.type,
       });
     }

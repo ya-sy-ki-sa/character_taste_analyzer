@@ -42,6 +42,8 @@ function testDatabase() {
     CREATE TABLE profile_projections (
       id TEXT PRIMARY KEY,
       owner_user_id TEXT NOT NULL,
+      generation INTEGER NOT NULL,
+      algorithm_version TEXT NOT NULL,
       status TEXT NOT NULL
     );
     CREATE TABLE profile_snapshots (
@@ -75,7 +77,7 @@ function testDatabase() {
     );
 
     INSERT INTO projection_rebuild_states VALUES ('owner',1,1,'current',NULL);
-    INSERT INTO profile_projections VALUES ('current-projection','owner','current');
+    INSERT INTO profile_projections VALUES ('current-projection','owner',1,'profile/v1.2.0-domain-aware','current');
     INSERT INTO profile_snapshots VALUES
       ('orphan-generation-15','owner',NULL,15,'2026-01-01T00:00:00.000Z'),
       ('current-generation-1','owner','current-projection',1,'2026-01-02T00:00:00.000Z');

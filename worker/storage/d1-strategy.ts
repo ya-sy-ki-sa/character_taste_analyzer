@@ -28,7 +28,7 @@ import {
 } from "../services/generation";
 import { loadCurrentGraph } from "../services/graph";
 import { outboxStatement } from "../services/orchestration";
-import { loadCurrentProfile, loadProjectionFreshness } from "../services/profile";
+import { ensureCurrentProfileAlgorithm, loadCurrentProfile, loadProjectionFreshness } from "../services/profile";
 import type { Env } from "../types";
 import type { CharacterTasteDataStoreStrategy } from "./strategy";
 
@@ -103,6 +103,8 @@ export function createD1DataStoreStrategy(env: Env): CharacterTasteDataStoreStra
     activateAnalysisAndRebuild: (ownerUserId, analysisDomain, analysisRunId) =>
       activateAnalysisAndRebuild(env, ownerUserId, analysisDomain, analysisRunId),
     loadCurrentProfile: (ownerUserId, analysisDomain) => loadCurrentProfile(env, ownerUserId, analysisDomain),
+    ensureCurrentProfileAlgorithm: (ownerUserId, analysisDomain) =>
+      ensureCurrentProfileAlgorithm(env, ownerUserId, analysisDomain),
     loadProjectionFreshness: (ownerUserId) => loadProjectionFreshness(env, ownerUserId),
     loadProfileSnapshotItems: async (ownerUserId, analysisDomain) => {
       const freshness = await loadProjectionFreshness(env, ownerUserId);

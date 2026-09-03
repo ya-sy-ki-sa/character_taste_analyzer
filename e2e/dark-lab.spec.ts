@@ -5,8 +5,8 @@ test("隠しURLだけから入り、通常トップには導線を出さず、�
   await expect(page.locator('a[href="/dark-lab"]')).toHaveCount(0);
 
   await page.goto("/dark-lab");
-  await expect(page.getByRole("heading", { name: /悪、堕落、支配の/u })).toBeVisible();
-  await expect(page.getByRole("link", { name: "通常のキャラ嗜好ラボへ" })).toHaveAttribute("href", "/");
+  await expect(page.getByRole("heading", { name: /光が欠けるほど/u })).toBeVisible();
+  await expect(page.getByRole("link", { name: "通常観測機へ" })).toHaveAttribute("href", "/");
 
   const username = `dark-lab-${Date.now()}`;
   const createdResponse = await request.post("/api/v1/users", {
@@ -22,7 +22,7 @@ test("隠しURLだけから入り、通常トップには導線を出さず、�
   expect(activatedResponse.ok()).toBe(true);
 
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
-  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  const loginDialog = page.getByRole("dialog", { name: "観測記録を開く" });
   await loginDialog.getByLabel("ユーザー名").fill(username);
   await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
   await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
@@ -50,7 +50,7 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
 
   await page.goto("/dark-lab");
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
-  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  const loginDialog = page.getByRole("dialog", { name: "観測記録を開く" });
   await loginDialog.getByLabel("ユーザー名").fill(username);
   await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
   await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
@@ -147,7 +147,7 @@ test("対象外判定だけはユーザー確認で続行できる", async ({ pa
   });
   await page.goto("/dark-lab");
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
-  const loginDialog = page.getByRole("dialog", { name: "ログイン" });
+  const loginDialog = page.getByRole("dialog", { name: "観測記録を開く" });
   await loginDialog.getByLabel("ユーザー名").fill(username);
   await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
   await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();

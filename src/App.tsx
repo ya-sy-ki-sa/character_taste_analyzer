@@ -163,23 +163,26 @@ function AuthenticatedLayout({
   return (
     <div className={`app-shell ${domain === "dark" ? "dark-lab-theme" : ""}`}>
       <aside className="sidebar">
-        <Brand />
-        {domain === "dark" && <p className="dark-lab-mark">DARK LAB</p>}
+        <div className="sidebar-brand">
+          <Brand />
+          <p className="sidebar-device">{domain === "dark" ? "CTL–ECLIPSE" : "CTL–01"}</p>
+        </div>
+        {domain === "dark" && <p className="dark-lab-mark">黒蝕式観測機</p>}
         <nav className="side-nav" aria-label="メインメニュー">
           <NavLink to={`${base}/profile`}>
-            <span>⌁</span>
-            <b>分析プロフィール</b>
+            <span aria-hidden="true">観</span>
+            <b>観測結果</b>
           </NavLink>
           <NavLink to={`${base}/entries`}>
-            <span>◇</span>
-            <b>キャラクター</b>
+            <span aria-hidden="true">録</span>
+            <b>観測記録</b>
           </NavLink>
           <NavLink to={`${base}/generate`}>
-            <span>✦</span>
+            <span aria-hidden="true">生</span>
             <b>キャラ生成</b>
           </NavLink>
           <NavLink to={`${base}/settings`}>
-            <span>⚙</span>
+            <span aria-hidden="true">校</span>
             <b>設定</b>
           </NavLink>
           <button
@@ -188,8 +191,8 @@ function AuthenticatedLayout({
             onClick={logout}
             aria-label="ログアウトしてトップページに戻る"
           >
-            <span>↩</span>
-            <b>{domain === "dark" ? "ダーク版トップへ" : "トップへ戻る"}</b>
+            <span aria-hidden="true">戻</span>
+            <b>トップへ</b>
           </button>
         </nav>
         <div className="sidebar-user">
