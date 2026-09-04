@@ -230,6 +230,8 @@ function LoginModal({ onClose, onLogin }: { onClose(): void; onLogin(user: Sessi
 
 function CreateUserModal({ onClose }: { onClose(): void }) {
   const [username, setUsername] = useState("");
+  const [usageNotesAccepted, setUsageNotesAccepted] = useState(false);
+  const [showUsageNotes, setShowUsageNotes] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>();
   const [created, setCreated] = useState<{ user: PublicUser; accessKey: string; expiresAt: string }>();
   const [acknowledged, setAcknowledged] = useState(false);
@@ -240,6 +242,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
 
   async function create(event: FormEvent) {
     event.preventDefault();
+    if (!usageNotesAccepted) return;
     setSubmitting(true);
     setError(undefined);
     try {
@@ -335,6 +338,37 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
     );
   }
 
+  if (showUsageNotes) {
+    return (
+      <Modal title="利用上の注意" onClose={() => setShowUsageNotes(false)}>
+        <div className="stack-form usage-notes">
+          <p>安心して利用するため、ユーザー作成前に次の点を確認してください。</p>
+          <ul>
+            <li>
+              <strong>個人情報や機密情報を入力しないでください。</strong>
+              氏名、住所、連絡先、認証情報など、本人や第三者を特定できる情報は入力しないでください。
+            </li>
+            <li>
+              <strong>入力できる内容だけを使用してください。</strong>
+              第三者の権利を侵害する内容や、入力する権限のない非公開情報は入力しないでください。
+            </li>
+            <li>
+              <strong>AIの分析結果には誤りが含まれる場合があります。</strong>
+              結果は嗜好を整理するための参考情報として利用し、重要な判断の根拠にはしないでください。
+            </li>
+            <li>
+              <strong>発行されたログインキーは再表示・復旧できません。</strong>
+              第三者に共有せず、安全な場所に保存してください。
+            </li>
+          </ul>
+          <button type="button" className="button button-primary button-large" onClick={() => setShowUsageNotes(false)}>
+            登録画面に戻る
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal title="観測者を登録する" onClose={onClose}>
       <form className="stack-form" onSubmit={create}>
@@ -353,9 +387,27 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
           />
           <small>ログイン時に使います。同じユーザー名は登録できません。</small>
         </label>
+        <div className="usage-consent">
+          <button type="button" className="usage-notes-link" onClick={() => setShowUsageNotes(true)}>
+            利用上の注意を確認する
+          </button>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={usageNotesAccepted}
+              onChange={(event) => setUsageNotesAccepted(event.target.checked)}
+              required
+            />
+            <span>利用上の注意を確認し、同意します</span>
+          </label>
+        </div>
         <Turnstile onToken={setTurnstileToken} />
         {error && <Notice tone="danger">{error}</Notice>}
-        <button type="submit" className="button button-primary button-large" disabled={submitting}>
+        <button
+          type="submit"
+          className="button button-primary button-large"
+          disabled={!usageNotesAccepted || submitting}
+        >
           {submitting ? "作成中…" : "アクセスキーを発行"}
         </button>
       </form>

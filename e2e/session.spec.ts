@@ -8,7 +8,16 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
   await expect(page.getByPlaceholder("ユーザー名を検索")).toHaveCount(0);
   await page.getByRole("button", { name: "新規ユーザ作成" }).click();
   await page.getByLabel("ユーザー名").fill(username);
-  await page.getByRole("button", { name: "アクセスキーを発行" }).click();
+  const createButton = page.getByRole("button", { name: "アクセスキーを発行" });
+  await expect(createButton).toBeDisabled();
+  await page.getByRole("button", { name: "利用上の注意を確認する" }).click();
+  const usageNotesDialog = page.getByRole("dialog", { name: "利用上の注意" });
+  await expect(usageNotesDialog).toContainText("個人情報や機密情報を入力しないでください");
+  await expect(usageNotesDialog).toContainText("AIの分析結果には誤りが含まれる場合があります");
+  await usageNotesDialog.getByRole("button", { name: "登録画面に戻る" }).click();
+  await page.getByLabel("利用上の注意を確認し、同意します").check();
+  await expect(createButton).toBeEnabled();
+  await createButton.click();
   const accessKey = await page.locator(".credential-box code").textContent();
   if (!accessKey) throw new Error("アクセスキーが表示されませんでした");
   expect(accessKey).toMatch(/^[0-9a-f-]{36}$/u);

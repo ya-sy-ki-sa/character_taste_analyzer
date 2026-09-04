@@ -3153,6 +3153,50 @@
     box-shadow: none;
   }
 
+  .usage-consent {
+    display: grid;
+    gap: 12px;
+    padding: 15px;
+    border: 1px solid var(--ctl-line);
+    background: var(--ctl-chassis);
+  }
+
+  .usage-notes-link {
+    width: fit-content;
+    min-height: 0;
+    padding: 0;
+    color: var(--ctl-local-light);
+    border: 0;
+    background: transparent;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .usage-notes-link:hover {
+    color: var(--ctl-text-primary);
+  }
+
+  .usage-notes {
+    line-height: 1.75;
+  }
+
+  .usage-notes ul {
+    display: grid;
+    gap: 14px;
+    margin: 0;
+    padding-left: 1.3rem;
+  }
+
+  .usage-notes li::marker {
+    color: var(--ctl-structure);
+  }
+
+  .usage-notes strong {
+    display: block;
+    color: var(--ctl-text-primary);
+  }
+
   .card,
   .dark-lab-theme .card {
     padding: 24px;
