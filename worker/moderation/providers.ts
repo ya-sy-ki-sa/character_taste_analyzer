@@ -7,20 +7,10 @@ import {
   type ModerationResult,
 } from "./types";
 
-const CATEGORY_LABELS: Record<string, string> = {
-  harassment: "嫌がらせ・侮辱",
-  "harassment/threatening": "脅迫を伴う嫌がらせ",
-  hate: "差別・ヘイト",
-  "hate/threatening": "脅迫を伴う差別・ヘイト",
-  illicit: "違法行為",
+const REJECTED_CATEGORY_LABELS: Record<string, string> = {
   "illicit/violent": "暴力を伴う違法行為",
-  "self-harm": "自傷行為",
   "self-harm/instructions": "自傷行為の助長・手順",
-  "self-harm/intent": "自傷行為の意図",
-  sexual: "性的な内容",
   "sexual/minors": "未成年者に関する性的な内容",
-  violence: "暴力的な内容",
-  "violence/graphic": "生々しい暴力表現",
 };
 
 type OpenAiModerationPayload = {
@@ -70,8 +60,8 @@ export class OpenAiModerationProvider implements ModerationProvider {
     payload.results.forEach((result, index) => {
       if (!result.flagged) return;
       for (const [category, flagged] of Object.entries(result.categories ?? {})) {
-        if (flagged)
-          reasons.push({ field: inputs[index].field, category, label: CATEGORY_LABELS[category] ?? category });
+        const label = REJECTED_CATEGORY_LABELS[category];
+        if (flagged && label) reasons.push({ field: inputs[index].field, category, label });
       }
     });
     return reasons.length ? { allowed: false, reasons } : { allowed: true, reasons: [] };

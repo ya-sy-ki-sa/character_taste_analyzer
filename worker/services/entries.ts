@@ -727,7 +727,8 @@ export async function listEntries(
       j.error_code,j.error_detail_safe
     FROM user_character_entries e JOIN entry_revisions er ON er.entry_id=e.id AND er.revision_number=e.active_revision_number
     LEFT JOIN jobs j ON j.owner_user_id=e.owner_user_id AND j.target_type='entry' AND j.target_id=e.id AND j.input_generation=e.active_revision_number
-    WHERE e.owner_user_id=? AND e.analysis_domain=? ORDER BY e.updated_at DESC,e.id
+    WHERE e.owner_user_id=? AND e.analysis_domain=? AND e.status<>'archived'
+    ORDER BY e.updated_at DESC,e.id
   `).bind(ownerUserId, analysisDomain),
   );
   return rows.map((row) => {

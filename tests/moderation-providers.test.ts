@@ -16,13 +16,21 @@ function openAiEnv(): Env {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("moderation providers", () => {
-  it("maps flagged OpenAI categories to provider-neutral, user-facing reasons", async () => {
+  it("rejects only the configured OpenAI categories with user-facing reasons", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
           results: [
-            { flagged: false, categories: {} },
-            { flagged: true, categories: { violence: true, harassment: false } },
+            { flagged: true, categories: { violence: true } },
+            {
+              flagged: true,
+              categories: {
+                "illicit/violent": true,
+                "self-harm/instructions": true,
+                "sexual/minors": true,
+                harassment: true,
+              },
+            },
           ],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -31,13 +39,17 @@ describe("moderation providers", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await new OpenAiModerationProvider(openAiEnv()).moderate([
-      { field: "作品名", text: "safe" },
+      { field: "作品名", text: "non-blocking category" },
       { field: "自由指示", text: "flagged" },
     ]);
 
     expect(result).toEqual({
       allowed: false,
-      reasons: [{ field: "自由指示", category: "violence", label: "暴力的な内容" }],
+      reasons: [
+        { field: "自由指示", category: "illicit/violent", label: "暴力を伴う違法行為" },
+        { field: "自由指示", category: "self-harm/instructions", label: "自傷行為の助長・手順" },
+        { field: "自由指示", category: "sexual/minors", label: "未成年者に関する性的な内容" },
+      ],
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://gateway.ai.cloudflare.com/v1/account/gateway/openai/moderations",
@@ -46,8 +58,23 @@ describe("moderation providers", () => {
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(request.body))).toEqual({
       model: "omni-moderation-latest",
-      input: ["safe", "flagged"],
+      input: ["non-blocking category", "flagged"],
     });
+  });
+
+  it("allows input when only categories outside the rejection list are flagged", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          results: [{ flagged: true, categories: { harassment: true, hate: true, violence: true } }],
+        }),
+      ),
+    );
+
+    await expect(
+      new OpenAiModerationProvider(openAiEnv()).moderate([{ field: "自由指示", text: "allowed categories" }]),
+    ).resolves.toEqual({ allowed: true, reasons: [] });
   });
 
   it("supports a replaceable fake provider for offline execution", async () => {

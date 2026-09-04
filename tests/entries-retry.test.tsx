@@ -144,6 +144,27 @@ describe("登録済みキャラクターの再分析", () => {
 });
 
 describe("解析エラーの再実行", () => {
+  it("解析エラーとなった登録を除外できる", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.method === "DELETE") return new Response(null, { status: 204 });
+      return new Response(JSON.stringify({ data: { entries: [entry("failed", false)] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "除外" }));
+
+    expect(confirm).toHaveBeenCalledWith("「再実行テスト」の解析エラーとなった登録を除外しますか？");
+    await screen.findByText("解析エラーとなった登録を除外しました。");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/entries/9fd3b2d6-cd4b-4f3a-8907-a0f1281270d7",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("再実行可能なジョブをAPIへ送信し、受付結果を表示する", async () => {
     let retried = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

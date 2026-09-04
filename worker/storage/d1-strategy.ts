@@ -79,7 +79,7 @@ export function createD1DataStoreStrategy(env: Env): CharacterTasteDataStoreStra
       const results = await env.DB.batch([
         env.DB.prepare(
           `UPDATE user_character_entries SET status='archived',archived_at=?,updated_at=?,revision=revision+1
-           WHERE id=? AND owner_user_id=? AND analysis_domain=? AND status='active'`,
+           WHERE id=? AND owner_user_id=? AND analysis_domain=? AND status IN ('active','failed')`,
         ).bind(now, now, entryId, ownerUserId, analysisDomain),
         env.DB.prepare(`
           INSERT INTO projection_rebuild_states (owner_user_id,desired_generation,built_generation,status,updated_at)

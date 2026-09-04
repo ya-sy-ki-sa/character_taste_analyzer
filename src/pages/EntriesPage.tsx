@@ -401,10 +401,19 @@ export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
   });
 
   async function remove(entry: EntrySummary) {
-    if (!window.confirm(`「${entry.title}」を好みの集計から除外しますか？`)) return;
+    const isAnalysisError = entry.status === "failed";
+    const confirmation = isAnalysisError
+      ? `「${entry.title}」の解析エラーとなった登録を除外しますか？`
+      : `「${entry.title}」を好みの集計から除外しますか？`;
+    if (!window.confirm(confirmation)) return;
     try {
       await api(`${apiBase}/entries/${entry.id}`, { method: "DELETE" });
-      setNotice({ tone: "success", message: "登録を除外し、好みプロフィールを再集計しました。" });
+      setNotice({
+        tone: "success",
+        message: isAnalysisError
+          ? "解析エラーとなった登録を除外しました。"
+          : "登録を除外し、好みプロフィールを再集計しました。",
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["entries", domain] }),
         queryClient.invalidateQueries({ queryKey: ["profile", domain] }),
@@ -540,7 +549,7 @@ export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
                     入力を見直して再分析
                   </button>
                 )}
-                {entry.status === "active" && (
+                {["active", "failed"].includes(entry.status) && (
                   <button type="button" className="danger-link" onClick={() => remove(entry)}>
                     除外
                   </button>

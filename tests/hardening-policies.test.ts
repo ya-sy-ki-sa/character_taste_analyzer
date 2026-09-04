@@ -179,6 +179,187 @@ describe("provenance verifier", () => {
     });
   });
 
+  it("matches the observed malformed percent-encoded Wikipedia URL to its allowed source", async () => {
+    const allowedUrl =
+      "https://ja.wikipedia.org/wiki/%E5%8A%87%E5%A0%B4%E7%89%88BLEACH_The_DiamondDust_Rebellion_%E3%82%82%E3%81%86%E4%B8%80%E3%81%A4%E3%81%AE%E6%B0%B7%E8%BC%AA%E4%B8%B8";
+    const malformedUrl =
+      "https://ja.wikipedia.org/wiki/%E5%8A%87%E5%A0%B版BLEACH_The_DiamondDust_Rebellion_%E3%82%82%E3%81%86%E4%B8%80%E3%81%A4%E3%81%AE%E6%B0%B7%E8%BC%AA%E4%B8%B8";
+    const webSource: ProvenanceSource = {
+      ...source,
+      sourceId: "bleach-wikipedia",
+      inputPointer: null,
+      url: allowedUrl,
+      origin: "source",
+    };
+
+    const result = await verifyEvidenceReference(
+      evidence({ sourceRef: null, sourceUrl: malformedUrl, inputPointer: null, quote: null }),
+      [webSource],
+      new Set([allowedUrl]),
+    );
+
+    expect(result).toMatchObject({
+      sourceId: "bleach-wikipedia",
+      evidenceOrigin: "source",
+      verificationStatus: "source_attributed",
+    });
+  });
+
+  it("repairs multiple malformed UTF-8 percent encodings in the same observed Wikipedia URL", async () => {
+    const allowedUrl =
+      "https://ja.wikipedia.org/wiki/%E5%8A%87%E5%A0%B4%E7%89%88BLEACH_The_DiamondDust_Rebellion_%E3%82%82%E3%81%86%E4%B8%80%E3%81%A4%E3%81%AE%E6%B0%B7%E8%BC%AA%E4%B8%B8";
+    const malformedUrl =
+      "https://ja.wikipedia.org/wiki/%E5%8A%87%E5%A0%B版BLEACH_The_DiamondDust_Rebellion_%E3%82%82%E3%81%86%E4%B8%80%E3%81%A4%E3%81%AE%E6%B0%B7%E8%BC輪丸";
+    const webSource: ProvenanceSource = {
+      ...source,
+      sourceId: "bleach-wikipedia-multiple-repairs",
+      inputPointer: null,
+      url: allowedUrl,
+      origin: "source",
+    };
+
+    const result = await verifyEvidenceReference(
+      evidence({ sourceRef: null, sourceUrl: malformedUrl, inputPointer: null, quote: null }),
+      [webSource],
+      new Set([allowedUrl]),
+    );
+
+    expect(result).toMatchObject({
+      sourceId: "bleach-wikipedia-multiple-repairs",
+      evidenceOrigin: "source",
+      verificationStatus: "source_attributed",
+    });
+  });
+
+  it("repairs a duplicated incomplete UTF-8 prefix before the complete encoded character", async () => {
+    const suffix = "character-profile-".repeat(4);
+    const allowedUrl = `https://allowed.example/wiki/%E8%BC%AA-${suffix}`;
+    const malformedUrl = `https://allowed.example/wiki/%E8%BC輪-${suffix}`;
+    const webSource: ProvenanceSource = {
+      ...source,
+      sourceId: "utf8-prefix-repair",
+      inputPointer: null,
+      url: allowedUrl,
+      origin: "source",
+    };
+
+    const result = await verifyEvidenceReference(
+      evidence({ sourceRef: null, sourceUrl: malformedUrl, inputPointer: null, quote: null }),
+      [webSource],
+      new Set([allowedUrl]),
+    );
+
+    expect(result.sourceId).toBe("utf8-prefix-repair");
+  });
+
+  it("rejects percent-encoding corruption that requires more than three repairs", async () => {
+    const suffix = "x".repeat(100);
+    const allowedUrl = `https://allowed.example/wiki/%AA%AA%AA%AA-${suffix}`;
+    const malformedUrl = `https://allowed.example/wiki/%A%A%A%A-${suffix}`;
+
+    await expect(
+      verifyEvidenceReference(
+        evidence({ sourceRef: null, sourceUrl: malformedUrl, inputPointer: null, quote: null }),
+        [],
+        new Set([allowedUrl]),
+      ),
+    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+  });
+
+  it("rejects malformed percent encoding when repairs match more than one allowed URL", async () => {
+    const suffix = "x".repeat(100);
+    const malformedUrl = `https://allowed.example/wiki/%A-${suffix}`;
+
+    await expect(
+      verifyEvidenceReference(
+        evidence({ sourceRef: null, sourceUrl: malformedUrl, inputPointer: null, quote: null }),
+        [],
+        new Set([`https://allowed.example/wiki/%AA-${suffix}`, `https://allowed.example/wiki/%AB-${suffix}`]),
+      ),
+    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+  });
+
+  it.each([
+    ["deletion", "characterprofile-"],
+    ["insertion", "character--profile-"],
+    ["substitution", "character-profila-"],
+  ])("accepts a one-character %s in a sufficiently long path", async (_variation, changedSegment) => {
+    const repeatedPath = "character-profile-".repeat(4);
+    const allowedUrl = `https://allowed.example/articles/${repeatedPath}`;
+    const evidenceUrl = allowedUrl.replace("character-profile-", changedSegment);
+    const webSource: ProvenanceSource = {
+      ...source,
+      sourceId: "approximate-path",
+      inputPointer: null,
+      url: allowedUrl,
+      origin: "source",
+    };
+
+    const result = await verifyEvidenceReference(
+      evidence({ sourceRef: null, sourceUrl: evidenceUrl, inputPointer: null, quote: null }),
+      [webSource],
+      new Set([allowedUrl]),
+    );
+
+    expect(result.sourceId).toBe("approximate-path");
+  });
+
+  it("accepts a one-character difference in a sufficiently long query", async () => {
+    const path = "character-profile-".repeat(4);
+    const allowedUrl = `https://allowed.example/articles/${path}?chapter=1234567890`;
+    const evidenceUrl = allowedUrl.replace("1234567890", "1234567891");
+    const webSource: ProvenanceSource = {
+      ...source,
+      sourceId: "approximate-query",
+      inputPointer: null,
+      url: allowedUrl,
+      origin: "source",
+    };
+
+    const result = await verifyEvidenceReference(
+      evidence({ sourceRef: null, sourceUrl: evidenceUrl, inputPointer: null, quote: null }),
+      [webSource],
+      new Set([allowedUrl]),
+    );
+
+    expect(result.sourceId).toBe("approximate-query");
+  });
+
+  it.each([
+    [
+      "a different origin",
+      `https://other.example/articles/${"a".repeat(100)}`,
+      `https://allowed.example/articles/${"a".repeat(100)}`,
+    ],
+    [
+      "a difference beyond the cap",
+      `https://allowed.example/articles/${"b".repeat(6)}${"a".repeat(294)}`,
+      `https://allowed.example/articles/${"a".repeat(300)}`,
+    ],
+    ["a one-character difference in a short URL", "https://allowed.example/a", "https://allowed.example/b"],
+  ])("rejects %s", async (_case, evidenceUrl, allowedUrl) => {
+    await expect(
+      verifyEvidenceReference(
+        evidence({ sourceRef: null, sourceUrl: evidenceUrl, inputPointer: null, quote: null }),
+        [],
+        new Set([allowedUrl]),
+      ),
+    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+  });
+
+  it("rejects an approximate URL when two allowed sources are equally close", async () => {
+    const prefix = `https://allowed.example/articles/${"a".repeat(60)}`;
+    const evidenceUrl = `${prefix}x`;
+
+    await expect(
+      verifyEvidenceReference(
+        evidence({ sourceRef: null, sourceUrl: evidenceUrl, inputPointer: null, quote: null }),
+        [],
+        new Set([`${prefix}y`, `${prefix}z`]),
+      ),
+    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+  });
+
   it("keeps a non-direct mismatched quote source-attributed", async () => {
     const result = await verifyEvidenceReference(
       evidence({ quote: "一致しない要約", inferenceType: "paraphrase" }),
