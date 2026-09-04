@@ -8,8 +8,8 @@ export function Brand() {
         <span>C</span>
       </span>
       <span>
-        <strong>キャラ嗜好ラボ</strong>
-        <small>嗜好天体観測装置</small>
+        <strong>キャラ好みラボ</strong>
+        <small>好み観測装置</small>
       </span>
     </div>
   );

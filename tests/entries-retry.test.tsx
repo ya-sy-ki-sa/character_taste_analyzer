@@ -213,7 +213,7 @@ describe("解析エラーの再実行", () => {
   });
 });
 
-describe("嗜好候補の確認", () => {
+describe("好みの候補の確認", () => {
   it("同じ属性を一つにまとめ、惹かれ方を個別に表示する", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const path = String(input);

@@ -79,10 +79,10 @@ const briefCoverageStatusLabels: Readonly<Record<string, string>> = {
 const generationErrorLabels: Readonly<Record<string, string>> = {
   GENERATION_CONSTRAINT_VIOLATION: "指定した生成条件を満たせませんでした。",
   JOB_STEP_ATTEMPTS_EXHAUSTED: "再試行回数の上限に達しました。",
-  PROFILE_REBUILDING: "嗜好プロフィールを再構築しています。",
-  PROFILE_REQUIRED: "確認済みの嗜好プロフィールが必要です。",
-  PROFILE_SNAPSHOT_NOT_FOUND: "生成に使う嗜好情報を確認できませんでした。",
-  GENERATION_SELECTION_EMPTY: "生成に使う嗜好項目が選択されていません。",
+  PROFILE_REBUILDING: "好みプロフィールを再構築しています。",
+  PROFILE_REQUIRED: "確認済みの好みプロフィールが必要です。",
+  PROFILE_SNAPSHOT_NOT_FOUND: "生成に使う好みの情報を確認できませんでした。",
+  GENERATION_SELECTION_EMPTY: "生成に使う好みの項目が選択されていません。",
   GENERATION_SELECTION_CONFLICT: "使う項目と入れない項目の指定が重複しています。",
 };
 
@@ -136,7 +136,7 @@ export function graphNodeLabel(
 }
 
 export function snapshotItemTypeLabel(value: string): string {
-  return snapshotItemTypeLabels[value] ?? "その他の嗜好項目";
+  return snapshotItemTypeLabels[value] ?? "その他の好みの項目";
 }
 
 export function snapshotItemLabel(

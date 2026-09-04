@@ -30,7 +30,7 @@ test("隠しURLだけから入り、通常トップには導線を出さず、�
 
   await page.goto("/app/profile");
   await expect(page).toHaveURL(/\/app\/profile/u);
-  await expect(page.getByRole("heading", { name: "嗜好解析結果" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "好み分析結果" })).toBeVisible();
   await page.goto("/dark-lab/app/entries");
   await expect(page.getByRole("heading", { name: "ダークキャラクター登録" })).toBeVisible();
 });
@@ -85,25 +85,25 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
     timeout: 20_000,
   });
   await expect(review.getByRole("heading", { name: "ダーク化前からの専用差分" })).toBeVisible();
-  await expect(review.getByText("通常分析器や通常嗜好属性には対応させず", { exact: false })).toBeVisible();
-  await review.getByRole("button", { name: "この理解を確認して嗜好解析へ" }).click();
+  await expect(review.getByText("通常分析器や通常の好みの属性には対応させず", { exact: false })).toBeVisible();
+  await review.getByRole("button", { name: "この理解を確認して好み分析へ" }).click();
   await expect(review.getByRole("button", { name: "すべて確認してプロフィールへ反映" })).toBeVisible({
     timeout: 20_000,
   });
   await expect(review.getByText(/支配・洗脳された状態に惹かれる/u).first()).toBeVisible();
   const preferenceCard = review.locator(".card", { hasText: "この登録から読み取った「好き」" });
-  await preferenceCard.getByRole("button", { name: "＋ 嗜好候補を手動追加" }).click();
+  await preferenceCard.getByRole("button", { name: "＋ 好みの候補を手動追加" }).click();
   const addedPreferenceForm = preferenceCard.locator("form.manual-add-form").last();
-  await addedPreferenceForm.getByLabel("嗜好属性名").fill("E2E手動ダーク嗜好");
+  await addedPreferenceForm.getByLabel("好みの属性名").fill("E2E手動ダークな好み");
   await addedPreferenceForm.getByLabel("Ontology属性").selectOption({ label: "価値観の反転" });
-  await addedPreferenceForm.getByRole("button", { name: "嗜好候補を追加" }).click();
+  await addedPreferenceForm.getByRole("button", { name: "好みの候補を追加" }).click();
   let addedPreference = preferenceCard.locator("article", { hasText: "価値観の反転" });
   await expect(addedPreference).toBeVisible();
   await addedPreference.getByRole("button", { name: "編集" }).click();
-  await addedPreference.getByLabel("嗜好属性名").fill("E2E修正ダーク嗜好");
+  await addedPreference.getByLabel("好みの属性名").fill("E2E修正ダークな好み");
   await addedPreference.getByLabel("Ontology属性").selectOption({ label: "自我の保持" });
   await addedPreference.getByRole("button", { name: "修正を保存" }).click();
-  await expect(addedPreference.getByLabel("嗜好属性名")).toBeHidden({ timeout: 20_000 });
+  await expect(addedPreference.getByLabel("好みの属性名")).toBeHidden({ timeout: 20_000 });
   addedPreference = preferenceCard.locator("article", { hasText: "自我の保持" }).last();
   await expect(addedPreference).toBeVisible();
   await preferenceCard.getByRole("button", { name: "＋ 価値スタンスを手動追加" }).click();
@@ -166,7 +166,7 @@ test("対象外判定だけはユーザー確認で続行できる", async ({ pa
     timeout: 20_000,
   });
   await review.getByRole("button", { name: "対象として続行" }).click();
-  await expect(review.getByRole("button", { name: "この理解を確認して嗜好解析へ" })).toBeVisible({
+  await expect(review.getByRole("button", { name: "この理解を確認して好み分析へ" })).toBeVisible({
     timeout: 20_000,
   });
 });

@@ -90,7 +90,7 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
           <div>
             <dt>アプリ</dt>
             <dd>
-              <strong>キャラ嗜好ラボ</strong>
+              <strong>キャラ好みラボ</strong>
               <small>v0.1</small>
             </dd>
           </div>

@@ -344,8 +344,8 @@ const statusLabels: Record<string, string> = {
   submitted: "理解を解析中",
   understanding: "理解を解析中",
   understanding_review: "基本像の確認待ち",
-  analyzing: "嗜好を解析中",
-  analysis_review: "嗜好候補の確認待ち",
+  analyzing: "好みを解析中",
+  analysis_review: "好みの候補の確認待ち",
   active: "解析済み",
   failed: "解析エラー",
   archived: "除外済み",
@@ -361,7 +361,7 @@ const analysisErrorLabels: Record<string, string> = {
   EXTERNAL_PROVIDER_INVALID_RESPONSE: "LLMサービスから有効な応答を取得できませんでした",
   EXTERNAL_CITATION_NOT_ALLOWED: "LLMの回答に確認できない外部出典が含まれていました",
   EVIDENCE_SOURCE_INVALID: "LLMの回答に確認できない根拠が含まれていました",
-  PREFERENCE_ANALYSIS_EMPTY: "嗜好候補を生成できませんでした",
+  PREFERENCE_ANALYSIS_EMPTY: "好みの候補を生成できませんでした",
   JOB_ATTEMPT_SCOPE_REPAIRED: "解析を再実行してください",
 };
 
@@ -401,10 +401,10 @@ export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
   });
 
   async function remove(entry: EntrySummary) {
-    if (!window.confirm(`「${entry.title}」を嗜好集計から除外しますか？`)) return;
+    if (!window.confirm(`「${entry.title}」を好みの集計から除外しますか？`)) return;
     try {
       await api(`${apiBase}/entries/${entry.id}`, { method: "DELETE" });
-      setNotice({ tone: "success", message: "登録を除外し、嗜好プロフィールを再集計しました。" });
+      setNotice({ tone: "success", message: "登録を除外し、好みプロフィールを再集計しました。" });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["entries", domain] }),
         queryClient.invalidateQueries({ queryKey: ["profile", domain] }),
@@ -461,7 +461,7 @@ export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
         description={
           dark
             ? "注目する悪・支配・堕落・敵対状態を登録し、専用の多段解析と確認へ進みます。"
-            : "既成、既成（カスタム）、オリジナルを登録し、キャラクター理解を確認してから嗜好解析へ進みます。"
+            : "既成、既成（カスタム）、オリジナルを登録し、キャラクター理解を確認してから好み分析へ進みます。"
         }
         action={
           <button type="button" className="button button-primary" onClick={() => setFormOpen(true)}>
@@ -504,7 +504,7 @@ export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
                 <p>
                   {entry.registrationType === "customized_existing"
                     ? "基本像と改変差分を別々に抽出"
-                    : "キャラクター像と嗜好候補を二段階で確認"}
+                    : "キャラクター像と好みの候補を二段階で確認"}
                 </p>
               </div>
             </button>
@@ -1517,7 +1517,7 @@ function ReviewModal({
     }
   }
   async function rejectPreferenceItem(runId: string, targetId: string, label: string) {
-    if (!window.confirm(`「${label}」を嗜好候補から削除しますか？`)) return;
+    if (!window.confirm(`「${label}」を好みの候補から削除しますか？`)) return;
     setSubmitting(true);
     setError(undefined);
     try {
@@ -1528,7 +1528,7 @@ function ReviewModal({
       await detail.refetch();
       onUpdated();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "嗜好候補を削除できませんでした");
+      setError(caught instanceof Error ? caught.message : "好みの候補を削除できませんでした");
     } finally {
       setSubmitting(false);
     }
@@ -1546,7 +1546,7 @@ function ReviewModal({
       onUpdated();
       return true;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "嗜好候補の修正を保存できませんでした");
+      setError(caught instanceof Error ? caught.message : "好みの候補の修正を保存できませんでした");
       return false;
     } finally {
       setSubmitting(false);
@@ -1618,7 +1618,7 @@ function ReviewModal({
             <Card>
               <p className="eyebrow">DARK BASELINE SNAPSHOT</p>
               <h3>ダーク化前の比較ベースライン</h3>
-              <p className="section-help">通常分析器や通常嗜好属性には対応させず、差分理解だけに使います。</p>
+              <p className="section-help">通常分析器や通常の好みの属性には対応させず、差分理解だけに使います。</p>
               <dl className="review-summary">
                 {Object.entries(value.darkBaseline)
                   .filter(([key]) => key !== "id" && key !== "evidence" && key !== "uncertainties")
@@ -1707,7 +1707,7 @@ function ReviewModal({
               <h4>抽出属性</h4>
               {value.entry.status === "understanding_review" && (
                 <p className="review-edit-guidance">
-                  認識と違う項目は修正・削除でき、不足している属性は手動追加できます。保存した内容が次の嗜好解析に使われます。
+                  認識と違う項目は修正・削除でき、不足している属性は手動追加できます。保存した内容が次の好み分析に使われます。
                 </p>
               )}
               <div className="assertion-list">
@@ -1800,7 +1800,7 @@ function ReviewModal({
                   disabled={submitting}
                   onClick={() => confirm("understanding")}
                 >
-                  この理解を確認して嗜好解析へ
+                  この理解を確認して好み分析へ
                 </button>
               )}
             </Card>
@@ -1818,7 +1818,7 @@ function ReviewModal({
                 {value.preferenceAnalysis.assertions.length === 0 &&
                   value.preferenceAnalysis.valueStances.length === 0 && (
                     <Notice tone="info">
-                      この登録からは嗜好を特定できませんでした。これは正常な分析結果で、候補を追加せず確認できます。
+                      この登録からは好みを特定できませんでした。これは正常な分析結果で、候補を追加せず確認できます。
                     </Notice>
                   )}
                 {groupPreferenceAssertions(value.preferenceAnalysis.assertions).map((group) => (
@@ -2031,7 +2031,7 @@ function PreferenceAssertionForm({
   return (
     <form className="review-edit-form manual-add-form" onSubmit={submit}>
       <label>
-        <span>嗜好属性名</span>
+        <span>好みの属性名</span>
         <input required maxLength={200} value={rawLabel} onChange={(event) => setRawLabel(event.target.value)} />
       </label>
       <label>
@@ -2130,13 +2130,13 @@ function AddPreferenceAssertionControl(props: {
       domain={props.domain}
       ontologyAttributes={props.ontologyAttributes}
       disabled={props.disabled}
-      submitLabel="嗜好候補を追加"
+      submitLabel="好みの候補を追加"
       onCancel={() => setOpen(false)}
       onMutate={props.onMutate}
     />
   ) : (
     <button type="button" className="manual-add-button" disabled={props.disabled} onClick={() => setOpen(true)}>
-      ＋ 嗜好候補を手動追加
+      ＋ 好みの候補を手動追加
     </button>
   );
 }

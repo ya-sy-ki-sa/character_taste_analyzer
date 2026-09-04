@@ -46,7 +46,7 @@ const html = `<!doctype html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
-    <title>サードパーティライセンス | キャラ嗜好ラボ</title>
+    <title>サードパーティライセンス | キャラ好みラボ</title>
     <style>
       :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #12100f; color: #f2e9df; }
       body { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 36px 0 72px; line-height: 1.7; }
@@ -64,7 +64,7 @@ const html = `<!doctype html>
   </head>
   <body>
     <header>
-      <p><a href="/">← キャラ嗜好ラボへ戻る</a></p>
+      <p><a href="/">← キャラ好みラボへ戻る</a></p>
       <h1>サードパーティライセンス</h1>
       <p class="summary">
         Webサイトとしてデプロイされる成果物に組み込まれるオープンソースソフトウェア
@@ -88,7 +88,7 @@ ${rows}
       </div>
     </main>
     <footer>
-      <p>この一覧は依存関係のライセンス表示であり、キャラ嗜好ラボ自体のライセンスを示すものではありません。</p>
+      <p>この一覧は依存関係のライセンス表示であり、キャラ好みラボ自体のライセンスを示すものではありません。</p>
     </footer>
   </body>
 </html>

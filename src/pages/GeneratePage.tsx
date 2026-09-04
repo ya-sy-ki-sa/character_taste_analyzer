@@ -144,15 +144,15 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
       <PageHeading
         eyebrow="ORIGINAL CHARACTER STUDIO"
         title="オリジナルキャラクター作成"
-        description="固定した嗜好スナップショットから、使う項目と避ける項目を自分で選んで作成します。"
+        description="固定した好みのスナップショットから、使う項目と避ける項目を自分で選んで作成します。"
       />
       {error && <Notice tone="danger">{error}</Notice>}
       {notice && <Notice tone="success">{notice}</Notice>}
-      {snapshot.isPending && <Spinner label="生成に使う嗜好を準備しています" />}
+      {snapshot.isPending && <Spinner label="生成に使う好みを準備しています" />}
       {!snapshot.isPending && !snapshot.data?.snapshot && (
         <Card>
-          <EmptyState icon="✦" title="先に嗜好解析を確定してください">
-            確認済みの嗜好プロフィールが1世代以上必要です。
+          <EmptyState icon="✦" title="先に好み分析を確定してください">
+            確認済みの好みプロフィールが1世代以上必要です。
           </EmptyState>
         </Card>
       )}
@@ -161,13 +161,13 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
           <div className="section-title">
             <div>
               <p className="eyebrow">PROFILE SNAPSHOT</p>
-              <h2>使う嗜好を選ぶ</h2>
+              <h2>使う好みを選ぶ</h2>
             </div>
             <small>プロフィール世代 {snapshot.data.snapshot.generation} に固定</small>
           </div>
           <Card className="selection-table">
             <div className="selection-head">
-              <span>嗜好項目</span>
+              <span>好みの項目</span>
               <span>扱い</span>
             </div>
             {groupedSnapshotItems.map((item) => (
@@ -281,13 +281,13 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
             <p className="eyebrow">GENERATED ARCHIVE</p>
             <h2>作成履歴</h2>
           </div>
-          <small>生成だけでは嗜好プロフィールを変更しません</small>
+          <small>生成だけでは好みプロフィールを変更しません</small>
         </div>
         {generations.isPending && <Spinner />}
         {generations.data?.generations.length === 0 && (
           <Card>
             <EmptyState icon="✦" title="まだ作成履歴がありません">
-              嗜好項目とモードを選び、最初のキャラクターを作成できます。
+              好みの項目とモードを選び、最初のキャラクターを作成できます。
             </EmptyState>
           </Card>
         )}
@@ -410,7 +410,7 @@ function CharacterModal({ character, onClose }: { character: AnyGeneratedCharact
         </div>
         <section className="rationale">
           <p className="eyebrow">PREFERENCE BASIS</p>
-          <h3>嗜好との対応</h3>
+          <h3>好みとの対応</h3>
           <div>
             {character.briefCoverage.map((item) => (
               <span key={item.profileSnapshotItemId}>

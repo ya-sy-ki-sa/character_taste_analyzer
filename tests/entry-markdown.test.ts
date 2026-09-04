@@ -75,8 +75,8 @@ describe("character registration Markdown", () => {
         ],
       },
       preferenceAnalysis: {
-        summary: { userExplicitSummary: ["絶対に出力しない嗜好要約"] },
-        assertions: [{ raw_label: "絶対に出力しない嗜好候補" }],
+        summary: { userExplicitSummary: ["絶対に出力しない好みの要約"] },
+        assertions: [{ raw_label: "絶対に出力しない好みの候補" }],
         valueStances: [{ target_ref: "絶対に出力しない価値スタンス" }],
       },
     };
