@@ -22,6 +22,7 @@ import {
 import { csrfMiddleware, rateLimitMiddleware, requireSession, sessionMiddleware, verifyTurnstile } from "./auth";
 import { validateConfig } from "./config";
 import { createEmbeddingProvider } from "./embedding/providers";
+import { ModerationProviderError } from "./moderation/types";
 import { clearSessionCookie, readCookie, SESSION_COOKIE, sessionCookie } from "./lib/cookies";
 import {
   addDaysIso,
@@ -39,6 +40,7 @@ import { all, first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
 import { runDailyCleanup } from "./services/cleanup";
 import { createAccountExport } from "./services/exports";
+import { moderateEntryDraft, moderateGenerationInput, moderationRejectionMessage } from "./services/input-moderation";
 import { dispatchOutboxEvent, dispatchPendingOutbox, dispatchPendingProfileRebuild } from "./services/orchestration";
 import { createDataStoreStrategy } from "./storage/strategy";
 import type { AppVariables, Env } from "./types";
@@ -82,6 +84,13 @@ function requireIdempotencyKey(value?: string): string {
 
 function dispatchAfterCommit(context: Parameters<typeof requireSession>[0], eventId?: string) {
   if (eventId) context.executionCtx.waitUntil(dispatchOutboxEvent(context.env, eventId));
+}
+
+async function requireAllowed(
+  result: ReturnType<typeof moderateEntryDraft> | ReturnType<typeof moderateGenerationInput>,
+) {
+  const moderation = await result;
+  if (!moderation.allowed) throw new HTTPException(422, { message: moderationRejectionMessage(moderation) });
 }
 
 app.use("*", async (context, next) => {
@@ -312,6 +321,7 @@ app.post("/api/v1/identity-candidates", validateJson(identityCandidateRequestSch
 
 app.post("/api/v1/entries", validateJson(entrySubmissionSchema), async (context) => {
   const session = requireSession(context);
+  await requireAllowed(moderateEntryDraft(context.env, context.req.valid("json")));
   const result = await createDataStoreStrategy(context.env).createEntry(
     session.userId,
     "standard",
@@ -336,6 +346,7 @@ app.get("/api/v1/entries/:id", async (context) => {
 
 app.post("/api/v1/entries/:id/reanalysis", validateJson(entryReanalysisSchema), async (context) => {
   const session = requireSession(context);
+  await requireAllowed(moderateEntryDraft(context.env, context.req.valid("json").draft));
   const result = await createDataStoreStrategy(context.env).createEntryReanalysis(
     session.userId,
     "standard",
@@ -453,6 +464,7 @@ app.post("/api/v1/dark/identity-candidates", validateJson(identityCandidateReque
 
 app.post("/api/v1/dark/entries", validateJson(darkEntrySubmissionSchema), async (context) => {
   const session = requireSession(context);
+  await requireAllowed(moderateEntryDraft(context.env, context.req.valid("json")));
   const result = await createDataStoreStrategy(context.env).createEntry(
     session.userId,
     "dark",
@@ -492,6 +504,7 @@ app.post(
 
 app.post("/api/v1/dark/entries/:id/reanalysis", validateJson(darkEntryReanalysisSchema), async (context) => {
   const session = requireSession(context);
+  await requireAllowed(moderateEntryDraft(context.env, context.req.valid("json").draft));
   const result = await createDataStoreStrategy(context.env).createEntryReanalysis(
     session.userId,
     "dark",
@@ -655,6 +668,7 @@ app.get("/api/v1/dark/profile/graph", async (context) => {
 
 app.post("/api/v1/generation-requests", validateJson(generationRequestInputSchema), async (context) => {
   const session = requireSession(context);
+  await requireAllowed(moderateGenerationInput(context.env, context.req.valid("json")));
   const result = await createDataStoreStrategy(context.env).createGenerationRequest(
     session.userId,
     "standard",
@@ -681,6 +695,7 @@ app.delete("/api/v1/generation-requests/:id", async (context) => {
 
 app.post("/api/v1/dark/generation-requests", validateJson(generationRequestInputSchema), async (context) => {
   const session = requireSession(context);
+  await requireAllowed(moderateGenerationInput(context.env, context.req.valid("json")));
   const result = await createDataStoreStrategy(context.env).createGenerationRequest(
     session.userId,
     "dark",
@@ -828,6 +843,17 @@ app.delete("/api/v1/account", validateJson(accountDeletionSchema), async (contex
 
 app.onError((error, context) => {
   const requestId = context.get("requestId") || crypto.randomUUID();
+  if (error instanceof ModerationProviderError)
+    return context.json(
+      {
+        error: {
+          code: error.code,
+          message: "入力内容の事前チェックを完了できませんでした。時間をおいて再度お試しください。",
+          requestId,
+        },
+      },
+      503,
+    );
   if (error instanceof HTTPException) {
     const explicitCodes = new Set(["ORIGIN_REQUIRED", "ORIGIN_DENIED", "REGISTRATION_EXPIRED", "EXPORT_EXPIRED"]);
     const code = explicitCodes.has(error.message)

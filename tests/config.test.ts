@@ -9,6 +9,8 @@ function localEnv(overrides: Partial<Env> = {}): Env {
     AUTH_PEPPER: "test-pepper",
     LLM_PROVIDER: "replay",
     LLM_MODEL: "replay-v1",
+    MODERATION_PROVIDER: "fake",
+    MODERATION_MODEL: "fake-v1",
     EMBEDDING_PROVIDER: "fake",
     EMBEDDING_MODEL: "fake-v1",
     EMBEDDING_DIMENSIONS: "1536",
