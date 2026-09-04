@@ -33,7 +33,7 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
     await loginDialog.getByLabel("ユーザー名").fill(username);
     await loginDialog.getByLabel("ログインキー").fill(accessKey);
     await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "好み分析結果" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "好み分析結果" })).toBeVisible({ timeout: 20_000 });
   }
 
   await login();

@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
-import { readCookie, SESSION_COOKIE, sessionCookie } from "./lib/cookies";
+import { readSessionCookie, sessionCookie } from "./lib/cookies";
 import { addDaysIso, constantTimeEqual, hmacHex, nowIso, sha256Hex } from "./lib/crypto";
 import { first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
@@ -17,7 +17,7 @@ type SessionRow = {
 };
 
 export async function resolveSession(env: Env, cookieHeader?: string): Promise<Session | undefined> {
-  const token = readCookie(cookieHeader, SESSION_COOKIE);
+  const token = readSessionCookie(cookieHeader, env.ENVIRONMENT);
   if (!token) return undefined;
   const tokenDigest = await sha256Hex(token);
   const row = await first<SessionRow>(
@@ -44,7 +44,7 @@ export async function resolveSession(env: Env, cookieHeader?: string): Promise<S
 }
 
 export const sessionMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVariables }>(async (context, next) => {
-  const token = readCookie(context.req.header("Cookie"), SESSION_COOKIE);
+  const token = readSessionCookie(context.req.header("Cookie"), context.env.ENVIRONMENT);
   let session = await resolveSession(context.env, context.req.header("Cookie"));
   if (session && token) {
     const sessionDays = boundedInteger(context.env.SESSION_DAYS, 30, { max: 90 });
@@ -58,7 +58,7 @@ export const sessionMiddleware = createMiddleware<{ Bindings: Env; Variables: Ap
       `)
         .bind(expiresAt, now, session.id, session.expiresAt)
         .run();
-      context.header("Set-Cookie", sessionCookie(token, sessionDays * 86_400));
+      context.header("Set-Cookie", sessionCookie(token, sessionDays * 86_400, context.env.ENVIRONMENT));
       session = { ...session, expiresAt };
     }
     context.set("session", session);

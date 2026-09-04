@@ -1,4 +1,5 @@
 export const SESSION_COOKIE = "__Host-session";
+export const LOCAL_SESSION_COOKIE = "character-taste-session";
 
 export function readCookie(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
@@ -9,10 +10,23 @@ export function readCookie(header: string | undefined, name: string): string | u
   return undefined;
 }
 
-export function sessionCookie(token: string, maxAgeSeconds: number): string {
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=${maxAgeSeconds}; Path=/; HttpOnly; Secure; SameSite=Strict`;
+function sessionCookieName(environment: string): string {
+  return environment === "local" ? LOCAL_SESSION_COOKIE : SESSION_COOKIE;
 }
 
-export function clearSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict`;
+function sessionCookieAttributes(environment: string): string {
+  const secure = environment === "local" ? "" : "; Secure";
+  return `Path=/; HttpOnly${secure}; SameSite=Strict`;
+}
+
+export function readSessionCookie(header: string | undefined, environment: string): string | undefined {
+  return readCookie(header, sessionCookieName(environment));
+}
+
+export function sessionCookie(token: string, maxAgeSeconds: number, environment: string): string {
+  return `${sessionCookieName(environment)}=${encodeURIComponent(token)}; Max-Age=${maxAgeSeconds}; ${sessionCookieAttributes(environment)}`;
+}
+
+export function clearSessionCookie(environment: string): string {
+  return `${sessionCookieName(environment)}=; Max-Age=0; ${sessionCookieAttributes(environment)}`;
 }

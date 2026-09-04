@@ -23,7 +23,7 @@ import { csrfMiddleware, rateLimitMiddleware, requireSession, sessionMiddleware,
 import { validateConfig } from "./config";
 import { createEmbeddingProvider } from "./embedding/providers";
 import { ModerationProviderError } from "./moderation/types";
-import { clearSessionCookie, readCookie, SESSION_COOKIE, sessionCookie } from "./lib/cookies";
+import { clearSessionCookie, readSessionCookie, sessionCookie } from "./lib/cookies";
 import {
   addDaysIso,
   addMinutesIso,
@@ -275,19 +275,19 @@ app.post("/api/v1/sessions", validateJson(loginSchema), async (context) => {
   )
     .bind(crypto.randomUUID(), row.id, await sha256Hex(token), await sha256Hex(csrfToken), expiresAt, now, now)
     .run();
-  context.header("Set-Cookie", sessionCookie(token, days * 86_400));
+  context.header("Set-Cookie", sessionCookie(token, days * 86_400, context.env.ENVIRONMENT));
   return context.json(data({ user: { id: row.id, username: row.username }, csrfToken, expiresAt }));
 });
 
 app.delete("/api/v1/sessions", async (context) => {
-  const token = readCookie(context.req.header("Cookie"), SESSION_COOKIE);
+  const token = readSessionCookie(context.req.header("Cookie"), context.env.ENVIRONMENT);
   if (token)
     await context.env.DB.prepare(
       `UPDATE sessions SET revoked_at=?,revoke_reason='logout' WHERE token_digest=? AND revoked_at IS NULL`,
     )
       .bind(nowIso(), await sha256Hex(token))
       .run();
-  context.header("Set-Cookie", clearSessionCookie());
+  context.header("Set-Cookie", clearSessionCookie(context.env.ENVIRONMENT));
   return context.body(null, 204);
 });
 
@@ -837,7 +837,7 @@ app.delete("/api/v1/account", validateJson(accountDeletionSchema), async (contex
   ]);
   if (results.some((result) => !result.success))
     throw new HTTPException(500, { message: "アカウントを削除できませんでした" });
-  context.header("Set-Cookie", clearSessionCookie());
+  context.header("Set-Cookie", clearSessionCookie(context.env.ENVIRONMENT));
   return context.body(null, 204);
 });
 
