@@ -97,14 +97,20 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
   await addedPreferenceForm.getByLabel("好みの属性名").fill("E2E手動ダークな好み");
   await addedPreferenceForm.getByLabel("Ontology属性").selectOption({ label: "価値観の反転" });
   await addedPreferenceForm.getByRole("button", { name: "好みの候補を追加" }).click();
-  let addedPreference = preferenceCard.locator("article", { hasText: "価値観の反転" });
+  const addedPreferenceGroup = preferenceCard.locator("section.preference-attribute-group").filter({
+    has: page.getByRole("heading", { name: "価値観の反転", exact: true }),
+  });
+  let addedPreference = addedPreferenceGroup.locator("article").last();
   await expect(addedPreference).toBeVisible();
   await addedPreference.getByRole("button", { name: "編集" }).click();
   await addedPreference.getByLabel("好みの属性名").fill("E2E修正ダークな好み");
   await addedPreference.getByLabel("Ontology属性").selectOption({ label: "自我の保持" });
   await addedPreference.getByRole("button", { name: "修正を保存" }).click();
   await expect(addedPreference.getByLabel("好みの属性名")).toBeHidden({ timeout: 20_000 });
-  addedPreference = preferenceCard.locator("article", { hasText: "自我の保持" }).last();
+  const updatedPreferenceGroup = preferenceCard.locator("section.preference-attribute-group").filter({
+    has: page.getByRole("heading", { name: "自我の保持", exact: true }),
+  });
+  addedPreference = updatedPreferenceGroup.locator("article").last();
   await expect(addedPreference).toBeVisible();
   await preferenceCard.getByRole("button", { name: "＋ 価値スタンスを手動追加" }).click();
   const stanceForm = preferenceCard.locator("form.manual-add-form").last();

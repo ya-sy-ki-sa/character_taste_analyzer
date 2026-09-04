@@ -3181,6 +3181,11 @@
     line-height: 1.75;
   }
 
+  .usage-notes-beta {
+    color: var(--danger);
+    font-weight: 700;
+  }
+
   .usage-notes ul {
     display: grid;
     gap: 14px;

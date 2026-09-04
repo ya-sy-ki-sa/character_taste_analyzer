@@ -22,4 +22,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium firefox webkit
+      - name: Generate ephemeral E2E auth pepper
+        run: echo "AUTH_PEPPER=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: npm run verify

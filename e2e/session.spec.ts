@@ -12,6 +12,9 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
   await expect(createButton).toBeDisabled();
   await page.getByRole("button", { name: "利用上の注意を確認する" }).click();
   const usageNotesDialog = page.getByRole("dialog", { name: "利用上の注意" });
+  await expect(usageNotesDialog).toContainText(
+    "現在ベータ版として提供しているため、予告なくサービス内容の変更・中断・終了を行う場合があります。",
+  );
   await expect(usageNotesDialog).toContainText("個人情報や機密情報を入力しないでください");
   await expect(usageNotesDialog).toContainText("AIの分析結果には誤りが含まれる場合があります");
   await usageNotesDialog.getByRole("button", { name: "登録画面に戻る" }).click();

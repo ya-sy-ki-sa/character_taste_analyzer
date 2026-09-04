@@ -170,7 +170,9 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   expect(rejectedPreferenceLabel).toBeTruthy();
   const rejectedPreferenceGroup = preferenceList
     .locator(".preference-attribute-group")
-    .filter({ hasText: rejectedPreferenceLabel ?? "" })
+    .filter({
+      has: page.getByRole("heading", { name: rejectedPreferenceLabel ?? "", exact: true }),
+    })
     .first();
   const rejectedPreference = rejectedPreferenceGroup.locator(".preference-channel-item").first();
   const matchingPreferenceCount = await rejectedPreferenceGroup.locator(".preference-channel-item").count();

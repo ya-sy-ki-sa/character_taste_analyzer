@@ -79,6 +79,9 @@
   "env": {
     "offline": {
       "name": "character-taste-lab-v2-offline",
+      "secrets": {
+        "required": ["AUTH_PEPPER"]
+      },
       "vars": {
         "ENVIRONMENT": "local",
         "DATASTORE_STRATEGY": "d1",

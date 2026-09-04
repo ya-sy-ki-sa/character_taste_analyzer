@@ -343,6 +343,9 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
       <Modal title="利用上の注意" onClose={() => setShowUsageNotes(false)}>
         <div className="stack-form usage-notes">
           <p>安心して利用するため、ユーザー作成前に次の点を確認してください。</p>
+          <p className="usage-notes-beta">
+            現在ベータ版として提供しているため、予告なくサービス内容の変更・中断・終了を行う場合があります。
+          </p>
           <ul>
             <li>
               <strong>個人情報や機密情報を入力しないでください。</strong>
