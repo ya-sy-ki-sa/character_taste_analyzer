@@ -7,6 +7,8 @@ export function validateConfig(env: Env): ConfigValidation {
   if (!env.DB) errors.push("DB_BINDING_MISSING");
   if (!env.AUTH_PEPPER) errors.push("AUTH_PEPPER_MISSING");
   if (!env.LLM_PROVIDER || !env.LLM_MODEL) errors.push("LLM_PRIMARY_MISSING");
+  if (!env.MODERATION_PROVIDER || !["openai", "fake"].includes(env.MODERATION_PROVIDER))
+    errors.push("MODERATION_PROVIDER_INVALID");
   if ((env.LLM_FALLBACK_PROVIDER && !env.LLM_FALLBACK_MODEL) || (!env.LLM_FALLBACK_PROVIDER && env.LLM_FALLBACK_MODEL))
     errors.push("LLM_FALLBACK_INCOMPLETE");
   if (
@@ -18,12 +20,18 @@ export function validateConfig(env: Env): ConfigValidation {
   if (env.OPENAI_FLEX_ENABLED !== undefined && !["true", "false"].includes(env.OPENAI_FLEX_ENABLED))
     errors.push("OPENAI_FLEX_ENABLED_INVALID");
   if (
-    (env.LLM_PROVIDER === "openai" || env.LLM_FALLBACK_PROVIDER === "openai" || env.EMBEDDING_PROVIDER === "openai") &&
+    (env.LLM_PROVIDER === "openai" ||
+      env.LLM_FALLBACK_PROVIDER === "openai" ||
+      env.EMBEDDING_PROVIDER === "openai" ||
+      env.MODERATION_PROVIDER === "openai") &&
     !env.OPENAI_API_KEY
   )
     errors.push("OPENAI_API_KEY_MISSING");
   const usesOpenAi =
-    env.LLM_PROVIDER === "openai" || env.LLM_FALLBACK_PROVIDER === "openai" || env.EMBEDDING_PROVIDER === "openai";
+    env.LLM_PROVIDER === "openai" ||
+    env.LLM_FALLBACK_PROVIDER === "openai" ||
+    env.EMBEDDING_PROVIDER === "openai" ||
+    env.MODERATION_PROVIDER === "openai";
   const usesWorkersAi =
     env.LLM_PROVIDER === "workers_ai" ||
     env.LLM_FALLBACK_PROVIDER === "workers_ai" ||

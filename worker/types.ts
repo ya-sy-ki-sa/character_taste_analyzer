@@ -57,6 +57,8 @@ export type Env = {
   LLM_FALLBACK_MODEL?: string;
   OPENAI_FLEX_ENABLED?: string;
   OPENAI_API_KEY?: string;
+  MODERATION_PROVIDER?: "openai" | "fake";
+  MODERATION_MODEL?: string;
   AI_GATEWAY_ACCOUNT_ID?: string;
   AI_GATEWAY_GATEWAY_ID?: string;
   AI_GATEWAY_TOKEN?: string;

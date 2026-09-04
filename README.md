@@ -61,11 +61,15 @@ OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経�
 
 OpenAI Responses APIのFlex Processingは`OPENAI_FLEX_ENABLED=true`の場合だけ`service_tier: "flex"`を送信します。既定値は`false`で、未設定または`false`の場合は`service_tier`を送信せず、OpenAI側の`auto`動作を使用します。
 
+画面から入力され、LLMへ渡る自由記述は、保存・ジョブ作成より前にモデレーションします。`MODERATION_PROVIDER=openai`はAI Gateway経由でOpenAI Moderation API（既定モデル`omni-moderation-latest`）を使い、拒否時は該当入力欄とカテゴリを画面へ返して処理を終了します。Providerは専用interfaceの実装で切り替え可能です。外部APIを呼ばないoffline環境だけは`MODERATION_PROVIDER=fake`を明示指定します。
+
 ローカルの`.dev.vars`例:
 
 ```dotenv
 OPENAI_API_KEY=...
 OPENAI_FLEX_ENABLED=false
+MODERATION_PROVIDER=openai
+MODERATION_MODEL=omni-moderation-latest
 AI_GATEWAY_ACCOUNT_ID=...
 AI_GATEWAY_TOKEN=...
 ```
