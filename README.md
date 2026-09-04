@@ -1,6 +1,6 @@
-# キャラ嗜好ラボ
+# キャラ好みラボ
 
-好きなキャラクターを登録し、キャラクター像と「どこに・どう惹かれるか」を確認可能な根拠つきデータとして累積し、その嗜好からオリジナルキャラクターを作る日本語Webアプリです。React SPAとHono APIをCloudflare Workerで配信し、D1を正本にします。
+好きなキャラクターを登録し、キャラクター像と「どこに・どう惹かれるか」を確認可能な根拠つきデータとして累積し、その好みからオリジナルキャラクターを作る日本語Webアプリです。React SPAとHono APIをCloudflare Workerで配信し、D1を正本にします。
 
 詳細な設計と実装上の決定は[詳細設計書](docs/詳細設計/README.md)を参照してください。
 
@@ -10,9 +10,9 @@
 - 既成、既成（カスタム）、オリジナルの3方式によるキャラクター登録と、owner内identity候補のreuse/new選択
 - 既成キャラクターはWikipedia・Wikidata・OpenAI Web Searchによる検証可能な公開情報検索、オリジナルキャラクターはユーザー入力の基本情報を起点とし、任意参考情報・ユーザー解釈を分離した基本像抽出
 - カスタム登録における基本像と対象像の分離、改変・限定差分の構造化抽出
-- キャラクター理解と嗜好候補の2段階確認
+- キャラクター理解と好みの候補の2段階確認
 - 統制属性94件、44種類の反応経路、自由語、価値スタンス、検証状態・JSON Pointer付き根拠を分離した保存
-- 同一キャラ・同一作品の偏りを補正する決定論的な累積嗜好プロフィール
+- 同一キャラ・同一作品の偏りを補正する、決定論的に累積された好みプロフィール
 - GraphProjectionのサーバー生成と、Graphology・ForceAtlas2 Web Worker・Sigma.jsによるブラウザ内探索／描画
 - 固定ProfileSnapshot、項目選択、生成モード、不要な道徳補正を自動追加しない内部方針、決定的・意味的制約検査を使うオリジナルキャラクター生成
 - Workers AI、OpenAI Responses API、Replay、Fakeの明示的なProvider切替
@@ -20,7 +20,7 @@
 - 世代フェンス、D1 outbox、lease付き再配送、profile/graphの原子的cutover
 - CSRF、必須Origin、64 KiB body limit、CSP、HMAC資格情報、冪等quota予約、IP／ユーザーrate limit、所有者認可
 
-悪、非道徳、残酷さ、善への無関心、改心しないこと、ヴィラン、端役、一場面限定も有効な嗜好として保持します。善悪、ヒーロー／ヴィラン、主役／端役を集計係数に使わず、フィクション上の好意から現実の人格や加害意図を推測しません。
+悪、非道徳、残酷さ、善への無関心、改心しないこと、ヴィラン、端役、一場面限定も有効な好みとして保持します。善悪、ヒーロー／ヴィラン、主役／端役を集計係数に使わず、フィクション上の好意から現実の人格や加害意図を推測しません。
 
 ## ローカル起動
 
@@ -99,7 +99,7 @@ npm run verify
 - DDL契約: migration 6件、66テーブル、初期統制属性94件
 - as-built OpenAPI、Zod/JSON Schema、prompt hash、bundle budget、secret scan
 - coverage: deterministic core全体80%/branch 75%、状態・quota・provenance・generation validatorはbranch 90%
-- API smoke: 登録→理解確認→嗜好確認→プロフィール→グラフ→生成
+- API smoke: 登録→理解確認→好み確認→プロフィール→グラフ→生成
 - Playwright: 3方式登録画面と全主要導線、CSRF／Origin／水平権限／stored XSS、logout／session失効／account削除
 - 現行unitは15ファイル・102テスト。ローカルE2EはChromium全7件、Firefox smoke、mobile smokeの計9件を確認済みです。WebKit smokeはCIの`--with-deps`環境で必須実行します。
 
@@ -116,7 +116,7 @@ P0〜P2の縦断機能を実装済みです。`AUTH-01`は仕様として現状�
 - R2への大容量資料upload、PDF／画像抽出
 - Embedding Providerを利用した生成類似度検査（保存先は未実装）
 - assertion単位の訂正・却下と履歴比較UI
-- original characterの部分修正revisionとfeedbackの嗜好候補化
+- original characterの部分修正revisionとfeedbackの好みの候補化
 - public visibility/consent、運用console
 - 大規模GraphProjectionのcursor page、IndexedDB cache、neighbor API
 

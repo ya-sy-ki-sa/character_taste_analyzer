@@ -44,9 +44,9 @@ export function validateGenerationCoverage(
         violations.push(`Pointer不正: ${coverage.profileSnapshotItemId}:${pointer}`);
     }
     if (selection?.treatment === "required" && coverage.status !== "satisfied")
-      violations.push(`必須嗜好未達: ${coverage.profileSnapshotItemId}`);
+      violations.push(`必須の好み未達: ${coverage.profileSnapshotItemId}`);
     if (selection?.treatment === "prohibit" && coverage.status === "violated")
-      violations.push(`禁止嗜好違反: ${coverage.profileSnapshotItemId}`);
+      violations.push(`避ける好み違反: ${coverage.profileSnapshotItemId}`);
   }
   for (const id of expected.keys()) {
     const count = counts.get(id) ?? 0;

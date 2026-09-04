@@ -130,7 +130,7 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
           {projection.nodes.length}ノード / {projection.edges.length}エッジ
         </small>
       </div>
-      <div className="graph-stage" ref={container} role="application" aria-label="嗜好グラフ" />
+      <div className="graph-stage" ref={container} role="application" aria-label="好みのグラフ" />
       {selected && (
         <aside className="graph-selection">
           <strong>{selected.label}</strong>
@@ -199,7 +199,7 @@ export function TasteGraph({ projection }: { projection: GraphProjection }) {
         </div>
       </details>
       <p className="muted">
-        色はノードの種類を示します。善悪の価値序列ではありません。配置と接続探索はブラウザ内のGraphology／ForceAtlas2／Sigma.jsで行い、嗜好スコアは変更しません。
+        色はノードの種類を示します。善悪の価値序列ではありません。配置と接続探索はブラウザ内のGraphology／ForceAtlas2／Sigma.jsで行い、好みのスコアは変更しません。
       </p>
     </div>
   );

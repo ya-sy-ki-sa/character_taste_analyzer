@@ -264,10 +264,10 @@ describe("generation coverage validator", () => {
     expect(violations).toEqual(
       expect.arrayContaining([
         "treatment不一致: required",
-        "必須嗜好未達: required",
+        "必須の好み未達: required",
         "Pointer欠落: required",
         "未知のcoverage: unknown",
-        "禁止嗜好違反: prohibited",
+        "避ける好み違反: prohibited",
         "coverage exactly-once違反: required:2",
       ]),
     );

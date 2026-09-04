@@ -407,7 +407,7 @@ app.post(
     }
     if (input.decision === "reject_selected") {
       if (input.targetIds.length !== 1)
-        throw new HTTPException(422, { message: "削除する嗜好候補を1件選択してください" });
+        throw new HTTPException(422, { message: "削除する好みの候補を1件選択してください" });
       const result = await createDataStoreStrategy(context.env).rejectPreferenceAnalysisItem(
         session.userId,
         "standard",
@@ -565,7 +565,7 @@ app.post(
     }
     if (input.decision === "reject_selected") {
       if (input.targetIds.length !== 1)
-        throw new HTTPException(422, { message: "削除する嗜好候補を1件選択してください" });
+        throw new HTTPException(422, { message: "削除する好みの候補を1件選択してください" });
       const result = await createDataStoreStrategy(context.env).rejectPreferenceAnalysisItem(
         session.userId,
         "dark",
@@ -881,8 +881,8 @@ app.onError((error, context) => {
   }
   const message = error instanceof Error ? error.message : "予期しないエラーが発生しました";
   const known: Record<string, [number, string]> = {
-    PROFILE_REQUIRED: [409, "嗜好解析を1件以上確定してから作成してください"],
-    PROFILE_ITEM_NOT_FOUND: [404, "選択した嗜好項目が見つかりません"],
+    PROFILE_REQUIRED: [409, "好み分析を1件以上確定してから作成してください"],
+    PROFILE_ITEM_NOT_FOUND: [404, "選択した好みの項目が見つかりません"],
     GENERATION_SELECTION_CONFLICT: [422, "同じ項目を採用と禁止の両方には指定できません"],
     UNDERSTANDING_REVIEW_NOT_FOUND: [404, "確認対象が見つかりません"],
     UNDERSTANDING_REVIEW_TARGET_NOT_FOUND: [404, "修正対象が見つかりません"],
@@ -901,8 +901,8 @@ app.onError((error, context) => {
     ENTRY_REVISION_CONFLICT: [409, "登録内容が更新されました。画面を再読み込みしてください"],
     PROFILE_REBUILDING: [409, "プロフィールを再構築しています"],
     PREFERENCE_REVIEW_NOT_FOUND: [404, "確認対象が見つかりません"],
-    PREFERENCE_REVIEW_TARGET_NOT_FOUND: [404, "削除する嗜好候補が見つかりません"],
-    PREFERENCE_REVIEW_STATE_CHANGED: [409, "嗜好候補が更新されました。画面を再読み込みしてください"],
+    PREFERENCE_REVIEW_TARGET_NOT_FOUND: [404, "削除する好みの候補が見つかりません"],
+    PREFERENCE_REVIEW_STATE_CHANGED: [409, "好みの候補が更新されました。画面を再読み込みしてください"],
     IDENTITY_RESOLUTION_INVALID: [422, "選択した同一キャラクター候補を利用できません"],
     GENERATION_JOB_NOT_FOUND: [404, "生成ジョブが見つかりません"],
     GENERATION_NOT_FOUND: [404, "作成履歴が見つかりません"],

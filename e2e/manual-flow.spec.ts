@@ -26,7 +26,7 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await loginDialog.getByLabel("ログインキー").fill(created.accessKey);
   await loginDialog.getByRole("button", { name: "ログイン", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile/u);
-  await expect(page.getByRole("heading", { name: "嗜好解析結果" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "好み分析結果" })).toBeVisible();
 
   await page.locator('.side-nav a[href="/app/entries"]').click();
   await page.getByRole("button", { name: "＋ キャラクターを登録" }).click();
@@ -55,7 +55,7 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await page.getByRole("button", { name: "同一キャラクター候補を確認" }).click();
 
   await page.getByRole("button", { name: /黒曜卿UI/u }).click();
-  await expect(page.getByRole("button", { name: "この理解を確認して嗜好解析へ" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "この理解を確認して好み分析へ" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("heading", { name: "既成キャラクターの基本像" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "対象像・基本像からの差分" })).toBeVisible();
   await expect(page.getByText("物語での役割", { exact: true }).first()).toBeVisible();
@@ -143,7 +143,7 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await expect(customizationEvidence.getByText("原文照合済み").first()).toBeVisible();
   await expect(customizationEvidence.getByText("改変内容", { exact: true }).first()).toBeVisible();
   await expect(customizationEvidence.getByText("/customizationDescription", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "この理解を確認して嗜好解析へ" }).click();
+  await page.getByRole("button", { name: "この理解を確認して好み分析へ" }).click();
   await expect(page.getByRole("button", { name: "すべて確認してプロフィールへ反映" })).toBeVisible({
     timeout: 20_000,
   });

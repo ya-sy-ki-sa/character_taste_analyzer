@@ -11,7 +11,7 @@ const FIELD_LABELS: Record<string, string> = {
   characterBasicInfo: "キャラクター基本情報",
   referenceMaterial: "追加の参考情報",
   userCharacterView: "あなた自身の解釈",
-  preferenceContext: "嗜好の前提",
+  preferenceContext: "好みの前提",
   customizationDescription: "カスタム内容",
   "preference.likedReasons": "好きな理由",
   "preference.dislikedReasons": "苦手な理由",

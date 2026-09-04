@@ -27,7 +27,7 @@ const capabilities = [
     number: "05",
     title: "人が確認してから反映する",
     description:
-      "AIが作ったキャラクター理解と嗜好候補には、それぞれ確認段階があります。確認済みの登録だけをプロフィールに反映します。",
+      "AIが作ったキャラクター理解と好みの候補には、それぞれ確認段階があります。確認済みの登録だけをプロフィールに反映します。",
   },
   {
     number: "06",
@@ -41,8 +41,8 @@ const analysisSteps = [
   ["登録", "既成、カスタムした既成、オリジナルの3方式から登録します。"],
   ["理解を抽出", "入力と利用可能な公開情報から、キャラクターの特徴候補を整理します。"],
   ["理解を確認", "利用者が候補を追加・修正・削除し、対象の基本像を確定します。"],
-  ["嗜好を抽出", "確認済みの理解と好き・苦手の理由から、反応経路ごとの候補を作ります。"],
-  ["嗜好を確認", "不要な候補を除き、残した内容をプロフィールへ反映します。"],
+  ["好みを抽出", "確認済みの理解と好き・苦手の理由から、反応経路ごとの候補を作ります。"],
+  ["好みを確認", "不要な候補を除き、残した内容をプロフィールへ反映します。"],
   ["累積表示", "固定ルールで重複を補正し、一覧、グラフ、キャラクター生成に利用します。"],
 ] as const;
 
@@ -51,7 +51,7 @@ export function AnalyzerStatusPage({ domain }: { domain: AnalysisDomain }) {
   return (
     <main className={`analyzer-status-page ${dark ? "dark-lab-theme" : ""}`}>
       <nav className="status-nav" aria-label="ページナビゲーション">
-        <Link className="brand-link" to={dark ? "/dark-lab" : "/"} aria-label="キャラ嗜好ラボのトップへ">
+        <Link className="brand-link" to={dark ? "/dark-lab" : "/"} aria-label="キャラ好みラボのトップへ">
           <Brand />
         </Link>
         <Link className="button button-secondary" to={dark ? "/dark-lab" : "/"}>
@@ -69,8 +69,8 @@ export function AnalyzerStatusPage({ domain }: { domain: AnalysisDomain }) {
           </h1>
           <p className="status-lead">
             {dark
-              ? "通常Ontologyを使わず、悪・堕落・洗脳・操作・裏切り・ダークな道徳と関係性を専用属性で扱います。適格性、主体性、状態、差分、嗜好を多段で解析し、各段階を監査します。"
-              : "キャラ嗜好ラボは、好きなキャラクターの名前から性格を診断するものではありません。登録したキャラクターのどこに、どのような意味で惹かれるのかを、根拠と確認を残しながら整理するための分析器です。"}
+              ? "通常Ontologyを使わず、悪・堕落・洗脳・操作・裏切り・ダークな道徳と関係性を専用属性で扱います。適格性、主体性、状態、差分、好みを多段で解析し、各段階を監査します。"
+              : "キャラ好みラボは、好きなキャラクターの名前から性格を診断するものではありません。登録したキャラクターのどこに、どのような意味で惹かれるのかを、根拠と確認を残しながら整理するための分析器です。"}
           </p>
         </div>
         <aside className="status-verdict" aria-label="現在の評価">
@@ -78,7 +78,7 @@ export function AnalyzerStatusPage({ domain }: { domain: AnalysisDomain }) {
           <strong>
             探索的な
             <br />
-            個人内嗜好整理ツール
+            個人の好み整理ツール
           </strong>
           <p>自分の好みを振り返る用途には有用な基礎設計です。</p>
           <span>心理尺度・性格診断としては未検証</span>

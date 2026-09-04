@@ -27,7 +27,7 @@ export function Landing({
         <header className="landing-nav">
           <Brand />
           <span className="landing-device-id">
-            {dark ? "黒蝕式嗜好観測機 / CTL–ECLIPSE" : "CHARACTER TASTE OBSERVATORY / CTL–01"}
+            {dark ? "黒蝕式好み観測機 / CTL–ECLIPSE" : "CHARACTER TASTE OBSERVATORY / CTL–01"}
           </span>
           <div className="landing-nav-links">
             {dark && <Link to="/">通常観測機へ</Link>}
@@ -43,7 +43,7 @@ export function Landing({
               {dark ? (
                 <>
                   <span>光が欠けるほど、</span>
-                  <em>嗜好は満ちる。</em>
+                  <em>「好き」は満ちる。</em>
                 </>
               ) : (
                 <>
@@ -124,14 +124,14 @@ export function Landing({
 
 function ObservatoryScope({ dark }: { dark: boolean }) {
   return (
-    <section className="scope-bay" aria-label={dark ? "黒蝕式嗜好観測スコープ" : "嗜好観測スコープ"}>
+    <section className="scope-bay" aria-label={dark ? "黒蝕式好み観測スコープ" : "好み観測スコープ"}>
       <div
         className={`observatory-scope ${dark ? "eclipse-scope" : "constellation-scope"}`}
         role="img"
         aria-label={
           dark
             ? "欠けた目盛りと偏心した日食の中で、表情、信念、関係性、葛藤を結ぶ閉じない軌道を捉えています"
-            : "均等な目盛りを持つ円形スコープで、表情、信念、関係性、葛藤の四つの嗜好軸を観測します"
+            : "均等な目盛りを持つ円形スコープで、表情、信念、関係性、葛藤の四つの好み軸を観測します"
         }
       >
         <span className="scope-degree degree-0">000°</span>
@@ -160,7 +160,7 @@ function ObservatoryScope({ dark }: { dark: boolean }) {
           <span className="scope-axis axis-belief">信念</span>
           <span className="scope-axis axis-relation">関係性</span>
           <span className="scope-axis axis-conflict">葛藤</span>
-          <span className="scope-core">嗜好</span>
+          <span className="scope-core">好み</span>
         </div>
       </div>
       <p className="scope-note">{dark ? "閉じない軌道を検出" : "四つの軸を校正済み"}</p>
@@ -280,7 +280,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
     if (!created) return;
     const blob = new Blob(
       [
-        `キャラ嗜好ラボ アクセスキー\n\nユーザー名: ${created.user.username}\nユーザーID: ${created.user.id}\nアクセスキー: ${created.accessKey}\n\nこのキーは再発行・復旧できません。安全な場所に保管してください。\n`,
+        `キャラ好みラボ アクセスキー\n\nユーザー名: ${created.user.username}\nユーザーID: ${created.user.id}\nアクセスキー: ${created.accessKey}\n\nこのキーは再発行・復旧できません。安全な場所に保管してください。\n`,
       ],
       { type: "text/plain;charset=utf-8" },
     );
@@ -354,7 +354,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
             </li>
             <li>
               <strong>AIの分析結果には誤りが含まれる場合があります。</strong>
-              結果は嗜好を整理するための参考情報として利用し、重要な判断の根拠にはしないでください。
+              結果は好みを整理するための参考情報として利用し、重要な判断の根拠にはしないでください。
             </li>
             <li>
               <strong>収集したデータをサービス改善に利用することがあります。</strong>

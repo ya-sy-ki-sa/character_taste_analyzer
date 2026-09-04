@@ -26,15 +26,15 @@ export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
     queryFn: () => api<{ graph: GraphProjection | null }>(`${apiBase}/profile/graph?detail=standard`),
     enabled: Boolean(profile.data?.profile),
   });
-  if (profile.isPending) return <Spinner label="嗜好プロフィールを読み込んでいます" />;
-  if (profile.isError) return <Notice tone="danger">嗜好プロフィールを読み込めませんでした。</Notice>;
+  if (profile.isPending) return <Spinner label="好みプロフィールを読み込んでいます" />;
+  if (profile.isError) return <Notice tone="danger">好みプロフィールを読み込めませんでした。</Notice>;
   const value = profile.data.profile;
   if (!value && profile.data.freshness.status === "rebuilding")
     return (
       <>
         <PageHeading
           eyebrow="YOUR TASTE PROFILE"
-          title="嗜好解析結果"
+          title="好み分析結果"
           description="確認済みデータからプロフィールとグラフを再構築しています。"
         />
         <Card>
@@ -49,7 +49,7 @@ export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
       <>
         <PageHeading
           eyebrow="YOUR TASTE PROFILE"
-          title="嗜好解析結果"
+          title="好み分析結果"
           description="確認済みの登録だけを、根拠と明示性を保ったまま累積集計します。"
         />
         <Card>
@@ -62,7 +62,7 @@ export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
               </Link>
             }
           >
-            キャラクター理解と嗜好候補を確認すると、ここに最初のプロフィールが作られます。
+            キャラクター理解と好みの候補を確認すると、ここに最初のプロフィールが作られます。
           </EmptyState>
         </Card>
       </>
@@ -73,11 +73,11 @@ export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
     <>
       <PageHeading
         eyebrow="YOUR TASTE PROFILE"
-        title="嗜好解析結果"
+        title="好み分析結果"
         description="これまでの解析結果から、キャラクターのどこにどう惹かれるかを表示します。"
         action={
           <Link className="button button-primary" to={`${appBase}/generate`}>
-            ✦ この嗜好から作成
+            ✦ この好みから作成
           </Link>
         }
       />
@@ -187,7 +187,7 @@ export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
         <div className="section-title">
           <div>
             <p className="eyebrow">BROWSER GRAPH ENGINE</p>
-            <h2>嗜好のつながり</h2>
+            <h2>好みのつながり</h2>
           </div>
           <small>ブラウザ内で探索・描画</small>
         </div>

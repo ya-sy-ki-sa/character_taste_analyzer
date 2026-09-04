@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("登録・嗜好解析が0件でもオリジナルキャラクター作成画面が安定して表示される", async ({ page, request }) => {
+test("登録・好み分析が0件でもオリジナルキャラクター作成画面が安定して表示される", async ({ page, request }) => {
   const pageErrors: Error[] = [];
   page.on("pageerror", (error) => pageErrors.push(error));
 
@@ -71,7 +71,7 @@ test("登録・嗜好解析が0件でもオリジナルキャラクター作成�
 
   await page.goto("/app/generate");
   await expect(page.getByRole("heading", { name: "オリジナルキャラクター作成" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "先に嗜好解析を確定してください" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "先に好み分析を確定してください" })).toBeVisible();
   await expect(
     page.getByText(
       "悪や非道徳、善への無関心、無改心を指定しても、実は善人・悲劇的弁明・贖罪・処罰を自動では追加しません。",
