@@ -3,6 +3,7 @@ import type { ProfileDimension } from "../../shared/contracts/profile-response";
 export type DisplayProfileDimension = ProfileDimension & {
   responseChannels: Array<NonNullable<ProfileDimension["responseChannel"]>>;
   conditions: Record<string, unknown>[];
+  variants: ProfileDimension[];
   hasUnresolvedResponseChannel: boolean;
 };
 
@@ -33,9 +34,11 @@ export function groupProfileDimensions(dimensions: ProfileDimension[]): DisplayP
         responseChannels: item.responseChannel ? [item.responseChannel] : [],
         hasUnresolvedResponseChannel: item.responseChannel === null,
         conditions: [item.condition],
+        variants: [item],
       });
       continue;
     }
+    current.variants.push(item);
     current.hasUnresolvedResponseChannel ||= item.responseChannel === null;
     if (item.responseChannel && !current.responseChannels.includes(item.responseChannel)) {
       current.responseChannels.push(item.responseChannel);

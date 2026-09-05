@@ -1,0 +1,487 @@
+[
+  {
+    "caseId": "C11",
+    "preference": {
+      "likedReasons": "振り回されるだけではなく、太宰にも強く言い返せるところがいい。最後には相手を信用する関係が好きで、支配する側とされる側には見たくない。",
+      "dislikedReasons": "支配や一方的な服従として描く解釈は苦手。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "支配・一方的服従として固定する描写",
+        "quote": "支配や一方的な服従として描く解釈は苦手。",
+        "polarity": "negative",
+        "responseChannel": null,
+        "conditions": ["二人の関係を支配する側とされる側に固定する場合"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/dislikedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["中原中也", "太宰治"],
+          "relationships": ["中也と太宰の関係"],
+          "narrativePhases": [],
+          "conditions": ["二人の関係を支配する側とされる側に固定する場合"],
+          "exceptions": []
+        }
+      },
+      {
+        "rawLabel": "最後には相手を信用する関係",
+        "quote": "最後には相手を信用する関係が好き",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["ユーザーが好む関係の描写"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["中原中也", "太宰治"],
+          "relationships": ["中也と太宰が相手を信用する関係"],
+          "narrativePhases": [],
+          "conditions": ["ユーザーが好む関係の描写"],
+          "exceptions": []
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C11/preference-before.json",
+    "observedSummary": [
+      "中原中也が太宰治に振り回されるだけでなく、強く言い返せる描写を好む。",
+      "中原中也と太宰治が最終的に互いを信用する関係を好む。",
+      "二人の関係を支配・一方的な服従として描く解釈を苦手とする。",
+      "中原中也と太宰治の関係を友達以上と読むことは、公式設定ではなくユーザー自身の解釈である。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "最終的に互いを信用する関係",
+        "polarity": "positive",
+        "responseChannel": "narrative_interest"
+      },
+      {
+        "rawLabel": "支配・一方的服従として固定されない関係",
+        "polarity": "negative",
+        "responseChannel": "narrative_interest"
+      },
+      {
+        "rawLabel": "主体的",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      }
+    ]
+  },
+  {
+    "caseId": "C12",
+    "preference": {
+      "likedReasons": "ロイの肩書きより本人を見て、遠慮なく話せる旧友らしさが好き。妻子がいる公式設定は承知したうえで、ロイとの深い信頼に友情以上を読むのは私の楽しみ方。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "ヒューズがロイを肩書きより本人として見て接する旧友らしさ",
+        "quote": "ロイの肩書きより本人を見て、遠慮なく話せる旧友らしさが好き。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["ヒューズがロイに遠慮なく話す場合"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["マース・ヒューズ", "ロイ・マスタング"],
+          "relationships": ["ヒューズがロイを肩書きより本人として見て接する"],
+          "narrativePhases": [],
+          "conditions": ["ヒューズがロイに遠慮なく話す場合"],
+          "exceptions": []
+        }
+      },
+      {
+        "rawLabel": "ヒューズとロイの深い信頼に友情以上を読む楽しみ",
+        "quote": "妻子がいる公式設定は承知したうえで、ロイとの深い信頼に友情以上を読むのは私の楽しみ方。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["友情以上はユーザー自身の解釈"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["マース・ヒューズ", "ロイ・マスタング"],
+          "relationships": ["ヒューズとロイの深い信頼"],
+          "narrativePhases": [],
+          "conditions": ["友情以上はユーザー自身の解釈"],
+          "exceptions": ["ヒューズに妻子がいる公式設定を変更しない"]
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C12/preference-before.json",
+    "observedSummary": [
+      "マース・ヒューズ本人を、ロイの肩書きではなく一人の人物として見て、遠慮なく話せる旧友らしさを好んでいる。",
+      "妻子がいる公式設定を承知したうえで、ロイとの深い信頼に友情以上の関係性を読むことを、ユーザー自身の楽しみ方としている。",
+      "ロイとの友情以上の関係は公式設定として主張しておらず、ユーザー独自の解釈である。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "マース・ヒューズ本人への好感",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      },
+      {
+        "rawLabel": "ロイとの友情以上の関係性解釈への楽しみ",
+        "polarity": "positive",
+        "responseChannel": "narrative_interest"
+      }
+    ]
+  },
+  {
+    "caseId": "C04",
+    "preference": {
+      "likedReasons": "影山の言うことを聞くだけじゃなく、日向も要求を返すのが好き。ぶつかっても相手を選び直して、特別な関係になるように見ている。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "衝突しても日向と影山が互いを選び直す特別な関係",
+        "quote": "ぶつかっても相手を選び直して、特別な関係になるように見ている。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["衝突しても相手を選び直す関係というユーザーの解釈"],
+        "attributeStableKey": "relationship.rivalrous",
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["日向翔陽", "影山飛雄"],
+          "relationships": ["日向と影山が互いを選び直す"],
+          "narrativePhases": [],
+          "conditions": ["衝突しても相手を選び直す関係というユーザーの解釈"],
+          "exceptions": ["公式の恋愛関係とは断定しない"]
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C04/preference-before.json",
+    "observedSummary": [
+      "影山の言うことを日向が一方的に聞くだけでなく、日向も影山に要求を返す相互的な関係が好き。",
+      "二人が衝突しても相手を選び直し、特別な関係になっていくように見ている。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "日向と影山の相互的な要求",
+        "polarity": "positive",
+        "responseChannel": "narrative_interest"
+      },
+      {
+        "rawLabel": "競争・宿敵",
+        "polarity": "positive",
+        "responseChannel": "narrative_interest"
+      }
+    ]
+  },
+  {
+    "caseId": "B08",
+    "preference": {
+      "likedReasons": "怯えて自信がなさそうなところから、仲間のために前に出る変化が好き。強いから好きというより、怖さを抱えたまま関わろうとするところが気になる。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "怖さを抱えたまま仲間に関わろうとする",
+        "quote": "怖さを抱えたまま関わろうとするところが気になる。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["怖さを抱えながら関わる場合"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["乙骨憂太", "仲間"],
+          "relationships": ["乙骨憂太が仲間に関わろうとする"],
+          "narrativePhases": [],
+          "conditions": ["怖さを抱えながら関わる場合"],
+          "exceptions": ["恐怖単独への好意ではない", "強さそのものへの好意とは断定しない"]
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/B08/preference-before.json",
+    "observedSummary": [
+      "乙骨憂太が、怯えて自信がなさそうな状態から、仲間のために前に出るよう変化する点を好きだと述べている。",
+      "強さそのものではなく、怖さを抱えたまま他者と関わろうとする点に惹かれている。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "主体的",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      },
+      {
+        "rawLabel": "成長",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      },
+      {
+        "rawLabel": "恐れ",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      }
+    ]
+  },
+  {
+    "caseId": "B09",
+    "preference": {
+      "likedReasons": "家庭のことを抱えて人を遠ざける感じと、それでも自分の気持ちを見つけていくところが好き。冷たい性格だけで終わらないのがいい。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "家庭事情で人を遠ざけても自分の気持ちを見つける変化",
+        "quote": "家庭のことを抱えて人を遠ざける感じと、それでも自分の気持ちを見つけていくところが好き。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["家庭の事情を抱えて他者を遠ざけても自分の気持ちを見つけていく場合"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["轟焦凍"],
+          "relationships": [],
+          "narrativePhases": [],
+          "conditions": ["家庭の事情を抱えて他者を遠ざけても自分の気持ちを見つけていく場合"],
+          "exceptions": ["不変性全般への嫌悪には広げない"]
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/B09/preference-before.json",
+    "observedSummary": [
+      "家庭のことを抱えて他者を遠ざける側面が好き。",
+      "自分の気持ちを見つけていく過程が好き。",
+      "冷たい性格だけで終わらない人物像を好ましいと感じている。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "孤立",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      },
+      {
+        "rawLabel": "成長",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      },
+      {
+        "rawLabel": "変化しない",
+        "polarity": "negative",
+        "responseChannel": "character_craft_appreciation"
+      }
+    ]
+  },
+  {
+    "caseId": "D04",
+    "preference": {
+      "likedReasons": "当時は自分と近い子が頑張る感じがして応援していた。今見るとその頃の自分まで思い出して、強さの順位とは別に大切なキャラになっている。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "自分に近い悟飯が頑張る姿を応援する",
+        "quote": "当時は自分と近い子が頑張る感じがして応援していた。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["ユーザーが子どもの頃の応援"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["孫悟飯"],
+          "relationships": [],
+          "narrativePhases": [],
+          "conditions": ["ユーザーが子どもの頃の応援"],
+          "exceptions": ["現在も類似感が続くとは断定しない"]
+        }
+      },
+      {
+        "rawLabel": "悟飯から当時の自分を思い出す大切さ",
+        "quote": "今見るとその頃の自分まで思い出して、強さの順位とは別に大切なキャラになっている。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["ユーザーの現在の好意"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["孫悟飯"],
+          "relationships": [],
+          "narrativePhases": [],
+          "conditions": ["ユーザーの現在の好意"],
+          "exceptions": ["強さの順位は好意の理由ではない"]
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/D04/preference-before.json",
+    "observedSummary": [
+      "子どもの頃、自分と近いと感じた孫悟飯が頑張る姿を応援していた。",
+      "現在見ると当時の自分を思い出し、強さの順位とは別に大切なキャラクターだと感じている。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "孫悟飯という人物を大切なキャラクターと感じる",
+        "polarity": "positive",
+        "responseChannel": "person_liking"
+      },
+      {
+        "rawLabel": "孫悟飯を通じて当時の自分を思い出す",
+        "polarity": "positive",
+        "responseChannel": "nostalgic_attachment"
+      },
+      {
+        "rawLabel": "自分と近い人物として感じる",
+        "polarity": "positive",
+        "responseChannel": "actual_similarity"
+      },
+      {
+        "rawLabel": "孫悟飯が頑張る姿を応援する",
+        "polarity": "positive",
+        "responseChannel": "root_for"
+      }
+    ]
+  },
+  {
+    "caseId": "D09",
+    "preference": {
+      "likedReasons": "無口で格好をつけている感じに昔は憧れた。今は少し照れくさいけれど、あの頃の自分の格好良さの基準を思い出せるから好き。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "飛影の無口で格好をつける感じへの過去の憧れ",
+        "quote": "無口で格好をつけている感じに昔は憧れた。",
+        "polarity": "positive",
+        "responseChannel": "admiration",
+        "conditions": ["ユーザーが昔抱いていた憧れ"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["飛影"],
+          "relationships": [],
+          "narrativePhases": [],
+          "conditions": ["ユーザーが昔抱いていた憧れ"],
+          "exceptions": ["飛影のようになりたいという願望とは断定しない"]
+        }
+      },
+      {
+        "rawLabel": "飛影から当時の格好良さの基準を思い出す好意",
+        "quote": "今は少し照れくさいけれど、あの頃の自分の格好良さの基準を思い出せるから好き。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["ユーザーの現在の好意"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["飛影"],
+          "relationships": [],
+          "narrativePhases": [],
+          "conditions": ["ユーザーの現在の好意"],
+          "exceptions": ["現在の自己同一化願望を補わない"]
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/D09/preference-before.json",
+    "observedSummary": [
+      "飛影の「無口で格好をつけている感じ」に昔は憧れていた。",
+      "現在も、飛影を通して当時の自分の「格好良さ」の基準を思い出せるため好きである。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "寡黙",
+        "polarity": "positive",
+        "responseChannel": "nostalgic_attachment"
+      },
+      {
+        "rawLabel": "寡黙",
+        "polarity": "positive",
+        "responseChannel": "wishful_identification"
+      }
+    ]
+  },
+  {
+    "caseId": "D14",
+    "preference": {
+      "likedReasons": "最初は下手でも何度も練習するところが好きだった。休み時間に友達とシュートを打ったことまで思い出すので、今の自分にはただの努力家キャラ以上の意味がある。昔に戻りたいとまで言いたいわけではなく、あの時間があったことを大事にしたい。人を煽る態度や乱暴な部分まで、全部正しいと考えてはいない。",
+      "dislikedReasons": "人を煽ったり乱暴に振る舞う部分は苦手。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "花道と結びつく友人との過去の時間を大事にする",
+        "quote": "昔に戻りたいとまで言いたいわけではなく、あの時間があったことを大事にしたい。",
+        "polarity": "positive",
+        "responseChannel": null,
+        "conditions": ["ユーザーの現在の好意", "休み時間に友達とシュートを打った記憶"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/likedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["桜木花道", "友達"],
+          "relationships": [],
+          "narrativePhases": [],
+          "conditions": ["ユーザーの現在の好意", "休み時間に友達とシュートを打った記憶"],
+          "exceptions": ["昔に戻りたいという願望ではない"]
+        }
+      },
+      {
+        "rawLabel": "人を煽ったり乱暴に振る舞う部分",
+        "quote": "人を煽ったり乱暴に振る舞う部分は苦手。",
+        "polarity": "negative",
+        "responseChannel": null,
+        "conditions": ["花道が人を煽ったり乱暴に振る舞う場合"],
+        "attributeStableKey": null,
+        "inputPointer": "/preference/dislikedReasons",
+        "context": {
+          "schemaVersion": "2",
+          "entryScope": null,
+          "subjects": ["桜木花道"],
+          "relationships": [],
+          "narrativePhases": [],
+          "conditions": ["花道が人を煽ったり乱暴に振る舞う場合"],
+          "exceptions": ["練習を続ける姿への好意とは別"]
+        }
+      }
+    ],
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/D14/preference-before.json",
+    "observedSummary": [
+      "桜木花道について、最初は下手でも何度も練習する点が好き。",
+      "休み時間に友達とシュートを打った記憶と結びつき、現在の自分にとって単なる努力家キャラ以上の意味がある。",
+      "当時に戻りたいというより、その時間が存在したことを大切にしたい。",
+      "人を煽る態度や乱暴な部分は苦手で、それらをすべて正しいとは考えていない。"
+    ],
+    "observedAssertions": [
+      {
+        "rawLabel": "桜木花道と結びついた過去の時間",
+        "polarity": "positive",
+        "responseChannel": "nostalgic_attachment"
+      },
+      {
+        "rawLabel": "主体的",
+        "polarity": "positive",
+        "responseChannel": "meaningful_appreciation"
+      },
+      {
+        "rawLabel": "人を煽る態度",
+        "polarity": "negative",
+        "responseChannel": "person_liking"
+      },
+      {
+        "rawLabel": "乱暴に振る舞うこと",
+        "polarity": "negative",
+        "responseChannel": "person_liking"
+      }
+    ]
+  }
+]

@@ -1,4 +1,5 @@
 import type { GenerationSnapshotItem } from "../../shared/contracts/generation-response";
+import { preferenceContextLabel } from "../../shared/preference-context";
 
 export type GenerationSnapshotItemGroup = GenerationSnapshotItem & {
   itemIds: string[];
@@ -33,7 +34,7 @@ export function groupGenerationSnapshotItems(items: GenerationSnapshotItem[]): G
   for (const item of items) {
     const key = `${item.type}\u0000${item.stableKey}`;
     const responseChannel = typeof item.payload.responseChannel === "string" ? item.payload.responseChannel : null;
-    const condition = asRecord(item.payload.condition);
+    const condition = asRecord(item.payload.condition ?? item.payload.scope);
     const current = groups.get(key);
     if (!current) {
       groups.set(key, {
@@ -78,27 +79,5 @@ export function expandSnapshotTreatments(
 }
 
 export function snapshotConditionLabel(value: unknown): string {
-  const condition = asRecord(value) ?? {};
-  const fields = [
-    ["entryScope", "対象"],
-    ["scope", "対象"],
-    ["freeText", "対象"],
-    ["subjects", "人物"],
-    ["relationships", "関係"],
-    ["narrativePhases", "時期"],
-    ["conditions", "条件"],
-    ["exceptions", "例外"],
-  ] as const;
-  return fields
-    .flatMap(([key, label]) => {
-      const raw = condition[key];
-      const text =
-        typeof raw === "string"
-          ? raw
-          : Array.isArray(raw)
-            ? raw.filter((item) => typeof item === "string").join("、")
-            : "";
-      return text.trim() ? [`${label}：${text}`] : [];
-    })
-    .join(" ／ ");
+  return preferenceContextLabel(value);
 }

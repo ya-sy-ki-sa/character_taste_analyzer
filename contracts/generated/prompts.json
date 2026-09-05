@@ -1,7 +1,7 @@
 {
   "preference": {
-    "promptVersion": "preference/v3.0.0",
-    "sha256": "1b839ac4eb3c8b3ea33ca351a56ae05c07bda1c0cfa774a74929fd93e2edde98"
+    "promptVersion": "preference/v3.1.0",
+    "sha256": "d8ffc77d3e2b3bec2f89f1f5b1c185a07f355d273625971d76e36fcecf02027b"
   },
   "citationVerification": {
     "promptVersion": "external-id/v1.0.0",
@@ -16,19 +16,19 @@
     "sha256": "ee24922ce076eeaf3bd539f232ea10215a0ddd152349cec41347cb6a37047d11"
   },
   "darkGeneration": {
-    "promptVersion": "dark_generation/v2.1.0",
-    "sha256": "7700685fe0db8a9c48cf450bf07fc41156e3bfdcf25331c6c4f4b30e42408ce0"
+    "promptVersion": "dark_generation/v2.2.0",
+    "sha256": "64ce1155bc9c4da9d70f4fd47cc4e5323b9965c9652b1e7b461cea02a92f15f5"
   },
   "analysis": {
     "promptVersion": "character_understanding/v2.0.0",
     "sha256": "03d93f1998073ba3504032140518332aec6ebc3e99b2b9b4eb3307270caa288c"
   },
   "generation": {
-    "promptVersion": "character_generation/v2.1.0",
-    "sha256": "6da203df77b7223ad148843fdcca622da785d5f5d4214ff723a2744ff5349b93"
+    "promptVersion": "character_generation/v2.2.0",
+    "sha256": "1b630794495973068cc3657ef5270a93ad32affbfe3149db45b4852acaf8a4e7"
   },
   "generationValidation": {
-    "promptVersion": "generation_validation/v2.1.0",
-    "sha256": "6737449db498a0254aa04375594c2f64a74b449b36c5ded9b4b3f27b475d5d54"
+    "promptVersion": "generation_validation/v2.2.0",
+    "sha256": "2dc428309bf1c51e8fef0808efed163643c4d4defa0641b7b5cbd3fb227eb914"
   }
 }

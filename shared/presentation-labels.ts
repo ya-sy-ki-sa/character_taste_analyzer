@@ -1,5 +1,6 @@
+import { preferenceTargetLabel } from "./preference-context";
 import { responseChannelLabel } from "./response-channels";
-import { valueOrientationLabel, valueStanceLabel } from "./value-stance-labels";
+import { valueStanceLabel } from "./value-stance-labels";
 
 const attributeCategoryLabels: Readonly<Record<string, string>> = {
   aesthetic: "見た目・美的表現",
@@ -128,8 +129,11 @@ export function graphNodeLabel(
   if (node.type === "value_stance" && typeof node.attributes.stance === "string") {
     const separator = node.label.lastIndexOf("：");
     const targetRef = separator >= 0 ? node.label.slice(0, separator) : node.label;
-    const targetLabel =
-      attributeLabels.get(targetRef) ?? (/^[a-z0-9_.-]+$/u.test(targetRef) ? "未分類の属性" : targetRef);
+    const targetLabel = preferenceTargetLabel(
+      typeof node.attributes.targetRef === "string" ? node.attributes.targetRef : targetRef,
+      attributeLabels,
+      node.attributes,
+    );
     return `${targetLabel}：${valueStanceLabel(node.attributes.stance)}`;
   }
   return node.label;
@@ -154,17 +158,9 @@ export function snapshotItemLabel(
   if (item.type !== "value_stance") return item.label;
 
   const targetRef = typeof item.payload.targetRef === "string" ? item.payload.targetRef : "";
-  const orientation = typeof item.payload.orientation === "string" ? item.payload.orientation : "";
   const stance = typeof item.payload.stance === "string" ? item.payload.stance : "";
   const storedTarget = item.label.includes("：") ? item.label.slice(0, item.label.lastIndexOf("：")) : item.label;
-  const internalKeyPattern = /^[a-z0-9_.-]+$/u;
-  const targetLabel =
-    attributeLabels.get(targetRef) ??
-    (!internalKeyPattern.test(storedTarget)
-      ? storedTarget
-      : orientation
-        ? valueOrientationLabel(orientation)
-        : "未分類の属性");
+  const targetLabel = preferenceTargetLabel(targetRef || storedTarget, attributeLabels, item.payload.scope);
 
   return `${targetLabel}：${valueStanceLabel(stance)}`;
 }

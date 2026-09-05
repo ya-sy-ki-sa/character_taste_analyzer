@@ -106,10 +106,12 @@ describe("scoped generation input", () => {
         conditions: ["対等な交渉"],
         exceptions: ["仲間には当てはまらない"],
       }),
-    ).toBe("対象：決戦 ／ 人物：敵 ／ 関係：敵対 ／ 時期：終盤 ／ 条件：対等な交渉 ／ 例外：仲間には当てはまらない");
+    ).toBe(
+      "対象範囲：決戦 ／ 対象人物：敵 ／ 関係：敵対 ／ 物語上の時期：終盤 ／ 条件：対等な交渉 ／ 例外・除外：仲間には当てはまらない",
+    );
     expect(snapshotConditionLabel(null)).toBe("");
-    expect(snapshotConditionLabel({ scope: "限定場面", ignored: true })).toBe("対象：限定場面");
-    expect(snapshotConditionLabel({ subjects: [1, "相手"], conditions: null })).toBe("人物：相手");
+    expect(snapshotConditionLabel({ scope: "限定場面", ignored: true })).toBe("対象範囲：限定場面");
+    expect(snapshotConditionLabel({ subjects: [1, "相手"], conditions: null })).toBe("対象人物：相手");
   });
   it("preserves reaction and polarity and excludes prohibited stances from requirements", () => {
     const scope = { schemaVersion: "2", entryScope: "敵対時のみ", conditions: ["憧れの対象ではない"] };

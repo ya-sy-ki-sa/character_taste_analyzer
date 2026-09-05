@@ -1,5 +1,5 @@
 import type { GenerationRequestInput } from "../../../shared/contracts/generation";
-import { snapshotItemLabel, snapshotItemTypeLabel } from "../../../shared/presentation-labels";
+import { snapshotItemTypeLabel } from "../../../shared/presentation-labels";
 import { responseChannelLabel } from "../../../shared/response-channels";
 import { Card } from "../../components/Ui";
 import { type SnapshotTreatment, snapshotConditionLabel } from "../../lib/generation-snapshot-items";
@@ -85,7 +85,10 @@ export function GenerationConditions({
         {groupedSnapshotItems.map((item) => (
           <div className="selection-row" key={item.id}>
             <span>
-              <strong>{snapshotItemLabel(item)}</strong>
+              <strong>{item.label}</strong>
+              {typeof item.payload.originalLabel === "string" && item.payload.originalLabel !== item.label && (
+                <small>表現：{item.payload.originalLabel}</small>
+              )}
               <small>
                 {snapshotItemTypeLabel(item.type)}
                 {item.responseChannels.length || item.hasUnresolvedResponseChannel
@@ -111,6 +114,10 @@ export function GenerationConditions({
                                   ? individual.payload.responseChannel
                                   : null,
                               )}
+                          {typeof individual.payload.originalLabel === "string" &&
+                          individual.payload.originalLabel !== individual.label
+                            ? ` · 表現：${individual.payload.originalLabel}`
+                            : ""}
                           {scope ? ` · ${scope}` : ""}
                         </span>
                         <select

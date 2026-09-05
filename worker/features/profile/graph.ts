@@ -1,5 +1,10 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import type { GraphProjection } from "../../../shared/contracts/profile-response";
+import {
+  preferenceContextEntries,
+  preferenceContextRecord,
+  preferenceTargetLabel,
+} from "../../../shared/preference-context";
 import { graphNodeLabel, representationTypeLabel } from "../../../shared/presentation-labels";
 import { responseChannelLabel } from "../../../shared/response-channels";
 import { valueStanceLabel } from "../../../shared/value-stance-labels";
@@ -70,6 +75,8 @@ export async function rebuildGraphProjection(
     orientation: string;
     stance: string;
     target_ref: string;
+    attribute_label: string | null;
+    scope_json: string;
     confidence: number;
     analysis_domain: AnalysisDomain;
   }>(repository.selectValueStanceAssertions(env.DB, [ownerUserId]));
@@ -80,6 +87,7 @@ export async function rebuildGraphProjection(
   for (const domain of ["standard", "dark"] as const)
     putNode({ id: `u:${domain}`, type: "user", label: "あなた", weight: 1, attributes: { analysisDomain: domain } });
   for (const dimension of dimensions) {
+    const condition = preferenceContextRecord(dimension.condition_json);
     const rawHash = dimension.attribute_definition_id
       ? null
       : (await sha256Hex(normalizeIdentityPart(dimension.raw_label ?? ""))).slice(0, 24);
@@ -110,7 +118,12 @@ export async function rebuildGraphProjection(
         weight: dimension.positive_score,
         confidence: dimension.confidence,
         evidenceCount: dimension.evidence_count,
-        attributes: { profileDimensionId: dimension.id, analysisDomain: dimension.analysis_domain },
+        attributes: {
+          ...condition,
+          originalLabel: dimension.raw_label,
+          profileDimensionId: dimension.id,
+          analysisDomain: dimension.analysis_domain,
+        },
       });
     if (dimension.negative_score > 0)
       putEdge({
@@ -122,7 +135,12 @@ export async function rebuildGraphProjection(
         weight: dimension.negative_score,
         confidence: dimension.confidence,
         evidenceCount: dimension.evidence_count,
-        attributes: { profileDimensionId: dimension.id, analysisDomain: dimension.analysis_domain },
+        attributes: {
+          ...condition,
+          originalLabel: dimension.raw_label,
+          profileDimensionId: dimension.id,
+          analysisDomain: dimension.analysis_domain,
+        },
       });
     if (dimension.response_channel) {
       const responseNode = `rc:${dimension.analysis_domain}:${dimension.response_channel}`;
@@ -142,21 +160,16 @@ export async function rebuildGraphProjection(
         weight: maximum,
         confidence: dimension.confidence,
         evidenceCount: dimension.evidence_count,
-        attributes: { analysisDomain: dimension.analysis_domain },
+        attributes: { ...condition, profileDimensionId: dimension.id, analysisDomain: dimension.analysis_domain },
       });
     }
-    let condition: Record<string, unknown> = {};
-    try {
-      condition = JSON.parse(dimension.condition_json) as Record<string, unknown>;
-    } catch {
-      condition = {};
-    }
-    if (condition.scope) {
+    const conditionEntries = preferenceContextEntries(condition);
+    if (conditionEntries.length) {
       const conditionNode = `ctx:${dimension.analysis_domain}:${dimension.condition_hash.slice(0, 24)}`;
       putNode({
         id: conditionNode,
         type: "context",
-        label: String(condition.scope),
+        label: conditionEntries.map(([label, text]) => `${label}：${text}`).join(" ／ "),
         weight: maximum,
         attributes: { ...condition, analysisDomain: dimension.analysis_domain },
       });
@@ -169,7 +182,7 @@ export async function rebuildGraphProjection(
         weight: maximum,
         confidence: dimension.confidence,
         evidenceCount: dimension.evidence_count,
-        attributes: { analysisDomain: dimension.analysis_domain },
+        attributes: { ...condition, profileDimensionId: dimension.id, analysisDomain: dimension.analysis_domain },
       });
     }
   }
@@ -269,16 +282,30 @@ export async function rebuildGraphProjection(
     });
   }
   for (const stance of stances) {
+    const scope = preferenceContextRecord(stance.scope_json);
+    const label = preferenceTargetLabel(
+      stance.target_ref,
+      new Map(stance.attribute_label ? [[stance.target_ref, stance.attribute_label]] : []),
+      scope,
+    );
     const hash = (
-      await sha256Hex(`${stance.orientation}\u0000${stance.stance}\u0000${normalizeIdentityPart(stance.target_ref)}`)
+      await sha256Hex(
+        `${stance.orientation}\u0000${stance.stance}\u0000${normalizeIdentityPart(stance.target_ref)}\u0000${stance.scope_json}`,
+      )
     ).slice(0, 24);
     const nodeId = `vs:${stance.analysis_domain}:${stance.orientation}:${stance.stance}:${hash}`;
     putNode({
       id: nodeId,
       type: "value_stance",
-      label: `${stance.target_ref}：${valueStanceLabel(stance.stance)}`,
+      label: `${label}：${valueStanceLabel(stance.stance)}`,
       weight: stance.confidence,
-      attributes: { orientation: stance.orientation, stance: stance.stance, analysisDomain: stance.analysis_domain },
+      attributes: {
+        ...scope,
+        targetRef: stance.target_ref,
+        orientation: stance.orientation,
+        stance: stance.stance,
+        analysisDomain: stance.analysis_domain,
+      },
     });
     putEdge({
       id: `stance:${stance.id}`,
@@ -289,7 +316,7 @@ export async function rebuildGraphProjection(
       weight: stance.confidence,
       confidence: stance.confidence,
       evidenceCount: 1,
-      attributes: { analysisDomain: stance.analysis_domain },
+      attributes: { ...scope, analysisDomain: stance.analysis_domain },
     });
   }
   const sortedNodes = [...nodes.values()].sort((a, b) => a.id.localeCompare(b.id));

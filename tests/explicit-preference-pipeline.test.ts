@@ -5,6 +5,7 @@ import { reviewDetailSchema } from "../shared/contracts/entry-review";
 import { generationRequestInputSchema } from "../shared/contracts/generation";
 import { type AnyPreferenceCandidate, preferenceCandidateSchema } from "../shared/contracts/preference";
 import { preferenceReviewMutationSchema } from "../shared/contracts/reviews";
+import { groupProfileDimensions } from "../src/lib/profile-dimensions";
 import { activateAnalysisAndRebuild } from "../worker/features/analysis/activation";
 import { processPreferenceAnalysis } from "../worker/features/analysis/preference";
 import { processCharacterAnalysis } from "../worker/features/analysis/understanding";
@@ -14,13 +15,15 @@ import { loadEntryReview } from "../worker/features/entries/review";
 import { confirmUnderstanding } from "../worker/features/entries/understanding-review";
 import { compileBrief } from "../worker/features/generation/brief";
 import { createGenerationRequest } from "../worker/features/generation/request";
+import { loadCurrentGraph } from "../worker/features/profile/graph";
 import { loadCurrentProfile, processProfileRebuild } from "../worker/features/profile/projection";
 import { loadProfileSnapshotItems } from "../worker/features/profile/snapshot";
 import * as execution from "../worker/llm/execution";
-import { EXPLICIT_PREFERENCE_INSTRUCTION } from "../worker/llm/prompts/preference";
+import { EXPLICIT_PREFERENCE_INSTRUCTION, PREFERENCE_PROMPT_VERSION } from "../worker/llm/prompts/preference";
 import type { LlmProvider, StructuredLlmRequest } from "../worker/llm/types";
 import type { Env } from "../worker/types";
 import fixtures from "./fixtures/explicit-preferences.json";
+import semanticFixtures from "./fixtures/preference-semantics.json";
 import { testDatabase } from "./support/database";
 
 const databases: ReturnType<typeof testDatabase>[] = [];
@@ -41,7 +44,19 @@ const context = {
 type Fixture = {
   caseId: string;
   preference: { likedReasons: string; dislikedReasons?: string; responseChannels: string[] };
-  expectedAssertions: Array<{ rawLabel: string; quote: string; responseChannel: string | null; conditions: string[] }>;
+  expectedAssertions: Array<{
+    rawLabel: string;
+    quote: string;
+    responseChannel: string | null;
+    conditions: string[];
+    polarity?: string;
+    attributeStableKey?: string | null;
+    inputPointer?: string;
+    context?: Record<string, unknown>;
+  }>;
+  valueStances?: AnyPreferenceCandidate["valueStanceAssertions"];
+  generatedCandidate?: AnyPreferenceCandidate;
+  uncertainties?: AnyPreferenceCandidate["uncertainties"];
 };
 function scriptedCandidate(fixture: Fixture): AnyPreferenceCandidate {
   const evidence = (pointer: string, quote: string) => [
@@ -50,33 +65,43 @@ function scriptedCandidate(fixture: Fixture): AnyPreferenceCandidate {
   return preferenceCandidateSchema.parse({
     summary: { userExplicitSummary: [fixture.preference.likedReasons], inferredSummary: [], limitations: [] },
     preferenceAssertions: fixture.expectedAssertions.map((item) => ({
-      attributeStableKey: null,
+      attributeStableKey: item.attributeStableKey ?? null,
       rawLabel: item.rawLabel,
-      polarity: "positive",
+      polarity: item.polarity ?? "positive",
       responseChannel: item.responseChannel,
       strength: 0.9,
       explicitness: "user_explicit",
       confidence: 0.92,
-      context: { ...context, conditions: item.conditions },
-      evidence: evidence("/preference/likedReasons", item.quote),
+      context: item.context ?? { ...context, conditions: item.conditions },
+      evidence: evidence(item.inputPointer ?? "/preference/likedReasons", item.quote),
     })),
-    valueStanceAssertions: fixture.preference.dislikedReasons
-      ? [
-          {
-            targetType: "action",
-            targetRef: "誰かを傷つける行為",
-            stance: "reject",
-            orientation: "mixed",
-            context,
-            explicitness: "user_explicit",
-            confidence: 0.99,
-            evidence: evidence("/preference/dislikedReasons", fixture.preference.dislikedReasons),
-          },
-        ]
-      : [],
-    uncertainties: fixture.expectedAssertions.length
-      ? []
-      : [{ topic: "好きな理由", reason: "具体的な対象・理由が不明", recommendedQuestion: "どの点が気になりますか？" }],
+    valueStanceAssertions:
+      fixture.valueStances ??
+      (fixture.preference.dislikedReasons
+        ? [
+            {
+              targetType: "action",
+              targetRef: "誰かを傷つける行為",
+              stance: "reject",
+              orientation: "mixed",
+              context,
+              explicitness: "user_explicit",
+              confidence: 0.99,
+              evidence: evidence("/preference/dislikedReasons", fixture.preference.dislikedReasons),
+            },
+          ]
+        : []),
+    uncertainties:
+      fixture.uncertainties ??
+      (fixture.expectedAssertions.length
+        ? []
+        : [
+            {
+              topic: "好きな理由",
+              reason: "具体的な対象・理由が不明",
+              recommendedQuestion: "どの点が気になりますか？",
+            },
+          ]),
   });
 }
 async function setup(domain: AnalysisDomain, fixture: Fixture = fixtures[0], useScript = true) {
@@ -107,7 +132,10 @@ async function setup(domain: AnalysisDomain, fixture: Fixture = fixtures[0], use
       requests.push(request);
       let value = request.fakeFactory();
       if (useScript && /^(dark_)?preference_(analysis|audit)$/.test(request.operation)) {
-        const scripted = scriptedCandidate(fixture);
+        const scripted =
+          request.operation.endsWith("_analysis") && fixture.generatedCandidate
+            ? fixture.generatedCandidate
+            : scriptedCandidate(fixture);
         value = { ...scripted, ...(domain === "dark" ? { auditNotes: [] } : {}) } as typeof value;
       }
       return {
@@ -210,7 +238,10 @@ describe("frozen explicit preferences", () => {
         .all();
       expect(runs).toHaveLength(2);
       expect(
-        runs.every((item) => String(item.prompt_version).endsWith("/v3.0.0") && item.schema_version === "3.0"),
+        runs.every(
+          (item) =>
+            String(item.prompt_version).endsWith(`/${PREFERENCE_PROMPT_VERSION}`) && item.schema_version === "3.0",
+        ),
       ).toBe(true);
       if (!fixture.expectedAssertions.length) {
         expect(analysis.summary.userExplicitSummary).toContain(fixture.preference.likedReasons);
@@ -392,4 +423,259 @@ describe.each(["standard", "dark"] as const)("unresolved reaction in %s", (domai
       expect(result.analysis.uncertainties.length).toBeGreaterThan(0);
     },
   );
+});
+
+// Expected outputs below are authored semantic examples, not evidence of live-model accuracy.
+describe.each(["standard", "dark"] as const)("semantic scope transport in %s", (domain) => {
+  it.each(semanticFixtures)(
+    "retains $caseId polarity, people and exceptions from audit to generation",
+    async (frozen) => {
+      const fixture: Fixture = {
+        ...frozen,
+        valueStances: [],
+        expectedAssertions: frozen.expectedAssertions.map((item) => ({
+          ...item,
+          attributeStableKey: domain === "dark" ? null : item.attributeStableKey,
+          responseChannel: domain === "dark" ? null : item.responseChannel,
+        })),
+      };
+      // Simulate the observed inversion in generation; only the existing audit supplies the correction.
+      if (fixture.caseId === "C11") {
+        fixture.generatedCandidate = scriptedCandidate(fixture);
+        fixture.generatedCandidate.preferenceAssertions[0].rawLabel = "支配・一方的服従として固定されない関係";
+      }
+      if (fixture.caseId === "C12") {
+        fixture.generatedCandidate = scriptedCandidate(fixture);
+        fixture.generatedCandidate.summary.userExplicitSummary = frozen.observedSummary;
+      }
+      const result = await setup(domain, fixture);
+      expect(
+        result.requests.filter((item) => /^(dark_)?preference_(analysis|audit)$/.test(item.operation)),
+      ).toHaveLength(2);
+      expect(result.analysis.summary.userExplicitSummary).toEqual([fixture.preference.likedReasons]);
+      expect(result.analysis.assertions).toHaveLength(fixture.expectedAssertions.length);
+      for (const expected of fixture.expectedAssertions) {
+        const actual = result.analysis.assertions.find((item) => item.originalLabel === expected.rawLabel);
+        expect(actual).toMatchObject({
+          polarity: expected.polarity,
+          context: expected.context,
+          response_channel: expected.responseChannel,
+        });
+        expect(actual?.evidence).toEqual([
+          expect.objectContaining({ quote: expected.quote, verificationStatus: "verified_quote" }),
+        ]);
+        if (expected.attributeStableKey) expect(actual?.attributeLabel).toBe("競争・宿敵");
+      }
+      const profile = await rebuild(result, domain);
+      expect(profile?.dimensions).toHaveLength(fixture.expectedAssertions.length);
+      const graph = await loadCurrentGraph(result.env, result.owner, domain);
+      for (const expected of fixture.expectedAssertions) {
+        const dimension = profile?.dimensions.find((item) => item.originalLabel === expected.rawLabel);
+        expect(dimension?.condition).toEqual(expected.context);
+        expect(dimension?.[expected.polarity === "negative" ? "positiveScore" : "negativeScore"]).toBe(0);
+        expect(dimension?.[expected.polarity === "negative" ? "negativeScore" : "positiveScore"]).toBeGreaterThan(0);
+        const edge = graph?.edges.find(
+          (item) => item.id === `${expected.polarity === "negative" ? "dislike" : "like"}:${dimension?.id}`,
+        );
+        expect(edge?.attributes).toMatchObject({ ...expected.context, originalLabel: expected.rawLabel });
+        expect(
+          graph?.nodes.some(
+            (item) =>
+              item.type === "context" &&
+              JSON.stringify(item.attributes.conditions) === JSON.stringify(expected.conditions),
+          ),
+        ).toBe(true);
+      }
+      const snapshot = await loadProfileSnapshotItems(result.env, result.owner, domain);
+      if (!snapshot.snapshot) throw new Error("missing snapshot");
+      const request = await createGenerationRequest(
+        result.env,
+        result.owner,
+        domain,
+        generationRequestInputSchema.parse({
+          profileSnapshotId: snapshot.snapshot.id,
+          purpose: "対象・条件を保持",
+          selectedItemIds: snapshot.items.map((item) => item.id),
+        }),
+        crypto.randomUUID(),
+      );
+      const { brief } = await compileBrief(result.env, result.owner, request.generationRequestId);
+      for (const expected of fixture.expectedAssertions) {
+        const selection = brief.preferenceSelections.find((item) => item.label.includes(expected.rawLabel));
+        expect(selection?.condition).toEqual(expected.context);
+        expect(selection?.responseChannel).toBe(expected.responseChannel);
+        expect(selection?.polarity?.[expected.polarity === "negative" ? "positive" : "negative"]).toBe(0);
+      }
+    },
+  );
+
+  it("keeps unknown value targets distinct by their saved relationship and scope", async () => {
+    const fixture: Fixture = { ...semanticFixtures[0], expectedAssertions: [], valueStances: [] };
+    fixture.valueStances = ["相互信頼", "支配・服従"].map((relationship, index) => ({
+      targetType: "attribute",
+      targetRef: index ? "relationship.dominance_or_submission_asymmetry" : "relationship.mutual_trust",
+      orientation: "mixed",
+      stance: "reject",
+      explicitness: "user_explicit",
+      confidence: 0.9,
+      context: {
+        ...context,
+        subjects: ["中也", "太宰"],
+        relationships: [relationship],
+        conditions: ["ユーザーの関係解釈"],
+      },
+      evidence: [
+        {
+          sourceRef: "input:/preference/dislikedReasons",
+          sourceUrl: null,
+          inputPointer: "/preference/dislikedReasons",
+          quote: fixture.preference.dislikedReasons ?? "",
+          inferenceType: "direct",
+        },
+      ],
+    }));
+    const result = await setup(domain, fixture);
+    expect(result.analysis.valueStances.map((item) => item.target_ref).sort()).toEqual(["支配・服従", "相互信頼"]);
+    expect(result.analysis.valueStances.map((item) => item.originalTargetRef).sort()).toEqual(
+      fixture.valueStances.map((item) => item.targetRef).sort(),
+    );
+    const profile = await rebuild(result, domain);
+    expect(profile?.valueStances).toHaveLength(2);
+    expect(profile?.valueStances.flatMap((item) => item.labels).sort()).toEqual(["支配・服従", "相互信頼"]);
+    expect(profile?.valueStances.every((item) => item.scope?.conditions && item.count === 1)).toBe(true);
+    const graph = await loadCurrentGraph(result.env, result.owner, domain);
+    expect(
+      graph?.nodes
+        .filter((item) => item.type === "value_stance")
+        .map((item) => item.label)
+        .sort(),
+    ).toEqual(["支配・服従：支持しない", "相互信頼：支持しない"]);
+  });
+
+  it("does not cross-apply positive and negative scores between conditions of the same attribute", async () => {
+    const fixture: Fixture = {
+      caseId: "conditional",
+      preference: { likedReasons: "敵に冷たいところは好き。仲間に冷たいところは苦手。", responseChannels: [] },
+      valueStances: [],
+      expectedAssertions: [
+        {
+          rawLabel: "冷たさ",
+          quote: "敵に冷たいところは好き。",
+          polarity: "positive",
+          responseChannel: null,
+          conditions: ["敵への態度"],
+        },
+        {
+          rawLabel: "冷たさ",
+          quote: "仲間に冷たいところは苦手。",
+          polarity: "negative",
+          responseChannel: null,
+          conditions: ["仲間への態度"],
+        },
+      ],
+    };
+    const result = await setup(domain, fixture);
+    const profile = await rebuild(result, domain);
+    const groups = groupProfileDimensions(profile?.dimensions ?? []);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].variants).toHaveLength(2);
+    for (const variant of groups[0].variants) {
+      const positive = (variant.condition.conditions as string[])[0] === "敵への態度";
+      expect(variant[positive ? "negativeScore" : "positiveScore"]).toBe(0);
+      expect(variant[positive ? "positiveScore" : "negativeScore"]).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("negation counterexamples at the audit boundary", () => {
+  it.each(["standard", "dark"] as const)(
+    "keeps a liked negative state and removes unresolved polarity in %s",
+    async (domain) => {
+      const fixture: Fixture = {
+        caseId: "negation-counterexample",
+        preference: { likedReasons: "改心しないところが好き。冷たい人物が好きとは限らない。", responseChannels: [] },
+        expectedAssertions: [
+          {
+            rawLabel: "改心しない状態",
+            polarity: "positive",
+            quote: "改心しないところが好き。",
+            responseChannel: null,
+            conditions: ["改心しない状態が続く場合"],
+          },
+        ],
+        valueStances: [],
+      };
+      fixture.generatedCandidate = scriptedCandidate(fixture);
+      fixture.generatedCandidate = preferenceCandidateSchema.parse({
+        ...fixture.generatedCandidate,
+        preferenceAssertions: [
+          ...fixture.generatedCandidate.preferenceAssertions,
+          { ...fixture.generatedCandidate.preferenceAssertions[0], rawLabel: "冷たい人物", polarity: "negative" },
+        ],
+      });
+      fixture.uncertainties = [
+        {
+          topic: "冷たい人物への好み",
+          reason: "好きとは限らないという記述から嫌悪は確定できない",
+          recommendedQuestion: "冷たさへの好みはどの条件で変わりますか？",
+        },
+      ];
+      const result = await setup(domain, fixture);
+      expect(result.analysis.assertions).toHaveLength(1);
+      expect(result.analysis.assertions[0]).toMatchObject({
+        originalLabel: "改心しない状態",
+        polarity: "positive",
+        response_channel: null,
+      });
+      const profile = await rebuild(result, domain);
+      expect(profile?.dimensions).toHaveLength(1);
+      expect(profile?.dimensions[0].negativeScore).toBe(0);
+      expect(
+        result.requests.filter((item) => /^(dark_)?preference_(analysis|audit)$/.test(item.operation)),
+      ).toHaveLength(2);
+      expect(result.analysis.summary.userExplicitSummary[0]).toContain("冷たい人物が好きとは限らない");
+      expect(result.analysis.uncertainties).toEqual(fixture.uncertainties);
+    },
+  );
+});
+
+describe.each(["standard", "dark"] as const)("invalid evidence remains excluded in %s", (domain) => {
+  it("does not lend an invalid condition's confidence or value stance to the graph", async () => {
+    const fixture: Fixture = {
+      caseId: "invalid-condition",
+      preference: {
+        likedReasons: "敵に冷たいところは好き。",
+        dislikedReasons: "仲間に冷たいところは苦手。",
+        responseChannels: [],
+      },
+      expectedAssertions: [
+        { rawLabel: "冷たさ", quote: "敵に冷たいところは好き。", responseChannel: null, conditions: ["敵への態度"] },
+        {
+          rawLabel: "冷たさ",
+          quote: "仲間に冷たいところは苦手。",
+          responseChannel: null,
+          conditions: ["仲間への態度"],
+          polarity: "negative",
+          inputPointer: "/preference/dislikedReasons",
+        },
+      ],
+    };
+    const result = await setup(domain, fixture);
+    const invalid = result.analysis.assertions.find((item) => item.polarity === "negative");
+    if (!invalid) throw new Error("missing invalid fixture candidate");
+    result.db.database
+      .prepare(
+        "UPDATE evidence_fragments SET verification_status='invalid' WHERE owner_id=? OR owner_type='value_stance_assertion'",
+      )
+      .run(invalid.id);
+    result.db.database.prepare("UPDATE preference_assertions SET confidence=0.99 WHERE id=?").run(invalid.id);
+    const profile = await rebuild(result, domain);
+    expect(profile?.dimensions).toHaveLength(1);
+    expect(profile?.dimensions[0].condition.conditions).toEqual(["敵への態度"]);
+    expect(profile?.valueStances).toEqual([]);
+    const graph = await loadCurrentGraph(result.env, result.owner, domain);
+    expect(graph?.nodes.some((item) => item.type === "value_stance")).toBe(false);
+    expect(graph?.edges.filter((item) => item.type === "has_attribute").map((item) => item.confidence)).toEqual([0.92]);
+    expect(graph?.edges.some((item) => item.type === "dislikes")).toBe(false);
+  });
 });

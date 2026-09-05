@@ -6,6 +6,7 @@ import { attributeCategoryLabel } from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
 import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stance-labels";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
+import { PreferenceContext } from "../features/entries/PreferenceContext";
 import { profileApi } from "../features/profile/api";
 import { type DisplayProfileDimension, groupProfileDimensions } from "../lib/profile-dimensions";
 
@@ -133,12 +134,15 @@ export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
           </div>
           <div className="stance-grid">
             {value.valueStances.map((item) => (
-              <Card key={`${item.orientation}:${item.stance}`}>
+              <Card
+                key={`${item.orientation}:${item.stance}:${item.targetRef ?? ""}:${JSON.stringify(item.scope ?? {})}`}
+              >
                 <strong>{valueOrientationLabel(item.orientation)}</strong>
                 <span>
                   {valueStanceLabel(item.stance)}・{item.count}件
                 </span>
-                <small>{item.labels.slice(0, 4).join("、")}</small>
+                <small>{item.labels.join("、")}</small>
+                <PreferenceContext value={item.scope} />
               </Card>
             ))}
           </div>
@@ -215,9 +219,6 @@ function DimensionRow({
   negative?: boolean;
 }) {
   const score = negative ? item.negativeScore : item.positiveScore;
-  const scopes = item.conditions.flatMap((condition) => (typeof condition.scope === "string" ? [condition.scope] : []));
-  const includesWholeCharacter = item.conditions.some((condition) => Object.keys(condition).length === 0);
-  const scopeLabel = [...(includesWholeCharacter ? ["キャラクター全体"] : []), ...scopes].join("／");
   return (
     <div className="trait-row">
       <span className="rank">{String(rank).padStart(2, "0")}</span>
@@ -229,8 +230,8 @@ function DimensionRow({
             ...item.responseChannels.map(responseChannelLabel),
             ...(item.hasUnresolvedResponseChannel ? [responseChannelLabel(null)] : []),
           ].join("／")}
-          {scopeLabel ? `・対象：${scopeLabel}` : ""}・支持 +{Math.round(item.positiveScore * 100)} / -
-          {Math.round(item.negativeScore * 100)}・確認済み {item.identityCount}人／{item.workCount}作品・独立根拠
+          ・条件別の最大支持 +{Math.round(item.positiveScore * 100)} / -{Math.round(item.negativeScore * 100)}・確認済み{" "}
+          {item.identityCount}人／{item.workCount}作品・独立根拠
           {item.evidenceCount}件
         </small>
       </div>
@@ -240,6 +241,19 @@ function DimensionRow({
       <span className={`confidence confidence-${item.classification}`}>
         {classificationLabels[item.classification]} {Math.round(item.confidence * 100)}%
       </span>
+      <details className="profile-condition-details">
+        <summary>対象・条件を確認（{item.variants.length}件）</summary>
+        {item.variants.map((variant) => (
+          <div className="profile-condition-variant" key={variant.id}>
+            {variant.originalLabel && variant.originalLabel !== item.label && <p>表現：{variant.originalLabel}</p>}
+            <p>
+              {responseChannelLabel(variant.responseChannel)}・支持 +{Math.round(variant.positiveScore * 100)} / -
+              {Math.round(variant.negativeScore * 100)}
+            </p>
+            <PreferenceContext value={variant.condition} />
+          </div>
+        ))}
+      </details>
     </div>
   );
 }

@@ -139,6 +139,9 @@ export const reviewDetailSchema = z
           z.object({
             id: z.string(),
             raw_label: z.string(),
+            originalLabel: z.string().optional(),
+            attributeLabel: z.string().nullable().optional(),
+            context: z.record(z.string(), z.unknown()).optional(),
             polarity: z.string(),
             response_channel: z.string().nullable(),
             strength: z.number(),
@@ -153,6 +156,8 @@ export const reviewDetailSchema = z
           z.object({
             id: z.string(),
             target_ref: z.string(),
+            originalTargetRef: z.string().optional(),
+            scope: z.record(z.string(), z.unknown()).optional(),
             stance: z.string(),
             orientation: z.string(),
             explicitness: z.string(),

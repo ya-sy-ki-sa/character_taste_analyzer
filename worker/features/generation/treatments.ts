@@ -30,7 +30,10 @@ export function compileGenerationSelections(items: SnapshotSelection[], generati
     return {
       profileSnapshotItemId: item.id,
       stableKey: item.stable_key,
-      label: item.label,
+      label:
+        typeof payload.originalLabel === "string" && payload.originalLabel !== item.label
+          ? `${item.label}（${payload.originalLabel}）`
+          : item.label,
       treatment: item.treatment,
       weight:
         item.treatment === "required" || item.treatment === "prohibit" ? 1 : item.treatment === "include" ? 0.8 : 0.55,

@@ -339,22 +339,13 @@ export function selectProfileDimensions(
     .bind(...bindings);
 }
 
-export function selectValueStanceAssertions2(
+export function selectActiveAttributeLabels(
   db: D1Database,
-  bindings: readonly [analysisDomain: unknown, ownerUserId: unknown, analysisDomainAgain: unknown],
+  bindings: readonly [analysisDomain: unknown],
 ): D1PreparedStatement {
   return db
-    .prepare(`
-    SELECT vs.orientation, vs.stance, COUNT(*) AS count,
-           json_group_array(COALESCE(ad.label,CASE WHEN instr(vs.target_ref,'.')>0 THEN '未分類の属性' ELSE vs.target_ref END)) AS labels
-    FROM value_stance_assertions vs JOIN analysis_runs ar ON ar.id=vs.analysis_run_id
-    JOIN entry_revisions er ON er.id=ar.entry_revision_id
-    JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
-    LEFT JOIN attribute_definitions ad ON ad.stable_key=vs.target_ref AND ad.status='active'
-      AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' AND analysis_domain=? ORDER BY created_at DESC LIMIT 1)
-    WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active' AND e.analysis_domain=?
-    GROUP BY vs.orientation,vs.stance ORDER BY count DESC,vs.orientation,vs.stance
-  `)
+    .prepare(`SELECT ad.stable_key,ad.label FROM attribute_definitions ad JOIN attribute_schema_versions v ON v.id=ad.schema_version_id
+    WHERE ad.status='active' AND v.status='active' AND v.analysis_domain=?`)
     .bind(...bindings);
 }
 

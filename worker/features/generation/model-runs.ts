@@ -25,7 +25,7 @@ export async function persistModelRun(
       metadata.requestedModel,
       metadata.resolvedModel,
       operation,
-      `${operation}/v2.1.0`,
+      `${operation}/v2.2.0`,
       "1.0",
       metadata.providerRequestId ?? null,
       inputHash,

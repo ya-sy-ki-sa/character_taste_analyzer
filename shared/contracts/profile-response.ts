@@ -6,6 +6,7 @@ export const profileDimensionSchema = z
     id: z.string(),
     stableKey: z.string(),
     label: z.string(),
+    originalLabel: z.string().optional(),
     category: z.string(),
     responseChannel: z.union([responseChannelSchema, darkResponseChannelSchema, z.null()]),
     condition: z.record(z.string(), z.unknown()),
@@ -29,7 +30,14 @@ export const profileViewSchema = z
     evidenceSetHash: z.string(),
     dimensions: z.array(profileDimensionSchema),
     valueStances: z.array(
-      z.object({ orientation: z.string(), stance: z.string(), count: z.number(), labels: z.array(z.string()) }),
+      z.object({
+        orientation: z.string(),
+        stance: z.string(),
+        count: z.number(),
+        labels: z.array(z.string()),
+        scope: z.record(z.string(), z.unknown()).optional(),
+        targetRef: z.string().optional(),
+      }),
     ),
     entryCount: z.number(),
     updatedAt: z.string(),

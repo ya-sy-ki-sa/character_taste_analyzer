@@ -1,5 +1,6 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import type { ProfileDimension, ProfileView, ProjectionFreshness } from "../../../shared/contracts/profile-response";
+import { preferenceContextRecord, preferenceTargetLabel } from "../../../shared/preference-context";
 import { PROFILE_ALGORITHM_VERSION } from "../../../shared/profile-algorithm";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
@@ -51,6 +52,7 @@ type BuiltDimension = {
   attributeDefinitionId: string | null;
   stableKey: string;
   label: string;
+  originalLabel: string;
   category: string;
   responseChannel: ProfileDimension["responseChannel"];
   conditionHash: string;
@@ -87,6 +89,7 @@ type ValueStanceRow = {
 };
 
 type AggregatedValueStance = ValueStanceRow & {
+  assertionCount: number;
   aggregatedConfidence: number;
   identityCount: number;
   workCount: number;
@@ -236,6 +239,7 @@ function buildDimensions(rows: WeightedAssertion[]): BuiltDimension[] {
       attributeDefinitionId: firstRow.attribute_definition_id,
       stableKey: firstRow.stable_key ?? `raw:${normalizeIdentityPart(firstRow.normalized_label || firstRow.raw_label)}`,
       label: firstRow.label ?? firstRow.raw_label,
+      originalLabel: [...new Set(group.map((row) => row.raw_label))].join("／"),
       category: firstRow.category ?? "other",
       responseChannel: firstRow.response_channel,
       conditionHash: firstRow.conditionHash,
@@ -296,6 +300,7 @@ function buildValueStances(rows: ValueStanceRow[]): AggregatedValueStance[] {
     }
     return {
       ...group[0],
+      assertionCount: group.length,
       aggregatedConfidence: round6(independentUnion([...works.values()].map((values) => discountedUnion(values, 0.5)))),
       identityCount: identities.size,
       workCount: works.size,
@@ -409,7 +414,7 @@ export async function rebuildProfile(
         dimension.id,
         projectionId,
         dimension.attributeDefinitionId,
-        dimension.attributeDefinitionId ? null : dimension.label,
+        dimension.attributeDefinitionId ? dimension.originalLabel : dimension.label,
         dimension.responseChannel,
         dimension.conditionHash,
         dimension.conditionJson,
@@ -435,6 +440,7 @@ export async function rebuildProfile(
       payload: {
         schemaVersion: "2",
         stableKey: dimension.stableKey,
+        originalLabel: dimension.originalLabel,
         category: dimension.category,
         positiveScore: dimension.positiveScore,
         negativeScore: dimension.negativeScore,
@@ -576,9 +582,13 @@ export async function loadCurrentProfile(
     classification: ProfileDimension["classification"];
     flags_json: string;
   }>(repository.selectProfileDimensions(env.DB, [projection.id, analysisDomain]));
-  const stanceRows = await all<{ orientation: string; stance: string; count: number; labels: string }>(
-    repository.selectValueStanceAssertions2(env.DB, [analysisDomain, ownerUserId, analysisDomain]),
+  const stanceRows = buildValueStances(
+    (await loadValueStances(env, ownerUserId)).filter((row) => row.analysis_domain === analysisDomain),
   );
+  const attributeRows = await all<{ stable_key: string; label: string }>(
+    repository.selectActiveAttributeLabels(env.DB, [analysisDomain]),
+  );
+  const attributeLabels = new Map(attributeRows.map((row) => [row.stable_key, row.label]));
   const entryCount = await first<{ count: number }>(
     repository.selectUserCharacterEntries(env.DB, [ownerUserId, analysisDomain]),
   );
@@ -591,6 +601,7 @@ export async function loadCurrentProfile(
       id: row.id,
       stableKey: row.stable_key ?? `raw:${normalizeIdentityPart(row.raw_label ?? "")}`,
       label: row.label ?? row.raw_label ?? "未分類属性",
+      ...(row.raw_label ? { originalLabel: row.raw_label } : {}),
       category: row.category ?? "other",
       responseChannel: row.response_channel,
       condition: JSON.parse(canonicalJson(row.condition_json)) as Record<string, unknown>,
@@ -606,8 +617,10 @@ export async function loadCurrentProfile(
     valueStances: stanceRows.map((row) => ({
       orientation: row.orientation,
       stance: row.stance,
-      count: row.count,
-      labels: JSON.parse(row.labels) as string[],
+      count: row.assertionCount,
+      labels: [preferenceTargetLabel(row.target_ref, attributeLabels, row.scope_json)],
+      targetRef: row.target_ref,
+      scope: preferenceContextRecord(row.scope_json),
     })),
     entryCount: entryCount?.count ?? 0,
     updatedAt: projection.completed_at,

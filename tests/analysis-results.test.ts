@@ -198,7 +198,7 @@ describe("cross-screen presentation labels", () => {
           stance: "affirm",
         },
       }),
-    ).toBe("悪そのもの：肯定的に捉える");
+    ).toBe("対象未確認：肯定的に捉える");
     expect(briefTreatmentLabel("weak_include")).toBe("控えめに反映する");
     expect(briefCoverageStatusLabel("partially_satisfied")).toBe("一部反映");
     expect(generationErrorLabel("GENERATION_CONSTRAINT_VIOLATION")).toBe("指定した生成条件を満たせませんでした。");

@@ -83,7 +83,7 @@ export function selectPreferenceRefinements(
 
 export function selectPreferenceAssertions(db: D1Database, bindings: readonly [id: unknown]): D1PreparedStatement {
   return db
-    .prepare(`SELECT pa.id,COALESCE(ad.label,rm.raw_label) AS raw_label,pa.polarity,pa.response_channel,
+    .prepare(`SELECT pa.id,COALESCE(ad.label,rm.raw_label) AS raw_label,rm.raw_label AS originalLabel,ad.label AS attributeLabel,pa.context_json,pa.polarity,pa.response_channel,
                   pa.strength,pa.explicitness,pa.confidence,pa.status,ad.stable_key
            FROM preference_assertions pa JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id
            LEFT JOIN attribute_definitions ad ON ad.id=pa.attribute_definition_id
@@ -94,7 +94,7 @@ export function selectPreferenceAssertions(db: D1Database, bindings: readonly [i
 
 export function selectValueStanceAssertions(db: D1Database, bindings: readonly [id: unknown]): D1PreparedStatement {
   return db
-    .prepare(`SELECT id,target_ref,stance,orientation,explicitness,confidence,status
+    .prepare(`SELECT id,target_ref,scope_json,stance,orientation,explicitness,confidence,status
            FROM value_stance_assertions
            WHERE analysis_run_id=? AND status NOT IN ('rejected','superseded')
            ORDER BY created_at,id`)

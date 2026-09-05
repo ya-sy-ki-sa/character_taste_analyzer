@@ -1,7 +1,8 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
+import { preferenceContextRecord, preferenceTargetLabel } from "../../../shared/preference-context";
 import { all, first } from "../../lib/db";
 import type { Env } from "../../types";
-import { localizeAttributeReference, localizeUnderstandingSummary } from "../profile/attribute-labels";
+import { localizeUnderstandingSummary } from "../profile/attribute-labels";
 import { loadEvidenceViews } from "./evidence";
 import * as repository from "./repositories/review";
 
@@ -98,6 +99,9 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
         id: string;
         raw_label: string;
         polarity: string;
+        originalLabel: string;
+        attributeLabel: string | null;
+        context_json: string;
         response_channel: string | null;
         strength: number;
         explicitness: string;
@@ -110,6 +114,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
     ? await all<{
         id: string;
         target_ref: string;
+        scope_json: string;
         stance: string;
         orientation: string;
         explicitness: string;
@@ -226,10 +231,16 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
           summary: JSON.parse(analysis.summary_json),
           uncertainties: JSON.parse(analysis.uncertainties_json),
           status: analysis.status,
-          assertions: preferences.map((item) => ({ ...item, evidence: preferenceEvidence.get(item.id) ?? [] })),
-          valueStances: valueStances.map((item) => ({
+          assertions: preferences.map(({ context_json, ...item }) => ({
             ...item,
-            target_ref: localizeAttributeReference(item.target_ref, attributeLabels),
+            context: preferenceContextRecord(context_json),
+            evidence: preferenceEvidence.get(item.id) ?? [],
+          })),
+          valueStances: valueStances.map(({ scope_json, ...item }) => ({
+            ...item,
+            target_ref: preferenceTargetLabel(item.target_ref, attributeLabels, scope_json),
+            originalTargetRef: item.target_ref,
+            scope: preferenceContextRecord(scope_json),
             evidence: stanceEvidence.get(item.id) ?? [],
           })),
         }

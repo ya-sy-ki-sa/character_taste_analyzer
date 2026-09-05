@@ -8,6 +8,7 @@ import { AddAssertionControl, AssertionReviewControls } from "./AssertionReviewC
 import { AddDeltaControl, CustomizationDeltaCard } from "./CustomizationDeltaControls";
 import { EvidenceList } from "./EvidenceList";
 import { AddPreferenceAssertionControl, PreferenceAssertionEditControl } from "./PreferenceAssertionControls";
+import { PreferenceContext } from "./PreferenceContext";
 import { PreferenceRefinement } from "./PreferenceRefinement";
 import { reanalyzableStatuses, reviewSummaryValue, statusLabels, understandingSummaryLabel } from "./presentation";
 import { useEntryReview } from "./use-entry-review";
@@ -322,7 +323,8 @@ export function ReviewModal({
                     <div className="preference-channel-list">
                       {group.items.map((item) => {
                         const itemLabelDiffers =
-                          normalizePreferenceLabel(item.raw_label) !== normalizePreferenceLabel(group.label);
+                          normalizePreferenceLabel(item.originalLabel ?? item.raw_label) !==
+                          normalizePreferenceLabel(group.label);
                         return (
                           <article key={item.id} className={`preference-channel-item preference-${item.polarity}`}>
                             <div className="assertion-card-header">
@@ -341,16 +343,19 @@ export function ReviewModal({
                               </small>
                             </div>
                             {itemLabelDiffers && (
-                              <small className="preference-source-label">表現：{item.raw_label}</small>
+                              <small className="preference-source-label">
+                                表現：{item.originalLabel ?? item.raw_label}
+                              </small>
                             )}
                             <small>
                               強さ {Math.round(item.strength * 100)}%・{explicitnessLabel(item.explicitness)}
                             </small>
+                            <PreferenceContext value={item.context} />
                             <EvidenceList evidence={item.evidence} />
                             {value.entry.status === "analysis_review" && (
                               <div className="review-item-actions">
                                 <PreferenceAssertionEditControl
-                                  item={item}
+                                  item={{ ...item, raw_label: item.originalLabel ?? item.raw_label }}
                                   domain={domain}
                                   ontologyAttributes={value.ontologyAttributes}
                                   disabled={submitting}
@@ -401,11 +406,12 @@ export function ReviewModal({
                           対象の価値傾向：{valueOrientationLabel(item.orientation)} ／ あなたの捉え方：
                           {valueStanceLabel(item.stance)}
                         </small>
+                        <PreferenceContext value={item.scope} />
                         <EvidenceList evidence={item.evidence} />
                         {value.entry.status === "analysis_review" && (
                           <div className="review-item-actions">
                             <ValueStanceEditControl
-                              item={item}
+                              item={{ ...item, target_ref: item.originalTargetRef ?? item.target_ref }}
                               disabled={submitting}
                               onMutate={(input) => mutatePreference(value.preferenceAnalysis?.id ?? "", input)}
                             />

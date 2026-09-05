@@ -3,6 +3,7 @@ import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stan
 
 const graphAttributeLabels: Readonly<Record<string, string>> = {
   category: "属性カテゴリ",
+  originalLabel: "元の表現",
   classification: "傾向の状態",
   representationType: "キャラクター像の種類",
   orientation: "対象の価値傾向",

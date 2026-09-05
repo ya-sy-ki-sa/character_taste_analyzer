@@ -49,13 +49,15 @@ export function selectValueStanceAssertions(
   return db
     .prepare(`
     SELECT DISTINCT vs.id,vs.orientation,vs.stance,e.analysis_domain,
-      COALESCE(ad.label,CASE WHEN instr(vs.target_ref,'.')>0 THEN '未分類の属性' ELSE vs.target_ref END) AS target_ref,
+      vs.target_ref,vs.scope_json,ad.label AS attribute_label,
       vs.confidence
     FROM value_stance_assertions vs JOIN analysis_runs ar ON ar.id=vs.analysis_run_id
     JOIN entry_revisions er ON er.id=ar.entry_revision_id JOIN user_character_entries e ON e.id=er.entry_id
     LEFT JOIN attribute_definitions ad ON ad.stable_key=vs.target_ref AND ad.status='active'
-      AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' ORDER BY created_at DESC LIMIT 1)
+      AND ad.schema_version_id=(SELECT id FROM attribute_schema_versions WHERE status='active' AND analysis_domain=e.analysis_domain ORDER BY created_at DESC LIMIT 1)
     WHERE vs.owner_user_id=? AND vs.status IN ('confirmed','corrected') AND e.status='active' AND e.active_revision_number=er.revision_number
+      AND ar.id=(SELECT latest.id FROM analysis_runs latest WHERE latest.entry_revision_id=ar.entry_revision_id AND latest.owner_user_id=ar.owner_user_id AND latest.status='succeeded' ORDER BY latest.run_generation DESC LIMIT 1)
+      AND NOT (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='value_stance_assertion' AND invalid.owner_id=vs.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='value_stance_assertion' AND valid.owner_id=vs.id AND valid.verification_status!='invalid'))
     ORDER BY vs.id
   `)
     .bind(...bindings);
@@ -73,6 +75,8 @@ export function selectPreferenceAssertions(
     JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id
     LEFT JOIN attribute_definitions ad ON ad.id=pa.attribute_definition_id
     WHERE pa.owner_user_id=? AND pa.status IN ('confirmed','corrected') AND e.status='active'
+      AND pa.analysis_run_id=(SELECT latest.id FROM analysis_runs latest WHERE latest.entry_revision_id=pa.entry_revision_id AND latest.owner_user_id=pa.owner_user_id AND latest.status='succeeded' ORDER BY latest.run_generation DESC LIMIT 1)
+      AND NOT (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='preference_assertion' AND invalid.owner_id=pa.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='preference_assertion' AND valid.owner_id=pa.id AND valid.verification_status!='invalid'))
     ORDER BY pa.representation_id,pa.id
   `)
     .bind(...bindings);

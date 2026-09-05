@@ -2598,6 +2598,19 @@
                         "raw_label": {
                           "type": "string"
                         },
+                        "originalLabel": {
+                          "type": "string"
+                        },
+                        "attributeLabel": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "context": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
                         "polarity": {
                           "type": "string"
                         },
@@ -2660,6 +2673,13 @@
                         },
                         "target_ref": {
                           "type": "string"
+                        },
+                        "originalTargetRef": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "object",
+                          "additionalProperties": {}
                         },
                         "stance": {
                           "type": "string"
@@ -3176,6 +3196,13 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "scope": {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                "targetRef": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -3214,6 +3241,9 @@
             "type": "string"
           },
           "label": {
+            "type": "string"
+          },
+          "originalLabel": {
             "type": "string"
           },
           "category": {
