@@ -1,7 +1,7 @@
 /** D1 statements for this use case. Callers compose atomic batches across repositories. */
-export function updateJobs(
+export function markUnderstandingStarted(
   db: D1Database,
-  bindings: readonly [now: unknown, jobId: unknown, ownerUserId: unknown, inputGeneration: unknown],
+  bindings: readonly [now: string, jobId: string, ownerUserId: string, inputGeneration: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE jobs SET status='running',current_step='understandCharacter',progress_current=2,updated_at=?,revision=revision+1
@@ -11,7 +11,7 @@ export function updateJobs(
 
 export function updateUserCharacterEntries(
   db: D1Database,
-  bindings: readonly [now: unknown, entryId: unknown, ownerUserId: unknown, inputGeneration: unknown],
+  bindings: readonly [now: string, entryId: string, ownerUserId: string, inputGeneration: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE user_character_entries SET status='understanding',updated_at=?,revision=revision+1
@@ -19,18 +19,18 @@ export function updateUserCharacterEntries(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function acquireUnderstandingCommitFence(
   db: D1Database,
   bindings: readonly [
-    commitStep: unknown,
-    now: unknown,
-    jobId: unknown,
-    ownerUserId: unknown,
-    inputGeneration: unknown,
-    entryId: unknown,
-    ownerUserIdAgain: unknown,
-    inputGenerationAgain: unknown,
-    attemptId: unknown,
+    commitStep: string,
+    now: string,
+    jobId: string,
+    ownerUserId: string,
+    inputGeneration: number,
+    entryId: string,
+    ownerUserIdAgain: string,
+    inputGenerationAgain: number,
+    attemptId: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -47,14 +47,14 @@ export function updateJobs2(
 export function insertDarkBaselineSnapshots(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    entryRevisionId: unknown,
-    baseRepresentationId: unknown,
-    valueJson: unknown,
-    value5: unknown,
-    id: unknown,
-    now: unknown,
+    snapshotId: string,
+    ownerUserId: string,
+    entryRevisionId: string,
+    baseRepresentationId: string,
+    understandingJson: string,
+    contentHash: string,
+    modelRunId: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -66,7 +66,7 @@ export function insertDarkBaselineSnapshots(
 
 export function selectCharacterUnderstandingSnapshots(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, representationId: unknown],
+  bindings: readonly [ownerUserId: string, representationId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -78,19 +78,19 @@ export function selectCharacterUnderstandingSnapshots(
 export function insertCharacterUnderstandingRuns(
   db: D1Database,
   bindings: readonly [
-    runId: unknown,
-    ownerUserId: unknown,
-    entryRevisionId: unknown,
-    representationId: unknown,
-    sourceSetId: unknown,
-    generation: unknown,
-    id: unknown,
-    now: unknown,
-    nowAgain: unknown,
-    nowAgainAgain: unknown,
-    jobId: unknown,
-    ownerUserIdAgain: unknown,
-    commitStep: unknown,
+    runId: string,
+    ownerUserId: string,
+    entryRevisionId: string,
+    representationId: string,
+    sourceSetId: string | null,
+    generation: number,
+    modelRunId: string,
+    now: string,
+    nowAgain: string,
+    nowAgainAgain: string,
+    jobId: string,
+    ownerUserIdAgain: string,
+    commitStep: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -106,21 +106,21 @@ export function insertCharacterUnderstandingRuns(
 export function insertCharacterUnderstandingSnapshots(
   db: D1Database,
   bindings: readonly [
-    snapshotId: unknown,
-    ownerUserId: unknown,
-    runId: unknown,
-    representationId: unknown,
-    baseSnapshotId: unknown,
-    sourceSetId: unknown,
-    next_generation: unknown,
-    value7: unknown,
-    sourceAssessmentJson: unknown,
-    value10Json: unknown,
-    uncertaintiesJson: unknown,
-    id: unknown,
-    value13: unknown,
-    value14: unknown,
-    now: unknown,
+    snapshotId: string,
+    ownerUserId: string,
+    runId: string,
+    representationId: string,
+    baseSnapshotId: string | null,
+    sourceSetId: string | null,
+    snapshotGeneration: number,
+    preferenceContext: string | null,
+    sourceAssessmentJson: string,
+    summaryJson: string,
+    uncertaintiesJson: string,
+    modelRunId: string,
+    ontologyVersion: string,
+    contentHash: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -137,13 +137,13 @@ export function insertCharacterUnderstandingSnapshots(
 export function insertRawAttributeMentions(
   db: D1Database,
   bindings: readonly [
-    rawId: unknown,
-    ownerUserId: unknown,
-    assertionId: unknown,
-    rawLabel: unknown,
-    valueText: unknown,
-    value5: unknown,
-    now: unknown,
+    rawId: string,
+    ownerUserId: string,
+    assertionId: string,
+    rawLabel: string,
+    valueText: string,
+    normalizedLabel: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -156,14 +156,14 @@ export function insertRawAttributeMentions(
 export function insertAttributeMappings(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    rawId: unknown,
-    value2: unknown,
-    value3: unknown,
-    value4: unknown,
-    value5: unknown,
-    now: unknown,
-    value7: unknown,
+    mappingId: string,
+    rawId: string,
+    attributeDefinitionId: string | null,
+    mappingStatus: "accepted" | "unmapped",
+    mappingMethod: "exact" | "llm",
+    confidence: number,
+    now: string,
+    decidedAt: string | null,
   ],
 ): D1PreparedStatement {
   return db
@@ -176,19 +176,19 @@ export function insertAttributeMappings(
 export function insertCharacterAssertions(
   db: D1Database,
   bindings: readonly [
-    assertionId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    value3: unknown,
-    rawId: unknown,
-    rawLabel: unknown,
-    valueText: unknown,
-    assertionKind: unknown,
-    value8Json: unknown,
-    explicitness: unknown,
-    value10: unknown,
-    ordinal: unknown,
-    now: unknown,
+    assertionId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    attributeDefinitionId: string | null,
+    rawId: string,
+    rawLabel: string,
+    valueText: string,
+    assertionKind: string,
+    scopeJson: string,
+    explicitness: string,
+    confidence: number,
+    ordinal: number,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -204,20 +204,20 @@ export function insertCharacterAssertions(
 export function insertEvidenceFragments(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    assertionId: unknown,
-    sourceId: unknown,
-    evidenceOrigin: unknown,
-    quoteStart: unknown,
-    quoteEnd: unknown,
-    quoteHash: unknown,
-    excerptText: unknown,
-    inputPointer: unknown,
-    confidence: unknown,
-    verificationStatus: unknown,
-    inferenceType: unknown,
-    now: unknown,
+    evidenceId: string,
+    ownerUserId: string,
+    assertionId: string,
+    sourceId: string | null,
+    evidenceOrigin: string,
+    quoteStart: number | null,
+    quoteEnd: number | null,
+    quoteHash: string | null,
+    excerptText: string | null,
+    inputPointer: string | null,
+    confidence: number,
+    verificationStatus: string,
+    inferenceType: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -233,19 +233,19 @@ export function insertEvidenceFragments(
 export function insertCustomizationDeltas(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    operation: unknown,
-    value4: unknown,
-    beforeValue: unknown,
-    afterValue: unknown,
-    value7Json: unknown,
-    reasonText: unknown,
-    explicitness: unknown,
-    confidence: unknown,
-    ordinal: unknown,
-    now: unknown,
+    deltaId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    operation: string,
+    targetAttributeId: string | null,
+    beforeValue: string | null,
+    afterValue: string | null,
+    scopeJson: string,
+    reasonText: string | null,
+    explicitness: string,
+    confidence: number,
+    ordinal: number,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -261,18 +261,18 @@ export function insertCustomizationDeltas(
 export function insertDarkTransformationDeltas(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    entryRevisionId: unknown,
-    snapshotId: unknown,
-    operation: unknown,
-    aspect: unknown,
-    beforeValue: unknown,
-    afterValue: unknown,
-    value8Json: unknown,
-    confidence: unknown,
-    ordinal: unknown,
-    now: unknown,
+    deltaId: string,
+    ownerUserId: string,
+    entryRevisionId: string,
+    snapshotId: string,
+    operation: string,
+    aspect: string,
+    beforeValue: string | null,
+    afterValue: string | null,
+    detailJson: string,
+    confidence: number,
+    ordinal: number,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -283,15 +283,15 @@ export function insertDarkTransformationDeltas(
     .bind(...bindings);
 }
 
-export function updateUserCharacterEntries2(
+export function markEntryAwaitingUnderstandingReview(
   db: D1Database,
   bindings: readonly [
-    now: unknown,
-    entryId: unknown,
-    ownerUserId: unknown,
-    inputGeneration: unknown,
-    jobId: unknown,
-    commitStep: unknown,
+    now: string,
+    entryId: string,
+    ownerUserId: string,
+    inputGeneration: number,
+    jobId: string,
+    commitStep: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -301,15 +301,15 @@ export function updateUserCharacterEntries2(
     .bind(...bindings);
 }
 
-export function updateJobs3(
+export function awaitUnderstandingReview(
   db: D1Database,
   bindings: readonly [
-    value0Json: unknown,
-    now: unknown,
-    jobId: unknown,
-    ownerUserId: unknown,
-    inputGeneration: unknown,
-    commitStep: unknown,
+    resultJson: string,
+    now: string,
+    jobId: string,
+    ownerUserId: string,
+    inputGeneration: number,
+    commitStep: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -321,7 +321,7 @@ export function updateJobs3(
 
 export function updateJobAttempts(
   db: D1Database,
-  bindings: readonly [now: unknown, attemptId: unknown, jobId: unknown],
+  bindings: readonly [now: string, attemptId: string, jobId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE job_attempts SET status='succeeded',finished_at=?,lease_expires_at=NULL

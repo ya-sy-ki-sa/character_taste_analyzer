@@ -88,7 +88,7 @@ export async function createGenerationRequest(
       ]),
     );
   for (const itemId of input.prohibitedItemIds)
-    statements.push(repository.insertGenerationRequestPreferences2(env.DB, [id, itemId, ordinal++]));
+    statements.push(repository.insertProhibitedPreference(env.DB, [id, itemId, ordinal++]));
   const results = await env.DB.batch(statements);
   if (results.some((result) => !result.success)) throw new Error("D1_GENERATION_CREATE_FAILED");
   return { generationRequestId: id, status: "draft", jobId, outboxEventId: outbox.id, replayed: false };

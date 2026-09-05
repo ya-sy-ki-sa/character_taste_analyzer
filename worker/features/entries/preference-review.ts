@@ -76,7 +76,7 @@ export async function mutatePreferenceReview(
     `preference-review:${ownerUserId}:${analysisDomain}:${analysisRunId}:${idempotencyKey}`,
   );
   const alreadyExists = await first<{ id: string }>(
-    repository.selectPreferenceAssertions2(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
+    repository.selectOwnedReviewTarget(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
   );
   if (alreadyExists) return { analysisRunId, changedId, action: input.action, replayed: true };
   const run = await first<{
@@ -84,7 +84,7 @@ export async function mutatePreferenceReview(
     character_identity_id: string;
     representation_id: string;
     registration_payload_json: string;
-  }>(repository.selectAnalysisRuns2(env.DB, [analysisRunId, ownerUserId, ownerUserId, analysisDomain]));
+  }>(repository.selectEditableAnalysisRun(env.DB, [analysisRunId, ownerUserId, ownerUserId, analysisDomain]));
   if (!run) throw new Error("PREFERENCE_REVIEW_NOT_FOUND");
   const now = nowIso();
   if (input.action === "set_response_channel") {
@@ -115,7 +115,7 @@ export async function mutatePreferenceReview(
         analysisRunId,
       ]),
       ...copies,
-      repository.updatePreferenceAssertions2(env.DB, [
+      repository.supersedeReplacedPreferenceAssertion(env.DB, [
         changedId,
         input.targetId,
         ownerUserId,
@@ -126,7 +126,7 @@ export async function mutatePreferenceReview(
     if (results.some((item) => !item.success)) throw new Error("D1_PREFERENCE_REVIEW_FAILED");
     if (!results[0]?.meta.changes) {
       const replay = await first<{ id: string }>(
-        repository.selectPreferenceAssertions2(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
+        repository.selectOwnedReviewTarget(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
       );
       if (!replay) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
       return { analysisRunId, changedId, action: input.action, replayed: true };
@@ -158,7 +158,7 @@ export async function mutatePreferenceReview(
     if (input.attributeStableKey && !attribute) throw new Error("ATTRIBUTE_NOT_FOUND_IN_DOMAIN");
     if (input.action === "update_preference") {
       const old = await first<{ raw_mention_id: string | null; context_json: string }>(
-        repository.selectPreferenceAssertions3(env.DB, [input.targetId, ownerUserId, analysisRunId]),
+        repository.selectEditablePreferenceAssertion(env.DB, [input.targetId, ownerUserId, analysisRunId]),
       );
       if (!old) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
       contextJson = old.context_json;
@@ -219,7 +219,7 @@ export async function mutatePreferenceReview(
   if (results.some((item) => !item.success)) throw new Error("D1_PREFERENCE_REVIEW_FAILED");
   if (!results[0]?.meta.changes) {
     const replay = await first<{ id: string }>(
-      repository.selectPreferenceAssertions2(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
+      repository.selectOwnedReviewTarget(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
     );
     if (!replay) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
     return { analysisRunId, changedId, action: input.action, replayed: true };

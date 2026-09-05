@@ -391,7 +391,7 @@ export async function loadCurrentGraph(
     content_hash: string;
     node_count: number;
     edge_count: number;
-  }>(repository.selectGraphProjectionSnapshots2(env.DB, [ownerUserId]));
+  }>(repository.selectCurrentGraphSummary(env.DB, [ownerUserId]));
   if (!snapshot) return null;
   const limits =
     detail === "summary"

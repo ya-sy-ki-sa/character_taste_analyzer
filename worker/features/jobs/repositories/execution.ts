@@ -42,7 +42,7 @@ export function updateJobs(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function supersedeStaleJob(
   db: D1Database,
   bindings: readonly [now: unknown, nowAgain: unknown, jobId: unknown],
 ): D1PreparedStatement {
@@ -52,7 +52,7 @@ export function updateJobs2(
     .bind(...bindings);
 }
 
-export function selectJobAttempts2(
+export function selectNextAttemptNumbers(
   db: D1Database,
   bindings: readonly [stepName: unknown, jobId: unknown],
 ): D1PreparedStatement {
@@ -91,7 +91,7 @@ export function insertJobAttempts(
     .bind(...bindings);
 }
 
-export function updateJobs3(
+export function markClaimedJobRunning(
   db: D1Database,
   bindings: readonly [
     stepName: unknown,
@@ -111,7 +111,7 @@ export function updateJobs3(
     .bind(...bindings);
 }
 
-export function updateJobAttempts2(
+export function finishRunningAttempt(
   db: D1Database,
   bindings: readonly [status: unknown, value1: unknown, value2: unknown, value3: unknown, attemptId: unknown],
 ): D1PreparedStatement {

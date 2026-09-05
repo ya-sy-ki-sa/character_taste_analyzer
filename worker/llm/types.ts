@@ -54,7 +54,11 @@ export type LlmRunMetadata = {
   rootRequestId?: string;
   attemptNumber?: number;
   promptHash?: string;
-  effectiveSettings?: Record<string, unknown>;
+  effectiveSettings?: Record<string, unknown> & {
+    understandingSchemaVersion?: string;
+    understandingInformationPolicy?: string;
+    citationPolicyVersion?: string;
+  };
   ignoredParameters?: string[];
   fallbackFromProvider?: LlmProviderId;
   fallbackErrorCode?: string;

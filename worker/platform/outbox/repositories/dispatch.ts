@@ -29,7 +29,7 @@ export function updateJobs(
     .bind(...bindings);
 }
 
-export function updateOutboxEvents2(
+export function markClaimedEventPublished(
   db: D1Database,
   bindings: readonly [completed: unknown, eventId: unknown, leaseOwner: unknown],
 ): D1PreparedStatement {
@@ -39,7 +39,7 @@ export function updateOutboxEvents2(
     .bind(...bindings);
 }
 
-export function updateOutboxEvents3(
+export function recordClaimedEventFailure(
   db: D1Database,
   bindings: readonly [value0: unknown, next: unknown, code: unknown, eventId: unknown, leaseOwner: unknown],
 ): D1PreparedStatement {
@@ -49,7 +49,7 @@ export function updateOutboxEvents3(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function failDispatchExhaustedJob(
   db: D1Database,
   bindings: readonly [value0: unknown, value1: unknown, aggregate_id: unknown],
 ): D1PreparedStatement {
@@ -60,7 +60,7 @@ export function updateJobs2(
     .bind(...bindings);
 }
 
-export function selectOutboxEvents2(
+export function selectDeliverableEvents(
   db: D1Database,
   bindings: readonly [value0: unknown, value1: unknown, limit: unknown],
 ): D1PreparedStatement {
@@ -72,7 +72,7 @@ export function selectOutboxEvents2(
     .bind(...bindings);
 }
 
-export function selectOutboxEvents3(
+export function selectDeliverableProfileEvent(
   db: D1Database,
   bindings: readonly [ownerUserId: unknown, value1: unknown, value2: unknown],
 ): D1PreparedStatement {

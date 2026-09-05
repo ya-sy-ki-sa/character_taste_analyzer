@@ -39,7 +39,7 @@ export function selectCustomizationDeltas(db: D1Database, bindings: readonly [id
     .bind(...bindings);
 }
 
-export function selectCharacterUnderstandingSnapshots2(
+export function selectBaseUnderstandingSnapshot(
   db: D1Database,
   bindings: readonly [base_snapshot_id: unknown, ownerUserId: unknown],
 ): D1PreparedStatement {
@@ -50,7 +50,10 @@ export function selectCharacterUnderstandingSnapshots2(
     .bind(...bindings);
 }
 
-export function selectCharacterAssertions2(db: D1Database, bindings: readonly [id: unknown]): D1PreparedStatement {
+export function selectBaseUnderstandingAssertions(
+  db: D1Database,
+  bindings: readonly [id: unknown],
+): D1PreparedStatement {
   return db
     .prepare(`SELECT ca.id,COALESCE(ad.label,ca.raw_label) AS raw_label,ca.value_text,ca.assertion_kind,
                   ca.explicitness,ca.confidence,ca.status,ad.stable_key

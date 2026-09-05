@@ -74,13 +74,3 @@ export function insertSources(
          VALUES (?,?,?,'secondary',?,'public_web_excerpt','text/plain',?,?,?,?,?,?,?)`)
     .bind(...bindings);
 }
-
-export function insertSourceSetItems2(
-  db: D1Database,
-  bindings: readonly [sourceSetId: unknown, documentId: unknown],
-): D1PreparedStatement {
-  return db
-    .prepare(`INSERT OR IGNORE INTO source_set_items (source_set_id,source_id,priority,usage_type)
-           VALUES (?,?,100,'supporting')`)
-    .bind(...bindings);
-}

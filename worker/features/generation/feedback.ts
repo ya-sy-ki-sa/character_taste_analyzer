@@ -36,7 +36,7 @@ export async function selectGenerationCandidate(
   const now = nowIso();
   const statements = [
     repository.updateGenerationCandidates(env.DB, [requestId, ownerUserId]),
-    repository.updateGenerationCandidates2(env.DB, [now, candidateId, ownerUserId]),
+    repository.markFeedbackCandidateSelected(env.DB, [now, candidateId, ownerUserId]),
     repository.updateGeneratedCharacters(env.DB, [
       row.character_json,
       await sha256Hex(row.character_json),
@@ -135,9 +135,9 @@ export async function listGenerationFeedback(env: Env, ownerUserId: string, doma
     reason: string;
     preference_json: string;
     status: string;
-  }>(repository.selectGenerationFeedback2(env.DB, [ownerUserId, domain]));
+  }>(repository.listGenerationFeedback(env.DB, [ownerUserId, domain]));
   const attributes = await all<{ stable_key: string; label: string }>(
-    repository.selectAttributeDefinitions2(env.DB, [domain]),
+    repository.listFeedbackAttributes(env.DB, [domain]),
   );
   return {
     feedback: rows.map((row) => ({
@@ -160,7 +160,7 @@ export async function reviewGenerationFeedback(
   decision: "confirm" | "reject",
 ) {
   const row = await first<{ status: string }>(
-    repository.selectGenerationFeedback3(env.DB, [feedbackId, ownerUserId, domain]),
+    repository.selectFeedbackStatus(env.DB, [feedbackId, ownerUserId, domain]),
   );
   if (!row) throw new HTTPException(404, { message: "評価が見つかりません" });
   const status = decision === "confirm" ? "confirmed" : "rejected";

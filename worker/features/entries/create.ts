@@ -1,19 +1,15 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import type { AnyEntryDraft } from "../../../shared/contracts/entries";
-import {
-  entryBaseCharacterName,
-  entryInputSources,
-  entryReferenceMaterial,
-  entryScopeText,
-} from "../../../shared/entry-input";
+import { entryBaseCharacterName } from "../../../shared/entry-input";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
 import { newJobLlmRoutingJson } from "../../llm/execution";
 import { outboxStatement } from "../../platform/outbox/write";
 import { prepareQuotaReservation } from "../../platform/quota/reservations";
 import type { Env } from "../../types";
-import { registrationTitle } from "./presentation";
+import { prepareInputSources, representationStatements } from "./input-preparation";
 import * as repository from "./repositories/create";
+import * as inputRepository from "./repositories/input";
 import type { CreatedEntry } from "./types";
 
 export async function createEntry(
@@ -49,7 +45,7 @@ export async function createEntry(
 
   if (resolution.mode === "reuse") {
     const reusable = await first<{ identity_id: string; work_id: string | null }>(
-      repository.selectCharacterIdentities(env.DB, [
+      inputRepository.selectReusableIdentity(env.DB, [
         resolution.characterIdentityId,
         ownerUserId,
         analysisDomain,
@@ -65,7 +61,7 @@ export async function createEntry(
   } else {
     if (draft.registrationType !== "original" && workId) {
       statements.push(
-        repository.insertWorks(env.DB, [
+        inputRepository.insertWork(env.DB, [
           workId,
           ownerUserId,
           draft.workTitle,
@@ -78,7 +74,7 @@ export async function createEntry(
       );
     }
     statements.push(
-      repository.insertCharacterIdentities(env.DB, [
+      inputRepository.insertIdentity(env.DB, [
         identityId,
         draft.registrationType === "original" ? "original" : "existing",
         ownerUserId,
@@ -92,83 +88,25 @@ export async function createEntry(
     );
   }
 
-  const referenceMaterial = entryReferenceMaterial(draft);
-  if (baseRepresentationId && draft.registrationType === "customized_existing")
-    statements.push(
-      repository.insertCharacterRepresentations(env.DB, [
-        baseRepresentationId,
-        identityId,
-        ownerUserId,
-        `基本像: ${draft.workTitle} / ${baseCharacterName}`,
-        referenceMaterial?.slice(0, 2000) ?? null,
-        now,
-        now,
-      ]),
-    );
-  const representationType =
-    draft.registrationType === "original"
-      ? "original"
-      : draft.registrationType === "customized_existing"
-        ? draft.representationType
-        : "canonical_whole";
-  const canonicality =
-    draft.registrationType === "original"
-      ? "original"
-      : draft.registrationType === "customized_existing"
-        ? draft.representationType === "transformative" || draft.representationType === "alternate_setting"
-          ? "transformative"
-          : "user_interpretation"
-        : "official";
-  const scopeType =
-    draft.registrationType === "customized_existing"
-      ? draft.representationType === "scene_state"
-        ? "scene"
-        : draft.representationType === "facet"
-          ? "facet"
-          : draft.representationType === "alternate_setting"
-            ? "alternate_setting"
-            : "whole"
-      : "whole";
   statements.push(
-    repository.insertCharacterRepresentations2(env.DB, [
-      representationId,
-      identityId,
-      baseRepresentationId,
+    ...representationStatements(env.DB, {
       ownerUserId,
-      representationType,
-      canonicality,
-      scopeType,
-      entryScopeText(draft),
-      draft.registrationType === "customized_existing" ? draft.customizationDescription : null,
-      (draft.registrationType === "original" ? draft.characterBasicInfo : referenceMaterial)?.slice(0, 2000) ?? null,
+      draft,
+      identityId,
+      representationId,
+      baseRepresentationId,
       now,
-      now,
-    ]),
+    }),
   );
-
-  const sources = entryInputSources(draft);
-  const sourceSetHash = await sha256Hex(JSON.stringify(sources.map(({ pointer, text }) => ({ pointer, text }))));
-  statements.push(repository.insertSourceSets(env.DB, [sourceSetId, ownerUserId, sourceSetHash, now, now]));
-  for (const [ordinal, source] of sources.entries()) {
-    const documentId = crypto.randomUUID();
-    const hash = await sha256Hex(source.text);
-    statements.push(
-      repository.insertSources(env.DB, [
-        documentId,
-        ownerUserId,
-        `${registrationTitle(draft)} ${source.label}`,
-        JSON.stringify({ inputPointer: source.pointer }),
-        new TextEncoder().encode(source.text).byteLength,
-        hash,
-        JSON.stringify({ type: "json_pointer", pointer: source.pointer }),
-        source.text,
-        Math.ceil(source.text.length / 3),
-        now,
-        now,
-      ]),
-      repository.insertSourceSetItems(env.DB, [sourceSetId, documentId, ordinal + 1]),
-    );
-  }
+  statements.push(
+    ...(await prepareInputSources(env.DB, {
+      ownerUserId,
+      draft,
+      sourceSetId,
+      now,
+      createDocumentId: () => crypto.randomUUID(),
+    })),
+  );
 
   const quota = await prepareQuotaReservation(env, ownerUserId, "analysis", idempotencyKey, payloadHash);
   const outbox = await outboxStatement(

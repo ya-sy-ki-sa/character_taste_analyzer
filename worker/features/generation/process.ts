@@ -30,8 +30,8 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
     const { brief, briefRowId } = await compileBrief(env, params.ownerUserId, params.generationRequestId);
     if (brief.analysisDomain !== params.analysisDomain) throw new Error("GENERATION_DOMAIN_MISMATCH");
     await env.DB.batch([
-      repository.updateJobs2(env.DB, [nowIso(), params.jobId]),
-      repository.updateGenerationRequests2(env.DB, [nowIso(), params.generationRequestId]),
+      repository.markJobGenerating(env.DB, [nowIso(), params.jobId]),
+      repository.markRequestGenerating(env.DB, [nowIso(), params.generationRequestId]),
     ]);
     const documents = await loadSimilarityDocuments(
       env,
@@ -72,7 +72,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
     const outputJson = JSON.stringify(candidate);
     const completed = nowIso();
     const statements: D1PreparedStatement[] = [
-      repository.updateJobs3(env.DB, [
+      repository.completeGenerationJob(env.DB, [
         JSON.stringify({ generatedCharacterId: characterId }),
         completed,
         completed,
@@ -94,7 +94,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
         params.jobId,
         params.ownerUserId,
       ]),
-      repository.updateGenerationRequests3(env.DB, [
+      repository.completeGenerationRequest(env.DB, [
         completed,
         params.generationRequestId,
         params.ownerUserId,
@@ -149,7 +149,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
         error instanceof LlmProviderError ? error.safeDetail : null,
       );
     await env.DB.batch([
-      repository.updateGenerationRequests4(env.DB, [
+      repository.recordGenerationRequestFailure(env.DB, [
         willRetry ? "generating" : "failed",
         now,
         params.generationRequestId,
@@ -157,7 +157,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
         params.analysisDomain,
         params.jobId,
       ]),
-      repository.updateJobs4(env.DB, [
+      repository.recordGenerationJobFailure(env.DB, [
         willRetry ? "retrying" : "failed",
         willRetry ? 1 : 0,
         code.slice(0, 100),

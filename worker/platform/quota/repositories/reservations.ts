@@ -9,7 +9,7 @@ export function selectQuotaReservations(
     .bind(...bindings);
 }
 
-export function selectQuotaReservations2(
+export function countDailyReservations(
   db: D1Database,
   bindings: readonly [usageDate: unknown, ownerUserId: unknown, capability: unknown],
 ): D1PreparedStatement {

@@ -23,7 +23,7 @@ export async function dispatchOutboxEvent(env: Env, eventId: string, deliver: Ou
     const completed = nowIso();
     await env.DB.batch([
       ...(workflowId ? [repository.updateJobs(env.DB, [workflowId, completed, row.aggregate_id])] : []),
-      repository.updateOutboxEvents2(env.DB, [completed, eventId, leaseOwner]),
+      repository.markClaimedEventPublished(env.DB, [completed, eventId, leaseOwner]),
     ]);
     return true;
   } catch (error) {
@@ -31,15 +31,15 @@ export async function dispatchOutboxEvent(env: Env, eventId: string, deliver: Ou
     const dead = row.attempt_count >= 10;
     const next = new Date(Date.now() + 60_000).toISOString();
     await env.DB.batch([
-      repository.updateOutboxEvents3(env.DB, [dead ? "dead" : "pending", next, code, eventId, leaseOwner]),
-      ...(dead ? [repository.updateJobs2(env.DB, [nowIso(), nowIso(), row.aggregate_id])] : []),
+      repository.recordClaimedEventFailure(env.DB, [dead ? "dead" : "pending", next, code, eventId, leaseOwner]),
+      ...(dead ? [repository.failDispatchExhaustedJob(env.DB, [nowIso(), nowIso(), row.aggregate_id])] : []),
     ]);
     return false;
   }
 }
 
 export async function dispatchPendingOutbox(env: Env, limit: number, deliver: OutboxDelivery): Promise<number> {
-  const rows = await all<{ id: string }>(repository.selectOutboxEvents2(env.DB, [nowIso(), nowIso(), limit]));
+  const rows = await all<{ id: string }>(repository.selectDeliverableEvents(env.DB, [nowIso(), nowIso(), limit]));
   let delivered = 0;
   for (const row of rows) if (await dispatchOutboxEvent(env, row.id, deliver)) delivered += 1;
   return delivered;
@@ -50,7 +50,9 @@ export async function dispatchPendingProfileRebuild(
   ownerUserId: string,
   deliver: OutboxDelivery,
 ): Promise<boolean> {
-  const event = await first<{ id: string }>(repository.selectOutboxEvents3(env.DB, [ownerUserId, nowIso(), nowIso()]));
+  const event = await first<{ id: string }>(
+    repository.selectDeliverableProfileEvent(env.DB, [ownerUserId, nowIso(), nowIso()]),
+  );
   return event ? dispatchOutboxEvent(env, event.id, deliver) : false;
 }
 

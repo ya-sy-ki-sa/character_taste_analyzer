@@ -38,7 +38,7 @@ export async function loadConfirmedUnderstanding(env: Env, ownerUserId: string, 
       confidence: number;
     }>(repository.selectCustomizationDeltas(env.DB, [snapshotId, ownerUserId])),
     all<{ raw_label: string; value_text: string; status: string }>(
-      repository.selectCharacterAssertions2(env.DB, [snapshotId, ownerUserId]),
+      repository.selectExcludedAssertions(env.DB, [snapshotId, ownerUserId]),
     ),
   ]);
   return {

@@ -1,7 +1,9 @@
+import type { AnalysisDomain } from "../../../../shared/analysis-domain";
+
 /** D1 statements for this use case. Callers compose atomic batches across repositories. */
 export function selectPreferenceAssertions(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, ownerUserIdAgain: unknown],
+  bindings: readonly [ownerUserId: string, ownerUserIdAgain: string],
 ): D1PreparedStatement {
   return db
     .prepare(`
@@ -34,7 +36,7 @@ export function selectPreferenceAssertions(
 
 export function selectGenerationFeedback(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown],
+  bindings: readonly [ownerUserId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT f.id,'feedback:' || COALESCE(json_extract(f.preference_json,'$.sourceCandidateId'),f.candidate_id,f.id) AS entry_id, f.id AS entry_revision_id,
@@ -51,7 +53,7 @@ export function selectGenerationFeedback(
 
 export function selectValueStanceAssertions(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, ownerUserIdAgain: unknown],
+  bindings: readonly [ownerUserId: string, ownerUserIdAgain: string],
 ): D1PreparedStatement {
   return db
     .prepare(`
@@ -80,7 +82,7 @@ export function selectValueStanceAssertions(
 
 export function selectProfileProjections(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown],
+  bindings: readonly [ownerUserId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT generation FROM profile_projections WHERE owner_user_id = ? ORDER BY generation DESC LIMIT 1`)
@@ -89,7 +91,7 @@ export function selectProfileProjections(
 
 export function selectProjectionRebuildStates(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown],
+  bindings: readonly [ownerUserId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT desired_generation,built_generation FROM projection_rebuild_states WHERE owner_user_id=?`)
@@ -99,13 +101,13 @@ export function selectProjectionRebuildStates(
 export function insertProfileProjections(
   db: D1Database,
   bindings: readonly [
-    projectionId: unknown,
-    ownerUserId: unknown,
-    generation: unknown,
-    ONTOLOGY_VERSION: unknown,
-    PROFILE_ALGORITHM_VERSION: unknown,
-    evidenceSetHash: unknown,
-    now: unknown,
+    projectionId: string,
+    ownerUserId: string,
+    generation: number,
+    ontologyVersion: string,
+    algorithmVersion: string,
+    evidenceSetHash: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -118,12 +120,12 @@ export function insertProfileProjections(
 export function insertProjectionRebuildStates(
   db: D1Database,
   bindings: readonly [
-    ownerUserId: unknown,
-    generation: unknown,
-    value2: unknown,
-    projectionId: unknown,
-    value4: unknown,
-    now: unknown,
+    ownerUserId: string,
+    generation: number,
+    builtGeneration: number,
+    projectionId: string,
+    leaseExpiresAt: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -141,24 +143,24 @@ export function insertProjectionRebuildStates(
 export function insertProfileDimensions(
   db: D1Database,
   bindings: readonly [
-    id: unknown,
-    projectionId: unknown,
-    attributeDefinitionId: unknown,
-    value3: unknown,
-    responseChannel: unknown,
-    conditionHash: unknown,
-    conditionJson: unknown,
-    positiveScore: unknown,
-    negativeScore: unknown,
-    confidence: unknown,
-    evidenceCount: unknown,
-    identityCount: unknown,
-    workCount: unknown,
-    classification: unknown,
-    flagsJson: unknown,
-    index: unknown,
-    now: unknown,
-    analysisDomain: unknown,
+    id: string,
+    projectionId: string,
+    attributeDefinitionId: string | null,
+    rawLabel: string,
+    responseChannel: string | null,
+    conditionHash: string,
+    conditionJson: string,
+    positiveScore: number,
+    negativeScore: number,
+    confidence: number,
+    evidenceCount: number,
+    identityCount: number,
+    workCount: number,
+    classification: string,
+    flagsJson: string,
+    ordinal: number,
+    now: string,
+    analysisDomain: AnalysisDomain,
   ],
 ): D1PreparedStatement {
   return db
@@ -175,15 +177,15 @@ export function insertProfileDimensions(
 export function insertProfileSnapshots(
   db: D1Database,
   bindings: readonly [
-    profileSnapshotId: unknown,
-    ownerUserId: unknown,
-    projectionId: unknown,
-    generation: unknown,
-    evidenceSetHash: unknown,
-    ONTOLOGY_VERSION: unknown,
-    PROFILE_ALGORITHM_VERSION: unknown,
-    contentHash: unknown,
-    now: unknown,
+    profileSnapshotId: string,
+    ownerUserId: string,
+    projectionId: string,
+    generation: number,
+    evidenceSetHash: string,
+    ontologyVersion: string,
+    algorithmVersion: string,
+    contentHash: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -199,17 +201,17 @@ export function insertProfileSnapshots(
 export function insertProfileSnapshotItems(
   db: D1Database,
   bindings: readonly [
-    id: unknown,
-    profileSnapshotId: unknown,
-    sourceDimensionId: unknown,
-    type: unknown,
-    stableKey: unknown,
-    label: unknown,
-    payloadJson: unknown,
-    value7: unknown,
-    ordinal: unknown,
-    now: unknown,
-    analysisDomain: unknown,
+    id: string,
+    profileSnapshotId: string,
+    sourceDimensionId: string | null,
+    type: string,
+    stableKey: string,
+    label: string,
+    payloadJson: string,
+    payloadHash: string,
+    ordinal: number,
+    now: string,
+    analysisDomain: AnalysisDomain,
   ],
 ): D1PreparedStatement {
   return db
@@ -222,16 +224,13 @@ export function insertProfileSnapshotItems(
     .bind(...bindings);
 }
 
-export function selectProjectionRebuildStates2(
-  db: D1Database,
-  bindings: readonly [ownerUserId: unknown],
-): D1PreparedStatement {
+export function selectDesiredGeneration(db: D1Database, bindings: readonly [ownerUserId: string]): D1PreparedStatement {
   return db.prepare(`SELECT desired_generation FROM projection_rebuild_states WHERE owner_user_id=?`).bind(...bindings);
 }
 
 export function updateProfileProjections(
   db: D1Database,
-  bindings: readonly [projectionId: unknown],
+  bindings: readonly [projectionId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE profile_projections SET status='superseded' WHERE id=? AND status='building'`)
@@ -240,16 +239,16 @@ export function updateProfileProjections(
 
 export function updateGraphProjectionSnapshots(
   db: D1Database,
-  bindings: readonly [graphProjectionId: unknown],
+  bindings: readonly [graphProjectionId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE graph_projection_snapshots SET status='superseded' WHERE id=? AND status='building'`)
     .bind(...bindings);
 }
 
-export function updateProfileProjections2(
+export function supersedeCurrentProfile(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, ownerUserIdAgain: unknown, generation: unknown],
+  bindings: readonly [ownerUserId: string, ownerUserIdAgain: string, generation: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE profile_projections SET status='superseded'
@@ -258,9 +257,9 @@ export function updateProfileProjections2(
     .bind(...bindings);
 }
 
-export function updateGraphProjectionSnapshots2(
+export function supersedeCurrentGraph(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, ownerUserIdAgain: unknown, generation: unknown],
+  bindings: readonly [ownerUserId: string, ownerUserIdAgain: string, generation: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE graph_projection_snapshots SET status='superseded'
@@ -269,9 +268,9 @@ export function updateGraphProjectionSnapshots2(
     .bind(...bindings);
 }
 
-export function updateProfileProjections3(
+export function activateBuiltProfile(
   db: D1Database,
-  bindings: readonly [completed: unknown, projectionId: unknown, ownerUserId: unknown, generation: unknown],
+  bindings: readonly [completed: string, projectionId: string, ownerUserId: string, generation: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE profile_projections SET status='current',completed_at=?,revision=revision+1
@@ -280,9 +279,9 @@ export function updateProfileProjections3(
     .bind(...bindings);
 }
 
-export function updateGraphProjectionSnapshots3(
+export function activateBuiltGraph(
   db: D1Database,
-  bindings: readonly [completed: unknown, graphProjectionId: unknown, ownerUserId: unknown, generation: unknown],
+  bindings: readonly [completed: string, graphProjectionId: string, ownerUserId: string, generation: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE graph_projection_snapshots SET status='current',completed_at=?
@@ -293,7 +292,7 @@ export function updateGraphProjectionSnapshots3(
 
 export function updateProjectionRebuildStates(
   db: D1Database,
-  bindings: readonly [generation: unknown, completed: unknown, ownerUserId: unknown, generationAgain: unknown],
+  bindings: readonly [generation: number, completed: string, ownerUserId: string, generationAgain: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE projection_rebuild_states SET built_generation=?,status='current',lease_owner=NULL,
@@ -302,10 +301,7 @@ export function updateProjectionRebuildStates(
     .bind(...bindings);
 }
 
-export function selectProfileProjections2(
-  db: D1Database,
-  bindings: readonly [ownerUserId: unknown],
-): D1PreparedStatement {
+export function selectCurrentProfile(db: D1Database, bindings: readonly [ownerUserId: string]): D1PreparedStatement {
   return db
     .prepare(
       `SELECT id, generation, evidence_set_hash, algorithm_version, completed_at FROM profile_projections WHERE owner_user_id=? AND status='current'`,
@@ -315,7 +311,7 @@ export function selectProfileProjections2(
 
 export function selectProfileSnapshots(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, id: unknown],
+  bindings: readonly [ownerUserId: string, id: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -326,7 +322,7 @@ export function selectProfileSnapshots(
 
 export function selectProfileDimensions(
   db: D1Database,
-  bindings: readonly [id: unknown, analysisDomain: unknown],
+  bindings: readonly [id: string, analysisDomain: AnalysisDomain],
 ): D1PreparedStatement {
   return db
     .prepare(`
@@ -341,7 +337,7 @@ export function selectProfileDimensions(
 
 export function selectActiveAttributeLabels(
   db: D1Database,
-  bindings: readonly [analysisDomain: unknown],
+  bindings: readonly [analysisDomain: AnalysisDomain],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT ad.stable_key,ad.label FROM attribute_definitions ad JOIN attribute_schema_versions v ON v.id=ad.schema_version_id
@@ -351,7 +347,7 @@ export function selectActiveAttributeLabels(
 
 export function selectUserCharacterEntries(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, analysisDomain: unknown],
+  bindings: readonly [ownerUserId: string, analysisDomain: AnalysisDomain],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -360,9 +356,9 @@ export function selectUserCharacterEntries(
     .bind(...bindings);
 }
 
-export function selectProjectionRebuildStates3(
+export function selectProjectionFreshness(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown],
+  bindings: readonly [ownerUserId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -371,9 +367,9 @@ export function selectProjectionRebuildStates3(
     .bind(...bindings);
 }
 
-export function selectProfileProjections3(
+export function selectCurrentProfileVersion(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown],
+  bindings: readonly [ownerUserId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT generation,algorithm_version FROM profile_projections WHERE owner_user_id=? AND status='current'`)
@@ -383,12 +379,12 @@ export function selectProfileProjections3(
 export function updateJobs(
   db: D1Database,
   bindings: readonly [
-    resultJson: unknown,
-    now: unknown,
-    nowAgain: unknown,
-    jobId: unknown,
-    ownerUserId: unknown,
-    desiredGeneration: unknown,
+    resultJson: string,
+    now: string,
+    nowAgain: string,
+    jobId: string,
+    ownerUserId: string,
+    desiredGeneration: number,
   ],
 ): D1PreparedStatement {
   return db
@@ -400,7 +396,7 @@ export function updateJobs(
 
 export function updateJobAttempts(
   db: D1Database,
-  bindings: readonly [now: unknown, attemptId: unknown, jobId: unknown],
+  bindings: readonly [now: string, attemptId: string, jobId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE job_attempts SET status='succeeded',finished_at=?,lease_expires_at=NULL
@@ -408,9 +404,9 @@ export function updateJobAttempts(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function recordProfileJobFailure(
   db: D1Database,
-  bindings: readonly [value0: unknown, value1: unknown, code: unknown, now: unknown, nowAgain: unknown, jobId: unknown],
+  bindings: readonly [status: string, retryable: number, code: string, now: string, nowAgain: string, jobId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE jobs SET status=?,retryable=?,error_code=?,updated_at=?,completed_at=?,revision=revision+1
@@ -418,9 +414,9 @@ export function updateJobs2(
     .bind(...bindings);
 }
 
-export function updateProjectionRebuildStates2(
+export function recordProjectionFailure(
   db: D1Database,
-  bindings: readonly [code: unknown, now: unknown, ownerUserId: unknown, desiredGeneration: unknown],
+  bindings: readonly [code: string, now: string, ownerUserId: string, desiredGeneration: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE projection_rebuild_states SET status='failed',last_error_code=?,lease_owner=NULL,

@@ -14,7 +14,7 @@ import {
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
 import { entryInputSources, entryPreferenceContext, entryScopeText } from "../../../shared/entry-input";
 import { responseChannelPrompt } from "../../../shared/response-channels";
-import { hmacHex, normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/crypto";
+import { hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
 import { SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
@@ -27,22 +27,17 @@ import type { LlmRunMetadata } from "../../llm/types";
 import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
 import { loadInputProvenanceSources } from "../../platform/provenance/sources";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
-import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "../jobs/execution";
+import { claimJob, type JobClaim } from "../jobs/execution";
+import { handleAnalysisAttemptFailure } from "./attempt-failure";
 import { citationAwareProvider, logCitationIssues, verifyAssertionEvidence } from "./citations";
-import { analysisFenceIsCurrent, supersedeAnalysisClaim } from "./claims";
 import { loadConfirmedUnderstanding } from "./confirmed-understanding";
 import { loadEntry, loadOntology, ontologyPrompt } from "./context";
 import { fakePreferences, refinedFakePreferences } from "./deterministic";
-import { analysisErrorCode, analysisFailureMetadata, safeAnalysisErrorDetail, updateFailure } from "./failures";
 import { commitHypothesisPreview, generatePreferenceHypotheses } from "./hypotheses";
 import { refinementInstruction } from "./input";
 import { analyzeDarkPreferences, auditDarkPreferences } from "./llm-dark";
-import {
-  completedLlmGroup,
-  persistCompletedLlmGroupsOnFailure,
-  persistFailedModelRuns,
-  persistModelRun,
-} from "./model-runs";
+import { completedLlmGroup, persistCompletedLlmGroupsOnFailure, persistModelRun } from "./model-runs";
+import { preferenceAssertionStatements } from "./preference-statements";
 import * as repository from "./repositories/preference";
 import {
   loadRetainedPreferences,
@@ -59,7 +54,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
   const completedLlmGroups: CompletedLlmGroup[] = [];
   try {
     const latestRefinement = await first<{ id: string }>(
-      repository.selectPreferenceRefinements(env.DB, [params.ownerUserId, params.entryId, params.analysisDomain]),
+      repository.selectLatestRefinement(env.DB, [params.ownerUserId, params.entryId, params.analysisDomain]),
     );
     if ((latestRefinement?.id ?? null) !== (params.refinementId ?? null)) return;
     claim = await claimJob(
@@ -84,13 +79,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         mode: "questions" | "hypotheses";
         answers_json: string;
         context_json: string;
-      }>(
-        repository.selectPreferenceRefinements2(env.DB, [
-          params.refinementId,
-          params.ownerUserId,
-          entry.entryRevisionId,
-        ]),
-      );
+      }>(repository.selectRevisionRefinement(env.DB, [params.refinementId, params.ownerUserId, entry.entryRevisionId]));
       if (!refinement) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
       entry.refinement = {
         id: refinement.id,
@@ -385,7 +374,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     const runId = crypto.randomUUID();
     const now = nowIso();
     const commitStep = `commit-preference:${claim.attemptId}`;
-    const commitGuard = repository.updateJobs(env.DB, [
+    const commitGuard = repository.acquirePreferenceCommitFence(env.DB, [
       commitStep,
       now,
       params.jobId,
@@ -442,116 +431,19 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       ]),
     );
     statements.push(...(await retainPreferenceStatements(env, params.ownerUserId, runId, retained)));
-    const attributeByKey = new Map(ontology.map((item) => [item.stable_key, item]));
-    const preferenceIds: string[] = [];
-    for (const [index, assertion] of result.value.preferenceAssertions.entries()) {
-      const verifiedAssertion = verifiedPreferences[index];
-      const id = verifiedAssertion.id;
-      preferenceIds.push(id);
-      const rawId = crypto.randomUUID();
-      const attribute = assertion.attributeStableKey ? attributeByKey.get(assertion.attributeStableKey) : undefined;
-      statements.push(
-        repository.insertRawAttributeMentions(env.DB, [
-          rawId,
-          params.ownerUserId,
-          id,
-          assertion.rawLabel,
-          normalizeIdentityPart(assertion.rawLabel),
-          now,
-        ]),
-      );
-      statements.push(
-        repository.insertAttributeMappings(env.DB, [
-          crypto.randomUUID(),
-          rawId,
-          attribute?.id ?? null,
-          attribute ? "accepted" : "unmapped",
-          attribute ? "exact" : "llm",
-          attribute ? 1 : assertion.confidence,
-          now,
-          attribute ? now : null,
-        ]),
-      );
-      statements.push(
-        repository.insertPreferenceAssertions(env.DB, [
-          id,
-          params.ownerUserId,
-          runId,
-          entry.entryRevisionId,
-          entry.characterIdentityId,
-          entry.representationId,
-          attribute?.id ?? null,
-          rawId,
-          params.analysisDomain,
-          assertion.polarity,
-          assertion.responseChannel,
-          assertion.strength,
-          assertion.explicitness,
-          assertion.explicitness === "model_knowledge" ? Math.min(0.45, assertion.confidence) : assertion.confidence,
-          JSON.stringify(assertion.context),
-          now,
-        ]),
-      );
-      for (const verified of verifiedAssertion.evidence) {
-        statements.push(
-          repository.insertEvidenceFragments(env.DB, [
-            crypto.randomUUID(),
-            params.ownerUserId,
-            id,
-            verified.sourceId,
-            verified.evidenceOrigin,
-            verified.quoteStart,
-            verified.quoteEnd,
-            verified.quoteHash,
-            verified.excerptText,
-            verified.inputPointer,
-            assertion.confidence,
-            verified.verificationStatus,
-            verified.inferenceType,
-            now,
-          ]),
-        );
-      }
-    }
-    for (const [index, stance] of result.value.valueStanceAssertions.entries()) {
-      const verifiedAssertion = verifiedStances[index];
-      const id = verifiedAssertion.id;
-      statements.push(
-        repository.insertValueStanceAssertions(env.DB, [
-          id,
-          params.ownerUserId,
-          runId,
-          stance.targetType,
-          stance.targetRef,
-          stance.stance,
-          stance.orientation,
-          JSON.stringify(stance.context),
-          stance.explicitness,
-          stance.confidence,
-          now,
-        ]),
-      );
-      for (const verified of verifiedAssertion.evidence) {
-        statements.push(
-          repository.insertEvidenceFragments2(env.DB, [
-            crypto.randomUUID(),
-            params.ownerUserId,
-            id,
-            verified.sourceId,
-            verified.evidenceOrigin,
-            verified.quoteStart,
-            verified.quoteEnd,
-            verified.quoteHash,
-            verified.excerptText,
-            verified.inputPointer,
-            stance.confidence,
-            verified.verificationStatus,
-            verified.inferenceType,
-            now,
-          ]),
-        );
-      }
-    }
+    statements.push(
+      ...preferenceAssertionStatements(env.DB, {
+        ownerUserId: params.ownerUserId,
+        analysisDomain: params.analysisDomain,
+        entry,
+        runId,
+        value: result.value,
+        verifiedPreferences,
+        verifiedStances,
+        ontology,
+        now,
+      }),
+    );
     statements.push(
       repository.updateUserCharacterEntries(env.DB, [
         now,
@@ -563,7 +455,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       ]),
     );
     statements.push(
-      repository.updateJobs2(env.DB, [
+      repository.awaitPreferenceReview(env.DB, [
         JSON.stringify({ entryId: params.entryId, reviewTargetId: runId }),
         now,
         params.jobId,
@@ -583,23 +475,6 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     )
       throw new Error("JOB_COMMIT_FENCE_CHANGED");
   } catch (error) {
-    if (claim?.status === "claimed" && !(await analysisFenceIsCurrent(env, params, claim.attemptId))) {
-      await supersedeAnalysisClaim(env, params, claim.attemptId);
-      return;
-    }
-    await persistCompletedLlmGroupsOnFailure(env, params.ownerUserId, completedLlmGroups);
-    await persistFailedModelRuns(env, params.ownerUserId, error);
-    const latestMetadata = analysisFailureMetadata(error, completedLlmGroups.at(-1)?.attempts.at(-1)?.metadata);
-    const willRetry = claim?.status === "claimed" && claim.stepAttemptNumber < 3 && isRetryableFailure(error);
-    if (claim?.status === "claimed")
-      await finishJobAttempt(
-        env,
-        claim.attemptId,
-        "failed",
-        analysisErrorCode(error),
-        safeAnalysisErrorDetail(error, latestMetadata)?.slice(0, 2_000) ?? null,
-      );
-    await updateFailure(env, params, error, willRetry, latestMetadata);
-    if (willRetry) throw error;
+    await handleAnalysisAttemptFailure(env, params, claim, completedLlmGroups, error);
   }
 }

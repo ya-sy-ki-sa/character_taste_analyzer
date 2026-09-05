@@ -6,7 +6,7 @@ export async function deleteAccount(env: Env, ownerUserId: string, username: str
   if (usernameConfirmation !== username) throw new HTTPException(422, { message: "確認用ユーザー名が一致しません" });
   if (env.EXPORTS) {
     const bucket = env.EXPORTS;
-    const objects = await all<{ object_key: string | null }>(repository.selectAccountExports3(env.DB, [ownerUserId]));
+    const objects = await all<{ object_key: string | null }>(repository.selectExportObjectKeys(env.DB, [ownerUserId]));
     await Promise.all(objects.flatMap((item) => (item.object_key ? [bucket.delete(item.object_key)] : [])));
   }
   const results = await env.DB.batch([repository.deleteUsers(env.DB, [ownerUserId])]);

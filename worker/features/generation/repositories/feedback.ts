@@ -19,7 +19,7 @@ export function updateGenerationCandidates(
     .bind(...bindings);
 }
 
-export function updateGenerationCandidates2(
+export function markFeedbackCandidateSelected(
   db: D1Database,
   bindings: readonly [now: unknown, candidateId: unknown, ownerUserId: unknown],
 ): D1PreparedStatement {
@@ -115,7 +115,7 @@ export function insertGenerationFeedback(
     .bind(...bindings);
 }
 
-export function selectGenerationFeedback2(
+export function listGenerationFeedback(
   db: D1Database,
   bindings: readonly [ownerUserId: unknown, domain: unknown],
 ): D1PreparedStatement {
@@ -126,7 +126,7 @@ export function selectGenerationFeedback2(
     .bind(...bindings);
 }
 
-export function selectAttributeDefinitions2(db: D1Database, bindings: readonly [domain: unknown]): D1PreparedStatement {
+export function listFeedbackAttributes(db: D1Database, bindings: readonly [domain: unknown]): D1PreparedStatement {
   return db
     .prepare(
       `SELECT d.stable_key,d.label FROM attribute_definitions d JOIN attribute_schema_versions v ON v.id=d.schema_version_id WHERE d.status='active' AND v.status='active' AND v.analysis_domain=? ORDER BY d.label`,
@@ -134,7 +134,7 @@ export function selectAttributeDefinitions2(db: D1Database, bindings: readonly [
     .bind(...bindings);
 }
 
-export function selectGenerationFeedback3(
+export function selectFeedbackStatus(
   db: D1Database,
   bindings: readonly [feedbackId: unknown, ownerUserId: unknown, domain: unknown],
 ): D1PreparedStatement {

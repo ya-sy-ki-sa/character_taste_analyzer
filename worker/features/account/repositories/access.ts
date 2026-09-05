@@ -1,5 +1,5 @@
 /** D1 statements for this use case. Callers compose atomic batches across repositories. */
-export function selectAccountExports(
+export function selectExportStatus(
   db: D1Database,
   bindings: readonly [value0: unknown, userId: unknown],
 ): D1PreparedStatement {
@@ -9,7 +9,7 @@ export function selectAccountExports(
     .bind(...bindings);
 }
 
-export function selectAccountExports2(
+export function selectExportDownload(
   db: D1Database,
   bindings: readonly [value0: unknown, userId: unknown],
 ): D1PreparedStatement {
@@ -18,7 +18,7 @@ export function selectAccountExports2(
     .bind(...bindings);
 }
 
-export function selectAccountExports3(db: D1Database, bindings: readonly [userId: unknown]): D1PreparedStatement {
+export function selectExportObjectKeys(db: D1Database, bindings: readonly [userId: unknown]): D1PreparedStatement {
   return db.prepare(`SELECT object_key FROM account_exports WHERE owner_user_id=?`).bind(...bindings);
 }
 

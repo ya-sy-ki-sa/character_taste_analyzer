@@ -1,11 +1,14 @@
 /** D1 statements for this use case. Callers compose atomic batches across repositories. */
-export function selectUsers(db: D1Database, bindings: readonly [userId: unknown]): D1PreparedStatement {
+export function selectRegistrationUser(db: D1Database, bindings: readonly [userId: unknown]): D1PreparedStatement {
   return db
     .prepare(`SELECT id,username,username_normalized,status,pending_expires_at,membership_tier FROM users WHERE id=?`)
     .bind(...bindings);
 }
 
-export function selectUsers2(db: D1Database, bindings: readonly [normalized: unknown]): D1PreparedStatement {
+export function selectUserByNormalizedName(
+  db: D1Database,
+  bindings: readonly [normalized: unknown],
+): D1PreparedStatement {
   return db.prepare(`SELECT id FROM users WHERE username_normalized=?`).bind(...bindings);
 }
 
@@ -34,7 +37,7 @@ export function insertCredentials(
   return db.prepare(`INSERT INTO credentials (user_id,key_digest,created_at) VALUES (?,?,?)`).bind(...bindings);
 }
 
-export function selectUsers3(db: D1Database, bindings: readonly [userId: unknown]): D1PreparedStatement {
+export function selectActivationCredentials(db: D1Database, bindings: readonly [userId: unknown]): D1PreparedStatement {
   return db
     .prepare(
       `SELECT c.key_digest,u.status,u.pending_expires_at,u.username,u.membership_tier FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.id=?`,
@@ -49,7 +52,7 @@ export function updateUsers(
   return db.prepare(`UPDATE users SET status='active',activated_at=?,updated_at=? WHERE id=?`).bind(...bindings);
 }
 
-export function selectUsers4(db: D1Database, bindings: readonly [value0: unknown]): D1PreparedStatement {
+export function selectLoginCredentials(db: D1Database, bindings: readonly [value0: unknown]): D1PreparedStatement {
   return db
     .prepare(
       `SELECT u.id,u.username,u.membership_tier,c.key_digest FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.username_normalized=? AND u.status='active'`,

@@ -63,7 +63,7 @@ export function updateJobs(
     .bind(...bindings);
 }
 
-export function updateAccountExports2(
+export function markExportReady(
   db: D1Database,
   bindings: readonly [
     objectKey: unknown,
@@ -95,7 +95,7 @@ export function updateJobAttempts(
     .bind(...bindings);
 }
 
-export function updateAccountExports3(
+export function markExportFailed(
   db: D1Database,
   bindings: readonly [code: unknown, now: unknown, exportId: unknown, ownerUserId: unknown, jobId: unknown],
 ): D1PreparedStatement {
@@ -106,7 +106,7 @@ export function updateAccountExports3(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function recordExportJobFailure(
   db: D1Database,
   bindings: readonly [
     value0: unknown,
@@ -124,13 +124,13 @@ export function updateJobs2(
     .bind(...bindings);
 }
 
-export function selectAccountExports2(db: D1Database, bindings: readonly [value0: unknown]): D1PreparedStatement {
+export function selectExpiredExportObjects(db: D1Database, bindings: readonly [value0: unknown]): D1PreparedStatement {
   return db
     .prepare(`SELECT id,object_key FROM account_exports WHERE status='ready' AND expires_at<=? LIMIT 100`)
     .bind(...bindings);
 }
 
-export function updateAccountExports4(
+export function expireReadyExports(
   db: D1Database,
   bindings: readonly [value0: unknown, value1: unknown],
 ): D1PreparedStatement {

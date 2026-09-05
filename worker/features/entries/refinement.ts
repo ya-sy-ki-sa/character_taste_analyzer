@@ -42,7 +42,7 @@ export async function refinePreferenceInput(
   let answers = input.mode === "questions" ? input.answers : [];
   if (input.mode === "selection") {
     const batch = await first<{ id: string; context_json: string; hypotheses_json: string | null }>(
-      repository.selectPreferenceRefinements2(env.DB, [ownerUserId, target.entry_revision_id]),
+      repository.selectLatestRefinement(env.DB, [ownerUserId, target.entry_revision_id]),
     );
     if (
       !batch?.hypotheses_json ||

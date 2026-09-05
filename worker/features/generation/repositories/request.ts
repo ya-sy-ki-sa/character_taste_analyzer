@@ -75,7 +75,7 @@ export function insertGenerationRequestPreferences(
     .bind(...bindings);
 }
 
-export function insertGenerationRequestPreferences2(
+export function insertProhibitedPreference(
   db: D1Database,
   bindings: readonly [id: unknown, itemId: unknown, value2: unknown],
 ): D1PreparedStatement {

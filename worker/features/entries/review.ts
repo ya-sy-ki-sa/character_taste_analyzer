@@ -56,7 +56,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
         summary_json: string;
         uncertainties_json: string;
         status: string;
-      }>(repository.selectCharacterUnderstandingSnapshots2(env.DB, [snapshot.base_snapshot_id, ownerUserId]))
+      }>(repository.selectBaseUnderstandingSnapshot(env.DB, [snapshot.base_snapshot_id, ownerUserId]))
     : null;
   const baseAssertions = baseSnapshot
     ? await all<{
@@ -68,7 +68,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
         confidence: number;
         status: string;
         stable_key: string | null;
-      }>(repository.selectCharacterAssertions2(env.DB, [baseSnapshot.id]))
+      }>(repository.selectBaseUnderstandingAssertions(env.DB, [baseSnapshot.id]))
     : [];
   const analysis = await first<{
     id: string;

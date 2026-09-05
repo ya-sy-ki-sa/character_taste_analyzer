@@ -165,7 +165,7 @@ export function selectProjectionRebuildStates(
     .bind(...bindings);
 }
 
-export function selectGraphProjectionSnapshots2(
+export function selectCurrentGraphSummary(
   db: D1Database,
   bindings: readonly [ownerUserId: unknown],
 ): D1PreparedStatement {

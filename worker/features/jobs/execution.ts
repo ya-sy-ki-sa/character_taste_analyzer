@@ -49,11 +49,11 @@ export async function claimJob(
   if (disposition === "already_finished" || disposition === "not_claimable") return { status: disposition };
   if (disposition === "superseded") {
     const now = nowIso();
-    await repository.updateJobs2(env.DB, [now, now, jobId]).run();
+    await repository.supersedeStaleJob(env.DB, [now, now, jobId]).run();
     return { status: "superseded" };
   }
   const next = await first<{ number: number; step_number: number }>(
-    repository.selectJobAttempts2(env.DB, [stepName, jobId]),
+    repository.selectNextAttemptNumbers(env.DB, [stepName, jobId]),
   );
   const attemptNumber = next?.number ?? 1;
   const stepAttemptNumber = next?.step_number ?? 1;
@@ -76,7 +76,7 @@ export async function claimJob(
       inputGeneration,
       jobId,
     ]),
-    repository.updateJobs3(env.DB, [stepName, now, jobId, ownerUserId, inputGeneration, attemptId]),
+    repository.markClaimedJobRunning(env.DB, [stepName, now, jobId, ownerUserId, inputGeneration, attemptId]),
   ]);
   if (!results[0].meta.changes || !results[1].meta.changes) return { status: "not_claimable" };
   return { status: "claimed", attemptId, attemptNumber, stepAttemptNumber };
@@ -90,6 +90,6 @@ export async function finishJobAttempt(
   safeDetail?: string | null,
 ): Promise<void> {
   await repository
-    .updateJobAttempts2(env.DB, [status, errorCode ?? null, safeDetail ?? null, nowIso(), attemptId])
+    .finishRunningAttempt(env.DB, [status, errorCode ?? null, safeDetail ?? null, nowIso(), attemptId])
     .run();
 }

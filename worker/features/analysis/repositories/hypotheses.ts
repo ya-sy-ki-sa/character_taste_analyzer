@@ -87,7 +87,7 @@ export function updateJobAttempts(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function awaitHypothesisReview(
   db: D1Database,
   bindings: readonly [value0Json: unknown, now: unknown, jobId: unknown, ownerUserId: unknown, step: unknown],
 ): D1PreparedStatement {

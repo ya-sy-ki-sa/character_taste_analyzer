@@ -1,6 +1,6 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
-import { nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
+import { prepareModelRun } from "../../llm/model-runs";
 import { PREFERENCE_PROMPT_VERSION, PREFERENCE_SCHEMA_VERSION } from "../../llm/prompts/preference";
 import { LlmProviderError, type LlmRunMetadata } from "../../llm/types";
 import type { Env } from "../../types";
@@ -23,51 +23,26 @@ export async function persistModelRun(
     "dark_preference_analysis",
     "dark_preference_audit",
   ].includes(operation);
-  const id = crypto.randomUUID();
-  const outputHash = await sha256Hex(JSON.stringify(output));
-  return {
-    id,
-    statement: repository.insertModelRunMetadata(env.DB, [
-      id,
-      ownerUserId,
-      metadata.provider,
-      metadata.transport,
-      metadata.adapterVersion,
-      metadata.requestedModel,
-      metadata.resolvedModel,
-      operation,
-      isPreference
-        ? `${operation}/${PREFERENCE_PROMPT_VERSION}`
-        : operation === "preference_hypotheses"
-          ? `${operation}/v2.1.0`
-          : metadata.effectiveSettings?.understandingInformationPolicy
-            ? `${operation}/${metadata.effectiveSettings.understandingInformationPolicy}`
-            : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
-      isPreference
-        ? PREFERENCE_SCHEMA_VERSION
-        : operation === "preference_hypotheses"
-          ? "2.1"
-          : (metadata.effectiveSettings?.understandingSchemaVersion ?? "1.0"),
-      metadata.providerRequestId ?? null,
-      inputHash,
-      outputHash,
-      metadata.inputTokens ?? null,
-      metadata.outputTokens ?? null,
-      metadata.latencyMs,
-      metadata.finishReason ?? null,
-      metadata.dataRetentionMode,
-      metadata.rootRequestId ?? inputHash,
-      metadata.attemptNumber ?? 0,
-      metadata.promptHash ?? inputHash,
-      metadata.fallbackFromProvider ?? null,
-      metadata.fallbackErrorCode ?? null,
-      JSON.stringify(metadata.effectiveSettings ?? {}),
-      JSON.stringify(metadata.ignoredParameters ?? []),
-      JSON.stringify(metadata.providerResponseDiagnostics ?? {}),
-      nowIso(),
-      analysisDomain,
-    ]),
-  };
+  return prepareModelRun(env.DB, {
+    ownerUserId,
+    operation,
+    inputHash,
+    output,
+    metadata,
+    analysisDomain,
+    promptVersion: isPreference
+      ? `${operation}/${PREFERENCE_PROMPT_VERSION}`
+      : operation === "preference_hypotheses"
+        ? `${operation}/v2.1.0`
+        : metadata.effectiveSettings?.understandingInformationPolicy
+          ? `${operation}/${metadata.effectiveSettings.understandingInformationPolicy}`
+          : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
+    schemaVersion: isPreference
+      ? PREFERENCE_SCHEMA_VERSION
+      : operation === "preference_hypotheses"
+        ? "2.1"
+        : (metadata.effectiveSettings?.understandingSchemaVersion ?? "1.0"),
+  });
 }
 
 export function completedLlmGroup(

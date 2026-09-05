@@ -108,7 +108,7 @@ export async function prepareExternalProvenanceSources(
         now,
       ]),
     );
-    if (sourceSetId) prepared.push(repository.insertSourceSetItems2(env.DB, [sourceSetId, documentId]));
+    if (sourceSetId) prepared.push(repository.insertSourceSetItems(env.DB, [sourceSetId, documentId]));
     result.push({
       sourceId: documentId,
       text,

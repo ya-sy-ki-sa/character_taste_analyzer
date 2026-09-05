@@ -33,6 +33,12 @@ SQLは各機能の `repositories` に置き、D1PreparedStatementを返します
 
 LLMのプロンプト、provider実行、出力スキーマ、純粋な結果判定、Fake出力、D1操作を分離します。処理順序、プロンプト本文、モデル割当、再試行の条件は各ユースケースに保持します。
 
+モデル実行記録のstatement生成は `worker/llm/model-runs.ts` と対応するリポジトリに集約します。分析・生成それぞれのユースケースがプロンプト／スキーマのバージョンを決め、分析では結果と同じbatch、生成では個別の即時保存という境界を保持します。providerの接続・要求構築は `openai.ts` / `workers-ai.ts`、応答解釈は `response.ts`、構造検証と修復は `remote.ts`、経路選択は `providers.ts` が担当します。
+
+登録と再分析の人物表現・入力資料の構築は `entries/input-preparation.ts` に集約し、ID生成は呼び出し元が担当します。分析結果の属性・根拠のstatement構築は `analysis/*-statements.ts`、失敗時の記録と状態更新は `analysis/attempt-failure.ts` に分けます。人物理解レビューは `entries/understanding-mutations.ts` が操作別のstatementを準備し、ユースケースが一括保存します。
+
+プロフィールの寄与計算・集約は `profile/aggregation.ts`、DB取得・保存・世代切替は `profile/projection.ts` が担当します。属性と価値態度は、登録内の最大値を選び、同一人物・同一作品の寄与を割り引く共通手順を使用します。
+
 ## APIとブラウザー
 
 通常版は `/api/v1`、dark版は `/api/v1/dark`。両方とも生成履歴一覧は `GET /generation-requests`、削除は `DELETE /generation-requests/{id}` です。旧URLへの別名はありません。

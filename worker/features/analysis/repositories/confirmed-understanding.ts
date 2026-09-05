@@ -32,7 +32,7 @@ export function selectCustomizationDeltas(
     .bind(...bindings);
 }
 
-export function selectCharacterAssertions2(
+export function selectExcludedAssertions(
   db: D1Database,
   bindings: readonly [snapshotId: unknown, ownerUserId: unknown],
 ): D1PreparedStatement {

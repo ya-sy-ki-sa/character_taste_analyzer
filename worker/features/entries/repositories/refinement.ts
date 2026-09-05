@@ -17,7 +17,7 @@ export function selectAnalysisRuns(
     .bind(...bindings);
 }
 
-export function selectPreferenceRefinements2(
+export function selectLatestRefinement(
   db: D1Database,
   bindings: readonly [ownerUserId: unknown, entry_revision_id: unknown],
 ): D1PreparedStatement {

@@ -54,7 +54,7 @@ export function updateValueStanceAssertions(db: D1Database): D1PreparedStatement
            WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected') AND ${reviewableAssertion("value_stance_assertions")}`);
 }
 
-export function selectPreferenceAssertions2(
+export function selectOwnedReviewTarget(
   db: D1Database,
   bindings: readonly [changedId: unknown, ownerUserId: unknown, changedIdAgain: unknown, ownerUserIdAgain: unknown],
 ): D1PreparedStatement {
@@ -64,7 +64,7 @@ export function selectPreferenceAssertions2(
     .bind(...bindings);
 }
 
-export function selectAnalysisRuns2(
+export function selectEditableAnalysisRun(
   db: D1Database,
   bindings: readonly [analysisRunId: unknown, ownerUserId: unknown, ownerUserIdAgain: unknown, analysisDomain: unknown],
 ): D1PreparedStatement {
@@ -90,7 +90,7 @@ export function selectAttributeDefinitions(
     .bind(...bindings);
 }
 
-export function selectPreferenceAssertions3(
+export function selectEditablePreferenceAssertion(
   db: D1Database,
   bindings: readonly [targetId: unknown, ownerUserId: unknown, analysisRunId: unknown],
 ): D1PreparedStatement {
@@ -100,7 +100,7 @@ export function selectPreferenceAssertions3(
     .bind(...bindings);
 }
 
-export function updatePreferenceAssertions2(
+export function supersedeReplacedPreferenceAssertion(
   db: D1Database,
   bindings: readonly [
     changedId: unknown,

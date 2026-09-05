@@ -157,7 +157,7 @@ export async function commitHypothesisPreview(
       step,
     ]),
     repository.updateJobAttempts(env.DB, guard, [now, attemptId, params.jobId, params.jobId, params.ownerUserId, step]),
-    repository.updateJobs2(env.DB, [
+    repository.awaitHypothesisReview(env.DB, [
       JSON.stringify({
         entryId: params.entryId,
         reviewTargetId: baseAnalysisRunId,

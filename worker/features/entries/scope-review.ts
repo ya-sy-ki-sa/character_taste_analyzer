@@ -52,9 +52,9 @@ export async function reviewDarkScopeAssessment(
     assessmentId,
   );
   const results = await env.DB.batch([
-    repository.updateDarkScopeAssessments2(env.DB, [now, assessmentId, ownerUserId]),
-    repository.updateUserCharacterEntries2(env.DB, [now, target.entry_id, ownerUserId]),
-    repository.updateJobs2(env.DB, [now, target.job_id, ownerUserId]),
+    repository.overrideScopeAssessment(env.DB, [now, assessmentId, ownerUserId]),
+    repository.resumeEntryAfterScopeReview(env.DB, [now, target.entry_id, ownerUserId]),
+    repository.queueJobAfterScopeReview(env.DB, [now, target.job_id, ownerUserId]),
     outbox.statement,
   ]);
   if (

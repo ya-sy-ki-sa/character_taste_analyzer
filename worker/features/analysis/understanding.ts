@@ -1,28 +1,24 @@
 import type { CitationIssue } from "../../../shared/contracts/citations";
 import type { DarkBaselineUnderstanding } from "../../../shared/contracts/dark-understanding";
-import { normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/crypto";
+import { nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
 import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
 import { loadInputProvenanceSources, prepareExternalProvenanceSources } from "../../platform/provenance/sources";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
-import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "../jobs/execution";
+import { claimJob, type JobClaim } from "../jobs/execution";
+import { handleAnalysisAttemptFailure } from "./attempt-failure";
 import { citationAwareProvider, logCitationIssues, verifyAssertionEvidence } from "./citations";
-import { analysisFenceIsCurrent, supersedeAnalysisClaim } from "./claims";
+import { supersedeAnalysisClaim } from "./claims";
 import { loadEntry, loadOntology } from "./context";
-import { analysisErrorCode, analysisFailureMetadata, safeAnalysisErrorDetail, updateFailure } from "./failures";
 import { auditDarkUnderstanding, understandDarkBaseline, understandDarkTarget } from "./llm-dark";
 import { understandOne } from "./llm-understanding";
-import {
-  completedLlmGroup,
-  persistCompletedLlmGroupsOnFailure,
-  persistFailedModelRuns,
-  persistModelRun,
-} from "./model-runs";
+import { completedLlmGroup, persistModelRun } from "./model-runs";
 import * as repository from "./repositories/understanding";
 import { collectCharacterResearch } from "./research";
 import { ensureDarkScope } from "./scope";
 import type { CompletedLlmGroup, UnderstandingCall } from "./types";
+import { understandingAssertionStatements } from "./understanding-statements";
 
 export async function processCharacterAnalysis(env: Env, params: CharacterAnalysisWorkflowParams): Promise<void> {
   let claim: JobClaim | undefined;
@@ -41,7 +37,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
     const ontology = await loadOntology(env, params.analysisDomain);
     const now = nowIso();
     const started = await env.DB.batch([
-      repository.updateJobs(env.DB, [now, params.jobId, params.ownerUserId, params.inputGeneration]),
+      repository.markUnderstandingStarted(env.DB, [now, params.jobId, params.ownerUserId, params.inputGeneration]),
       repository.updateUserCharacterEntries(env.DB, [now, params.entryId, params.ownerUserId, params.inputGeneration]),
     ]);
     if (!started[0].meta.changes || !started[1].meta.changes) {
@@ -123,7 +119,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
     const attributeByKey = new Map(ontology.map((item) => [item.stable_key, item]));
     const commitStep = `commit-understanding:${claim.attemptId}`;
     const statements: D1PreparedStatement[] = [
-      repository.updateJobs2(env.DB, [
+      repository.acquireUnderstandingCommitFence(env.DB, [
         commitStep,
         now,
         params.jobId,
@@ -304,132 +300,22 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         ]),
       );
 
-      for (const [ordinal, assertion] of call.value.assertions.entries()) {
-        const verifiedAssertion = verifiedAssertions[ordinal];
-        const assertionId = verifiedAssertion.id;
-        const rawId = crypto.randomUUID();
-        const attribute = assertion.attributeStableKey ? attributeByKey.get(assertion.attributeStableKey) : undefined;
-        statements.push(
-          repository.insertRawAttributeMentions(env.DB, [
-            rawId,
-            params.ownerUserId,
-            assertionId,
-            assertion.rawLabel,
-            assertion.valueText,
-            normalizeIdentityPart(assertion.rawLabel),
-            now,
-          ]),
-        );
-        statements.push(
-          repository.insertAttributeMappings(env.DB, [
-            crypto.randomUUID(),
-            rawId,
-            attribute?.id ?? null,
-            attribute ? "accepted" : "unmapped",
-            attribute ? "exact" : "llm",
-            attribute ? 1 : assertion.confidence,
-            now,
-            attribute ? now : null,
-          ]),
-        );
-        statements.push(
-          repository.insertCharacterAssertions(env.DB, [
-            assertionId,
-            params.ownerUserId,
-            snapshotId,
-            attribute?.id ?? null,
-            rawId,
-            assertion.rawLabel,
-            assertion.valueText,
-            assertion.assertionKind,
-            JSON.stringify({
-              schemaVersion: "1",
-              freeText: assertion.scopeText,
-            }),
-            assertion.explicitness,
-            assertion.explicitness === "model_knowledge" ? Math.min(0.45, assertion.confidence) : assertion.confidence,
-            ordinal,
-            now,
-          ]),
-        );
-        for (const verified of verifiedAssertion.evidence) {
-          statements.push(
-            repository.insertEvidenceFragments(env.DB, [
-              crypto.randomUUID(),
-              params.ownerUserId,
-              assertionId,
-              verified.sourceId,
-              verified.evidenceOrigin,
-              verified.quoteStart,
-              verified.quoteEnd,
-              verified.quoteHash,
-              verified.excerptText,
-              verified.inputPointer,
-              assertion.confidence,
-              verified.verificationStatus,
-              verified.inferenceType,
-              now,
-            ]),
-          );
-        }
-      }
-      for (const [ordinal, delta] of call.value.customizationDeltas.entries()) {
-        const attribute = delta.targetAttributeStableKey
-          ? attributeByKey.get(delta.targetAttributeStableKey)
-          : undefined;
-        statements.push(
-          repository.insertCustomizationDeltas(env.DB, [
-            crypto.randomUUID(),
-            params.ownerUserId,
-            snapshotId,
-            delta.operation,
-            attribute?.id ?? null,
-            delta.beforeValue,
-            delta.afterValue,
-            JSON.stringify({ schemaVersion: "1", freeText: delta.scopeText }),
-            delta.reasonText,
-            delta.explicitness,
-            delta.confidence,
-            ordinal,
-            now,
-          ]),
-        );
-      }
-      if ("transformationDeltas" in call.value) {
-        for (const [ordinal, delta] of call.value.transformationDeltas.entries())
-          statements.push(
-            repository.insertDarkTransformationDeltas(env.DB, [
-              crypto.randomUUID(),
-              params.ownerUserId,
-              entry.entryRevisionId,
-              snapshotId,
-              delta.operation,
-              delta.aspect,
-              delta.beforeValue,
-              delta.afterValue,
-              JSON.stringify({
-                cause: delta.cause,
-                agencyOrigin: delta.agencyOrigin,
-                controller: delta.controller,
-                awareness: delta.awareness,
-                resistance: delta.resistance,
-                identityContinuity: delta.identityContinuity,
-                responsibility: delta.responsibility,
-                reversibility: delta.reversibility,
-                phase: delta.phase,
-                evidence: delta.evidence,
-              }),
-              delta.confidence,
-              ordinal,
-              now,
-            ]),
-          );
-      }
+      statements.push(
+        ...understandingAssertionStatements(env.DB, {
+          ownerUserId: params.ownerUserId,
+          entryRevisionId: entry.entryRevisionId,
+          snapshotId,
+          value: call.value,
+          verifiedAssertions,
+          attributeByKey,
+          now,
+        }),
+      );
       baseSnapshotId = snapshotId;
       generation += 1;
     }
     statements.push(
-      repository.updateUserCharacterEntries2(env.DB, [
+      repository.markEntryAwaitingUnderstandingReview(env.DB, [
         now,
         params.entryId,
         params.ownerUserId,
@@ -439,7 +325,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       ]),
     );
     statements.push(
-      repository.updateJobs3(env.DB, [
+      repository.awaitUnderstandingReview(env.DB, [
         JSON.stringify({
           entryId: params.entryId,
           reviewTargetId: reviewSnapshotId,
@@ -462,23 +348,6 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
     )
       throw new Error("JOB_COMMIT_FENCE_CHANGED");
   } catch (error) {
-    if (claim?.status === "claimed" && !(await analysisFenceIsCurrent(env, params, claim.attemptId))) {
-      await supersedeAnalysisClaim(env, params, claim.attemptId);
-      return;
-    }
-    await persistCompletedLlmGroupsOnFailure(env, params.ownerUserId, completedLlmGroups);
-    await persistFailedModelRuns(env, params.ownerUserId, error);
-    const latestMetadata = analysisFailureMetadata(error, completedLlmGroups.at(-1)?.attempts.at(-1)?.metadata);
-    const willRetry = claim?.status === "claimed" && claim.stepAttemptNumber < 3 && isRetryableFailure(error);
-    if (claim?.status === "claimed")
-      await finishJobAttempt(
-        env,
-        claim.attemptId,
-        "failed",
-        analysisErrorCode(error),
-        safeAnalysisErrorDetail(error, latestMetadata)?.slice(0, 2_000) ?? null,
-      );
-    await updateFailure(env, params, error, willRetry, latestMetadata);
-    if (willRetry) throw error;
+    await handleAnalysisAttemptFailure(env, params, claim, completedLlmGroups, error);
   }
 }

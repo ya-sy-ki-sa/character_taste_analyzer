@@ -223,7 +223,7 @@ export async function processAccountExport(env: Env, params: ExportWorkflowParam
         params.jobId,
         params.ownerUserId,
       ]),
-      repository.updateAccountExports2(env.DB, [
+      repository.markExportReady(env.DB, [
         objectKey,
         await sha256Hex(payload),
         bytes.byteLength,
@@ -251,8 +251,8 @@ export async function processAccountExport(env: Env, params: ExportWorkflowParam
     if (claim?.status === "claimed") await finishJobAttempt(env, claim.attemptId, "failed", code);
     const now = nowIso();
     await env.DB.batch([
-      repository.updateAccountExports3(env.DB, [code, now, params.exportId, params.ownerUserId, params.jobId]),
-      repository.updateJobs2(env.DB, [
+      repository.markExportFailed(env.DB, [code, now, params.exportId, params.ownerUserId, params.jobId]),
+      repository.recordExportJobFailure(env.DB, [
         willRetry ? "retrying" : "failed",
         code,
         willRetry ? 1 : 0,
@@ -269,10 +269,10 @@ export async function processAccountExport(env: Env, params: ExportWorkflowParam
 export async function expireAccountExports(env: Env): Promise<number> {
   if (!env.EXPORTS) return 0;
   const expired = await all<{ id: string; object_key: string | null }>(
-    repository.selectAccountExports2(env.DB, [nowIso()]),
+    repository.selectExpiredExportObjects(env.DB, [nowIso()]),
   );
   for (const item of expired) if (item.object_key) await env.EXPORTS.delete(item.object_key);
-  if (expired.length) await repository.updateAccountExports4(env.DB, [nowIso(), nowIso()]).run();
+  if (expired.length) await repository.expireReadyExports(env.DB, [nowIso(), nowIso()]).run();
   const metadataCutoff = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
   await repository.deleteAccountExports(env.DB, [metadataCutoff]).run();
   return expired.length;

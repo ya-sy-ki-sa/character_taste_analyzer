@@ -30,7 +30,7 @@ export async function registerAccount(env: Env, input: z.output<typeof registrat
     membership_tier: string;
     status: string;
     pending_expires_at: string | null;
-  }>(repository.selectUsers(env.DB, [userId]));
+  }>(repository.selectRegistrationUser(env.DB, [userId]));
   if (existing) {
     if (existing.username_normalized !== normalized)
       throw new HTTPException(409, { message: "Idempotency-Keyが別のユーザー名で使用されています" });
@@ -48,7 +48,7 @@ export async function registerAccount(env: Env, input: z.output<typeof registrat
       status: 200 as const,
     };
   }
-  const duplicate = await first<{ id: string }>(repository.selectUsers2(env.DB, [normalized]));
+  const duplicate = await first<{ id: string }>(repository.selectUserByNormalizedName(env.DB, [normalized]));
   if (duplicate) throw new HTTPException(409, { message: "そのユーザー名は既に使用されています" });
   const now = nowIso();
   const expiresAt = addMinutesIso(15);
@@ -72,7 +72,7 @@ export async function activateAccount(env: Env, userId: string, input: z.output<
     pending_expires_at: string | null;
     username: string;
     membership_tier: string;
-  }>(repository.selectUsers3(env.DB, [userId]));
+  }>(repository.selectActivationCredentials(env.DB, [userId]));
   const submitted = await hmacHex(env.AUTH_PEPPER, credentialDigestInput(userId, input.accessKey));
   if (!row || !constantTimeEqual(row.key_digest, submitted))
     throw new HTTPException(401, { message: "ユーザーIDまたはアクセスキーが無効です" });
@@ -96,7 +96,7 @@ export async function activateAccount(env: Env, userId: string, input: z.output<
 
 export async function startSession(env: Env, input: z.output<typeof loginSchema>) {
   const row = await first<{ id: string; username: string; key_digest: string; membership_tier: string }>(
-    repository.selectUsers4(env.DB, [normalizeUsername(input.username)]),
+    repository.selectLoginCredentials(env.DB, [normalizeUsername(input.username)]),
   );
   const submitted = await hmacHex(
     env.AUTH_PEPPER,

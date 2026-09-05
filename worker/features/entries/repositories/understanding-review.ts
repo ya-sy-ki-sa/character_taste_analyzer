@@ -1,7 +1,9 @@
+import type { AnalysisDomain } from "../../../../shared/analysis-domain";
+
 /** D1 statements for this use case. Callers compose atomic batches across repositories. */
-export function selectUnderstandingReviews(
+export function selectPriorMutation(
   db: D1Database,
-  bindings: readonly [reviewId: unknown, ownerUserId: unknown, snapshotId: unknown],
+  bindings: readonly [reviewId: string, ownerUserId: string, snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -10,9 +12,14 @@ export function selectUnderstandingReviews(
     .bind(...bindings);
 }
 
-export function selectCharacterUnderstandingSnapshots(
+export function selectEditableSnapshot(
   db: D1Database,
-  bindings: readonly [snapshotId: unknown, ownerUserId: unknown, ownerUserIdAgain: unknown, analysisDomain: unknown],
+  bindings: readonly [
+    snapshotId: string,
+    ownerUserId: string,
+    ownerUserIdAgain: string,
+    analysisDomain: AnalysisDomain,
+  ],
 ): D1PreparedStatement {
   return db
     .prepare(`
@@ -26,18 +33,18 @@ export function selectCharacterUnderstandingSnapshots(
     .bind(...bindings);
 }
 
-export function selectUnderstandingReviews2(
+export function selectNextReviewGeneration(
   db: D1Database,
-  bindings: readonly [snapshotId: unknown],
+  bindings: readonly [snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT COALESCE(MAX(review_generation),0)+1 AS value FROM understanding_reviews WHERE snapshot_id=?`)
     .bind(...bindings);
 }
 
-export function selectAttributeDefinitions(
+export function selectActiveAttribute(
   db: D1Database,
-  bindings: readonly [assertionAttributeKey: unknown, analysisDomain: unknown],
+  bindings: readonly [assertionAttributeKey: string, analysisDomain: AnalysisDomain],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT d.id FROM attribute_definitions d
@@ -46,16 +53,16 @@ export function selectAttributeDefinitions(
     .bind(...bindings);
 }
 
-export function insertRawAttributeMentions(
+export function insertReviewMention(
   db: D1Database,
   bindings: readonly [
-    correctedRawId: unknown,
-    ownerUserId: unknown,
-    changedId: unknown,
-    rawLabel: unknown,
-    valueText: unknown,
-    value5: unknown,
-    now: unknown,
+    correctedRawId: string,
+    ownerUserId: string,
+    changedId: string,
+    rawLabel: string,
+    valueText: string,
+    normalizedLabel: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -65,16 +72,16 @@ export function insertRawAttributeMentions(
     .bind(...bindings);
 }
 
-export function insertAttributeMappings(
+export function insertReviewMapping(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    correctedRawId: unknown,
-    value2: unknown,
-    value3: unknown,
-    ownerUserId: unknown,
-    now: unknown,
-    nowAgain: unknown,
+    mappingId: string,
+    correctedRawId: string,
+    attributeDefinitionId: string | null,
+    mappingStatus: "accepted" | "unmapped",
+    ownerUserId: string,
+    now: string,
+    nowAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -84,21 +91,21 @@ export function insertAttributeMappings(
     .bind(...bindings);
 }
 
-export function insertCharacterAssertions(
+export function insertAddedAssertion(
   db: D1Database,
   bindings: readonly [
-    changedId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    value3: unknown,
-    correctedRawId: unknown,
-    rawLabel: unknown,
-    valueText: unknown,
-    value7Json: unknown,
-    snapshotIdAgain: unknown,
-    now: unknown,
-    snapshotIdAgainAgain: unknown,
-    ownerUserIdAgain: unknown,
+    changedId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    attributeDefinitionId: string | null,
+    correctedRawId: string,
+    rawLabel: string,
+    valueText: string,
+    scopeJson: string,
+    snapshotIdAgain: string,
+    now: string,
+    snapshotIdAgainAgain: string,
+    ownerUserIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -114,19 +121,19 @@ export function insertCharacterAssertions(
     .bind(...bindings);
 }
 
-export function insertUnderstandingReviews(
+export function recordAddedAssertion(
   db: D1Database,
   bindings: readonly [
-    reviewId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    changedId: unknown,
-    correction: unknown,
-    reviewGeneration: unknown,
-    now: unknown,
-    changedIdAgain: unknown,
-    ownerUserIdAgain: unknown,
-    snapshotIdAgain: unknown,
+    reviewId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    changedId: string,
+    correction: string,
+    reviewGeneration: number,
+    now: string,
+    changedIdAgain: string,
+    ownerUserIdAgain: string,
+    snapshotIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -139,9 +146,9 @@ export function insertUnderstandingReviews(
     .bind(...bindings);
 }
 
-export function selectCharacterAssertions(
+export function selectEditableAssertion(
   db: D1Database,
-  bindings: readonly [targetId: unknown, ownerUserId: unknown, snapshotId: unknown],
+  bindings: readonly [targetId: string, ownerUserId: string, snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT raw_label,value_text,raw_mention_id FROM character_assertions
@@ -149,9 +156,9 @@ export function selectCharacterAssertions(
     .bind(...bindings);
 }
 
-export function updateAttributeMappings(
+export function rejectPreviousMapping(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, now: unknown, raw_mention_id: unknown],
+  bindings: readonly [ownerUserId: string, now: string, raw_mention_id: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE attribute_mappings SET mapping_status='rejected',decided_by_user_id=?,decided_at=?
@@ -159,56 +166,18 @@ export function updateAttributeMappings(
     .bind(...bindings);
 }
 
-export function insertRawAttributeMentions2(
+export function insertReplacementAssertion(
   db: D1Database,
   bindings: readonly [
-    correctedRawId: unknown,
-    ownerUserId: unknown,
-    changedId: unknown,
-    rawLabel: unknown,
-    valueText: unknown,
-    value5: unknown,
-    now: unknown,
-  ],
-): D1PreparedStatement {
-  return db
-    .prepare(`INSERT INTO raw_attribute_mentions
-          (id,owner_user_id,source_type,source_ref_type,source_ref_id,raw_label,raw_value,locale,normalized_label,created_at)
-         VALUES (?,?,'user','character_assertion',?,?,?,'ja',?,?)`)
-    .bind(...bindings);
-}
-
-export function insertAttributeMappings2(
-  db: D1Database,
-  bindings: readonly [
-    value0: unknown,
-    correctedRawId: unknown,
-    value2: unknown,
-    value3: unknown,
-    ownerUserId: unknown,
-    now: unknown,
-    nowAgain: unknown,
-  ],
-): D1PreparedStatement {
-  return db
-    .prepare(`INSERT INTO attribute_mappings
-          (id,raw_mention_id,attribute_definition_id,mapping_status,mapping_method,confidence,decided_by_user_id,created_at,decided_at)
-         VALUES (?,?,?,?, 'user',1,?,?,?)`)
-    .bind(...bindings);
-}
-
-export function insertCharacterAssertions2(
-  db: D1Database,
-  bindings: readonly [
-    changedId: unknown,
-    value1: unknown,
-    correctedRawId: unknown,
-    rawLabel: unknown,
-    valueText: unknown,
-    now: unknown,
-    targetId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
+    changedId: string,
+    attributeDefinitionId: string | null,
+    correctedRawId: string,
+    rawLabel: string,
+    valueText: string,
+    now: string,
+    targetId: string,
+    ownerUserId: string,
+    snapshotId: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -224,9 +193,9 @@ export function insertCharacterAssertions2(
     .bind(...bindings);
 }
 
-export function updateCharacterAssertions(
+export function supersedeAssertion(
   db: D1Database,
-  bindings: readonly [changedId: unknown, targetId: unknown, ownerUserId: unknown, snapshotId: unknown],
+  bindings: readonly [changedId: string, targetId: string, ownerUserId: string, snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE character_assertions SET status='superseded',superseded_by_id=?
@@ -234,19 +203,19 @@ export function updateCharacterAssertions(
     .bind(...bindings);
 }
 
-export function insertUnderstandingReviews2(
+export function recordReplacedAssertion(
   db: D1Database,
   bindings: readonly [
-    reviewId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    targetId: unknown,
-    correction: unknown,
-    reviewGeneration: unknown,
-    now: unknown,
-    changedId: unknown,
-    ownerUserIdAgain: unknown,
-    snapshotIdAgain: unknown,
+    reviewId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    targetId: string,
+    correction: string,
+    reviewGeneration: number,
+    now: string,
+    changedId: string,
+    ownerUserIdAgain: string,
+    snapshotIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -259,9 +228,9 @@ export function insertUnderstandingReviews2(
     .bind(...bindings);
 }
 
-export function updateCharacterAssertions2(
+export function rejectAssertion(
   db: D1Database,
-  bindings: readonly [targetId: unknown, ownerUserId: unknown, snapshotId: unknown],
+  bindings: readonly [targetId: string, ownerUserId: string, snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE character_assertions SET status='rejected'
@@ -269,19 +238,19 @@ export function updateCharacterAssertions2(
     .bind(...bindings);
 }
 
-export function insertUnderstandingReviews3(
+export function recordRejectedAssertion(
   db: D1Database,
   bindings: readonly [
-    reviewId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    targetId: unknown,
-    correction: unknown,
-    reviewGeneration: unknown,
-    now: unknown,
-    targetIdAgain: unknown,
-    ownerUserIdAgain: unknown,
-    snapshotIdAgain: unknown,
+    reviewId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    targetId: string,
+    correction: string,
+    reviewGeneration: number,
+    now: string,
+    targetIdAgain: string,
+    ownerUserIdAgain: string,
+    snapshotIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -294,21 +263,21 @@ export function insertUnderstandingReviews3(
     .bind(...bindings);
 }
 
-export function insertCustomizationDeltas(
+export function insertAddedDelta(
   db: D1Database,
   bindings: readonly [
-    changedId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    operation: unknown,
-    beforeValue: unknown,
-    afterValue: unknown,
-    value6Json: unknown,
-    reasonText: unknown,
-    snapshotIdAgain: unknown,
-    now: unknown,
-    snapshotIdAgainAgain: unknown,
-    ownerUserIdAgain: unknown,
+    changedId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    operation: string,
+    beforeValue: string | null,
+    afterValue: string | null,
+    scopeJson: string,
+    reasonText: string | null,
+    snapshotIdAgain: string,
+    now: string,
+    snapshotIdAgainAgain: string,
+    ownerUserIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -324,19 +293,19 @@ export function insertCustomizationDeltas(
     .bind(...bindings);
 }
 
-export function insertUnderstandingReviews4(
+export function recordAddedDelta(
   db: D1Database,
   bindings: readonly [
-    reviewId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    changedId: unknown,
-    correction: unknown,
-    reviewGeneration: unknown,
-    now: unknown,
-    changedIdAgain: unknown,
-    ownerUserIdAgain: unknown,
-    snapshotIdAgain: unknown,
+    reviewId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    changedId: string,
+    correction: string,
+    reviewGeneration: number,
+    now: string,
+    changedIdAgain: string,
+    ownerUserIdAgain: string,
+    snapshotIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -349,9 +318,9 @@ export function insertUnderstandingReviews4(
     .bind(...bindings);
 }
 
-export function selectCustomizationDeltas(
+export function selectEditableDelta(
   db: D1Database,
-  bindings: readonly [targetId: unknown, ownerUserId: unknown, snapshotId: unknown],
+  bindings: readonly [targetId: string, ownerUserId: string, snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT base_assertion_id,operation,before_value,after_value,reason_text FROM customization_deltas
@@ -359,16 +328,16 @@ export function selectCustomizationDeltas(
     .bind(...bindings);
 }
 
-export function updateCustomizationDeltas(
+export function updateDelta(
   db: D1Database,
   bindings: readonly [
-    operation: unknown,
-    beforeValue: unknown,
-    afterValue: unknown,
-    reasonText: unknown,
-    targetId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
+    operation: string,
+    beforeValue: string | null,
+    afterValue: string | null,
+    reasonText: string | null,
+    targetId: string,
+    ownerUserId: string,
+    snapshotId: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -378,19 +347,19 @@ export function updateCustomizationDeltas(
     .bind(...bindings);
 }
 
-export function insertUnderstandingReviews5(
+export function recordUpdatedDelta(
   db: D1Database,
   bindings: readonly [
-    reviewId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    targetId: unknown,
-    correction: unknown,
-    reviewGeneration: unknown,
-    now: unknown,
-    targetIdAgain: unknown,
-    ownerUserIdAgain: unknown,
-    snapshotIdAgain: unknown,
+    reviewId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    targetId: string,
+    correction: string,
+    reviewGeneration: number,
+    now: string,
+    targetIdAgain: string,
+    ownerUserIdAgain: string,
+    snapshotIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -403,9 +372,9 @@ export function insertUnderstandingReviews5(
     .bind(...bindings);
 }
 
-export function updateCustomizationDeltas2(
+export function rejectDelta(
   db: D1Database,
-  bindings: readonly [targetId: unknown, ownerUserId: unknown, snapshotId: unknown],
+  bindings: readonly [targetId: string, ownerUserId: string, snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE customization_deltas SET status='rejected'
@@ -413,19 +382,19 @@ export function updateCustomizationDeltas2(
     .bind(...bindings);
 }
 
-export function insertUnderstandingReviews6(
+export function recordRejectedDelta(
   db: D1Database,
   bindings: readonly [
-    reviewId: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    targetId: unknown,
-    correction: unknown,
-    reviewGeneration: unknown,
-    now: unknown,
-    targetIdAgain: unknown,
-    ownerUserIdAgain: unknown,
-    snapshotIdAgain: unknown,
+    reviewId: string,
+    ownerUserId: string,
+    snapshotId: string,
+    targetId: string,
+    correction: string,
+    reviewGeneration: number,
+    now: string,
+    targetIdAgain: string,
+    ownerUserIdAgain: string,
+    snapshotIdAgain: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -438,9 +407,14 @@ export function insertUnderstandingReviews6(
     .bind(...bindings);
 }
 
-export function selectCharacterUnderstandingSnapshots2(
+export function selectSnapshotConfirmationContext(
   db: D1Database,
-  bindings: readonly [snapshotId: unknown, ownerUserId: unknown, ownerUserIdAgain: unknown, analysisDomain: unknown],
+  bindings: readonly [
+    snapshotId: string,
+    ownerUserId: string,
+    ownerUserIdAgain: string,
+    analysisDomain: AnalysisDomain,
+  ],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT s.id,s.base_snapshot_id,e.id AS entry_id,er.revision_number,j.id AS job_id
@@ -455,15 +429,9 @@ export function selectCharacterUnderstandingSnapshots2(
     .bind(...bindings);
 }
 
-export function insertUnderstandingReviews7(
+export function recordSnapshotConfirmation(
   db: D1Database,
-  bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    snapshotId: unknown,
-    snapshotIdAgain: unknown,
-    now: unknown,
-  ],
+  bindings: readonly [reviewId: string, ownerUserId: string, snapshotId: string, snapshotIdAgain: string, now: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -472,9 +440,9 @@ export function insertUnderstandingReviews7(
     .bind(...bindings);
 }
 
-export function updateCharacterUnderstandingSnapshots(
+export function confirmSnapshot(
   db: D1Database,
-  bindings: readonly [snapshotId: unknown, ownerUserId: unknown],
+  bindings: readonly [snapshotId: string, ownerUserId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -483,27 +451,24 @@ export function updateCharacterUnderstandingSnapshots(
     .bind(...bindings);
 }
 
-export function updateCharacterAssertions3(
+export function confirmProposedAssertions(
   db: D1Database,
-  bindings: readonly [snapshotId: unknown],
+  bindings: readonly [snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE character_assertions SET status='confirmed' WHERE snapshot_id=? AND status='proposed'`)
     .bind(...bindings);
 }
 
-export function updateCustomizationDeltas3(
-  db: D1Database,
-  bindings: readonly [snapshotId: unknown],
-): D1PreparedStatement {
+export function confirmProposedDeltas(db: D1Database, bindings: readonly [snapshotId: string]): D1PreparedStatement {
   return db
     .prepare(`UPDATE customization_deltas SET status='confirmed' WHERE snapshot_id=? AND status='proposed'`)
     .bind(...bindings);
 }
 
-export function updateUserCharacterEntries(
+export function markEntryAnalyzing(
   db: D1Database,
-  bindings: readonly [now: unknown, entry_id: unknown, ownerUserId: unknown],
+  bindings: readonly [now: string, entry_id: string, ownerUserId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -512,51 +477,14 @@ export function updateUserCharacterEntries(
     .bind(...bindings);
 }
 
-export function updateJobs(
+export function queuePreferenceAnalysis(
   db: D1Database,
-  bindings: readonly [now: unknown, job_id: unknown, ownerUserId: unknown, entry_id: unknown, revision_number: unknown],
+  bindings: readonly [now: string, job_id: string, ownerUserId: string, entry_id: string, revision_number: number],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE jobs SET status='queued',current_step='preferenceAnalysis',progress_current=8,
        workflow_instance_id=NULL,completed_at=NULL,updated_at=?,revision=revision+1
        WHERE id=? AND owner_user_id=? AND target_type='entry' AND target_id=? AND input_generation=?
          AND status='waiting_for_user'`)
-    .bind(...bindings);
-}
-
-export function insertUnderstandingReviews8(
-  db: D1Database,
-  bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    base_snapshot_id: unknown,
-    base_snapshot_idAgain: unknown,
-    now: unknown,
-  ],
-): D1PreparedStatement {
-  return db
-    .prepare(
-      `INSERT INTO understanding_reviews (id,owner_user_id,snapshot_id,target_type,target_id,decision,review_generation,created_at) VALUES (?,?,?,'snapshot',?,'confirm',1,?)`,
-    )
-    .bind(...bindings);
-}
-
-export function updateCharacterUnderstandingSnapshots2(
-  db: D1Database,
-  bindings: readonly [base_snapshot_id: unknown, ownerUserId: unknown],
-): D1PreparedStatement {
-  return db
-    .prepare(
-      `UPDATE character_understanding_snapshots SET status='confirmed' WHERE id=? AND owner_user_id=? AND status IN ('proposed','needs_review')`,
-    )
-    .bind(...bindings);
-}
-
-export function updateCharacterAssertions4(
-  db: D1Database,
-  bindings: readonly [base_snapshot_id: unknown],
-): D1PreparedStatement {
-  return db
-    .prepare(`UPDATE character_assertions SET status='confirmed' WHERE snapshot_id=? AND status='proposed'`)
     .bind(...bindings);
 }

@@ -1,7 +1,9 @@
+import type { AnalysisDomain } from "../../../../shared/analysis-domain";
+
 /** D1 statements for this use case. Callers compose atomic batches across repositories. */
-export function selectPreferenceRefinements(
+export function selectLatestRefinement(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, entryId: unknown, analysisDomain: unknown],
+  bindings: readonly [ownerUserId: string, entryId: string, analysisDomain: AnalysisDomain],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -10,9 +12,9 @@ export function selectPreferenceRefinements(
     .bind(...bindings);
 }
 
-export function selectPreferenceRefinements2(
+export function selectRevisionRefinement(
   db: D1Database,
-  bindings: readonly [refinementId: unknown, ownerUserId: unknown, entryRevisionId: unknown],
+  bindings: readonly [refinementId: string, ownerUserId: string, entryRevisionId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -23,7 +25,7 @@ export function selectPreferenceRefinements2(
 
 export function selectCharacterUnderstandingSnapshots(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, entryRevisionId: unknown, representationId: unknown],
+  bindings: readonly [ownerUserId: string, entryRevisionId: string, representationId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`
@@ -37,7 +39,7 @@ export function selectCharacterUnderstandingSnapshots(
 
 export function selectPreferenceAssertions(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, entryRevisionId: unknown],
+  bindings: readonly [ownerUserId: string, entryRevisionId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -48,7 +50,7 @@ export function selectPreferenceAssertions(
 
 export function selectAnalysisRuns(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, entryRevisionId: unknown],
+  bindings: readonly [ownerUserId: string, entryRevisionId: string],
 ): D1PreparedStatement {
   return db
     .prepare(
@@ -59,7 +61,7 @@ export function selectAnalysisRuns(
 
 export function selectDarkTransformationDeltas(
   db: D1Database,
-  bindings: readonly [ownerUserId: unknown, id: unknown],
+  bindings: readonly [ownerUserId: string, snapshotId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`SELECT operation,aspect,before_value,after_value,detail_json,confidence
@@ -68,18 +70,18 @@ export function selectDarkTransformationDeltas(
     .bind(...bindings);
 }
 
-export function updateJobs(
+export function acquirePreferenceCommitFence(
   db: D1Database,
   bindings: readonly [
-    commitStep: unknown,
-    now: unknown,
-    jobId: unknown,
-    ownerUserId: unknown,
-    inputGeneration: unknown,
-    entryId: unknown,
-    ownerUserIdAgain: unknown,
-    inputGenerationAgain: unknown,
-    attemptId: unknown,
+    commitStep: string,
+    now: string,
+    jobId: string,
+    ownerUserId: string,
+    inputGeneration: number,
+    entryId: string,
+    ownerUserIdAgain: string,
+    inputGenerationAgain: number,
+    attemptId: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -96,21 +98,21 @@ export function updateJobs(
 export function insertAnalysisRuns(
   db: D1Database,
   bindings: readonly [
-    runId: unknown,
-    ownerUserId: unknown,
-    entryRevisionId: unknown,
-    id: unknown,
-    runGeneration: unknown,
-    idAgain: unknown,
-    value6: unknown,
-    summaryJson: unknown,
-    uncertaintiesJson: unknown,
-    now: unknown,
-    nowAgain: unknown,
-    nowAgainAgain: unknown,
-    jobId: unknown,
-    ownerUserIdAgain: unknown,
-    commitStep: unknown,
+    runId: string,
+    ownerUserId: string,
+    entryRevisionId: string,
+    understandingSnapshotId: string,
+    runGeneration: number,
+    modelRunId: string,
+    ontologyVersion: string,
+    summaryJson: string,
+    uncertaintiesJson: string,
+    now: string,
+    nowAgain: string,
+    nowAgainAgain: string,
+    jobId: string,
+    ownerUserIdAgain: string,
+    commitStep: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -126,7 +128,7 @@ export function insertAnalysisRuns(
 
 export function updateAnalysisRuns(
   db: D1Database,
-  bindings: readonly [value0Json: unknown, runId: unknown],
+  bindings: readonly [qualityContextJson: string, runId: string],
 ): D1PreparedStatement {
   return db.prepare(`UPDATE analysis_runs SET quality_context_json=? WHERE id=?`).bind(...bindings);
 }
@@ -134,12 +136,12 @@ export function updateAnalysisRuns(
 export function insertRawAttributeMentions(
   db: D1Database,
   bindings: readonly [
-    rawId: unknown,
-    ownerUserId: unknown,
-    id: unknown,
-    rawLabel: unknown,
-    value4: unknown,
-    now: unknown,
+    rawId: string,
+    ownerUserId: string,
+    assertionId: string,
+    rawLabel: string,
+    normalizedLabel: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -152,14 +154,14 @@ export function insertRawAttributeMentions(
 export function insertAttributeMappings(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    rawId: unknown,
-    value2: unknown,
-    value3: unknown,
-    value4: unknown,
-    value5: unknown,
-    now: unknown,
-    value7: unknown,
+    mappingId: string,
+    rawId: string,
+    attributeDefinitionId: string | null,
+    mappingStatus: "accepted" | "unmapped",
+    mappingMethod: "exact" | "llm",
+    confidence: number,
+    now: string,
+    decidedAt: string | null,
   ],
 ): D1PreparedStatement {
   return db
@@ -172,22 +174,22 @@ export function insertAttributeMappings(
 export function insertPreferenceAssertions(
   db: D1Database,
   bindings: readonly [
-    id: unknown,
-    ownerUserId: unknown,
-    runId: unknown,
-    entryRevisionId: unknown,
-    characterIdentityId: unknown,
-    representationId: unknown,
-    value6: unknown,
-    rawId: unknown,
-    analysisDomain: unknown,
-    polarity: unknown,
-    responseChannel: unknown,
-    strength: unknown,
-    explicitness: unknown,
-    value13: unknown,
-    contextJson: unknown,
-    now: unknown,
+    id: string,
+    ownerUserId: string,
+    runId: string,
+    entryRevisionId: string,
+    characterIdentityId: string,
+    representationId: string,
+    attributeDefinitionId: string | null,
+    rawId: string,
+    analysisDomain: AnalysisDomain,
+    polarity: string,
+    responseChannel: string | null,
+    strength: number,
+    explicitness: string,
+    confidence: number,
+    contextJson: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -201,23 +203,23 @@ export function insertPreferenceAssertions(
     .bind(...bindings);
 }
 
-export function insertEvidenceFragments(
+export function insertPreferenceEvidence(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    id: unknown,
-    sourceId: unknown,
-    evidenceOrigin: unknown,
-    quoteStart: unknown,
-    quoteEnd: unknown,
-    quoteHash: unknown,
-    excerptText: unknown,
-    inputPointer: unknown,
-    confidence: unknown,
-    verificationStatus: unknown,
-    inferenceType: unknown,
-    now: unknown,
+    evidenceId: string,
+    ownerUserId: string,
+    assertionId: string,
+    sourceId: string | null,
+    evidenceOrigin: string,
+    quoteStart: number | null,
+    quoteEnd: number | null,
+    quoteHash: string | null,
+    excerptText: string | null,
+    inputPointer: string | null,
+    confidence: number,
+    verificationStatus: string,
+    inferenceType: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -231,17 +233,17 @@ export function insertEvidenceFragments(
 export function insertValueStanceAssertions(
   db: D1Database,
   bindings: readonly [
-    id: unknown,
-    ownerUserId: unknown,
-    runId: unknown,
-    targetType: unknown,
-    targetRef: unknown,
-    stance: unknown,
-    orientation: unknown,
-    contextJson: unknown,
-    explicitness: unknown,
-    confidence: unknown,
-    now: unknown,
+    id: string,
+    ownerUserId: string,
+    runId: string,
+    targetType: string,
+    targetRef: string,
+    stance: string,
+    orientation: string,
+    contextJson: string,
+    explicitness: string,
+    confidence: number,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -254,23 +256,23 @@ export function insertValueStanceAssertions(
     .bind(...bindings);
 }
 
-export function insertEvidenceFragments2(
+export function insertValueStanceEvidence(
   db: D1Database,
   bindings: readonly [
-    value0: unknown,
-    ownerUserId: unknown,
-    id: unknown,
-    sourceId: unknown,
-    evidenceOrigin: unknown,
-    quoteStart: unknown,
-    quoteEnd: unknown,
-    quoteHash: unknown,
-    excerptText: unknown,
-    inputPointer: unknown,
-    confidence: unknown,
-    verificationStatus: unknown,
-    inferenceType: unknown,
-    now: unknown,
+    evidenceId: string,
+    ownerUserId: string,
+    assertionId: string,
+    sourceId: string | null,
+    evidenceOrigin: string,
+    quoteStart: number | null,
+    quoteEnd: number | null,
+    quoteHash: string | null,
+    excerptText: string | null,
+    inputPointer: string | null,
+    confidence: number,
+    verificationStatus: string,
+    inferenceType: string,
+    now: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -284,12 +286,12 @@ export function insertEvidenceFragments2(
 export function updateUserCharacterEntries(
   db: D1Database,
   bindings: readonly [
-    now: unknown,
-    entryId: unknown,
-    ownerUserId: unknown,
-    inputGeneration: unknown,
-    jobId: unknown,
-    commitStep: unknown,
+    now: string,
+    entryId: string,
+    ownerUserId: string,
+    inputGeneration: number,
+    jobId: string,
+    commitStep: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -299,15 +301,15 @@ export function updateUserCharacterEntries(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function awaitPreferenceReview(
   db: D1Database,
   bindings: readonly [
-    value0Json: unknown,
-    now: unknown,
-    jobId: unknown,
-    ownerUserId: unknown,
-    inputGeneration: unknown,
-    commitStep: unknown,
+    resultJson: string,
+    now: string,
+    jobId: string,
+    ownerUserId: string,
+    inputGeneration: number,
+    commitStep: string,
   ],
 ): D1PreparedStatement {
   return db
@@ -319,7 +321,7 @@ export function updateJobs2(
 
 export function updateJobAttempts(
   db: D1Database,
-  bindings: readonly [now: unknown, attemptId: unknown, jobId: unknown],
+  bindings: readonly [now: string, attemptId: string, jobId: string],
 ): D1PreparedStatement {
   return db
     .prepare(`UPDATE job_attempts SET status='succeeded',finished_at=?,lease_expires_at=NULL

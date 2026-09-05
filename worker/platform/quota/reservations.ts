@@ -33,7 +33,7 @@ export async function prepareQuotaReservation(
     return { id: existing.id, statements: [] };
   }
   const used = await first<{ count: number }>(
-    repository.selectQuotaReservations2(env.DB, [usageDate, ownerUserId, capability]),
+    repository.countDailyReservations(env.DB, [usageDate, ownerUserId, capability]),
   );
   const slotNumber = nextQuotaSlot(
     used?.count ?? 0,

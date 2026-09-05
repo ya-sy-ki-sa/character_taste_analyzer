@@ -46,7 +46,7 @@ export function updateJobs(
     .bind(...bindings);
 }
 
-export function updateDarkScopeAssessments2(
+export function overrideScopeAssessment(
   db: D1Database,
   bindings: readonly [now: unknown, assessmentId: unknown, ownerUserId: unknown],
 ): D1PreparedStatement {
@@ -57,7 +57,7 @@ export function updateDarkScopeAssessments2(
     .bind(...bindings);
 }
 
-export function updateUserCharacterEntries2(
+export function resumeEntryAfterScopeReview(
   db: D1Database,
   bindings: readonly [now: unknown, entry_id: unknown, ownerUserId: unknown],
 ): D1PreparedStatement {
@@ -67,7 +67,7 @@ export function updateUserCharacterEntries2(
     .bind(...bindings);
 }
 
-export function updateJobs2(
+export function queueJobAfterScopeReview(
   db: D1Database,
   bindings: readonly [now: unknown, job_id: unknown, ownerUserId: unknown],
 ): D1PreparedStatement {

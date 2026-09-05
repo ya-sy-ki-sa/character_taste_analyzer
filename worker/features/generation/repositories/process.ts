@@ -18,7 +18,10 @@ export function updateGenerationRequests(
     .bind(...bindings);
 }
 
-export function updateJobs2(db: D1Database, bindings: readonly [value0: unknown, jobId: unknown]): D1PreparedStatement {
+export function markJobGenerating(
+  db: D1Database,
+  bindings: readonly [value0: unknown, jobId: unknown],
+): D1PreparedStatement {
   return db
     .prepare(
       `UPDATE jobs SET current_step='generateCharacter',progress_current=2,updated_at=?,revision=revision+1 WHERE id=?`,
@@ -26,7 +29,7 @@ export function updateJobs2(db: D1Database, bindings: readonly [value0: unknown,
     .bind(...bindings);
 }
 
-export function updateGenerationRequests2(
+export function markRequestGenerating(
   db: D1Database,
   bindings: readonly [value0: unknown, generationRequestId: unknown],
 ): D1PreparedStatement {
@@ -58,7 +61,7 @@ export function insertGenerationCandidates(
     .bind(...bindings);
 }
 
-export function updateJobs3(
+export function completeGenerationJob(
   db: D1Database,
   bindings: readonly [
     value0Json: unknown,
@@ -102,7 +105,7 @@ export function insertGeneratedCharacters(
     .bind(...bindings);
 }
 
-export function updateGenerationRequests3(
+export function completeGenerationRequest(
   db: D1Database,
   bindings: readonly [
     completed: unknown,
@@ -155,7 +158,7 @@ export function insertGenerationBasisLinks(
     .bind(...bindings);
 }
 
-export function updateGenerationRequests4(
+export function recordGenerationRequestFailure(
   db: D1Database,
   bindings: readonly [
     value0: unknown,
@@ -173,7 +176,7 @@ export function updateGenerationRequests4(
     .bind(...bindings);
 }
 
-export function updateJobs4(
+export function recordGenerationJobFailure(
   db: D1Database,
   bindings: readonly [
     value0: unknown,

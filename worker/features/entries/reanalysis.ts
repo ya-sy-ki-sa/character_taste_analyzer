@@ -1,18 +1,14 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import { type AnyEntryReanalysisInput, anyEntryDraftSchema } from "../../../shared/contracts/entries";
-import {
-  entryBaseCharacterName,
-  entryInputSources,
-  entryReferenceMaterial,
-  entryScopeText,
-} from "../../../shared/entry-input";
+import { entryBaseCharacterName } from "../../../shared/entry-input";
 import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
 import { newJobLlmRoutingJson } from "../../llm/execution";
 import { outboxStatement } from "../../platform/outbox/write";
 import { prepareQuotaReservation } from "../../platform/quota/reservations";
 import type { Env } from "../../types";
-import { registrationTitle } from "./presentation";
+import { prepareInputSources, representationStatements } from "./input-preparation";
+import * as inputRepository from "./repositories/input";
 import * as repository from "./repositories/reanalysis";
 import type { ReanalyzedEntry } from "./types";
 
@@ -83,7 +79,7 @@ export async function createEntryReanalysis(
   if (identityChanged) {
     if (nextDraft.registrationType !== "original" && nextDraft.identityResolution.mode === "reuse") {
       const reusable = await first<{ identity_id: string; work_id: string | null }>(
-        repository.selectCharacterIdentities(env.DB, [
+        inputRepository.selectReusableIdentity(env.DB, [
           nextDraft.identityResolution.characterIdentityId,
           ownerUserId,
           analysisDomain,
@@ -102,7 +98,7 @@ export async function createEntryReanalysis(
         nextDraft.registrationType === "original" ? null : await deriveUuid(env.AUTH_PEPPER, `${revisionId}:work`);
       if (nextDraft.registrationType !== "original" && workId) {
         preparationStatements.push(
-          repository.insertWorks(env.DB, [
+          inputRepository.insertWork(env.DB, [
             workId,
             ownerUserId,
             nextDraft.workTitle,
@@ -115,7 +111,7 @@ export async function createEntryReanalysis(
         );
       }
       preparationStatements.push(
-        repository.insertCharacterIdentities(env.DB, [
+        inputRepository.insertIdentity(env.DB, [
           identityId,
           nextDraft.registrationType === "original" ? "original" : "existing",
           ownerUserId,
@@ -135,85 +131,27 @@ export async function createEntryReanalysis(
     nextDraft.registrationType === "customized_existing"
       ? await deriveUuid(env.AUTH_PEPPER, `${revisionId}:base-representation`)
       : null;
-  const referenceMaterial = entryReferenceMaterial(nextDraft);
-  if (baseRepresentationId && nextDraft.registrationType === "customized_existing")
-    preparationStatements.push(
-      repository.insertCharacterRepresentations(env.DB, [
-        baseRepresentationId,
-        identityId,
-        ownerUserId,
-        `基本像: ${nextDraft.workTitle} / ${nextBaseCharacterName}`,
-        referenceMaterial?.slice(0, 2000) ?? null,
-        now,
-        now,
-      ]),
-    );
-  const representationType =
-    nextDraft.registrationType === "original"
-      ? "original"
-      : nextDraft.registrationType === "customized_existing"
-        ? nextDraft.representationType
-        : "canonical_whole";
-  const canonicality =
-    nextDraft.registrationType === "original"
-      ? "original"
-      : nextDraft.registrationType === "customized_existing"
-        ? nextDraft.representationType === "transformative" || nextDraft.representationType === "alternate_setting"
-          ? "transformative"
-          : "user_interpretation"
-        : "official";
-  const scopeType =
-    nextDraft.registrationType === "customized_existing"
-      ? nextDraft.representationType === "scene_state"
-        ? "scene"
-        : nextDraft.representationType === "facet"
-          ? "facet"
-          : nextDraft.representationType === "alternate_setting"
-            ? "alternate_setting"
-            : "whole"
-      : "whole";
   preparationStatements.push(
-    repository.insertCharacterRepresentations2(env.DB, [
-      representationId,
-      identityId,
-      baseRepresentationId,
+    ...representationStatements(env.DB, {
       ownerUserId,
-      representationType,
-      canonicality,
-      scopeType,
-      entryScopeText(nextDraft),
-      nextDraft.registrationType === "customized_existing" ? nextDraft.customizationDescription : null,
-      (nextDraft.registrationType === "original" ? nextDraft.characterBasicInfo : referenceMaterial)?.slice(0, 2000) ??
-        null,
+      draft: nextDraft,
+      identityId,
+      representationId,
+      baseRepresentationId,
       now,
+    }),
+  );
+  const sourceSetId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-set`);
+  preparationStatements.push(
+    ...(await prepareInputSources(env.DB, {
+      ownerUserId,
+      draft: nextDraft,
+      sourceSetId,
       now,
-    ]),
+      createDocumentId: (ordinal) => deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-document:${ordinal}`),
+    })),
   );
 
-  const sourceSetId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-set`);
-  const sources = entryInputSources(nextDraft);
-  const sourceSetHash = await sha256Hex(JSON.stringify(sources.map(({ pointer, text }) => ({ pointer, text }))));
-  preparationStatements.push(repository.insertSourceSets(env.DB, [sourceSetId, ownerUserId, sourceSetHash, now, now]));
-  for (const [ordinal, source] of sources.entries()) {
-    const documentId = await deriveUuid(env.AUTH_PEPPER, `${revisionId}:source-document:${ordinal}`);
-    const hash = await sha256Hex(source.text);
-    preparationStatements.push(
-      repository.insertSources(env.DB, [
-        documentId,
-        ownerUserId,
-        `${registrationTitle(nextDraft)} ${source.label}`,
-        JSON.stringify({ inputPointer: source.pointer }),
-        new TextEncoder().encode(source.text).byteLength,
-        hash,
-        JSON.stringify({ type: "json_pointer", pointer: source.pointer }),
-        source.text,
-        Math.ceil(source.text.length / 3),
-        now,
-        now,
-      ]),
-      repository.insertSourceSetItems(env.DB, [sourceSetId, documentId, ordinal + 1]),
-    );
-  }
   const quota = await prepareQuotaReservation(env, ownerUserId, "analysis", idempotencyKey, contentHash);
   const outbox = await outboxStatement(
     env,
@@ -300,7 +238,7 @@ export async function createEntryReanalysis(
         projectionState?.built_generation ?? 0,
         now,
       ]),
-      repository.insertJobs2(env.DB, [profileJobId, ownerUserId, ownerUserId, desiredGeneration, now, now]),
+      repository.insertProfileRebuildJob(env.DB, [profileJobId, ownerUserId, ownerUserId, desiredGeneration, now, now]),
       profileOutbox.statement,
     );
   const results = await env.DB.batch(statements);
