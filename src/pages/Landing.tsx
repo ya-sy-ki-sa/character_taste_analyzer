@@ -1,12 +1,10 @@
 import { type FormEvent, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
+import type { SessionUser } from "../../shared/membership";
 import { api, idempotencyKey, setCsrfToken } from "../api";
 import { Turnstile } from "../components/Turnstile";
 import { Brand, Modal, Notice } from "../components/Ui";
-
-type PublicUser = { id: string; username: string };
-type SessionUser = { id: string; username: string };
 
 export function Landing({
   domain,
@@ -233,7 +231,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
   const [usageNotesAccepted, setUsageNotesAccepted] = useState(false);
   const [showUsageNotes, setShowUsageNotes] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>();
-  const [created, setCreated] = useState<{ user: PublicUser; accessKey: string; expiresAt: string }>();
+  const [created, setCreated] = useState<{ user: SessionUser; accessKey: string; expiresAt: string }>();
   const [acknowledged, setAcknowledged] = useState(false);
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -246,7 +244,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
     setSubmitting(true);
     setError(undefined);
     try {
-      const result = await api<{ user: PublicUser; accessKey: string; expiresAt: string }>("/api/v1/users", {
+      const result = await api<{ user: SessionUser; accessKey: string; expiresAt: string }>("/api/v1/users", {
         method: "POST",
         idempotencyKey: requestKey.current,
         body: JSON.stringify({ username, turnstileToken, idempotencyKey: requestKey.current }),

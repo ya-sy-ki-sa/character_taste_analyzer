@@ -1,5 +1,6 @@
 import { sha256Hex } from "../lib/crypto";
 import type { Env } from "../types";
+import { type LlmExecutionContext, resolveLlmRoutingSnapshot, selectLlmRoute } from "./routing";
 import type {
   LlmMessage,
   LlmProvider,
@@ -558,7 +559,10 @@ class OpenAiLlmProvider extends RemoteProvider {
 }
 
 class DeterministicProvider implements LlmProvider {
-  constructor(readonly providerId: "replay" | "fake") {}
+  constructor(
+    readonly providerId: "replay" | "fake",
+    private readonly model: string,
+  ) {}
   async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
     const started = Date.now();
     const value = request.schema.parse(await request.fakeFactory());
@@ -566,7 +570,7 @@ class DeterministicProvider implements LlmProvider {
       provider: this.providerId,
       transport: this.providerId,
       adapterVersion: ADAPTER_VERSION,
-      requestedModel: `${this.providerId}-v1`,
+      requestedModel: this.model,
       resolvedModel: `${this.providerId}-v1`,
       latencyMs: Date.now() - started,
       finishReason: "stop",
@@ -592,47 +596,88 @@ class DeterministicProvider implements LlmProvider {
 function provider(env: Env, id: LlmProviderId, model: string): LlmProvider {
   if (id === "workers_ai") return new WorkersAiLlmProvider(env, model);
   if (id === "openai") return new OpenAiLlmProvider(env, model);
-  return new DeterministicProvider(id);
+  return new DeterministicProvider(id, model);
 }
 
 class LlmProviderRouter implements LlmProvider {
   readonly providerId: LlmProviderId;
-  private readonly primary: LlmProvider;
-  private readonly fallback?: LlmProvider;
-  constructor(env: Env) {
-    this.providerId = env.LLM_PROVIDER;
-    this.primary = provider(env, env.LLM_PROVIDER, env.LLM_MODEL);
-    if (env.LLM_FALLBACK_PROVIDER && env.LLM_FALLBACK_PROVIDER !== env.LLM_PROVIDER && env.LLM_FALLBACK_MODEL) {
-      this.fallback = provider(env, env.LLM_FALLBACK_PROVIDER, env.LLM_FALLBACK_MODEL);
-    }
+  constructor(
+    private readonly env: Env,
+    private readonly context: LlmExecutionContext,
+  ) {
+    this.providerId = context.snapshot.tier.primary.provider;
   }
   async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
+    const { snapshot, jobId } = this.context;
+    const route = selectLlmRoute(snapshot, request.operation, request.repairOfOperation);
+    const primary = provider(this.env, route.primary.provider, route.primary.model);
+    const annotate = (metadata: LlmRunMetadata): LlmRunMetadata => ({
+      ...metadata,
+      operation: request.operation,
+      effectiveSettings: {
+        ...metadata.effectiveSettings,
+        llmRouting: {
+          membershipTier: snapshot.membershipTier,
+          operation: request.operation,
+          effectiveOperation: route.effectiveOperation,
+          selectionReason: route.selectionReason,
+          policyVersion: snapshot.policyVersion,
+          jobId: jobId ?? null,
+          primary: route.primary,
+          fallback: route.fallback,
+        },
+      },
+    });
+    const annotateResult = (result: StructuredLlmResult<T>): StructuredLlmResult<T> => ({
+      ...result,
+      metadata: annotate(result.metadata),
+      attempts: (result.attempts ?? [{ output: result.value, metadata: result.metadata }]).map((attempt) => ({
+        ...attempt,
+        metadata: annotate(attempt.metadata),
+      })),
+    });
+    const annotateError = (error: LlmProviderError) => {
+      error.operation = request.operation;
+      error.attempts = error.attempts.map((attempt) => ({ ...attempt, metadata: annotate(attempt.metadata) }));
+      if (error.attemptMetadata) error.attemptMetadata = annotate(error.attemptMetadata);
+    };
     try {
-      return await this.primary.generateStructured(request);
+      return annotateResult(await primary.generateStructured(request));
     } catch (error) {
-      if (!(error instanceof LlmProviderError) || !error.retryable || !this.fallback) throw error;
+      if (!(error instanceof LlmProviderError)) throw error;
+      annotateError(error);
+      if (!error.retryable || !route.fallback) throw error;
+      const fallback = provider(this.env, route.fallback.provider, route.fallback.model);
       try {
-        const result = await this.fallback.generateStructured({
-          ...request,
-          idempotencyKey: `${request.idempotencyKey}:fallback`,
-        });
+        const result = annotateResult(
+          await fallback.generateStructured({
+            ...request,
+            idempotencyKey: `${request.idempotencyKey}:fallback`,
+          }),
+        );
         const fallbackAttempts = (result.attempts ?? [{ output: result.value, metadata: result.metadata }]).map(
           (attempt) => ({
             ...attempt,
             metadata: {
               ...attempt.metadata,
-              fallbackFromProvider: this.primary.providerId,
+              fallbackFromProvider: primary.providerId,
               fallbackErrorCode: error.code,
             },
           }),
         );
         return {
           ...result,
+          metadata: { ...result.metadata, fallbackFromProvider: primary.providerId, fallbackErrorCode: error.code },
           attempts: [...error.attempts, ...fallbackAttempts],
-          fallbackFrom: `${this.primary.providerId}:${error.code}`,
+          fallbackFrom: `${primary.providerId}:${error.code}`,
         };
       } catch (fallbackError) {
         if (fallbackError instanceof LlmProviderError) {
+          annotateError(fallbackError);
+          fallbackError.attempts = fallbackError.attempts.map((attempt) => ({
+            ...attempt,
+            metadata: { ...attempt.metadata, fallbackFromProvider: primary.providerId, fallbackErrorCode: error.code },
+          }));
           fallbackError.attempts = [...error.attempts, ...fallbackError.attempts];
         }
         throw fallbackError;
@@ -641,6 +686,6 @@ class LlmProviderRouter implements LlmProvider {
   }
 }
 
-export function createLlmProvider(env: Env): LlmProvider {
-  return new LlmProviderRouter(env);
+export function createLlmProvider(env: Env, context?: LlmExecutionContext): LlmProvider {
+  return new LlmProviderRouter(env, context ?? { snapshot: resolveLlmRoutingSnapshot(env, "basic") });
 }

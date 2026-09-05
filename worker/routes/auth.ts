@@ -18,6 +18,7 @@ import {
 } from "../lib/crypto";
 import { first } from "../lib/db";
 import { boundedInteger } from "../lib/numbers";
+import { membershipTierForUser } from "../services/membership";
 import type { AppEnv } from "../types";
 
 export function createAuthRoutes() {
@@ -35,11 +36,12 @@ export function createAuthRoutes() {
       id: string;
       username: string;
       username_normalized: string;
+      membership_tier: string;
       status: string;
       pending_expires_at: string | null;
     }>(
       context.env.DB.prepare(
-        `SELECT id,username,username_normalized,status,pending_expires_at FROM users WHERE id=?`,
+        `SELECT id,username,username_normalized,status,pending_expires_at,membership_tier FROM users WHERE id=?`,
       ).bind(userId),
     );
     if (existing) {
@@ -47,7 +49,12 @@ export function createAuthRoutes() {
         throw new HTTPException(409, { message: "Idempotency-Keyが別のユーザー名で使用されています" });
       return context.json(
         data({
-          user: { id: existing.id, username: existing.username, status: existing.status },
+          user: {
+            id: existing.id,
+            username: existing.username,
+            status: existing.status,
+            membershipTier: membershipTierForUser(existing),
+          },
           accessKey,
           expiresAt: existing.pending_expires_at,
         }),
@@ -73,7 +80,10 @@ export function createAuthRoutes() {
     ]);
     if (results.some((result) => !result.success))
       throw new HTTPException(500, { message: "ユーザーを作成できませんでした" });
-    return context.json(data({ user: { id: userId, username, status: "pending" }, accessKey, expiresAt }), 201);
+    return context.json(
+      data({ user: { id: userId, username, status: "pending", membershipTier: "basic" }, accessKey, expiresAt }),
+      201,
+    );
   });
 
   app.post("/users/:id/activate", validateJson(activationSchema), async (context) => {
@@ -83,9 +93,10 @@ export function createAuthRoutes() {
       status: string;
       pending_expires_at: string | null;
       username: string;
+      membership_tier: string;
     }>(
       context.env.DB.prepare(
-        `SELECT c.key_digest,u.status,u.pending_expires_at,u.username FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.id=?`,
+        `SELECT c.key_digest,u.status,u.pending_expires_at,u.username,u.membership_tier FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.id=?`,
       ).bind(userId),
     );
     const submitted = await hmacHex(
@@ -95,22 +106,30 @@ export function createAuthRoutes() {
     if (!row || !constantTimeEqual(row.key_digest, submitted))
       throw new HTTPException(401, { message: "ユーザーIDまたはアクセスキーが無効です" });
     if (row.status === "active")
-      return context.json(data({ user: { id: userId, username: row.username, status: "active" } }));
+      return context.json(
+        data({
+          user: { id: userId, username: row.username, status: "active", membershipTier: membershipTierForUser(row) },
+        }),
+      );
     if (row.status !== "pending" || !row.pending_expires_at || row.pending_expires_at <= nowIso())
       throw new HTTPException(410, { message: "REGISTRATION_EXPIRED" });
     const now = nowIso();
     await context.env.DB.prepare(`UPDATE users SET status='active',activated_at=?,updated_at=? WHERE id=?`)
       .bind(now, now, userId)
       .run();
-    return context.json(data({ user: { id: userId, username: row.username, status: "active" } }));
+    return context.json(
+      data({
+        user: { id: userId, username: row.username, status: "active", membershipTier: membershipTierForUser(row) },
+      }),
+    );
   });
 
   app.post("/sessions", validateJson(loginSchema), async (context) => {
     const input = context.req.valid("json");
     await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
-    const row = await first<{ id: string; username: string; key_digest: string }>(
+    const row = await first<{ id: string; username: string; key_digest: string; membership_tier: string }>(
       context.env.DB.prepare(
-        `SELECT u.id,u.username,c.key_digest FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.username_normalized=? AND u.status='active'`,
+        `SELECT u.id,u.username,u.membership_tier,c.key_digest FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.username_normalized=? AND u.status='active'`,
       ).bind(normalizeUsername(input.username)),
     );
     const submitted = await hmacHex(
@@ -130,7 +149,13 @@ export function createAuthRoutes() {
       .bind(crypto.randomUUID(), row.id, await sha256Hex(token), await sha256Hex(csrfToken), expiresAt, now, now)
       .run();
     context.header("Set-Cookie", sessionCookie(token, days * 86_400, context.env.ENVIRONMENT));
-    return context.json(data({ user: { id: row.id, username: row.username }, csrfToken, expiresAt }));
+    return context.json(
+      data({
+        user: { id: row.id, username: row.username, membershipTier: membershipTierForUser(row) },
+        csrfToken,
+        expiresAt,
+      }),
+    );
   });
 
   app.delete("/sessions", async (context) => {
@@ -149,7 +174,7 @@ export function createAuthRoutes() {
     const session = requireSession(context);
     return context.json(
       data({
-        user: { id: session.userId, username: session.username },
+        user: { id: session.userId, username: session.username, membershipTier: session.membershipTier },
         csrfToken: session.csrfToken,
         expiresAt: session.expiresAt,
       }),

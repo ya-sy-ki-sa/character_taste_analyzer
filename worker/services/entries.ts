@@ -21,6 +21,7 @@ import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../lib/cry
 import { all, first, placeholders } from "../lib/db";
 import type { Env } from "../types";
 import { localizeAttributeReference, localizeUnderstandingSummary } from "./attribute-labels";
+import { newJobLlmRoutingJson } from "./llm-execution";
 import { outboxStatement } from "./orchestration";
 import { prepareQuotaReservation } from "./quota";
 
@@ -343,8 +344,17 @@ export async function createEntry(
     ),
     ...quota.statements,
     env.DB.prepare(
-      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain) VALUES (?,?,'character_analysis','queued','entry',?,1,0,15,'queued',1,1,?,?,?,?)`,
-    ).bind(jobId, ownerUserId, entryId, quota.id, now, now, analysisDomain),
+      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain,llm_routing_snapshot_json) VALUES (?,?,'character_analysis','queued','entry',?,1,0,15,'queued',1,1,?,?,?,?,?)`,
+    ).bind(
+      jobId,
+      ownerUserId,
+      entryId,
+      quota.id,
+      now,
+      now,
+      analysisDomain,
+      await newJobLlmRoutingJson(env, ownerUserId),
+    ),
     outbox.statement,
   );
   const results = await env.DB.batch(statements);
@@ -650,9 +660,19 @@ export async function createEntryReanalysis(
     env.DB.prepare(
       `INSERT INTO jobs
         (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,
-         current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain)
-       VALUES (?,?,'character_analysis','queued','entry',?,?,0,15,'queued',1,1,?,?,?,?)`,
-    ).bind(jobId, ownerUserId, entryId, revisionNumber, quota.id, now, now, analysisDomain),
+         current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain,llm_routing_snapshot_json)
+       VALUES (?,?,'character_analysis','queued','entry',?,?,0,15,'queued',1,1,?,?,?,?,?)`,
+    ).bind(
+      jobId,
+      ownerUserId,
+      entryId,
+      revisionNumber,
+      quota.id,
+      now,
+      now,
+      analysisDomain,
+      await newJobLlmRoutingJson(env, ownerUserId),
+    ),
     env.DB.prepare(
       `UPDATE jobs SET status='superseded',updated_at=?,completed_at=?,revision=revision+1
       WHERE owner_user_id=? AND target_type='entry' AND target_id=? AND id<>?

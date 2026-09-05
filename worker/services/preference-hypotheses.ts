@@ -6,7 +6,7 @@ import { responseChannelCatalog } from "../../shared/response-channels";
 import type { AnyEntryDraft, UnderstandingCandidate } from "../../shared/schemas";
 import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../lib/crypto";
 import { all } from "../lib/db";
-import { createLlmProvider } from "../llm/providers";
+import type { LlmProvider } from "../llm/types";
 import type { CharacterAnalysisWorkflowParams, Env } from "../types";
 import type { RetainedPreferences } from "./preference-retention";
 
@@ -19,6 +19,7 @@ descriptionはユーザーが自分に合うか選べる具体的な好みの文
 
 export async function generatePreferenceHypotheses(
   env: Env,
+  llm: LlmProvider,
   owner: string,
   domain: AnalysisDomain,
   refinementId: string,
@@ -63,7 +64,7 @@ export async function generatePreferenceHypotheses(
       }),
     },
   ];
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await llm.generateStructured({
     operation: "preference_hypotheses",
     schemaName: "preference_hypotheses",
     schemaVersion: "2.1",

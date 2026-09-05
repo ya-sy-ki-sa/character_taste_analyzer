@@ -100,7 +100,7 @@ async function collectAccountData(env: Env, ownerUserId: string) {
   ] = await Promise.all([
     rows(
       env,
-      `SELECT id,username,status,is_public,activated_at,created_at,updated_at FROM users WHERE id=?`,
+      `SELECT id,username,status,membership_tier,is_public,activated_at,created_at,updated_at FROM users WHERE id=?`,
       ownerUserId,
     ),
     rows(env, `SELECT * FROM user_character_entries WHERE owner_user_id=?`, ownerUserId),

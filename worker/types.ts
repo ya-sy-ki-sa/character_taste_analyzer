@@ -54,6 +54,7 @@ export type Env = {
   TURNSTILE_SITE_KEY?: string;
   LLM_PROVIDER: "openai" | "workers_ai" | "replay" | "fake";
   LLM_MODEL: string;
+  LLM_TIER_ROUTES_JSON?: string;
   LLM_FALLBACK_PROVIDER?: "openai" | "workers_ai" | "replay" | "fake" | "";
   LLM_FALLBACK_MODEL?: string;
   OPENAI_FLEX_ENABLED?: string;
@@ -80,6 +81,7 @@ export type Session = {
   id: string;
   userId: string;
   username: string;
+  membershipTier: MembershipTier;
   csrfToken: string;
   expiresAt: string;
 };
@@ -92,3 +94,4 @@ export type AppVariables = {
 };
 
 import type { AnalysisDomain } from "../shared/analysis-domain";
+import type { MembershipTier } from "../shared/membership";

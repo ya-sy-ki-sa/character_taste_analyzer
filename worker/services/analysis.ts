@@ -31,12 +31,12 @@ import {
 } from "../../shared/schemas";
 import { hmacHex, normalizeIdentityPart, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first } from "../lib/db";
-import { createLlmProvider } from "../llm/providers";
-import { LlmProviderError, type LlmRunMetadata } from "../llm/types";
+import { type LlmProvider, LlmProviderError, type LlmRunMetadata } from "../llm/types";
 import type { CharacterAnalysisWorkflowParams, Env } from "../types";
 import { type CharacterResearch, collectCharacterResearch } from "./character-research";
 import { loadConfirmedUnderstanding, prepareConfirmedReviewSources } from "./confirmed-understanding";
 import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "./jobs";
+import { createJobLlmProvider } from "./llm-execution";
 import { outboxStatement } from "./orchestration";
 import { commitHypothesisPreview, generatePreferenceHypotheses } from "./preference-hypotheses";
 import {
@@ -76,6 +76,7 @@ const DARK_SYSTEM_INSTRUCTION = `あなたは悪役、堕落、洗脳、憑依�
 指定されたJSON Schemaだけを返す。`;
 
 type EntryContext = {
+  llm: LlmProvider;
   entryId: string;
   ownerUserId: string;
   analysisDomain: AnalysisDomain;
@@ -296,6 +297,7 @@ async function loadEntry(
   ownerUserId: string,
   analysisDomain: AnalysisDomain,
   entryId: string,
+  llm: LlmProvider,
 ): Promise<EntryContext> {
   const row = await first<{
     id: string;
@@ -326,6 +328,7 @@ async function loadEntry(
   );
   if (!row) throw new Error("ENTRY_NOT_FOUND");
   return {
+    llm,
     entryId: row.id,
     ownerUserId: row.owner_user_id,
     analysisDomain: row.analysis_domain,
@@ -881,6 +884,7 @@ async function persistModelRun(
   metadata: LlmRunMetadata,
   analysisDomain: AnalysisDomain = "standard",
 ): Promise<{ id: string; statement: D1PreparedStatement }> {
+  operation = metadata.operation ?? operation;
   const id = crypto.randomUUID();
   const outputHash = await sha256Hex(JSON.stringify(output));
   return {
@@ -1197,7 +1201,7 @@ async function understandOne(
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await entry.llm.generateStructured({
     operation: includeCustomization ? "customization_delta" : "character_understanding",
     schemaName: "character_understanding_candidate",
     schemaVersion: "1.0",
@@ -1222,7 +1226,7 @@ async function understandOne(
       content: `キャラクター理解候補を元資料と照合し、根拠のない断定・カスタム差分の誤りを訂正した完全な候補を返す。事実や出典を追加せず、モデル知識の確信度を上げない。嗜好は分析しない。\n${JSON.stringify({ stage, sourcePayload, research, candidate: result.value, citations: result.metadata.citations ?? [], ontology, allowedInputPointers })}`,
     },
   ];
-  const audited = await createLlmProvider(env).generateStructured({
+  const audited = await entry.llm.generateStructured({
     operation: "understanding_audit",
     schemaName: "character_understanding_candidate",
     schemaVersion: "2.0",
@@ -1278,7 +1282,7 @@ async function assessDarkScope(env: Env, entry: EntryContext, research: Characte
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await entry.llm.generateStructured({
     operation: "dark_scope_assessment",
     schemaName: "dark_scope_assessment",
     schemaVersion: "1.0",
@@ -1305,7 +1309,7 @@ async function understandDarkBaseline(env: Env, entry: EntryContext, research: C
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await entry.llm.generateStructured({
     operation: "dark_baseline_understanding",
     schemaName: "dark_baseline_understanding",
     schemaVersion: "1.0",
@@ -1338,7 +1342,7 @@ async function understandDarkTarget(
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await entry.llm.generateStructured({
     operation: "dark_character_understanding",
     schemaName: "dark_character_understanding",
     schemaVersion: "1.0",
@@ -1380,7 +1384,7 @@ async function auditDarkUnderstanding(
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await entry.llm.generateStructured({
     operation: "dark_understanding_audit",
     schemaName: "dark_character_understanding",
     schemaVersion: "1.0",
@@ -1416,7 +1420,7 @@ async function analyzeDarkPreferences(
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await entry.llm.generateStructured({
     operation: "dark_preference_analysis",
     schemaName: "dark_preference_candidate",
     schemaVersion: "1.0",
@@ -1456,7 +1460,7 @@ async function auditDarkPreferences(
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await entry.llm.generateStructured({
     operation: "dark_preference_audit",
     schemaName: "dark_preference_candidate",
     schemaVersion: "1.0",
@@ -1586,7 +1590,13 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
     claim = await claimJob(env, params.jobId, params.ownerUserId, params.inputGeneration, "understandCharacter");
     if (claim.status === "attempts_exhausted") throw new Error("JOB_STEP_ATTEMPTS_EXHAUSTED");
     if (claim.status !== "claimed") return;
-    const entry = await loadEntry(env, params.ownerUserId, params.analysisDomain, params.entryId);
+    const entry = await loadEntry(
+      env,
+      params.ownerUserId,
+      params.analysisDomain,
+      params.entryId,
+      await createJobLlmProvider(env, params.jobId, params.ownerUserId),
+    );
     const ontology = await loadOntology(env, params.analysisDomain);
     const now = nowIso();
     const started = await env.DB.batch([
@@ -2075,7 +2085,13 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     );
     if (claim.status === "attempts_exhausted") throw new Error("JOB_STEP_ATTEMPTS_EXHAUSTED");
     if (claim.status !== "claimed") return;
-    const entry = await loadEntry(env, params.ownerUserId, params.analysisDomain, params.entryId);
+    const entry = await loadEntry(
+      env,
+      params.ownerUserId,
+      params.analysisDomain,
+      params.entryId,
+      await createJobLlmProvider(env, params.jobId, params.ownerUserId),
+    );
     if (params.refinementId) {
       const refinement = await first<{
         id: string;
@@ -2146,6 +2162,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     if (entry.refinement?.mode === "hypotheses" && entry.refinement.context?.baseAnalysisRunId) {
       const preview = await generatePreferenceHypotheses(
         env,
+        entry.llm,
         params.ownerUserId,
         params.analysisDomain,
         entry.refinement.id,
@@ -2264,7 +2281,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     } else {
       inputHash = await sha256Hex(JSON.stringify(messages));
       const standardPayload = entry.payload as EntryDraft;
-      result = await createLlmProvider(env).generateStructured({
+      result = await entry.llm.generateStructured({
         operation: "preference_analysis",
         schemaName: "preference_analysis_candidate",
         schemaVersion: "1.0",
@@ -2302,7 +2319,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         },
       ];
       inputHash = await sha256Hex(JSON.stringify(auditMessages));
-      result = await createLlmProvider(env).generateStructured({
+      result = await entry.llm.generateStructured({
         operation: "preference_audit",
         schemaName: "preference_analysis_candidate",
         schemaVersion: "2.0",

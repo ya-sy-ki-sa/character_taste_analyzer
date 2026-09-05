@@ -1,3 +1,4 @@
+import { parseTierRoutes } from "./llm/routing";
 import type { Env } from "./types";
 
 export type ConfigValidation = { ready: boolean; errors: string[] };
@@ -19,23 +20,22 @@ export function validateConfig(env: Env): ConfigValidation {
     errors.push("LLM_FALLBACK_DUPLICATES_PRIMARY");
   if (env.OPENAI_FLEX_ENABLED !== undefined && !["true", "false"].includes(env.OPENAI_FLEX_ENABLED))
     errors.push("OPENAI_FLEX_ENABLED_INVALID");
-  if (
-    (env.LLM_PROVIDER === "openai" ||
-      env.LLM_FALLBACK_PROVIDER === "openai" ||
-      env.EMBEDDING_PROVIDER === "openai" ||
-      env.MODERATION_PROVIDER === "openai") &&
-    !env.OPENAI_API_KEY
-  )
-    errors.push("OPENAI_API_KEY_MISSING");
-  const usesOpenAi =
-    env.LLM_PROVIDER === "openai" ||
-    env.LLM_FALLBACK_PROVIDER === "openai" ||
-    env.EMBEDDING_PROVIDER === "openai" ||
-    env.MODERATION_PROVIDER === "openai";
-  const usesWorkersAi =
-    env.LLM_PROVIDER === "workers_ai" ||
-    env.LLM_FALLBACK_PROVIDER === "workers_ai" ||
-    env.EMBEDDING_PROVIDER === "workers_ai";
+  let tierProviders: string[] = [];
+  try {
+    tierProviders = Object.values(parseTierRoutes(env.LLM_TIER_ROUTES_JSON)).map((route) => route.provider);
+  } catch {
+    errors.push("LLM_TIER_ROUTES_INVALID");
+  }
+  const providers = [
+    env.LLM_PROVIDER,
+    env.LLM_FALLBACK_PROVIDER,
+    env.EMBEDDING_PROVIDER,
+    env.MODERATION_PROVIDER,
+    ...tierProviders,
+  ];
+  const usesOpenAi = providers.includes("openai");
+  const usesWorkersAi = providers.includes("workers_ai");
+  if (usesOpenAi && !env.OPENAI_API_KEY) errors.push("OPENAI_API_KEY_MISSING");
   if ((usesOpenAi || usesWorkersAi) && !env.AI_GATEWAY_GATEWAY_ID) errors.push("AI_GATEWAY_GATEWAY_ID_MISSING");
   if (usesOpenAi && !env.AI_GATEWAY_ACCOUNT_ID) errors.push("AI_GATEWAY_ACCOUNT_ID_MISSING");
   if (usesOpenAi && !env.AI_GATEWAY_TOKEN) errors.push("AI_GATEWAY_TOKEN_MISSING");

@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
+import { sessionUserSchema } from "../shared/membership";
 import {
   feedbackReviewSchema,
   generationFeedbackSchema,
@@ -23,6 +24,14 @@ import {
   understandingReviewRequestSchema,
 } from "../shared/schemas";
 
+const sessionResponseSchema = z.object({
+  data: z.object({ user: sessionUserSchema, csrfToken: z.string(), expiresAt: z.string() }),
+});
+const registeredUserSchema = sessionUserSchema.extend({ status: z.enum(["pending", "active"]) });
+const registrationResponseSchema = z.object({
+  data: z.object({ user: registeredUserSchema, accessKey: z.string(), expiresAt: z.string().nullable() }),
+});
+const activationResponseSchema = z.object({ data: z.object({ user: registeredUserSchema }) });
 const successSchema = z.object({ data: z.unknown() });
 const errorSchema = z.object({
   error: z.object({
@@ -57,6 +66,7 @@ type RouteDefinition = {
   path: string;
   summary: string;
   body?: z.ZodType;
+  responseSchema?: z.ZodType;
   params?: z.ZodObject;
   status?: 200 | 201 | 202 | 204;
 };
@@ -95,17 +105,31 @@ const definitions: RouteDefinition[] = [
   ]),
   { method: "get", path: "/api/v1/health/live", summary: "Liveness" },
   { method: "get", path: "/api/v1/health/ready", summary: "Readiness" },
-  { method: "post", path: "/api/v1/users", summary: "Register user", body: registrationSchema, status: 201 },
+  {
+    method: "post",
+    path: "/api/v1/users",
+    summary: "Register user",
+    body: registrationSchema,
+    status: 201,
+    responseSchema: registrationResponseSchema,
+  },
   {
     method: "post",
     path: "/api/v1/users/{id}/activate",
     summary: "Activate registration",
     body: activationSchema,
+    responseSchema: activationResponseSchema,
     params: idParams,
   },
-  { method: "post", path: "/api/v1/sessions", summary: "Create session", body: loginSchema },
+  {
+    method: "post",
+    path: "/api/v1/sessions",
+    summary: "Create session",
+    body: loginSchema,
+    responseSchema: sessionResponseSchema,
+  },
   { method: "delete", path: "/api/v1/sessions", summary: "Delete session", status: 204 },
-  { method: "get", path: "/api/v1/me", summary: "Current session" },
+  { method: "get", path: "/api/v1/me", summary: "Current session", responseSchema: sessionResponseSchema },
   {
     method: "post",
     path: "/api/v1/identity-candidates",
@@ -264,12 +288,14 @@ export function buildAsBuiltOpenApi() {
   const registry = new OpenAPIHono();
   for (const definition of definitions) {
     const status = definition.status ?? 200;
+    const successResponse = {
+      description: "Success",
+      content: { "application/json": { schema: definition.responseSchema ?? successSchema } },
+    };
     const responses = {
       ...commonResponses,
-      [status]:
-        status === 204
-          ? { description: "No content" }
-          : { description: "Success", content: { "application/json": { schema: successSchema } } },
+      200: successResponse,
+      [status]: status === 204 ? { description: "No content" } : successResponse,
     };
     const route = createRoute({
       method: definition.method,

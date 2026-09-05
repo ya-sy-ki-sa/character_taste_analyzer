@@ -5,6 +5,7 @@ import { readSessionCookie, sessionCookie } from "./lib/cookies";
 import { addDaysIso, constantTimeEqual, hmacHex, nowIso, sha256Hex } from "./lib/crypto";
 import { first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
+import { membershipTierForUser } from "./services/membership";
 import type { AppEnv, Env, Session } from "./types";
 
 type AppContext = Context<AppEnv>;
@@ -12,6 +13,7 @@ type SessionRow = {
   id: string;
   user_id: string;
   username: string;
+  membership_tier: string;
   csrf_digest: string;
   expires_at: string;
 };
@@ -22,7 +24,7 @@ export async function resolveSession(env: Env, cookieHeader?: string): Promise<S
   const tokenDigest = await sha256Hex(token);
   const row = await first<SessionRow>(
     env.DB.prepare(`
-      SELECT s.id, s.user_id, u.username, s.csrf_digest, s.expires_at
+      SELECT s.id, s.user_id, u.username, u.membership_tier, s.csrf_digest, s.expires_at
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       JOIN credentials c ON c.user_id = u.id
@@ -38,6 +40,7 @@ export async function resolveSession(env: Env, cookieHeader?: string): Promise<S
     id: row.id,
     userId: row.user_id,
     username: row.username,
+    membershipTier: membershipTierForUser(row),
     csrfToken,
     expiresAt: row.expires_at,
   };

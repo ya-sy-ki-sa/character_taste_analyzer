@@ -13,8 +13,7 @@ import {
 } from "../../shared/schemas";
 import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../lib/crypto";
 import { all, first, placeholders } from "../lib/db";
-import { createLlmProvider } from "../llm/providers";
-import { LlmProviderError, type LlmRunMetadata } from "../llm/types";
+import { type LlmProvider, LlmProviderError, type LlmRunMetadata } from "../llm/types";
 import type { Env, GenerationWorkflowParams } from "../types";
 import { compileGenerationSelections, selectionValuePolicy } from "./generation-selections";
 import {
@@ -30,6 +29,7 @@ import {
   validateGenerationCoverage,
 } from "./generation-validation";
 import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "./jobs";
+import { createJobLlmProvider, newJobLlmRoutingJson } from "./llm-execution";
 import { outboxStatement } from "./orchestration";
 import { prepareQuotaReservation } from "./quota";
 
@@ -405,6 +405,7 @@ async function persistModelRun(
   operation = "character_generation",
   analysisDomain: AnalysisDomain = "standard",
 ): Promise<string> {
+  operation = metadata.operation ?? operation;
   const id = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO model_run_metadata (id,owner_user_id,provider,transport,adapter_version,requested_model,resolved_model,operation,prompt_version,schema_version,provider_request_id,input_hash,output_hash,input_token_estimate,output_token_estimate,latency_ms,finish_reason,data_retention_mode,root_request_id,attempt_number,prompt_hash,fallback_from_provider,fallback_error_code,effective_settings_json,ignored_parameters_json,provider_response_diagnostics_json,created_at,analysis_domain) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -513,8 +514,8 @@ export async function createGenerationRequest(
       `INSERT INTO generation_requests (id,owner_user_id,profile_snapshot_id,mode,status,user_constraints_json,brief_revision,revision,created_at,updated_at,analysis_domain) VALUES (?,?,?,?,'draft',?,0,1,?,?,?)`,
     ).bind(id, ownerUserId, snapshot.id, input.mode, JSON.stringify(input), now, now, analysisDomain),
     env.DB.prepare(
-      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain) VALUES (?,?,'generation','queued','generation_request',?,1,0,5,'compileBrief',1,1,?,?,?,?)`,
-    ).bind(jobId, ownerUserId, id, quota.id, now, now, analysisDomain),
+      `INSERT INTO jobs (id,owner_user_id,job_type,status,target_type,target_id,input_generation,progress_current,progress_total,current_step,retryable,revision,quota_reservation_id,created_at,updated_at,analysis_domain,llm_routing_snapshot_json) VALUES (?,?,'generation','queued','generation_request',?,1,0,5,'compileBrief',1,1,?,?,?,?,?)`,
+    ).bind(jobId, ownerUserId, id, quota.id, now, now, analysisDomain, await newJobLlmRoutingJson(env, ownerUserId)),
     outbox.statement,
   ];
   let ordinal = 0;
@@ -542,6 +543,7 @@ export async function createGenerationRequest(
 
 async function validateGeneratedCandidate(
   env: Env,
+  llm: LlmProvider,
   ownerUserId: string,
   generationRequestId: string,
   brief: GenerationBrief,
@@ -558,7 +560,7 @@ async function validateGeneratedCandidate(
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await llm.generateStructured({
     operation: "generation_validation",
     schemaName: "generation_validation_report",
     schemaVersion: "1.0",
@@ -622,6 +624,7 @@ type CandidateResult = {
 
 async function generateCandidate(
   env: Env,
+  llm: LlmProvider,
   params: GenerationWorkflowParams,
   brief: GenerationBrief,
   briefRowId: string,
@@ -653,7 +656,7 @@ async function generateCandidate(
   const inputHash = await sha256Hex(JSON.stringify(messages));
   const generated =
     params.analysisDomain === "dark"
-      ? await createLlmProvider(env).generateStructured({
+      ? await llm.generateStructured({
           operation: "dark_character_generation",
           schemaName: "dark_generated_character",
           schemaVersion: "dark-1.0",
@@ -666,7 +669,7 @@ async function generateCandidate(
           safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
           fakeFactory: () => fakeDarkCharacter(brief, ordinal),
         })
-      : await createLlmProvider(env).generateStructured({
+      : await llm.generateStructured({
           operation: "character_generation",
           schemaName: "generated_character",
           schemaVersion: "1.0",
@@ -697,6 +700,7 @@ async function generateCandidate(
   let candidate: AnyGeneratedCharacterCandidate = generated.value;
   let report = await validateGeneratedCandidate(
     env,
+    llm,
     params.ownerUserId,
     params.generationRequestId,
     brief,
@@ -724,7 +728,7 @@ async function generateCandidate(
     const repairHash = await sha256Hex(JSON.stringify(repairMessages));
     const repaired =
       params.analysisDomain === "dark"
-        ? await createLlmProvider(env).generateStructured({
+        ? await llm.generateStructured({
             operation: "generation_repair",
             schemaName: "dark_generated_character_repair",
             schemaVersion: "dark-1.0",
@@ -737,7 +741,7 @@ async function generateCandidate(
             safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
             fakeFactory: () => candidate as DarkGeneratedCharacterCandidate,
           })
-        : await createLlmProvider(env).generateStructured({
+        : await llm.generateStructured({
             operation: "generation_repair",
             schemaName: "generated_character_repair",
             schemaVersion: "1.0",
@@ -767,6 +771,7 @@ async function generateCandidate(
     candidate = repaired.value;
     report = await validateGeneratedCandidate(
       env,
+      llm,
       params.ownerUserId,
       params.generationRequestId,
       brief,
@@ -789,6 +794,7 @@ async function generateCandidate(
 
 async function compareCandidates(
   env: Env,
+  llm: LlmProvider,
   params: GenerationWorkflowParams,
   brief: GenerationBrief,
   candidates: CandidateResult[],
@@ -825,7 +831,7 @@ async function compareCandidates(
       }),
     },
   ];
-  const result = await createLlmProvider(env).generateStructured({
+  const result = await llm.generateStructured({
     operation: "generation_comparison",
     schemaName: "generation_comparison",
     schemaVersion: "2.0",
@@ -874,6 +880,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
     claim = await claimJob(env, params.jobId, params.ownerUserId, params.inputGeneration, "character-generation");
     if (claim.status === "attempts_exhausted") throw new Error("JOB_STEP_ATTEMPTS_EXHAUSTED");
     if (claim.status !== "claimed") return;
+    const llm = await createJobLlmProvider(env, params.jobId, params.ownerUserId);
     const now = nowIso();
     await env.DB.batch([
       env.DB.prepare(
@@ -901,7 +908,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
     );
     const candidates: CandidateResult[] = [];
     for (let ordinal = 1; ordinal <= 3; ordinal++) {
-      const result = await generateCandidate(env, params, brief, briefRowId, ordinal, documents);
+      const result = await generateCandidate(env, llm, params, brief, briefRowId, ordinal, documents);
       candidates.push(result);
       if (result.report.passed && result.similarity.passed)
         documents.push(characterSimilarityDocument(`variant:${ordinal}`, result.candidate));
@@ -928,7 +935,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
       ),
     );
     if (!eligible.length) throw new Error("GENERATION_CONSTRAINT_VIOLATION");
-    await compareCandidates(env, params, brief, eligible);
+    await compareCandidates(env, llm, params, brief, eligible);
     const { candidate, modelRunId } = eligible[0];
     const characterId = crypto.randomUUID();
     const outputJson = JSON.stringify(candidate);

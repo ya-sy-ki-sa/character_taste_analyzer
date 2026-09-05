@@ -24,6 +24,7 @@ export type LlmOperation =
 export type LlmMessage = { role: "system" | "user" | "assistant"; content: string };
 export type StructuredLlmRequest<T> = {
   operation: LlmOperation;
+  repairOfOperation?: Exclude<LlmOperation, "schema_repair">;
   schemaName: string;
   schemaVersion: string;
   schema: z.ZodType<T>;
@@ -37,6 +38,7 @@ export type StructuredLlmRequest<T> = {
   fakeFactory(): T;
 };
 export type LlmRunMetadata = {
+  operation?: LlmOperation;
   provider: LlmProviderId;
   transport: "direct" | "ai_gateway" | "binding" | "replay" | "fake";
   adapterVersion: string;

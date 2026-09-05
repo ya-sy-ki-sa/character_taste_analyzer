@@ -70,6 +70,7 @@ beforeEach(async () => {
                     id: "session-id",
                     user_id: ownerId,
                     username: "観測者",
+                    membership_tier: "basic",
                     csrf_digest: csrfDigest,
                     expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
                   }

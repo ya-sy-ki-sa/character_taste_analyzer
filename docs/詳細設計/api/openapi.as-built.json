@@ -5529,8 +5529,63 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "data": {}
-                  }
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "membershipTier": {
+                              "type": "string",
+                              "enum": [
+                                "basic",
+                                "silver",
+                                "gold",
+                                "premium"
+                              ]
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "active"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "membershipTier",
+                            "status"
+                          ]
+                        },
+                        "accessKey": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "user",
+                        "accessKey",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
                 }
               }
             }
@@ -5542,8 +5597,63 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "data": {}
-                  }
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "membershipTier": {
+                              "type": "string",
+                              "enum": [
+                                "basic",
+                                "silver",
+                                "gold",
+                                "premium"
+                              ]
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "active"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "membershipTier",
+                            "status"
+                          ]
+                        },
+                        "accessKey": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "user",
+                        "accessKey",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
                 }
               }
             }
@@ -5977,8 +6087,52 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "data": {}
-                  }
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "membershipTier": {
+                              "type": "string",
+                              "enum": [
+                                "basic",
+                                "silver",
+                                "gold",
+                                "premium"
+                              ]
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "active"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "membershipTier",
+                            "status"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "user"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
                 }
               }
             }
@@ -6410,8 +6564,52 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "data": {}
-                  }
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "membershipTier": {
+                              "type": "string",
+                              "enum": [
+                                "basic",
+                                "silver",
+                                "gold",
+                                "premium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "membershipTier"
+                          ]
+                        },
+                        "csrfToken": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "user",
+                        "csrfToken",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
                 }
               }
             }
@@ -7221,8 +7419,52 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "data": {}
-                  }
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "membershipTier": {
+                              "type": "string",
+                              "enum": [
+                                "basic",
+                                "silver",
+                                "gold",
+                                "premium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "membershipTier"
+                          ]
+                        },
+                        "csrfToken": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "user",
+                        "csrfToken",
+                        "expiresAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
                 }
               }
             }

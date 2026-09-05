@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useCallback, useEffect } from "react";
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import type { AnalysisDomain } from "../shared/analysis-domain";
+import type { SessionUser } from "../shared/membership";
 import { ApiClientError, api, setCsrfToken, setSessionExpiredHandler } from "./api";
 import { Brand, Spinner } from "./components/Ui";
 import { Landing } from "./pages/Landing";
@@ -14,7 +15,8 @@ const AnalyzerStatusPage = lazy(() =>
   import("./pages/AnalyzerStatusPage").then((module) => ({ default: module.AnalyzerStatusPage })),
 );
 
-export type SessionUser = { id: string; username: string };
+export type { SessionUser } from "../shared/membership";
+
 type MeResponse = { user: SessionUser; csrfToken: string; expiresAt: string };
 
 export function App() {
