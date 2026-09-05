@@ -430,4 +430,35 @@
   .stance-grid small {
     color: var(--ctl-text-muted);
   }
+
+  .understanding-evidence-summary {
+    margin-block: 16px;
+    padding-block: 12px;
+    border-block: 1px solid var(--ctl-line);
+    font-size: 14px;
+  }
+
+  .understanding-evidence-summary summary {
+    min-height: 44px;
+    align-content: center;
+    cursor: pointer;
+  }
+
+  .understanding-evidence-summary dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block: 4px;
+  }
+
+  .understanding-evidence-summary dd {
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .understanding-evidence-summary .section-help,
+  .section-help.understanding-information {
+    font-size: 14px;
+    line-height: 1.7;
+  }
 }

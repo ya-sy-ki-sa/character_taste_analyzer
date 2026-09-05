@@ -6,6 +6,7 @@ import { prepareQuotaReservation } from "../../platform/quota/reservations";
 import type { Env, ExportWorkflowParams } from "../../types";
 import { claimJob, finishJobAttempt, type JobClaim } from "../jobs/execution";
 import * as repository from "./repositories/exports";
+import { exportUnderstandingEvidence } from "./understanding-evidence";
 
 export async function createAccountExport(env: Env, ownerUserId: string, idempotencyKey: string) {
   if (!env.EXPORTS) throw new Error("EXPORT_STORAGE_UNAVAILABLE");
@@ -142,7 +143,7 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     ...(analysisDomain === "dark" ? { darkScopeAssessments, darkBaselineSnapshots, darkTransformationDeltas } : {}),
   });
   return {
-    schemaVersion: "4.0",
+    schemaVersion: "5.0",
     exportedAt: nowIso(),
     user: user[0] ?? null,
     domains: {
@@ -154,6 +155,7 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     understanding: {
       runs: understandingRuns,
       snapshots: understandingSnapshots,
+      evidenceSummaries: exportUnderstandingEvidence(understandingSnapshots, characterAssertions, evidence),
       assertions: characterAssertions,
       customizationDeltas,
       reviews: understandingReviews,

@@ -94,7 +94,12 @@ export function seedReview(database: DatabaseSync) {
     representation_id: representation,
     snapshot_generation: 1,
     status: "confirmed",
-    overall_confidence: 1,
+    ...(database
+      .prepare("PRAGMA table_info(character_understanding_snapshots)")
+      .all()
+      .some((column) => column.name === "overall_confidence")
+      ? { overall_confidence: 1 }
+      : {}),
     source_assessment_json: "{}",
     summary_json: "{}",
     ontology_version: "1.0",

@@ -276,9 +276,6 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           commitStep,
         ]),
       );
-      const confidence = call.value.assertions.length
-        ? call.value.assertions.reduce((sum, item) => sum + item.confidence, 0) / call.value.assertions.length
-        : 0.4;
       statements.push(
         repository.insertCharacterUnderstandingSnapshots(env.DB, [
           snapshotId,
@@ -289,7 +286,6 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           entry.sourceSetId,
           snapshotGeneration.next_generation,
           entry.payload.preferenceContext ?? null,
-          Math.min(1, confidence),
           JSON.stringify({
             ...call.value.sourceAssessment,
             citationIssues,

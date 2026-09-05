@@ -332,7 +332,8 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
 
   it("keeps an entirely unverified understanding reviewable and passes no assertions after confirmation", async () => {
     const { env, owner, snapshot } = await setup(domain, failures[0], true);
-    expect(snapshot.confidence).toBe(0);
+    expect(snapshot).not.toHaveProperty("confidence");
+    expect(snapshot.evidenceSummary.counts.invalid).toBeGreaterThan(0);
     expect(snapshot.sourceAssessment.coverage).toBe("none");
     await confirmUnderstanding(env, owner, domain, snapshot.id);
     expect((await loadConfirmedUnderstanding(env, owner, snapshot.id)).assertions).toEqual([]);

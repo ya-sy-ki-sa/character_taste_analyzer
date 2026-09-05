@@ -50,3 +50,9 @@ Viteのmanifestと `build-dependencies.json` を使用して、実際の静的�
 [固定fixture](../tests/fixtures/explicit-preferences.json)の入力は `.artifacts/live-evaluation/20260905-personas-01/cases/{ID}/preference-before.json` から取得しました。A07・B05・C02・C10・D02、対照例A12・C05、曖昧例B03・C03・D03を含みます。`expectedAssertions` は改善後に保持すべき内容として人手で定義した期待値で、実モデルが返した出力ではありません。[パイプラインテスト](../tests/explicit-preference-pipeline.test.ts)は固定応答の保存・引用検証・レビュー・プロフィール・生成briefへの伝達と呼出数を検証します。B05の価値態度だけを、好みの抽出成功とは数えません。
 
 実モデルの取りこぼし改善は、このテストだけでは実証しません。実APIで再評価する際は別出力先を使用し、候補件数に加えて、対象・引用・条件・否定と未確定経路の保持をfixtureの期待内容と照合してください。`preferenceAssertionCount`、`valueStanceAssertionCount`、`unresolvedResponseChannelCount` は生成時の品質情報であり、意味的な抽出正確性を表す指標ではありません。
+
+## 人物理解の全体信頼度廃止（S03）
+
+[旧指標の固定fixture](../tests/fixtures/legacy-understanding-confidence.json)は初回B15・B05・A04の人物像、出典評価、不明理由、全体値を抜粋したものです。[移行テスト](../tests/understanding-confidence-migration.test.ts)では参照検証用の属性・根拠を別途構成し、旧値の保持、API・Markdownからの全体値除去、未評価表示を確認します。過去の解析全体を再実行するテストではありません。
+
+[根拠集計テスト](../tests/understanding-evidence.test.ts)と[パイプラインテスト](../tests/understanding-evidence-pipeline.test.ts)で、検証状態別の件数、手動修正、カスタム基本像と対象像の分離、S02の固定ケース、エクスポート5.0と旧ファイルの互換性を検証します。固定Providerは保存・伝達・表示の検証に使い、人物理解や引用の意味的な支持範囲の改善効果を実モデルで確認したものとは扱いません。

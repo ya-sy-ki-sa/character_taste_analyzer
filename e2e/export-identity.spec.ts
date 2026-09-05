@@ -111,7 +111,7 @@ test("identity候補をowner内だけでreuseし、完全exportを認証付き�
     entries: { entries: unknown[]; identities: unknown[]; representations: unknown[] };
     domains: { standard: { entries: unknown[] }; dark: { entries: unknown[] } };
   };
-  expect(payload.schemaVersion).toBe("4.0");
+  expect(payload.schemaVersion).toBe("5.0");
   expect(payload.entries.entries).toHaveLength(2);
   expect(payload.entries.identities).toHaveLength(1);
   expect(payload.entries.representations).toHaveLength(2);

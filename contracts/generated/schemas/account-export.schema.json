@@ -27,22 +27,22 @@
           "$ref": "#/$defs/__schema9"
         },
         "quality": {
-          "$ref": "#/$defs/__schema10"
-        },
-        "preferenceAnalysis": {
-          "$ref": "#/$defs/__schema11"
-        },
-        "profile": {
           "$ref": "#/$defs/__schema12"
         },
-        "graph": {
+        "preferenceAnalysis": {
           "$ref": "#/$defs/__schema13"
         },
-        "generation": {
+        "profile": {
           "$ref": "#/$defs/__schema14"
         },
-        "operations": {
+        "graph": {
           "$ref": "#/$defs/__schema15"
+        },
+        "generation": {
+          "$ref": "#/$defs/__schema16"
+        },
+        "operations": {
+          "$ref": "#/$defs/__schema17"
         }
       },
       "required": [
@@ -63,7 +63,7 @@
     },
     "__schema0": {
       "type": "string",
-      "const": "4.0"
+      "const": "5.0"
     },
     "__schema1": {
       "type": "string"
@@ -227,6 +227,24 @@
         "snapshots": {
           "$ref": "#/$defs/__schema6"
         },
+        "evidenceSummaries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "snapshotId": {
+                "type": "string"
+              },
+              "evidenceSummary": {
+                "$ref": "#/$defs/UnderstandingEvidenceSummary"
+              }
+            },
+            "required": [
+              "snapshotId",
+              "evidenceSummary"
+            ]
+          }
+        },
         "assertions": {
           "$ref": "#/$defs/__schema6"
         },
@@ -249,6 +267,7 @@
       "required": [
         "runs",
         "snapshots",
+        "evidenceSummaries",
         "assertions",
         "customizationDeltas",
         "reviews",
@@ -257,7 +276,66 @@
         "darkTransformationDeltas"
       ]
     },
+    "UnderstandingEvidenceSummary": {
+      "type": "object",
+      "properties": {
+        "assertionCount": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "assertionsWithoutEvidence": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "counts": {
+          "$ref": "#/$defs/__schema11"
+        }
+      },
+      "required": [
+        "assertionCount",
+        "assertionsWithoutEvidence",
+        "counts"
+      ]
+    },
     "__schema10": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "__schema11": {
+      "type": "object",
+      "properties": {
+        "sourceQuote": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "userInputQuote": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "userConfirmation": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "sourceAttributed": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "modelKnowledge": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "invalid": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "unclassified": {
+          "$ref": "#/$defs/__schema10"
+        }
+      },
+      "required": [
+        "sourceQuote",
+        "userInputQuote",
+        "userConfirmation",
+        "sourceAttributed",
+        "modelKnowledge",
+        "invalid",
+        "unclassified"
+      ]
+    },
+    "__schema12": {
       "type": "object",
       "properties": {
         "schemaVersion": {
@@ -285,7 +363,7 @@
         "similarityDocuments"
       ]
     },
-    "__schema11": {
+    "__schema13": {
       "type": "object",
       "properties": {
         "runs": {
@@ -308,7 +386,7 @@
         "evidence"
       ]
     },
-    "__schema12": {
+    "__schema14": {
       "type": "object",
       "properties": {
         "projections": {
@@ -331,7 +409,7 @@
         "snapshotItems"
       ]
     },
-    "__schema13": {
+    "__schema15": {
       "type": "object",
       "properties": {
         "snapshots": {
@@ -350,7 +428,7 @@
         "edges"
       ]
     },
-    "__schema14": {
+    "__schema16": {
       "type": "object",
       "properties": {
         "requests": {
@@ -381,7 +459,7 @@
         "validations"
       ]
     },
-    "__schema15": {
+    "__schema17": {
       "type": "object",
       "properties": {
         "modelRuns": {

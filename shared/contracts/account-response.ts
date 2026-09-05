@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sessionUserSchema } from "../membership";
+import { understandingEvidenceSummarySchema } from "./understanding-evidence";
 
 export const registeredUserSchema = sessionUserSchema
   .extend({ status: z.enum(["pending", "active"]) })
@@ -56,7 +57,7 @@ const exportedDomainSchema = z.object({
 });
 export const accountExportDocumentSchema = z
   .object({
-    schemaVersion: z.literal("4.0"),
+    schemaVersion: z.literal("5.0"),
     exportedAt: z.string(),
     user: exportedRowSchema.nullable(),
     domains: z.object({ standard: exportedDomainSchema, dark: exportedDomainSchema }),
@@ -71,6 +72,9 @@ export const accountExportDocumentSchema = z
     understanding: z.object({
       runs: exportedRowsSchema,
       snapshots: exportedRowsSchema,
+      evidenceSummaries: z.array(
+        z.object({ snapshotId: z.string(), evidenceSummary: understandingEvidenceSummarySchema }),
+      ),
       assertions: exportedRowsSchema,
       customizationDeltas: exportedRowsSchema,
       reviews: exportedRowsSchema,

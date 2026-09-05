@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { anyEntryDraftSchema } from "../shared/contracts/entries";
+import { summarizeUnderstandingEvidence } from "../shared/understanding-evidence";
 import { buildCharacterMarkdown, characterMarkdownFilename } from "../src/lib/entry-markdown";
 
 const evidence = (inputPointer: string, quote: string) => ({
@@ -43,7 +44,15 @@ describe("character registration Markdown", () => {
         sourceAssessment: { coverage: "sufficient", limitations: [] },
         summary: { identity: "原典では規律を重視する人物。", goals: ["秩序を守る"] },
         uncertainties: [],
-        confidence: 0.9,
+        evidenceSummary: summarizeUnderstandingEvidence([
+          {
+            status: "confirmed",
+            evidence: [
+              { id: "ref", verificationStatus: "verified_quote", evidenceOrigin: "user_input" },
+              { id: "pref", verificationStatus: "verified_quote", evidenceOrigin: "user_input" },
+            ],
+          },
+        ]),
         assertions: [
           {
             raw_label: "規律",
@@ -62,7 +71,7 @@ describe("character registration Markdown", () => {
         sourceAssessment: { coverage: "partial", limitations: ["終盤の資料が少ない"] },
         summary: { identity: "別世界では研究者として他者を支える。", relationships: ["共同研究者を守る"] },
         uncertainties: [{ topic: "過去", reason: "資料がない" }],
-        confidence: 0.84,
+        evidenceSummary: summarizeUnderstandingEvidence([]),
         assertions: [],
         deltas: [
           {
@@ -85,6 +94,11 @@ describe("character registration Markdown", () => {
     const markdown = buildCharacterMarkdown(detail);
 
     expect(markdown).toContain("# 改変人物");
+    expect(markdown).not.toContain("全体登録内支持度");
+    expect(markdown).toContain("資料の網羅性（解析時点）");
+    expect(markdown).toContain("情報量は未評価");
+    expect(markdown).toContain("ユーザー入力の原文照合済み: 2件");
+    expect(markdown).toContain("登録内支持度: 92%");
     expect(markdown).toContain("作品A");
     expect(markdown).toContain("既成キャラクターの基本像");
     expect(markdown).toContain("別世界では研究者として他者を支える");
@@ -150,7 +164,7 @@ it("renders nested dark-state summaries without treating them as strings", () =>
           recoveryOrAfter: null,
         },
       },
-      confidence: 0.8,
+      evidenceSummary: summarizeUnderstandingEvidence([]),
       uncertainties: [],
       assertions: [],
     },

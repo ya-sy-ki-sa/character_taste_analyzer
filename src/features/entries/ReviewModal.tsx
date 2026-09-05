@@ -11,6 +11,7 @@ import { AddPreferenceAssertionControl, PreferenceAssertionEditControl } from ".
 import { PreferenceContext } from "./PreferenceContext";
 import { PreferenceRefinement } from "./PreferenceRefinement";
 import { reanalyzableStatuses, reviewSummaryValue, statusLabels, understandingSummaryLabel } from "./presentation";
+import { UnderstandingEvidenceSummary } from "./UnderstandingEvidenceSummary";
 import { UnderstandingInformationNotice } from "./UnderstandingInformationNotice";
 import { useEntryReview } from "./use-entry-review";
 import { AddValueStanceControl, ValueStanceEditControl } from "./ValueStanceControls";
@@ -86,6 +87,7 @@ export function ReviewModal({
             <Card>
               <p className="eyebrow">DARK BASELINE SNAPSHOT</p>
               <h3>ダーク化前の比較ベースライン</h3>
+              <UnderstandingInformationNotice quality={undefined} editable={false} />
               <p className="section-help">通常分析器や通常の好みの属性には対応させず、差分理解だけに使います。</p>
               <dl className="review-summary">
                 {Object.entries(value.darkBaseline)
@@ -108,12 +110,11 @@ export function ReviewModal({
             <Card>
               <p className="eyebrow">BASE CHARACTER UNDERSTANDING</p>
               <h3>既成キャラクターの基本像</h3>
-              {domain === "standard" && (
-                <UnderstandingInformationNotice
-                  quality={value.baseUnderstanding.informationQuality}
-                  editable={value.entry.status === "understanding_review"}
-                />
-              )}
+              <UnderstandingInformationNotice
+                quality={domain === "standard" ? value.baseUnderstanding.informationQuality : undefined}
+                editable={value.entry.status === "understanding_review"}
+              />
+              <UnderstandingEvidenceSummary summary={value.baseUnderstanding.evidenceSummary} />
               <p>{String(value.baseUnderstanding.summary.identity ?? "")}</p>
               <dl className="review-summary">
                 {Object.entries(value.baseUnderstanding.summary)
@@ -167,12 +168,11 @@ export function ReviewModal({
             <Card>
               <p className="eyebrow">CHARACTER UNDERSTANDING</p>
               <h3>{value.baseUnderstanding ? "対象像・基本像からの差分" : "キャラクター像"}</h3>
-              {domain === "standard" && (
-                <UnderstandingInformationNotice
-                  quality={value.understanding.informationQuality}
-                  editable={value.entry.status === "understanding_review"}
-                />
-              )}
+              <UnderstandingInformationNotice
+                quality={domain === "standard" ? value.understanding.informationQuality : undefined}
+                editable={value.entry.status === "understanding_review"}
+              />
+              <UnderstandingEvidenceSummary summary={value.understanding.evidenceSummary} />
               <p>{String(value.understanding.summary.identity ?? "")}</p>
               <dl className="review-summary">
                 {Object.entries(value.understanding.summary)

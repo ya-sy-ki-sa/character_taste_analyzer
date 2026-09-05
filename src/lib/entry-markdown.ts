@@ -6,6 +6,8 @@ import type {
   ReviewDetail,
 } from "../../shared/contracts/entry-review";
 import { canonicalEntryInputPointer, entryBaseCharacterName, entryReferenceMaterial } from "../../shared/entry-input";
+import { understandingAspectLabels, understandingAspects } from "../../shared/understanding-aspects";
+import { understandingEvidenceExplanation, understandingEvidenceLabels } from "../../shared/understanding-evidence";
 
 type MarkdownEvidence = Pick<
   EvidenceDetail,
@@ -31,7 +33,8 @@ type MarkdownUnderstanding = {
   sourceAssessment: { coverage: string; limitations: string[] };
   summary: NonNullable<ReviewDetail["understanding"]>["summary"];
   uncertainties: Array<{ topic: string; reason: string }>;
-  confidence: number;
+  informationQuality?: NonNullable<ReviewDetail["understanding"]>["informationQuality"];
+  evidenceSummary: NonNullable<ReviewDetail["understanding"]>["evidenceSummary"];
   assertions: MarkdownAssertion[];
   deltas?: MarkdownDelta[];
 };
@@ -151,8 +154,33 @@ function appendEvidence(lines: string[], evidence: MarkdownEvidence[]): void {
 
 function appendUnderstanding(lines: string[], title: string, understanding: MarkdownUnderstanding): void {
   lines.push(`## ${title}`, "");
-  lines.push(`- 情報充足度: ${coverageLabels[understanding.sourceAssessment.coverage] ?? "未分類"}`);
-  lines.push(`- 全体登録内支持度: ${Math.round(understanding.confidence * 100)}%`, "");
+  lines.push(`- 資料の網羅性（解析時点）: ${coverageLabels[understanding.sourceAssessment.coverage] ?? "未分類"}`);
+  const quality = understanding.informationQuality;
+  if (quality) {
+    lines.push(
+      `- 解析時点の情報量: 文章のある項目 ${quality.contentAspectCount}/7、具体的描写のある項目 ${quality.concreteAspectCount}/7`,
+    );
+    if (quality.status === "limited") {
+      lines.push("", "解析時点では人物像の情報が限られています", "");
+      for (const reason of quality.reasons) lines.push(`- ${inline(reason)}`);
+      for (const aspect of understandingAspects) {
+        if (quality.aspects[aspect].kind !== "concrete")
+          lines.push(`- ${understandingAspectLabels[aspect]}: ${inline(quality.aspects[aspect].reason)}`);
+      }
+    } else lines.push("- 今回の不足基準には該当しません。");
+    lines.push("", "解析時点の判定です。確認時の修正内容は、この判定には反映されません。", "");
+  } else lines.push("- 解析時点の人物像の情報量は未評価です。", "");
+  const evidence = understanding.evidenceSummary;
+  lines.push(
+    "### 現在の属性に付いている根拠の内訳",
+    "",
+    `- 現在の属性: ${evidence.assertionCount}件`,
+    `- 根拠が付いていない属性: ${evidence.assertionsWithoutEvidence}件`,
+  );
+  for (const [key, label] of Object.entries(understandingEvidenceLabels)) {
+    lines.push(`- ${label}: ${evidence.counts[key as keyof typeof evidence.counts]}件`);
+  }
+  lines.push("", understandingEvidenceExplanation, "");
   for (const [key, value] of Object.entries(understanding.summary)) {
     const normalized = Array.isArray(value)
       ? value.join("、")

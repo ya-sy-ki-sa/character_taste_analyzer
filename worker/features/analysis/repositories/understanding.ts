@@ -114,7 +114,6 @@ export function insertCharacterUnderstandingSnapshots(
     sourceSetId: unknown,
     next_generation: unknown,
     value7: unknown,
-    value8: unknown,
     sourceAssessmentJson: unknown,
     value10Json: unknown,
     uncertaintiesJson: unknown,
@@ -128,9 +127,9 @@ export function insertCharacterUnderstandingSnapshots(
     .prepare(`
         INSERT INTO character_understanding_snapshots
           (id, owner_user_id, understanding_run_id, representation_id, base_snapshot_id, source_set_id,
-           snapshot_generation, preference_context, status, overall_confidence, source_assessment_json, summary_json,
+           snapshot_generation, preference_context, status, source_assessment_json, summary_json,
            uncertainties_json, model_run_metadata_id, ontology_version, content_hash, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'needs_review', ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'needs_review', ?, ?, ?, ?, ?, ?, ?)
       `)
     .bind(...bindings);
 }

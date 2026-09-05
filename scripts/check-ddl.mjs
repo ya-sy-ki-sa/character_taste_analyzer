@@ -26,7 +26,7 @@ const actual = new Set(
     .map(({ name }) => name),
 );
 for (const table of expected) if (!actual.has(table)) throw new Error(`Missing table: ${table}`);
-if (files.length !== 4) throw new Error(`Expected 4 schema/seed files, found ${files.length}`);
+if (files.length !== 5) throw new Error(`Expected 5 schema/seed files, found ${files.length}`);
 if (actual.size !== 53) throw new Error(`Expected 53 application tables, found ${actual.size}`);
 const removedTables = [
   "consents",
@@ -53,6 +53,7 @@ const removedTables = [
 ];
 for (const table of removedTables) if (actual.has(table)) throw new Error(`Removed table remains: ${table}`);
 const removedColumns = {
+  character_understanding_snapshots: ["overall_confidence"],
   credentials: ["key_generation", "status", "rotated_at", "revoked_at"],
   sessions: ["credential_generation"],
   user_character_entries: ["draft_schema_version", "draft_payload_json", "deleted_at"],

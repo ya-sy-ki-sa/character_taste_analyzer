@@ -2325,8 +2325,8 @@
                       ]
                     }
                   },
-                  "confidence": {
-                    "type": "number"
+                  "evidenceSummary": {
+                    "$ref": "#/components/schemas/UnderstandingEvidenceSummary"
                   },
                   "assertions": {
                     "type": "array",
@@ -2346,7 +2346,7 @@
                   "sourceAssessment",
                   "summary",
                   "uncertainties",
-                  "confidence",
+                  "evidenceSummary",
                   "assertions",
                   "deltas"
                 ]
@@ -2960,8 +2960,8 @@
                       ]
                     }
                   },
-                  "confidence": {
-                    "type": "number"
+                  "evidenceSummary": {
+                    "$ref": "#/components/schemas/UnderstandingEvidenceSummary"
                   },
                   "assertions": {
                     "type": "array",
@@ -2975,7 +2975,7 @@
                   "sourceAssessment",
                   "summary",
                   "uncertainties",
-                  "confidence",
+                  "evidenceSummary",
                   "assertions"
                 ]
               }
@@ -3444,6 +3444,66 @@
           "understanding",
           "baseUnderstanding",
           "preferenceAnalysis"
+        ]
+      },
+      "UnderstandingEvidenceSummary": {
+        "type": "object",
+        "properties": {
+          "assertionCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "assertionsWithoutEvidence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "sourceQuote": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "userInputQuote": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "userConfirmation": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sourceAttributed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "modelKnowledge": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "invalid": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unclassified": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "sourceQuote",
+              "userInputQuote",
+              "userConfirmation",
+              "sourceAttributed",
+              "modelKnowledge",
+              "invalid",
+              "unclassified"
+            ]
+          }
+        },
+        "required": [
+          "assertionCount",
+          "assertionsWithoutEvidence",
+          "counts"
         ]
       },
       "CharacterAssertionDetail": {
@@ -7880,7 +7940,7 @@
           "schemaVersion": {
             "type": "string",
             "enum": [
-              "4.0"
+              "5.0"
             ]
           },
           "exportedAt": {
@@ -8697,6 +8757,24 @@
                   }
                 }
               },
+              "evidenceSummaries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "snapshotId": {
+                      "type": "string"
+                    },
+                    "evidenceSummary": {
+                      "$ref": "#/components/schemas/UnderstandingEvidenceSummary"
+                    }
+                  },
+                  "required": [
+                    "snapshotId",
+                    "evidenceSummary"
+                  ]
+                }
+              },
               "assertions": {
                 "type": "array",
                 "items": {
@@ -8815,6 +8893,7 @@
             "required": [
               "runs",
               "snapshots",
+              "evidenceSummaries",
               "assertions",
               "customizationDeltas",
               "reviews",

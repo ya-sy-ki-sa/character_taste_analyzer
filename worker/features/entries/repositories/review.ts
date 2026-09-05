@@ -18,7 +18,7 @@ export function selectCharacterUnderstandingSnapshots(
 ): D1PreparedStatement {
   return db
     .prepare(
-      `SELECT id,base_snapshot_id,source_assessment_json,summary_json,uncertainties_json,overall_confidence,status FROM character_understanding_snapshots WHERE owner_user_id=? AND representation_id=? ORDER BY created_at DESC LIMIT 1`,
+      `SELECT id,base_snapshot_id,source_assessment_json,summary_json,uncertainties_json,status FROM character_understanding_snapshots WHERE owner_user_id=? AND representation_id=? ORDER BY created_at DESC LIMIT 1`,
     )
     .bind(...bindings);
 }
@@ -45,7 +45,7 @@ export function selectCharacterUnderstandingSnapshots2(
 ): D1PreparedStatement {
   return db
     .prepare(
-      `SELECT id,source_assessment_json,summary_json,uncertainties_json,overall_confidence,status FROM character_understanding_snapshots WHERE id=? AND owner_user_id=?`,
+      `SELECT id,source_assessment_json,summary_json,uncertainties_json,status FROM character_understanding_snapshots WHERE id=? AND owner_user_id=?`,
     )
     .bind(...bindings);
 }

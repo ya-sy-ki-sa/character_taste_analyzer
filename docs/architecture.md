@@ -6,7 +6,7 @@ React SPAとAPIを同じWorkerで配信します。D1が保存データの正本
 
 | 役割 | 正本 | 生成・参照先 |
 | --- | --- | --- |
-| テーブル・制約 | [database/migrations/001_initial.sql](../database/migrations/001_initial.sql) | Wrangler、結合テスト、評価 |
+| テーブル・制約 | [database/migrations](../database/migrations) | Wrangler、結合テスト、評価 |
 | 通常版・dark版の属性 | [shared/catalogs](../shared/catalogs) | migrationsのseed SQL、[語彙一覧](generated/ontology.md) |
 | HTTP API | [worker/routes](../worker/routes) のOpenAPIHono登録 | [OpenAPI](../contracts/generated/openapi.json) |
 | 外部入力・出力 | [shared/contracts](../shared/contracts) のZod定義 | TypeScript型、公開JSON Schema |
@@ -48,3 +48,12 @@ JSON成功応答は `{ data: ... }`、エラーは `{ error: { code, message, ..
 `src/pages` は画面の組み立て、`src/features` はフォーム、レビュー、候補比較、採用・評価と対応するフックです。登録入力の変換、送信の冪等キー、ポーリング、キャッシュ更新をそれぞれの責務にまとめます。プロフィール・グラフは遅延読み込みを維持します。
 
 CSSの入口は `src/styles/index.css`。基礎、共通部品、画面、レスポンシブ、テーマに分け、レイヤーの優先順位を入口で明示します。`themes` のobservatoryレイヤーは既存の共通美術表現を担当し、通常版・dark版の役割トークン、色、配置を保持します。上書き済みの不要な宣言を除去し、テーマ切替に必要な定義は残します。
+
+
+### 人物理解の情報量と根拠集計
+
+人物像の全体信頼度は計算・公開しません。通常版の `informationQuality` はS02監査が保存した解析時点の記録です。欠落は未評価とし、手動編集では更新しません。dark版へ通常版の監査を追加するものではありません。
+
+レビューAPIとアカウントエクスポートの `evidenceSummary` は、現在表示する属性を対象に取得時に計算します。却下・置換済み属性を除き、スナップショット内で根拠IDを重複計上しません。分類は検証状態を先に判定し、原文照合済みだけを出所で分けます。無効・未分類も内訳として記録し、根拠がない属性と区別します。件数は資料数・正確性・引用の意味的な支持範囲の評価ではありません。個別の登録内支持度、好みの候補保持、プロフィールの重みには使いません。
+
+カスタムdark版の `darkBaseline` は別形式の比較資料であり、もともと全体信頼度や属性一覧を持ちません。情報量は未評価として表示し、共通の `baseUnderstanding` や属性件数へ変換しません。

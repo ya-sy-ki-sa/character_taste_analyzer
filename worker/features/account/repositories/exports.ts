@@ -31,7 +31,7 @@ export function insertAccountExports(
 ): D1PreparedStatement {
   return db
     .prepare(`INSERT INTO account_exports (id,owner_user_id,job_id,status,schema_version,created_at,updated_at)
-       VALUES (?,?,?,'queued','4.0',?,?)`)
+       VALUES (?,?,?,'queued','5.0',?,?)`)
     .bind(...bindings);
 }
 
@@ -79,7 +79,7 @@ export function updateAccountExports2(
   ],
 ): D1PreparedStatement {
   return db
-    .prepare(`UPDATE account_exports SET status='ready',object_key=?,content_hash=?,byte_size=?,updated_at=?,completed_at=?,expires_at=?
+    .prepare(`UPDATE account_exports SET status='ready',schema_version='5.0',object_key=?,content_hash=?,byte_size=?,updated_at=?,completed_at=?,expires_at=?
          WHERE id=? AND owner_user_id=?
            AND EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner_user_id=? AND status='succeeded')`)
     .bind(...bindings);

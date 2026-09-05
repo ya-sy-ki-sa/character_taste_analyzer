@@ -1,5 +1,6 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import { preferenceContextRecord, preferenceTargetLabel } from "../../../shared/preference-context";
+import { summarizeUnderstandingEvidence } from "../../../shared/understanding-evidence";
 import { all, first } from "../../lib/db";
 import type { Env } from "../../types";
 import { localizeUnderstandingSummary } from "../profile/attribute-labels";
@@ -21,7 +22,6 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
     source_assessment_json: string;
     summary_json: string;
     uncertainties_json: string;
-    overall_confidence: number;
     status: string;
   }>(repository.selectCharacterUnderstandingSnapshots(env.DB, [ownerUserId, entry.representation_id]));
   const assertions = snapshot
@@ -55,7 +55,6 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
         source_assessment_json: string;
         summary_json: string;
         uncertainties_json: string;
-        overall_confidence: number;
         status: string;
       }>(repository.selectCharacterUnderstandingSnapshots2(env.DB, [snapshot.base_snapshot_id, ownerUserId]))
     : null;
@@ -177,6 +176,11 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
         : Promise.resolve([]),
     ]);
   const attributeLabels = new Map(attributeRows.map((row) => [row.stable_key, row.label]));
+  const assertionViews = assertions.map((item) => ({ ...item, evidence: understandingEvidence.get(item.id) ?? [] }));
+  const baseAssertionViews = baseAssertions.map((item) => ({
+    ...item,
+    evidence: baseUnderstandingEvidence.get(item.id) ?? [],
+  }));
   return {
     entry: {
       id: entryId,
@@ -202,9 +206,9 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
           informationQuality: JSON.parse(snapshot.source_assessment_json).informationQuality,
           summary: localizeUnderstandingSummary(JSON.parse(snapshot.summary_json), attributeLabels),
           uncertainties: JSON.parse(snapshot.uncertainties_json),
-          confidence: snapshot.overall_confidence,
+          evidenceSummary: summarizeUnderstandingEvidence(assertionViews),
           status: snapshot.status,
-          assertions: assertions.map((item) => ({ ...item, evidence: understandingEvidence.get(item.id) ?? [] })),
+          assertions: assertionViews,
           deltas,
         }
       : null,
@@ -216,12 +220,9 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
           informationQuality: JSON.parse(baseSnapshot.source_assessment_json).informationQuality,
           summary: localizeUnderstandingSummary(JSON.parse(baseSnapshot.summary_json), attributeLabels),
           uncertainties: JSON.parse(baseSnapshot.uncertainties_json),
-          confidence: baseSnapshot.overall_confidence,
+          evidenceSummary: summarizeUnderstandingEvidence(baseAssertionViews),
           status: baseSnapshot.status,
-          assertions: baseAssertions.map((item) => ({
-            ...item,
-            evidence: baseUnderstandingEvidence.get(item.id) ?? [],
-          })),
+          assertions: baseAssertionViews,
         }
       : null,
     preferenceAnalysis: analysis

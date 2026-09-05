@@ -1,0 +1,101 @@
+[
+  {
+    "caseId": "B15",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/B15/baseline-final.json",
+    "legacyOverallConfidence": 1,
+    "summary": {
+      "identity": "『鋼の錬金術師』のロイ・マスタングを、テレビアニメ（2003年版）の軍人としての姿を対象にする。",
+      "narrativeRole": [],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [],
+      "expression": []
+    },
+    "sourceAssessment": {
+      "coverage": "minimal",
+      "limitations": [
+        "提示された公開情報は作品名とキャラクター名の同定に限られ、2003年版における性格、行動、能力、関係性、物語上の役割を裏付ける根拠はない。",
+        "媒体がテレビアニメ（2003年版）であることはユーザー入力によって指定されているが、提示された公開情報からは確認できない。",
+        "モデル知識による補足や、原資料にない解釈は反映していない。"
+      ]
+    },
+    "uncertainties": [
+      {
+        "topic": "2003年版における具体的な人物像",
+        "reason": "提示された公開情報に性格、行動、能力、関係性、物語上の役割の記述がないため、断定できない。"
+      },
+      {
+        "topic": "2003年版固有の描写と他媒体に共通する描写の区別",
+        "reason": "媒体別の具体的な根拠が提示されていないため、判別できない。"
+      }
+    ]
+  },
+  {
+    "caseId": "B05",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/B05/baseline-final.json",
+    "legacyOverallConfidence": 0.98,
+    "summary": {
+      "identity": "『NARUTO -ナルト-』の登場人物であるうちはイタチ。",
+      "narrativeRole": [],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [],
+      "expression": []
+    },
+    "sourceAssessment": {
+      "coverage": "minimal",
+      "limitations": [
+        "提示された公開情報は、うちはイタチが『NARUTO -ナルト-』の登場人物であることを示す短い項目説明に限られる。",
+        "人物の性格、行動、動機、関係性、物語上の役割や変化について、提示資料から確認できる記述はない。",
+        "対象時期は「疾風伝で過去や立場が明らかになる頃」と指定されているが、特定話数や場面は示されていない。"
+      ]
+    },
+    "uncertainties": [
+      {
+        "topic": "人物の性格・行動・動機・関係性・物語上の役割",
+        "reason": "提示された公開情報に直接の記述がない。"
+      },
+      {
+        "topic": "「疾風伝で過去や立場が明らかになる頃」の具体的な対象範囲",
+        "reason": "特定話数や場面の指定がない。"
+      }
+    ]
+  },
+  {
+    "caseId": "A04",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/A04/baseline-final.json",
+    "legacyOverallConfidence": 1,
+    "summary": {
+      "identity": "テレビアニメ『鬼滅の刃』に登場する竈門炭治郎。分析範囲は立志編。収集済み公開情報では、『鬼滅の刃』の主人公とされている。",
+      "narrativeRole": ["ヒーロー"],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [],
+      "expression": []
+    },
+    "sourceAssessment": {
+      "coverage": "partial",
+      "limitations": [
+        "収集済み公開情報は、作品名、対象媒体、物語範囲、竈門炭治郎が『鬼滅の刃』の主人公であることの確認に限られる。",
+        "立志編における性格、行動、能力、動機、価値観、関係性、表現、成長過程について、収集済み公開情報から確認できる詳細な根拠はない。",
+        "劇場版『無限列車編』の情報は、分析対象であるテレビアニメ『竈門炭治郎 立志編』の詳細な人物描写の根拠には用いていない。"
+      ]
+    },
+    "uncertainties": [
+      {
+        "topic": "立志編における人物像の詳細",
+        "reason": "収集済み公開情報には、性格、行動、能力、動機、価値観、関係性、表現、成長過程の詳細な記述がない。"
+      },
+      {
+        "topic": "既存候補に含まれるモデル知識由来の特徴",
+        "reason": "元資料中の収集済み公開情報で裏付けられないため、人物の事実として採用していない。"
+      }
+    ]
+  }
+]
