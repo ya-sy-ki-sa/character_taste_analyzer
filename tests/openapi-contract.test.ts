@@ -1,15 +1,14 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { app } from "../worker/app";
-import { asBuiltRouteKeys, buildAsBuiltOpenApi } from "../worker/openapi";
+import { buildAsBuiltOpenApi } from "../worker/openapi";
 
-const outputPath = resolve("docs/詳細設計/api/openapi.as-built.json");
+const outputPath = resolve("contracts/generated/openapi.json");
 
 describe("as-built OpenAPI contract", () => {
   it("matches the routes and Zod schemas used by the implementation", () => {
     const generated = `${JSON.stringify(buildAsBuiltOpenApi(), null, 2)}\n`;
-    if (process.env.UPDATE_OPENAPI === "1") writeFileSync(outputPath, generated);
     expect(readFileSync(outputPath, "utf8")).toBe(generated);
   });
 
@@ -22,7 +21,12 @@ describe("as-built OpenAPI contract", () => {
           .map((route) => `${route.method} ${route.path.replace(/:([^/]+)/gu, "{$1}")}`),
       ),
     ].sort();
-    expect([...asBuiltRouteKeys].sort()).toEqual(actual);
+    const documented = Object.entries(buildAsBuiltOpenApi().paths ?? {}).flatMap(([path, methods]) =>
+      Object.keys(methods ?? {})
+        .filter((method) => ["get", "post", "delete"].includes(method))
+        .map((method) => `${method.toUpperCase()} ${path}`),
+    );
+    expect(documented.sort()).toEqual(actual);
   });
 
   it("does not expose removed compatibility contracts", () => {

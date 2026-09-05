@@ -2,10 +2,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
 const database = new DatabaseSync(":memory:");
-const files = readdirSync("docs/詳細設計/database")
+const files = readdirSync("database/migrations")
   .filter((file) => /^\d+.*\.sql$/u.test(file))
   .sort();
-for (const file of files) database.exec(readFileSync(`docs/詳細設計/database/${file}`, "utf8"));
+for (const file of files) database.exec(readFileSync(`database/migrations/${file}`, "utf8"));
 
 const expected = [
   "users",

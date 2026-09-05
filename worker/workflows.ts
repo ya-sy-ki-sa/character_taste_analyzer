@@ -1,7 +1,10 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
-import { processAccountExport } from "./services/exports";
-import { processProfileRebuild } from "./services/profile";
-import { createDataStoreStrategy } from "./storage/strategy";
+import { processAccountExport } from "./features/account/exports";
+import { processPreferenceAnalysis } from "./features/analysis/preference";
+import { processCharacterAnalysis } from "./features/analysis/understanding";
+import { processGeneration } from "./features/generation/process";
+import { processProfileRebuild } from "./features/profile/projection";
+
 import type {
   CharacterAnalysisWorkflowParams,
   Env,
@@ -16,9 +19,8 @@ export class CharacterAnalysisWorkflow extends WorkflowEntrypoint<Env, Character
       `character-analysis-${event.payload.stage}`,
       { retries: { limit: 2, delay: "5 seconds" }, timeout: "30 minutes" },
       async () => {
-        const strategy = createDataStoreStrategy(this.env);
-        if (event.payload.stage === "understanding") await strategy.processCharacterAnalysis(event.payload);
-        else await strategy.processPreferenceAnalysis(event.payload);
+        if (event.payload.stage === "understanding") await processCharacterAnalysis(this.env, event.payload);
+        else await processPreferenceAnalysis(this.env, event.payload);
       },
     );
   }
@@ -29,7 +31,7 @@ export class GenerationWorkflow extends WorkflowEntrypoint<Env, GenerationWorkfl
     await step.do(
       "character-generation",
       { retries: { limit: 2, delay: "5 seconds" }, timeout: "90 minutes" },
-      async () => createDataStoreStrategy(this.env).processGeneration(event.payload),
+      async () => processGeneration(this.env, event.payload),
     );
   }
 }

@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/GraphProjection",
+  "$defs": {
+    "GraphProjection": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "projectionId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "profileGeneration": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "detail": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "nodes": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "edges": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "truncated": {
+          "$ref": "#/$defs/__schema7"
+        },
+        "truncationReason": {
+          "$ref": "#/$defs/__schema8"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "projectionId",
+        "profileGeneration",
+        "contentHash",
+        "detail",
+        "nodes",
+        "edges",
+        "truncated",
+        "truncationReason"
+      ]
+    },
+    "__schema0": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "__schema1": {
+      "type": "string"
+    },
+    "__schema2": {
+      "type": "number"
+    },
+    "__schema3": {
+      "type": "string"
+    },
+    "__schema4": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "summary"
+        },
+        {
+          "type": "string",
+          "const": "standard"
+        },
+        {
+          "type": "string",
+          "const": "expanded"
+        }
+      ]
+    },
+    "__schema5": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "attributes": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "label",
+          "weight",
+          "attributes"
+        ]
+      }
+    },
+    "__schema6": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "directed": {
+            "type": "boolean"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "evidenceCount": {
+            "type": "number"
+          },
+          "attributes": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "type",
+          "directed",
+          "weight",
+          "confidence",
+          "evidenceCount",
+          "attributes"
+        ]
+      }
+    },
+    "__schema7": {
+      "type": "boolean"
+    },
+    "__schema8": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

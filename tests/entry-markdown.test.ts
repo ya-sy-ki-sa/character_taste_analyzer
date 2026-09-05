@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { anyEntryDraftSchema } from "../shared/contracts/entries";
 import { buildCharacterMarkdown, characterMarkdownFilename } from "../src/lib/entry-markdown";
 
 const evidence = (inputPointer: string, quote: string) => ({
@@ -114,4 +115,46 @@ describe("character registration Markdown", () => {
       }),
     ).toBe("人物_名前_______-登録情報.md");
   });
+});
+
+it("renders nested dark-state summaries without treating them as strings", () => {
+  const markdown = buildCharacterMarkdown({
+    entry: {
+      id: "dark-entry",
+      status: "active",
+      draft: anyEntryDraftSchema.parse({
+        registrationType: "original",
+        characterName: "試験対象",
+        characterBasicInfo: "架空の人物",
+        preference: { responseChannels: [] },
+        darkContext: { focusDescription: "支配に抵抗する状態", archetypeHints: [] },
+      }),
+    },
+    baseUnderstanding: null,
+    understanding: {
+      sourceAssessment: { coverage: "partial", limitations: [] },
+      summary: {
+        darkState: {
+          agencyOrigin: "externally_imposed",
+          consent: "coerced",
+          awareness: "aware",
+          resistance: "internal_only",
+          identityContinuity: "intact",
+          responsibility: "reduced",
+          reversibility: "conditional",
+          controllerOrInfluence: null,
+          mechanism: null,
+          before: "意思が残っている",
+          onset: null,
+          activeState: "支配に抵抗している",
+          recoveryOrAfter: null,
+        },
+      },
+      confidence: 0.8,
+      uncertainties: [],
+      assertions: [],
+    },
+  });
+  expect(markdown).toContain("支配に抵抗している");
+  expect(markdown).toContain("意思が残っている");
 });

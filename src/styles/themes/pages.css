@@ -1,0 +1,248 @@
+@layer observatory {
+  .summary-card {
+    background:
+      radial-gradient(circle at 82% 20%, color-mix(in srgb, var(--ctl-local-light) 8%, transparent), transparent 16rem),
+      var(--ctl-panel);
+  }
+
+  .summary-card blockquote {
+    color: var(--ctl-text-primary);
+  }
+
+  .confidence-card {
+    border-color: var(--ctl-metal-line);
+    background: var(--ctl-chassis);
+  }
+
+  .evidence-ring {
+    border: 1px solid var(--ctl-metal-line);
+    background:
+      radial-gradient(circle at center, var(--ctl-panel) 57%, transparent 58%),
+      repeating-conic-gradient(from 0deg, transparent 0 4deg, rgb(0 0 0 / 30%) 4deg 5deg),
+      conic-gradient(var(--ctl-signal) calc(var(--value) * 1%), var(--ctl-chassis) 0);
+    box-shadow: 0 0 0 7px var(--ctl-void);
+  }
+
+  .trait-meter,
+  .inline-progress {
+    height: 5px;
+    border-radius: 0;
+    background: var(--ctl-chassis);
+  }
+
+  .trait-meter > span,
+  .trait-meter > i,
+  .inline-progress > span,
+  .inline-progress > i {
+    border-radius: 0;
+    background: linear-gradient(90deg, var(--ctl-action), var(--ctl-signal));
+  }
+
+  .trait-row {
+    padding-block: 13px;
+    border-bottom: 1px solid var(--ctl-line);
+  }
+
+  .trait-row:last-child {
+    border-bottom: 0;
+  }
+
+  .confidence,
+  .trait-chips span,
+  .entry-type,
+  .job-pill,
+  .generation-mode,
+  .user-corrected-badge,
+  .confidence-pill,
+  .generation-delete-button {
+    border: 1px solid var(--ctl-line);
+    border-radius: 1px;
+  }
+
+  .cluster-grid,
+  .stance-grid,
+  .settings-grid,
+  .capability-grid,
+  .reading-grid,
+  .evaluation-columns {
+    gap: 0;
+    border-top: 1px solid var(--ctl-line);
+    border-left: 1px solid var(--ctl-line);
+  }
+
+  .cluster-grid article,
+  .stance-grid .card,
+  .settings-grid .card,
+  .capability-grid article,
+  .reading-grid article,
+  .evaluation-columns article {
+    border: 0;
+    border-right: 1px solid var(--ctl-line);
+    border-bottom: 1px solid var(--ctl-line);
+    border-radius: 0;
+    background: var(--ctl-panel);
+    box-shadow: none;
+  }
+
+  .entry-grid,
+  .generation-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-top: 1px solid var(--ctl-line);
+  }
+
+  .entry-card,
+  .generation-card {
+    border: 0;
+    border-bottom: 1px solid var(--ctl-line);
+    border-radius: 0;
+    background: color-mix(in srgb, var(--ctl-panel) 86%, transparent);
+    box-shadow: none;
+  }
+
+  .entry-card:hover,
+  .generation-card:hover {
+    border-color: var(--ctl-structure);
+    background: var(--ctl-panel);
+    box-shadow: none;
+    transform: none;
+  }
+
+  .mode-grid {
+    gap: 0;
+    border-top: 1px solid var(--ctl-line);
+    border-left: 1px solid var(--ctl-line);
+  }
+
+  .mode-card {
+    min-height: 150px;
+    border: 0;
+    border-right: 1px solid var(--ctl-line);
+    border-bottom: 1px solid var(--ctl-line);
+    border-radius: 0;
+    background: var(--ctl-panel);
+  }
+
+  .mode-card:hover,
+  .mode-card.active {
+    border-color: var(--ctl-line);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--ctl-action) 30%, transparent), var(--ctl-panel));
+    box-shadow: inset 0 -2px 0 var(--ctl-signal);
+  }
+
+  .generation-card::after {
+    color: var(--ctl-signal);
+  }
+
+  .graph-stage {
+    border: 1px solid var(--ctl-metal-line);
+    border-radius: 50% / 6%;
+    background:
+      radial-gradient(
+        circle at center,
+        transparent 0 19%,
+        color-mix(in srgb, var(--ctl-structure) 12%, transparent) 19.2% 19.4%,
+        transparent 19.7% 38%,
+        color-mix(in srgb, var(--ctl-structure) 9%, transparent) 38.2% 38.4%,
+        transparent 38.7%
+      ),
+      linear-gradient(90deg, transparent 49.9%, var(--ctl-line) 50%, transparent 50.1%),
+      linear-gradient(transparent 49.9%, var(--ctl-line) 50%, transparent 50.1%), var(--ctl-lens);
+    box-shadow: inset 0 0 70px #000;
+  }
+
+  .graph-selection {
+    border-radius: 1px;
+    background: color-mix(in srgb, var(--ctl-panel) 96%, transparent);
+    box-shadow: var(--ctl-elevation-tight);
+    backdrop-filter: none;
+  }
+
+  .version-card {
+    border-radius: 1px;
+  }
+
+  .danger-card {
+    background: color-mix(in srgb, var(--ctl-danger-dim) 44%, var(--ctl-panel));
+  }
+
+  /* Analyzer status as a long-form instrument report. */
+  .analyzer-status-page {
+    width: min(calc(100% - 16px), 1440px);
+    margin: 8px auto;
+    padding: 0 clamp(22px, 5vw, 76px) 48px;
+    color: var(--ctl-text-primary);
+    border: 1px solid var(--ctl-metal-line);
+    background: linear-gradient(90deg, rgb(238 230 214 / 1.1%) 1px, transparent 1px), var(--ctl-void);
+    background-size:
+      64px 64px,
+      auto;
+  }
+
+  .analyzer-status-page::before {
+    display: none;
+  }
+
+  .status-nav {
+    height: 72px;
+    border-bottom-color: var(--ctl-metal-line);
+  }
+
+  .status-hero {
+    gap: clamp(38px, 7vw, 100px);
+    padding: clamp(60px, 8vw, 105px) 0 70px;
+  }
+
+  .status-hero h1 {
+    color: var(--ctl-text-primary);
+    font-size: clamp(2.8rem, 5.4vw, 5.2rem);
+    letter-spacing: -0.035em;
+  }
+
+  .status-hero h1 em {
+    color: var(--ctl-signal);
+  }
+
+  .dark-lab-theme .status-hero h1 em {
+    color: var(--ctl-local-light);
+  }
+
+  .status-verdict {
+    border: 1px solid var(--ctl-metal-line);
+    border-radius: 1px;
+    background: var(--ctl-panel);
+    box-shadow: inset 0 0 0 5px var(--ctl-chassis);
+    transform: none;
+  }
+
+  .status-metrics {
+    border-color: var(--ctl-metal-line);
+  }
+
+  .status-metrics strong,
+  .status-flow li > span,
+  .capability-grid article > span {
+    color: var(--ctl-structure);
+    font-family: var(--ctl-font-utility);
+  }
+
+  .status-section,
+  .status-flow li,
+  .status-footer {
+    border-color: var(--ctl-metal-line);
+  }
+
+  .status-note,
+  .evaluation-conclusion {
+    border-radius: 1px;
+    background: var(--ctl-chassis);
+  }
+
+  .status-boundary,
+  .status-quality,
+  .dark-lab-theme .status-quality {
+    border: 1px solid var(--ctl-metal-line);
+    border-radius: 1px;
+    background: var(--ctl-panel);
+  }
+}

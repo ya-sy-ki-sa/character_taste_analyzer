@@ -21,7 +21,7 @@ test("ログアウトとセッション失効時にトップページへ戻れ�
   await page.getByLabel("利用上の注意を確認し、同意します").check();
   await expect(createButton).toBeEnabled();
   await createButton.click();
-  const accessKey = await page.locator(".credential-box code").textContent();
+  const accessKey = (await page.locator(".credential-box code").textContent()) ?? "";
   if (!accessKey) throw new Error("アクセスキーが表示されませんでした");
   expect(accessKey).toMatch(/^[0-9a-f-]{36}$/u);
   await page.getByLabel("アクセスキーを安全な場所に保存しました").check();

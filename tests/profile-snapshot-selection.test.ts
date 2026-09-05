@@ -1,98 +1,8 @@
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadProjectionFreshness } from "../worker/services/profile";
-import { createD1DataStoreStrategy } from "../worker/storage/d1-strategy";
-import type { Env } from "../worker/types";
-
-type SqlValue = string | number | bigint | Uint8Array | null;
-
-class TestStatement {
-  constructor(
-    private readonly database: DatabaseSync,
-    private readonly sql: string,
-    private readonly values: SqlValue[] = [],
-  ) {}
-
-  bind(...values: unknown[]) {
-    return new TestStatement(this.database, this.sql, values as SqlValue[]);
-  }
-
-  async first<T>(): Promise<T | null> {
-    return (this.database.prepare(this.sql).get(...this.values) as T | undefined) ?? null;
-  }
-
-  async all<T>() {
-    return {
-      success: true,
-      results: this.database.prepare(this.sql).all(...this.values) as T[],
-      meta: { changes: 0 },
-    };
-  }
-}
-
-function testDatabase() {
-  const database = new DatabaseSync(":memory:");
-  database.exec(`
-    CREATE TABLE projection_rebuild_states (
-      owner_user_id TEXT PRIMARY KEY,
-      desired_generation INTEGER NOT NULL,
-      built_generation INTEGER NOT NULL,
-      status TEXT NOT NULL,
-      last_error_code TEXT
-    );
-    CREATE TABLE profile_projections (
-      id TEXT PRIMARY KEY,
-      owner_user_id TEXT NOT NULL,
-      generation INTEGER NOT NULL,
-      algorithm_version TEXT NOT NULL,
-      status TEXT NOT NULL
-    );
-    CREATE TABLE profile_snapshots (
-      id TEXT PRIMARY KEY,
-      owner_user_id TEXT NOT NULL,
-      profile_projection_id TEXT,
-      profile_generation INTEGER NOT NULL,
-      created_at TEXT NOT NULL
-    );
-    CREATE TABLE profile_snapshot_items (
-      id TEXT PRIMARY KEY,
-      profile_snapshot_id TEXT NOT NULL,
-      item_type TEXT NOT NULL,
-      stable_key TEXT NOT NULL,
-      label TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      ordinal INTEGER NOT NULL,
-      analysis_domain TEXT NOT NULL DEFAULT 'standard'
-    );
-    CREATE TABLE attribute_schema_versions (
-      id TEXT PRIMARY KEY,
-      status TEXT NOT NULL,
-      analysis_domain TEXT NOT NULL DEFAULT 'standard'
-    );
-    CREATE TABLE attribute_definitions (
-      id TEXT PRIMARY KEY,
-      schema_version_id TEXT NOT NULL,
-      stable_key TEXT NOT NULL,
-      label TEXT NOT NULL,
-      status TEXT NOT NULL
-    );
-
-    INSERT INTO projection_rebuild_states VALUES ('owner',1,1,'current',NULL);
-    INSERT INTO profile_projections VALUES ('current-projection','owner',1,'profile/v1.2.0-domain-aware','current');
-    INSERT INTO profile_snapshots VALUES
-      ('orphan-generation-15','owner',NULL,15,'2026-01-01T00:00:00.000Z'),
-      ('current-generation-1','owner','current-projection',1,'2026-01-02T00:00:00.000Z');
-    INSERT INTO profile_snapshot_items VALUES
-      ('orphan-item','orphan-generation-15','dimension','orphan','古い項目','{}',0,'standard'),
-      ('current-item','current-generation-1','dimension','current','現在の項目','{}',0,'standard');
-  `);
-  const d1 = {
-    prepare(sql: string) {
-      return new TestStatement(database, sql);
-    },
-  } as unknown as D1Database;
-  return { database, env: { DB: d1 } as unknown as Env };
-}
+import { loadProjectionFreshness } from "../worker/features/profile/projection";
+import { loadProfileSnapshotItems } from "../worker/features/profile/snapshot";
+import { testDatabase } from "./support/database";
+import { fixtureTime, insertFixture, seedUser } from "./support/fixtures";
 
 let current: ReturnType<typeof testDatabase> | undefined;
 afterEach(() => {
@@ -103,6 +13,55 @@ afterEach(() => {
 describe("profile snapshot item selection", () => {
   it("reports unsupported algorithms without inventing a rebuild generation", async () => {
     current = testDatabase();
+    seedUser(current.database);
+    insertFixture(current.database, "projection_rebuild_states", {
+      owner_user_id: "owner",
+      desired_generation: 1,
+      built_generation: 1,
+      status: "current",
+      updated_at: fixtureTime,
+    });
+    insertFixture(current.database, "profile_projections", {
+      id: "current-projection",
+      owner_user_id: "owner",
+      generation: 1,
+      ontology_version: "1.0",
+      algorithm_version: "profile/v1.2.0-domain-aware",
+      evidence_set_hash: "fixture",
+      status: "current",
+      created_at: fixtureTime,
+    });
+    for (const [id, generation, projection, label] of [
+      ["orphan-generation-15", 15, null, "古い項目"],
+      ["current-generation-1", 1, "current-projection", "現在の項目"],
+    ] as const) {
+      insertFixture(current.database, "profile_snapshots", {
+        id,
+        owner_user_id: "owner",
+        profile_projection_id: projection,
+        profile_generation: generation,
+        evidence_set_hash: "fixture",
+        ontology_version: "1.0",
+        algorithm_version: "profile/v1.2.0-domain-aware",
+        correction_version: 0,
+        content_hash: "fixture",
+        reason: "profile_rebuild",
+        created_at: fixtureTime,
+      });
+      const key = projection ? "current" : "orphan";
+      insertFixture(current.database, "profile_snapshot_items", {
+        id: key + "-item",
+        profile_snapshot_id: id,
+        item_type: "dimension",
+        stable_key: key,
+        label,
+        payload_json: "{}",
+        content_hash: "fixture",
+        created_at: fixtureTime,
+        ordinal: 0,
+        analysis_domain: "standard",
+      });
+    }
     current.database.exec("UPDATE profile_projections SET algorithm_version='profile/v1.1.0'");
     expect(await loadProjectionFreshness(current.env, "owner")).toEqual({
       status: "failed",
@@ -110,7 +69,7 @@ describe("profile snapshot item selection", () => {
       builtGeneration: 1,
       errorCode: "PROFILE_ALGORITHM_UNSUPPORTED",
     });
-    expect(await createD1DataStoreStrategy(current.env).loadProfileSnapshotItems("owner", "standard")).toEqual({
+    expect(await loadProfileSnapshotItems(current.env, "owner", "standard")).toEqual({
       snapshot: null,
       items: [],
     });
@@ -121,8 +80,57 @@ describe("profile snapshot item selection", () => {
 
   it("returns the snapshot attached to the current projection instead of a higher orphan generation", async () => {
     current = testDatabase();
+    seedUser(current.database);
+    insertFixture(current.database, "projection_rebuild_states", {
+      owner_user_id: "owner",
+      desired_generation: 1,
+      built_generation: 1,
+      status: "current",
+      updated_at: fixtureTime,
+    });
+    insertFixture(current.database, "profile_projections", {
+      id: "current-projection",
+      owner_user_id: "owner",
+      generation: 1,
+      ontology_version: "1.0",
+      algorithm_version: "profile/v1.2.0-domain-aware",
+      evidence_set_hash: "fixture",
+      status: "current",
+      created_at: fixtureTime,
+    });
+    for (const [id, generation, projection, label] of [
+      ["orphan-generation-15", 15, null, "古い項目"],
+      ["current-generation-1", 1, "current-projection", "現在の項目"],
+    ] as const) {
+      insertFixture(current.database, "profile_snapshots", {
+        id,
+        owner_user_id: "owner",
+        profile_projection_id: projection,
+        profile_generation: generation,
+        evidence_set_hash: "fixture",
+        ontology_version: "1.0",
+        algorithm_version: "profile/v1.2.0-domain-aware",
+        correction_version: 0,
+        content_hash: "fixture",
+        reason: "profile_rebuild",
+        created_at: fixtureTime,
+      });
+      const key = projection ? "current" : "orphan";
+      insertFixture(current.database, "profile_snapshot_items", {
+        id: key + "-item",
+        profile_snapshot_id: id,
+        item_type: "dimension",
+        stable_key: key,
+        label,
+        payload_json: "{}",
+        content_hash: "fixture",
+        created_at: fixtureTime,
+        ordinal: 0,
+        analysis_domain: "standard",
+      });
+    }
 
-    const result = await createD1DataStoreStrategy(current.env).loadProfileSnapshotItems("owner", "standard");
+    const result = await loadProfileSnapshotItems(current.env, "owner", "standard");
 
     expect(result.snapshot).toEqual({ id: "current-generation-1", generation: 1 });
     expect(result.items).toEqual([

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
+import { PROFILE_ALGORITHM_LABEL } from "../../shared/profile-algorithm";
 import { Brand } from "../components/Ui";
 
 const capabilities = [
@@ -102,7 +103,7 @@ export function AnalyzerStatusPage({ domain }: { domain: AnalysisDomain }) {
           <small>既成、既成カスタム、オリジナル</small>
         </div>
         <div>
-          <strong>v1.1.0</strong>
+          <strong>{PROFILE_ALGORITHM_LABEL}</strong>
           <span>集計ルール</span>
           <small>LLMではなく固定式でプロフィール化</small>
         </div>

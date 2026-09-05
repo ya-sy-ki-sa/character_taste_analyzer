@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "briefId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "aliases": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "oneLineConcept": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "origin": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "ageExpression": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pronouns": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "aliases",
+        "oneLineConcept",
+        "origin",
+        "ageExpression",
+        "pronouns"
+      ]
+    },
+    "appearance": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "personality": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "valuesAndMorality": {
+      "type": "object",
+      "properties": {
+        "orientation": {
+          "type": "string",
+          "enum": [
+            "evil",
+            "immoral",
+            "indifferent_to_good",
+            "transgressive",
+            "self_defined",
+            "good",
+            "mixed"
+          ]
+        },
+        "values": {
+          "minItems": 1,
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema2"
+          }
+        },
+        "moralRelationship": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3000
+        },
+        "redemption": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "hiddenGoodness": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "consequences": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "orientation",
+        "values",
+        "moralRelationship",
+        "redemption",
+        "hiddenGoodness",
+        "consequences"
+      ]
+    },
+    "motivations": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "abilitiesAndLimits": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "relationships": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema4"
+      }
+    },
+    "speech": {
+      "type": "object",
+      "properties": {
+        "voice": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "habits": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema5"
+          }
+        },
+        "exampleLines": {
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema6"
+          }
+        }
+      },
+      "required": [
+        "voice",
+        "habits",
+        "exampleLines"
+      ]
+    },
+    "narrativeRole": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "function": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "agency": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "central",
+            "supporting",
+            "minor",
+            "scene_limited"
+          ]
+        }
+      },
+      "required": [
+        "role",
+        "function",
+        "agency",
+        "visibility"
+      ]
+    },
+    "characterArc": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "turningPoints": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema7"
+          }
+        },
+        "end": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "changeType": {
+          "type": "string",
+          "enum": [
+            "positive",
+            "negative",
+            "flat",
+            "corruption",
+            "no_redemption",
+            "open",
+            "other"
+          ]
+        }
+      },
+      "required": [
+        "start",
+        "turningPoints",
+        "end",
+        "changeType"
+      ]
+    },
+    "briefCoverage": {
+      "minItems": 1,
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    },
+    "uncertainties": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema10"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "briefId",
+    "identity",
+    "appearance",
+    "personality",
+    "valuesAndMorality",
+    "motivations",
+    "abilitiesAndLimits",
+    "relationships",
+    "speech",
+    "narrativeRole",
+    "characterArc",
+    "briefCoverage",
+    "uncertainties"
+  ],
+  "$defs": {
+    "__schema0": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "__schema1": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3000
+        },
+        "traits": {
+          "minItems": 1,
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema2"
+          }
+        }
+      },
+      "required": [
+        "summary",
+        "traits"
+      ]
+    },
+    "__schema2": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "expressions": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          }
+        }
+      },
+      "required": [
+        "label",
+        "description",
+        "expressions"
+      ]
+    },
+    "__schema3": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema4": {
+      "type": "object",
+      "properties": {
+        "targetRole": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "dynamic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "characterBehavior": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "development": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "targetRole",
+        "dynamic",
+        "characterBehavior",
+        "development"
+      ]
+    },
+    "__schema5": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema6": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema7": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "__schema8": {
+      "type": "object",
+      "properties": {
+        "profileSnapshotItemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "treatment": {
+          "type": "string",
+          "enum": [
+            "required",
+            "include",
+            "weak_include",
+            "explore",
+            "omit",
+            "prohibit"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "satisfied",
+            "partially_satisfied",
+            "not_applicable",
+            "violated"
+          ]
+        },
+        "outputPointers": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema9"
+          }
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "profileSnapshotItemId",
+        "treatment",
+        "status",
+        "outputPointers",
+        "explanation"
+      ]
+    },
+    "__schema9": {
+      "type": "string",
+      "pattern": "^\\/.*"
+    },
+    "__schema10": {
+      "type": "string",
+      "maxLength": 1000
+    }
+  }
+}

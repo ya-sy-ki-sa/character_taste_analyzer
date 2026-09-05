@@ -1,11 +1,12 @@
 import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
+import { membershipTierForUser } from "./features/account/membership";
 import { readSessionCookie, sessionCookie } from "./lib/cookies";
 import { addDaysIso, constantTimeEqual, hmacHex, nowIso, sha256Hex } from "./lib/crypto";
 import { first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
-import { membershipTierForUser } from "./services/membership";
+import * as repository from "./repositories/auth";
 import type { AppEnv, Env, Session } from "./types";
 
 type AppContext = Context<AppEnv>;
@@ -22,16 +23,7 @@ export async function resolveSession(env: Env, cookieHeader?: string): Promise<S
   const token = readSessionCookie(cookieHeader, env.ENVIRONMENT);
   if (!token) return undefined;
   const tokenDigest = await sha256Hex(token);
-  const row = await first<SessionRow>(
-    env.DB.prepare(`
-      SELECT s.id, s.user_id, u.username, u.membership_tier, s.csrf_digest, s.expires_at
-      FROM sessions s
-      JOIN users u ON u.id = s.user_id
-      JOIN credentials c ON c.user_id = u.id
-      WHERE s.token_digest = ? AND s.revoked_at IS NULL AND s.expires_at > ?
-        AND u.status = 'active'
-    `).bind(tokenDigest, nowIso()),
-  );
+  const row = await first<SessionRow>(repository.selectSessions(env.DB, [tokenDigest, nowIso()]));
   if (!row) return undefined;
   const csrfToken = await hmacHex(env.AUTH_PEPPER, `csrf\u0000${token}`);
   const csrfDigest = await sha256Hex(csrfToken);
@@ -55,12 +47,7 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (context, next) 
     if (Date.parse(session.expiresAt) - Date.now() <= renewalDays * 86_400_000) {
       const expiresAt = addDaysIso(sessionDays);
       const now = nowIso();
-      await context.env.DB.prepare(`
-        UPDATE sessions SET expires_at = ?, last_seen_at = ?
-        WHERE id = ? AND revoked_at IS NULL AND expires_at = ?
-      `)
-        .bind(expiresAt, now, session.id, session.expiresAt)
-        .run();
+      await repository.updateSessions(context.env.DB, [expiresAt, now, session.id, session.expiresAt]).run();
       context.header("Set-Cookie", sessionCookie(token, sessionDays * 86_400, context.env.ENVIRONMENT));
       session = { ...session, expiresAt };
     }
@@ -74,13 +61,8 @@ async function consumeRateLimit(env: Env, scope: string, subject: string, maximu
   const bucketKey = await hmacHex(env.AUTH_PEPPER, `rate\u0000${scope}\u0000${subject}\u0000${epoch}`);
   const startedAt = new Date(epoch * 1_000).toISOString();
   const expiresAt = new Date((epoch + seconds * 2) * 1_000).toISOString();
-  const result = await env.DB.prepare(`
-    INSERT INTO request_rate_limits (bucket_key, window_started_at, request_count, expires_at, updated_at)
-    VALUES (?, ?, 1, ?, ?)
-    ON CONFLICT(bucket_key) DO UPDATE SET request_count = request_count + 1, updated_at = excluded.updated_at
-    RETURNING request_count AS count
-  `)
-    .bind(bucketKey, startedAt, expiresAt, nowIso())
+  const result = await repository
+    .insertRequestRateLimits(env.DB, [bucketKey, startedAt, expiresAt, nowIso()])
     .first<{ count: number }>();
   if ((result?.count ?? 0) > maximum) throw new HTTPException(429, { message: "短時間にリクエストが集中しています" });
 }
@@ -149,21 +131,11 @@ export async function enforceQuota(env: Env, userId: string, capability: "analys
     capability === "analysis" ? env.ANALYSIS_DAILY_QUOTA : env.GENERATION_DAILY_QUOTA,
     capability === "analysis" ? 30 : 10,
   );
-  const result = await env.DB.prepare(`
-    INSERT INTO usage_daily (usage_date, user_id, capability, accepted_count, updated_at)
-    VALUES (?, ?, ?, 1, ?)
-    ON CONFLICT(usage_date, user_id, capability)
-    DO UPDATE SET accepted_count = accepted_count + 1, updated_at = excluded.updated_at
-    RETURNING accepted_count AS count
-  `)
-    .bind(date, userId, capability, nowIso())
+  const result = await repository
+    .insertUsageDaily(env.DB, [date, userId, capability, nowIso()])
     .first<{ count: number }>();
   if ((result?.count ?? 0) > limit) {
-    await env.DB.prepare(
-      `UPDATE usage_daily SET accepted_count = accepted_count - 1, rejected_count = rejected_count + 1 WHERE usage_date = ? AND user_id = ? AND capability = ?`,
-    )
-      .bind(date, userId, capability)
-      .run();
+    await repository.updateUsageDaily(env.DB, [date, userId, capability]).run();
     throw new HTTPException(429, { message: `本日の${capability === "analysis" ? "解析" : "生成"}上限に達しました` });
   }
 }

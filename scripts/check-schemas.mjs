@@ -1,54 +1,23 @@
 import { readdirSync, readFileSync } from "node:fs";
 
-const root = "docs/詳細設計/schemas";
-const files = readdirSync(root)
-  .filter((file) => file.endsWith(".json"))
-  .sort();
-
-function resolvePointer(document, pointer) {
-  let current = document;
-  for (const token of pointer
-    .slice(2)
-    .split("/")
-    .map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"))) {
-    current = current?.[token];
-  }
-  return current;
-}
-
-function visit(document, value, path = "#") {
+const root = "contracts/generated/schemas";
+function visit(document, value) {
   if (!value || typeof value !== "object") return;
-  if (typeof value.$ref === "string" && value.$ref.startsWith("#/") && !resolvePointer(document, value.$ref)) {
-    throw new Error(`${path}: unresolved reference ${value.$ref}`);
+  if (typeof value.$ref === "string" && value.$ref.startsWith("#/")) {
+    const resolved = value.$ref
+      .slice(2)
+      .split("/")
+      .map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"))
+      .reduce((current, part) => current?.[part], document);
+    if (!resolved) throw new Error(`Unresolved reference ${value.$ref}`);
   }
-  for (const [key, child] of Object.entries(value)) visit(document, child, `${path}/${key}`);
+  for (const child of Object.values(value)) visit(document, child);
 }
-
+const files = readdirSync(root).filter((file) => file.endsWith(".schema.json"));
 for (const file of files) {
   const document = JSON.parse(readFileSync(`${root}/${file}`, "utf8"));
-  if (document.$schema !== "https://json-schema.org/draft/2020-12/schema") {
-    throw new Error(`${file}: Draft 2020-12 is required`);
-  }
+  if (document.$schema !== "https://json-schema.org/draft/2020-12/schema")
+    throw new Error(`${file}: unexpected JSON Schema version`);
   visit(document, document);
 }
-
-const responseChannelSource = readFileSync("shared/response-channels.ts", "utf8");
-const responseChannelValues = [...responseChannelSource.matchAll(/^\s+value: "([a-z_]+)",$/gmu)].map(
-  (match) => match[1],
-);
-if (responseChannelValues.length !== 44 || new Set(responseChannelValues).size !== responseChannelValues.length) {
-  throw new Error("response channel catalog must contain 44 unique values");
-}
-const preferenceSchema = JSON.parse(readFileSync(`${root}/preference-analysis.schema.json`, "utf8"));
-const documentedChannels = preferenceSchema.$defs?.responseChannel?.enum ?? [];
-if (
-  documentedChannels.length !== responseChannelValues.length ||
-  responseChannelValues.some((value) => !documentedChannels.includes(value))
-) {
-  throw new Error("response channel catalog and preference-analysis schema are inconsistent");
-}
-const responseChannelMigration = readFileSync("docs/詳細設計/database/001_initial.sql", "utf8");
-if (responseChannelValues.some((value) => !responseChannelMigration.includes(`'${value}'`))) {
-  throw new Error("response channel catalog and D1 migration are inconsistent");
-}
-console.log(`JSON Schema OK: ${files.length} files`);
+console.log(`JSON Schema references OK: ${files.length} contracts`);

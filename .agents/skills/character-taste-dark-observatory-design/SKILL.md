@@ -12,6 +12,8 @@ metadata:
 
 邪悪さは読みにくさ、流血、驚かせる演出では作らない。欠落、偏心、摩耗、冷たい余白、傷を暴く細い光によって作り、操作部分は明瞭に保つ。
 
+現行の構成はリポジトリの `docs/architecture.md`、CSSは `src/styles/themes`、画面部品は `src/features` を参照する。`archive/mockups` は履歴資料として参照する。
+
 ## 共通基盤
 
 このSkillは、同じプロジェクトのApache-2.0 Skill `character-taste-observatory-design` を基盤とする。作業前に、対象に応じて次を読む。
@@ -35,7 +37,7 @@ dark版は通常版の別機能ではなく、同じ装置が黒蝕した状態�
 ## 必ず読むリファレンス
 
 - dark版を設計・修正する場合は [dark-art-direction.md](references/dark-art-direction.md) を読む。
-- 日食、トップ画面、認証画面、`mock-top-dark-01-eclipse.html` を扱う場合は [eclipse-surface.md](references/eclipse-surface.md) も読む。
+- 日食、トップ画面、認証画面、`archive/mockups/mock-top-dark-01-eclipse.html` を扱う場合は [eclipse-surface.md](references/eclipse-surface.md) も読む。
 
 ## 核となる判断
 

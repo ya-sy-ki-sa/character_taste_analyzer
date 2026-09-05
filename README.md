@@ -1,150 +1,40 @@
 # キャラ好みラボ
 
-好きなキャラクターを登録し、キャラクター像と「どこに・どう惹かれるか」を確認可能な根拠つきデータとして累積し、その好みからオリジナルキャラクターを作る日本語Webアプリです。React SPAとHono APIをCloudflare Workerで配信し、D1を正本にします。
+キャラクター像と「どこに・どう惹かれるか」を根拠とともに確認し、累積した好みからオリジナルキャラクターを作る日本語Webアプリです。通常版とdark版を同じ機能基盤で提供します。React・Hono・Cloudflare Worker/D1/R2/Workflowsを単一のnpmプロジェクトで管理しています。
 
-詳細な設計と実装上の決定は[詳細設計書](docs/詳細設計/README.md)を参照してください。
+## 起動
 
-根拠付き監査、条件別の生成指定、3案の比較・採用、独創性検査、評価のプロフィールへの反映は[分析・生成の品質改善](docs/品質改善.md)にまとめています。実モデルでの比較結果と追加マイグレーションの導入手順も参照できます。
-
-## 実装済み
-
-- UUIDアクセスキーによるユーザー作成、有効化、ログイン、セッション更新、private R2への非同期完全JSONエクスポート、全削除。キー紛失時の再発行・復旧は行わない
-- 既成、既成（カスタム）、オリジナルの3方式によるキャラクター登録と、owner内identity候補のreuse/new選択
-- 既成キャラクターはWikipedia・Wikidata・OpenAI Web Searchによる検証可能な公開情報検索、オリジナルキャラクターはユーザー入力の基本情報を起点とし、任意参考情報・ユーザー解釈を分離した基本像抽出
-- カスタム登録における基本像と対象像の分離、改変・限定差分の構造化抽出
-- キャラクター理解と好みの候補の2段階確認
-- 統制属性94件、44種類の反応経路、自由語、価値スタンス、検証状態・JSON Pointer付き根拠を分離した保存
-- 同一キャラ・同一作品の偏りを補正する、決定論的に累積された好みプロフィール
-- GraphProjectionのサーバー生成と、Graphology・ForceAtlas2 Web Worker・Sigma.jsによるブラウザ内探索／描画
-- 固定ProfileSnapshot、項目選択、生成モード、不要な道徳補正を自動追加しない内部方針、決定的・意味的制約検査を使うオリジナルキャラクター生成
-- Workers AI、OpenAI Responses API、Replay、Fakeの明示的なProvider切替
-- キャラクターdomainをD1 Adapterへ集約するDataStore Strategy（`DATASTORE_STRATEGY=d1`）
-- 世代フェンス、D1 outbox、lease付き再配送、profile/graphの原子的cutover
-- CSRF、必須Origin、64 KiB body limit、CSP、HMAC資格情報、冪等quota予約、IP／ユーザーrate limit、所有者認可
-
-悪、非道徳、残酷さ、善への無関心、改心しないこと、ヴィラン、端役、一場面限定も有効な好みとして保持します。善悪、ヒーロー／ヴィラン、主役／端役を集計係数に使わず、フィクション上の好意から現実の人格や加害意図を推測しません。
-
-## ローカル起動
-
-Node.js 24 LTSとnpmを使用します。nvmを利用する場合は、リポジトリ直下で `nvm use` を実行してください。
-
-```bash
-npm install
-cp .dev.vars.example .dev.vars
-# AUTH_PEPPERを十分に長いランダム値へ変更
-npm run db:migrate:local
-npm run dev
-```
-
-`http://localhost:5173`を開きます。ローカル標準は`.dev.vars`のOpenAI／Cloudflare AI Gateway設定を使い、LLMは`gpt-5.6-luna`、Embeddingは`text-embedding-3-small`です。秘密値はbuild成果物から除外されます。
-
-AI quotaを使わず全導線を確認する場合は次を使います。
-
-```bash
-npm run dev:offline
-```
-
-`offline`環境はLLMをReplay、EmbeddingをFakeへ明示的に切り替えます。Playwrightは専用portと毎回新しい一時D1を使い、既存serverや開発D1を再利用しません。通常起動時に失敗をFake成功へ置き換える暗黙fallbackはありません。
-
-現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`docs/詳細設計/database`です。
-
-改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当と明示的な `effort`（モデル既定値はnull）が必要で、生成要求には `profileSnapshotId` が必須です。
-
-## AI Provider
-
-メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` にティア別の `{ provider, model }` と任意の `effort` を設定できます。初期値 `{}` は全ティアで共通モデルと推論量を継承します。共通の推論量は `LLM_REASONING_EFFORT`、fallback先は `LLM_FALLBACK_REASONING_EFFORT` で指定し、空欄ではモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定・Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ別LLM設計](docs/詳細設計/20_メンバーシップ別LLM.md)を参照してください。
-
-`LLM_PROVIDER`で次を明示選択します。
-
-| 値 | 用途 |
-|---|---|
-| `workers_ai` | stagingまたは明示選択したCloudflare運用 |
-| `openai` | local/productionのOpenAI Responses API。`store:false`とstrict JSON Schemaを使用 |
-| `replay` | ローカルE2E／CIの再現可能な応答 |
-| `fake` | 単体試験用の決定論的応答 |
-
-OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
-
-OpenAI Responses APIのFlex Processingは`OPENAI_FLEX_ENABLED=true`の場合だけ`service_tier: "flex"`を送信します。既定値は`false`で、未設定または`false`の場合は`service_tier`を送信せず、OpenAI側の`auto`動作を使用します。
-
-画面から入力され、LLMへ渡る自由記述は、保存・ジョブ作成より前にモデレーションします。`MODERATION_PROVIDER=openai`はAI Gateway経由でOpenAI Moderation API（既定モデル`omni-moderation-latest`）を使い、拒否時は該当入力欄とカテゴリを画面へ返して処理を終了します。Providerは専用interfaceの実装で切り替え可能です。外部APIを呼ばないoffline環境だけは`MODERATION_PROVIDER=fake`を明示指定します。
-
-ローカルの`.dev.vars`例:
-
-```dotenv
-OPENAI_API_KEY=...
-OPENAI_FLEX_ENABLED=false
-MODERATION_PROVIDER=openai
-MODERATION_MODEL=omni-moderation-latest
-AI_GATEWAY_ACCOUNT_ID=...
-AI_GATEWAY_TOKEN=...
-```
-
-preview／productionでは対象環境へ同じ値をSecretとして登録します。
-
-```bash
-npx wrangler secret put OPENAI_API_KEY --env production
-npx wrangler secret put AI_GATEWAY_ACCOUNT_ID --env production
-npx wrangler secret put AI_GATEWAY_TOKEN --env production
-```
-
-Workers AIは`AI` bindingを使用しますが、各`env.AI.run()`へ同じGateway IDを渡すため、LLMとEmbeddingのログ・レート制限・利用量をAI Gatewayへ集約できます。Replay／Fakeは外部APIを呼ばないためGateway対象外です。
-
-EmbeddingはLLMと独立した`EmbeddingProvider` Portを使います。local/productionのOpenAI `text-embedding-3-small`は1536次元、stagingのWorkers AI BGE-M3は1024次元です。OpenAI、Workers AI、Fakeの各Adapterをfactoryで切り替え、返却vectorの件数・順序・有限値・次元数を共通契約で検証します。
-
-Providerのcapacity／429は`PROVIDER_CAPACITY_EXHAUSTED`、接続不能は`EXTERNAL_PROVIDER_UNAVAILABLE`としてJobへ保存します。retryable failureだけが、明示設定した`LLM_FALLBACK_PROVIDER`の対象です。
-
-## 検証
+Node.js 24とnpmを使用します。
 
 ```bash
 npm ci
-npm run verify
+cp .dev.vars.example .dev.vars
+# AUTH_PEPPERを十分に長いランダム値に変更
+npm run db:migrate:local
+npm run dev:offline
 ```
 
-- 単体試験: Zod契約、カスタム差分の意味制約、LLM／Embedding Provider切替、Workers AI capacity保持、共通数値処理
-- DDL契約: migration適用、テーブル構成、通常版／ダーク版の統制属性
-- as-built OpenAPI、Zod/JSON Schema、prompt hash、bundle budget、secret scan
-- coverage: deterministic core全体80%/branch 75%、状態・quota・provenance・generation validatorはbranch 90%
-- API smoke: 登録→理解確認→好み確認→プロフィール→グラフ→生成
-- Playwright: 3方式登録画面と全主要導線、CSRF／Origin／水平権限／stored XSS、logout／session失効／account削除
-- PlaywrightはChromiumで全件、Firefoxとmobileでsession smokeを実行します。WebKit smokeはホストの依存ライブラリが利用可能な場合に実行し、CIでは`--with-deps`で準備します。テスト対象と件数は`tests/`、`e2e/`および実行結果を参照してください。
+`http://localhost:5173` を開きます。offlineはReplay/Fakeを明示的に使用します。外部プロバイダーの設定、通常起動、環境別コマンドは[導入・運用](docs/operations.md)を参照してください。
 
-Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全build scriptは終了時に`dist`配下を検査し、path検証済みの秘密artifactだけを削除します。`dist`に`.dev.vars`が残るbuildは失敗として扱ってください。
+## 開発
 
-## ソース構成
+```bash
+npm run assets:generate  # カタログ、ルート、共有スキーマ、プロンプトから生成
+npm run assets:check     # 生成内容との差分検査。ファイルは書き換えない
+npm run verify          # CIと同じ品質ゲート
+```
 
-- `src/`: React画面、UI部品、ブラウザ向けAPIクライアント
-- `shared/`: 入出力スキーマ、通常版／ダーク版の語彙、共通の型
-- `worker/index.ts`: Workerのfetch・scheduled入口とWorkflowの公開
-- `worker/app.ts`: Honoのmiddleware順序と機能別ルートの組み立て
-- `worker/routes/`: 認証、登録・レビュー、プロフィール、生成、ジョブ、アカウント、ヘルスチェック
-- `worker/http.ts`、`worker/middleware.ts`、`worker/error-handler.ts`: 入力検証、共通ヘッダー、エラー応答
-- `worker/services/`、`worker/storage/`: ユースケースとDataStore Strategy／D1 Adapter
+DB定義の正本は [database/migrations](database/migrations)、属性辞書は [shared/catalogs](shared/catalogs)、API・データ契約は [shared/contracts](shared/contracts) と実際の [HTTPルート](worker/routes) です。生成物を直接編集しません。既存データの変換、remote DBへの適用、デプロイは資産再配置に含めません。
 
-通常版とダーク版のHTTP処理は同じルートfactoryへドメインを渡して組み立てます。専用の入力スキーマ、生成履歴URL、グラフ応答の差は各ルートに明示しています。API契約テストは`worker/app.ts`に実際に登録されたルートとOpenAPIの一致を検証し、`tests/api-routes.test.ts`で両ドメインの認証・入力検証・非同期配送を確認します。
+## 文書
 
-## ライセンス
+- [現行文書の索引](docs/README.md)
+- [導入・運用](docs/operations.md)
+- [構成・依存関係・正本](docs/architecture.md)
+- [分析・レビュー・生成仕様](docs/analysis.md)
+- [テスト・品質評価](docs/quality.md)
+- [過去の設計・評価・試作](archive/README.md)
 
-本プロジェクトのソースコードは[MIT License](LICENSE)で公開します。利用している依存パッケージにはそれぞれのライセンスが適用され、Webサイトのトップ画面から[サードパーティライセンス一覧](public/third-party-licenses.html)を確認できます。
+後方互換のURLや旧形式の読み替えは提供しません。通常版・dark版の生成履歴は、それぞれのAPIプレフィックス配下の `generation-requests` です。JSON成功応答は `{ data: ... }` に統一し、204とファイルダウンロードを別扱いにします。
 
-## 現在の実装境界
-
-P0〜P2の縦断機能を実装済みです。`AUTH-01`は仕様として現状維持し、次はP3または別途判断が必要な後続incrementです。
-
-- R2への大容量資料upload、PDF／画像抽出
-- assertion単位の訂正・却下と履歴比較UI
-- original characterの部分修正revision
-- public visibility/consent、運用console
-- 大規模GraphProjectionのcursor page、IndexedDB cache、neighbor API
-
-現行のデータ契約は`docs/詳細設計/database`のDDLで管理しています。キャラクターdomainのDataStore Strategy境界とD1 Adapterは分離して実装しています。
-
-## Cloudflareへ配置する前に
-
-1. staging／production用D1・private R2 bucket・Workflowを作成し、`wrangler.jsonc`のplaceholderを差し替える。
-2. `AUTH_PEPPER`、`OPENAI_API_KEY`、`TURNSTILE_SECRET`を`wrangler secret`で登録する。
-3. 各環境の`APP_ORIGIN`を実際のHTTPS originへ設定する。
-4. Cron、R2 retention、Workflow binding、readinessを確認する。
-5. `npm run db:migrate:staging`、`npm run deploy:staging`で検証してからproductionへ進める。
-
-ローカルD1は現行baselineへside-by-side移行・検証済みです。remote resourceの作成・deployは実施していません。
+ソースコードは [MIT License](LICENSE)、依存パッケージのライセンスは[サードパーティライセンス一覧](public/third-party-licenses.html)を参照してください。

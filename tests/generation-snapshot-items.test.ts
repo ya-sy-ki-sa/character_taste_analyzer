@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  expandSnapshotTreatments,
-  type GenerationSnapshotItem,
-  groupGenerationSnapshotItems,
-} from "../src/lib/generation-snapshot-items";
+import type { GenerationSnapshotItem } from "../shared/contracts/generation-response";
+import { expandSnapshotTreatments, groupGenerationSnapshotItems } from "../src/lib/generation-snapshot-items";
 
 function item(overrides: Partial<GenerationSnapshotItem> = {}): GenerationSnapshotItem {
   return {

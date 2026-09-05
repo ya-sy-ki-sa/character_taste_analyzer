@@ -2,29 +2,40 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    environment: "jsdom",
-    setupFiles: ["./tests/setup.ts"],
-    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    projects: [
+      {
+        test: {
+          name: "browser",
+          environment: "jsdom",
+          setupFiles: ["./tests/setup.ts"],
+          include: ["tests/**/*.test.tsx", "tests/http.test.ts"],
+        },
+      },
+      {
+        test: { name: "server", environment: "node", include: ["tests/**/*.test.ts"], exclude: ["tests/http.test.ts"] },
+      },
+    ],
     coverage: {
       reporter: ["text", "json", "html"],
       include: [
         "src/lib/**/*.ts",
         "worker/lib/numbers.ts",
-        "worker/services/analysis-result-policy.ts",
-        "worker/services/generation-validation.ts",
-        "worker/services/job-policy.ts",
-        "worker/services/profile-context.ts",
-        "worker/services/provenance-verifier.ts",
-        "worker/services/quota-policy.ts",
+        "worker/features/analysis/result-policy.ts",
+        "worker/features/generation/validation.ts",
+        "worker/features/jobs/policy.ts",
+        "worker/features/profile/context.ts",
+        "worker/platform/provenance/verifier.ts",
+        "worker/platform/quota/policy.ts",
       ],
       thresholds: {
         statements: 80,
         branches: 75,
         functions: 80,
         lines: 80,
-        "worker/services/{generation-validation,job-policy,provenance-verifier,quota-policy}.ts": {
-          branches: 90,
-        },
+        "worker/{features/generation/validation,features/jobs/policy,platform/provenance/verifier,platform/quota/policy}.ts":
+          {
+            branches: 90,
+          },
       },
     },
   },

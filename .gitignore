@@ -9,3 +9,4 @@ backups/
 .env*
 !.dev.vars.example
 *.log
+.artifacts/

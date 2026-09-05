@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "narrativeRole": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      }
+    },
+    "agency": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      }
+    },
+    "moralCommitments": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema2"
+      }
+    },
+    "protectedPeopleOrValues": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema3"
+      }
+    },
+    "relationships": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema4"
+      }
+    },
+    "abilitiesAndDuties": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema5"
+      }
+    },
+    "selfConcept": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema6"
+      }
+    },
+    "priorVulnerabilities": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema7"
+      }
+    },
+    "uncertainties": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    },
+    "evidence": {
+      "maxItems": 30,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema9"
+      }
+    }
+  },
+  "required": [
+    "identity",
+    "narrativeRole",
+    "agency",
+    "moralCommitments",
+    "protectedPeopleOrValues",
+    "relationships",
+    "abilitiesAndDuties",
+    "selfConcept",
+    "priorVulnerabilities",
+    "uncertainties",
+    "evidence"
+  ],
+  "$defs": {
+    "__schema0": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema1": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema2": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema3": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema4": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema5": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema6": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema7": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema8": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "topic",
+        "reason"
+      ]
+    },
+    "__schema9": {
+      "type": "object",
+      "properties": {
+        "sourceRef": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "sourceUrl": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "inputPointer": {
+          "$ref": "#/$defs/__schema12"
+        },
+        "quote": {
+          "$ref": "#/$defs/__schema13"
+        },
+        "inferenceType": {
+          "$ref": "#/$defs/__schema14"
+        }
+      },
+      "required": [
+        "sourceRef",
+        "sourceUrl",
+        "inputPointer",
+        "quote",
+        "inferenceType"
+      ]
+    },
+    "__schema10": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema11": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000,
+          "format": "uri"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema12": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^\\/.*"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema13": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema14": {
+      "type": "string",
+      "enum": [
+        "direct",
+        "paraphrase",
+        "inferred"
+      ]
+    }
+  }
+}

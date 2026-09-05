@@ -1,0 +1,86 @@
+@layer observatory {
+  body.dark-lab-theme,
+  .dark-lab-theme {
+    --ctl-void: #020509;
+    --ctl-chassis: #0b1115;
+    --ctl-panel: #141b20;
+    --ctl-lens: #010609;
+    --ctl-text-primary: #e3eaec;
+    --ctl-text-muted: #a9b7bd;
+    --ctl-control-edge: #5e6b72;
+    --ctl-structure: #8e9ba1;
+    --ctl-action: #315a70;
+    --ctl-action-hover: #3b6a82;
+    --ctl-signal: #5c8295;
+    --ctl-local-light: #b6cbd5;
+    --ctl-line: rgb(227 234 236 / 15%);
+    --ctl-metal-line: rgb(142 155 161 / 40%);
+    --ctl-shadow: rgb(0 0 0 / 78%);
+    --dark-oxidized-blue: #284653;
+    --dark-deep-blue: #263f4d;
+    --graph-user: #b7cbd4;
+    --graph-work: #819aa5;
+    --graph-identity: #d5dfe2;
+    --graph-representation: #6f8b95;
+    --graph-attribute: #8e9ba1;
+    --graph-raw-attribute: #6f7f86;
+    --graph-response: #7f9eac;
+    --graph-value: #94b1bd;
+    --graph-context: #65767d;
+    --graph-edge: #788a91;
+    --graph-edge-negative: #9da9ad;
+    --ctl-field: #071015;
+    --ctl-signal-dim: #172a33;
+    --ctl-structure-dim: #1a252a;
+    --ctl-structure-text: #ccd7db;
+    --ctl-positive: #8ca6a0;
+    --ctl-positive-text: #c2d7d2;
+    --ctl-positive-dim: #182725;
+    --ctl-caution: #9e9a88;
+    --ctl-caution-text: #d8d2ba;
+    --ctl-caution-dim: #28281f;
+    --ctl-danger: #d58d8f;
+    --ctl-danger-dim: #321d22;
+    --ctl-elevation: 0 24px 60px var(--ctl-shadow);
+    --ctl-elevation-tight: 0 12px 30px rgb(0 0 0 / 52%);
+    color: var(--ctl-text-primary);
+    background:
+      radial-gradient(ellipse at 8% 78%, rgb(40 70 83 / 24%), transparent 24rem),
+      radial-gradient(ellipse at 78% 0%, rgb(38 63 77 / 14%), transparent 30rem),
+      repeating-linear-gradient(111deg, transparent 0 12px, rgb(227 234 236 / 1.4%) 13px, transparent 14px),
+      var(--ctl-void);
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  :focus-visible,
+  .dark-lab-theme :focus-visible {
+    outline: 2px solid var(--ctl-local-light);
+    outline-offset: 3px;
+  }
+
+  h1,
+  h2,
+  h3,
+  .summary-card blockquote,
+  .confidence-number {
+    font-family: var(--ctl-font-display);
+  }
+
+  code,
+  .eyebrow,
+  .landing-device-id,
+  .sidebar-device,
+  .scope-degree,
+  .process-strip b,
+  .version-card dt {
+    font-family: var(--ctl-font-utility);
+  }
+
+  small,
+  .muted {
+    color: var(--ctl-text-muted);
+  }
+}

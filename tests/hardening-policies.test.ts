@@ -1,16 +1,17 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { EvidenceReference, GeneratedCharacterCandidate } from "../shared/schemas";
-import { jsonPointerExists, validateGenerationCoverage } from "../worker/services/generation-validation";
-import { isRetryableFailure, jobClaimDisposition } from "../worker/services/job-policy";
-import { workflowInstanceIdForEvent } from "../worker/services/orchestration";
-import { profileConditionJson } from "../worker/services/profile-context";
+import type { EvidenceReference } from "../shared/contracts/evidence";
+import type { GeneratedCharacterCandidate } from "../shared/contracts/generation";
+import { jsonPointerExists, validateGenerationCoverage } from "../worker/features/generation/validation";
+import { isRetryableFailure, jobClaimDisposition } from "../worker/features/jobs/policy";
+import { profileConditionJson } from "../worker/features/profile/context";
+import { workflowInstanceIdForEvent } from "../worker/platform/outbox/protocol";
 import {
   type ProvenanceSource,
   ProvenanceVerificationError,
   verifyEvidenceReference,
-} from "../worker/services/provenance-verifier";
-import { nextQuotaSlot, quotaLimit } from "../worker/services/quota-policy";
+} from "../worker/platform/provenance/verifier";
+import { nextQuotaSlot, quotaLimit } from "../worker/platform/quota/policy";
 
 const source: ProvenanceSource = {
   sourceId: "source-1",

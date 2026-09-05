@@ -1,95 +1,20 @@
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rejectPreferenceAnalysisItem } from "../worker/services/entries";
-import { claimJob, finishJobAttempt } from "../worker/services/jobs";
-import { dispatchPendingProfileRebuild } from "../worker/services/orchestration";
+import { rejectPreferenceAnalysisItem } from "../worker/features/entries/preference-review";
+import { claimJob, finishJobAttempt } from "../worker/features/jobs/execution";
+import { dispatchPendingProfileRebuild } from "../worker/runtime/outbox";
 import type { Env } from "../worker/types";
-
-type SqlValue = string | number | bigint | Uint8Array | null;
-
-class TestStatement {
-  constructor(
-    private readonly database: DatabaseSync,
-    private readonly sql: string,
-    private readonly values: SqlValue[] = [],
-  ) {}
-
-  bind(...values: unknown[]) {
-    return new TestStatement(this.database, this.sql, values as SqlValue[]);
-  }
-
-  async first<T>(): Promise<T | null> {
-    return (this.database.prepare(this.sql).get(...this.values) as T | undefined) ?? null;
-  }
-
-  async run() {
-    const result = this.database.prepare(this.sql).run(...this.values);
-    return { success: true, meta: { changes: Number(result.changes) } };
-  }
-
-  async all<T>() {
-    return {
-      success: true,
-      results: this.database.prepare(this.sql).all(...this.values) as T[],
-      meta: { changes: 0 },
-    };
-  }
-}
-
-function testDatabase() {
-  const database = new DatabaseSync(":memory:");
-  database.exec(`
-    CREATE TABLE user_character_entries (
-      id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, active_revision_number INTEGER NOT NULL
-    );
-    CREATE TABLE jobs (
-      id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, status TEXT NOT NULL,
-      input_generation INTEGER NOT NULL, job_type TEXT NOT NULL, target_type TEXT NOT NULL,
-      target_id TEXT NOT NULL, retryable INTEGER NOT NULL DEFAULT 1, current_step TEXT,
-      error_code TEXT,error_detail_safe TEXT,updated_at TEXT,completed_at TEXT,revision INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE job_attempts (
-      id TEXT PRIMARY KEY,job_id TEXT NOT NULL,attempt_number INTEGER NOT NULL,status TEXT NOT NULL,
-      lease_owner TEXT,lease_expires_at TEXT,checkpoint_json TEXT,step_name TEXT,started_at TEXT,
-      finished_at TEXT,error_code TEXT,error_detail_safe TEXT,UNIQUE(job_id,attempt_number)
-    );
-  `);
-  let batchQueue = Promise.resolve<unknown>(undefined);
-  const d1 = {
-    prepare(sql: string) {
-      return new TestStatement(database, sql);
-    },
-    batch(statements: TestStatement[]) {
-      const execute = async () => {
-        database.exec("BEGIN IMMEDIATE");
-        try {
-          const results = [];
-          for (const statement of statements) results.push(await statement.run());
-          database.exec("COMMIT");
-          return results;
-        } catch (error) {
-          database.exec("ROLLBACK");
-          throw error;
-        }
-      };
-      const result = batchQueue.then(execute, execute);
-      batchQueue = result.then(
-        () => undefined,
-        () => undefined,
-      );
-      return result;
-    },
-  } as unknown as D1Database;
-  return { database, env: { DB: d1 } as unknown as Env };
-}
+import { testDatabase } from "./support/database";
+import { fixtureTime, insertFixture, seedEntry, seedReview, seedUser } from "./support/fixtures";
 
 function seedJob(database: DatabaseSync, status = "queued", generation = 1) {
-  database.prepare("INSERT INTO user_character_entries VALUES ('entry','owner',?)").run(generation);
+  seedUser(database);
+  seedEntry(database, { generation });
   database
     .prepare(
       `INSERT INTO jobs
-        (id,owner_user_id,status,input_generation,job_type,target_type,target_id,retryable,updated_at)
-       VALUES ('job','owner',?,?,'analysis','entry','entry',1,'2026-01-01T00:00:00.000Z')`,
+        (id,owner_user_id,status,input_generation,job_type,target_type,target_id,retryable,created_at,updated_at)
+       VALUES ('job','owner',?,?,'character_analysis','entry','entry',1,'2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')`,
     )
     .run(status, generation);
 }
@@ -192,36 +117,8 @@ describe("job claim integration", () => {
 
 describe("preference review integration", () => {
   it("rejects an individual preference or value stance and keeps retries idempotent", async () => {
-    const database = new DatabaseSync(":memory:");
-    database.exec(`
-      CREATE TABLE user_character_entries (
-        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, active_revision_number INTEGER NOT NULL, status TEXT NOT NULL,
-        analysis_domain TEXT NOT NULL DEFAULT 'standard'
-      );
-      CREATE TABLE entry_revisions (
-        id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, revision_number INTEGER NOT NULL
-      );
-      CREATE TABLE analysis_runs (
-        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, entry_revision_id TEXT NOT NULL, status TEXT NOT NULL, run_generation INTEGER NOT NULL DEFAULT 1
-      );
-      CREATE TABLE preference_assertions (
-        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, analysis_run_id TEXT NOT NULL, status TEXT NOT NULL
-      );
-      CREATE TABLE value_stance_assertions (
-        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, analysis_run_id TEXT NOT NULL, status TEXT NOT NULL
-      );
-      INSERT INTO user_character_entries VALUES ('entry','owner',1,'analysis_review','standard');
-      INSERT INTO entry_revisions VALUES ('revision','entry',1);
-      INSERT INTO analysis_runs VALUES ('run','owner','revision','succeeded',1);
-      INSERT INTO preference_assertions VALUES ('preference','owner','run','proposed');
-      INSERT INTO value_stance_assertions VALUES ('stance','owner','run','proposed');
-    `);
-    const d1 = {
-      prepare(sql: string) {
-        return new TestStatement(database, sql);
-      },
-    } as unknown as D1Database;
-    const env = { DB: d1 } as unknown as Env;
+    const { database, env } = testDatabase();
+    seedReview(database);
     try {
       await expect(rejectPreferenceAnalysisItem(env, "owner", "standard", "run", "preference")).resolves.toMatchObject({
         targetType: "preference_assertion",
@@ -251,42 +148,42 @@ describe("preference review integration", () => {
 
 describe("profile rebuild outbox recovery", () => {
   it("dispatches only the pending profile rebuild owned by the current user", async () => {
-    const database = new DatabaseSync(":memory:");
-    database.exec(`
-      CREATE TABLE outbox_events (
-        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, aggregate_id TEXT NOT NULL,
-        event_type TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL,
-        attempt_count INTEGER NOT NULL, available_at TEXT NOT NULL, lease_owner TEXT,
-        lease_expires_at TEXT, last_error_code TEXT, published_at TEXT
-      );
-      CREATE TABLE jobs (
-        id TEXT PRIMARY KEY, status TEXT NOT NULL, workflow_instance_id TEXT, updated_at TEXT
-      );
-      INSERT INTO jobs VALUES ('owner-job','queued',NULL,NULL), ('other-job','queued',NULL,NULL);
-      INSERT INTO outbox_events VALUES (
-        'owner-event','owner','owner-job','profile.rebuild',
-        '{"type":"profile.rebuild","params":{"jobId":"owner-job","ownerUserId":"owner","desiredGeneration":1}}',
-        'pending',0,'2026-01-01T00:00:00.000Z',NULL,NULL,NULL,NULL
-      );
-      INSERT INTO outbox_events VALUES (
-        'other-event','other','other-job','profile.rebuild',
-        '{"type":"profile.rebuild","params":{"jobId":"other-job","ownerUserId":"other","desiredGeneration":1}}',
-        'pending',0,'2026-01-01T00:00:00.000Z',NULL,NULL,NULL,NULL
-      );
-    `);
-    const d1 = {
-      prepare(sql: string) {
-        return new TestStatement(database, sql);
-      },
-      async batch(statements: TestStatement[]) {
-        const results = [];
-        for (const statement of statements) results.push(await statement.run());
-        return results;
-      },
-    } as unknown as D1Database;
+    const { database, env: context } = testDatabase();
+    for (const owner of ["owner", "other"]) {
+      seedUser(database, owner);
+      insertFixture(database, "jobs", {
+        id: owner + "-job",
+        owner_user_id: owner,
+        job_type: "profile_rebuild",
+        status: "queued",
+        target_type: "profile",
+        target_id: owner,
+        input_generation: 1,
+        created_at: fixtureTime,
+        updated_at: fixtureTime,
+      });
+      insertFixture(database, "outbox_events", {
+        id: owner + "-event",
+        owner_user_id: owner,
+        aggregate_type: "job",
+        aggregate_id: owner + "-job",
+        aggregate_revision: 1,
+        event_type: "profile.rebuild",
+        payload_json: JSON.stringify({
+          type: "profile.rebuild",
+          params: { jobId: owner + "-job", ownerUserId: owner, desiredGeneration: 1 },
+        }),
+        payload_hash: owner,
+        correlation_id: owner,
+        deduplication_key: owner,
+        status: "pending",
+        available_at: fixtureTime,
+        created_at: fixtureTime,
+      });
+    }
     const create = vi.fn(async ({ id }: { id: string }) => ({ id }));
     const env = {
-      DB: d1,
+      DB: context.DB,
       PROFILE_REBUILD_WORKFLOW: { create, get: vi.fn() },
     } as unknown as Env;
 

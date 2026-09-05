@@ -1,0 +1,452 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "sourceAssessment": {
+      "type": "object",
+      "properties": {
+        "coverage": {
+          "type": "string",
+          "enum": [
+            "sufficient",
+            "partial",
+            "minimal",
+            "none"
+          ]
+        },
+        "limitations": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "modelKnowledgeUsed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "coverage",
+        "limitations",
+        "modelKnowledgeUsed"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "narrativeRole": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          }
+        },
+        "moralityOrientation": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema2"
+          }
+        },
+        "goals": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          }
+        },
+        "values": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema4"
+          }
+        },
+        "behavior": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema5"
+          }
+        },
+        "relationships": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema6"
+          }
+        },
+        "expression": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema7"
+          }
+        }
+      },
+      "required": [
+        "identity",
+        "narrativeRole",
+        "moralityOrientation",
+        "goals",
+        "values",
+        "behavior",
+        "relationships",
+        "expression"
+      ]
+    },
+    "assertions": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    },
+    "customizationDeltas": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema15"
+      }
+    },
+    "uncertainties": {
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema24"
+      }
+    }
+  },
+  "required": [
+    "sourceAssessment",
+    "summary",
+    "assertions",
+    "customizationDeltas",
+    "uncertainties"
+  ],
+  "$defs": {
+    "__schema0": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "__schema1": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "__schema2": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "__schema3": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema4": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema5": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema6": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema7": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "__schema8": {
+      "type": "object",
+      "properties": {
+        "attributeStableKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 150,
+              "pattern": "^[a-z0-9_.-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rawLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "valueText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "assertionKind": {
+          "type": "string",
+          "enum": [
+            "setting",
+            "observable_behavior",
+            "source_interpretation",
+            "user_interpretation"
+          ]
+        },
+        "scopeText": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "explicitness": {
+          "type": "string",
+          "enum": [
+            "source_explicit",
+            "source_interpreted",
+            "user_explicit",
+            "model_knowledge"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "evidence": {
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema9"
+          }
+        }
+      },
+      "required": [
+        "attributeStableKey",
+        "rawLabel",
+        "valueText",
+        "assertionKind",
+        "scopeText",
+        "explicitness",
+        "confidence",
+        "evidence"
+      ]
+    },
+    "__schema9": {
+      "type": "object",
+      "properties": {
+        "sourceRef": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "sourceUrl": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "inputPointer": {
+          "$ref": "#/$defs/__schema12"
+        },
+        "quote": {
+          "$ref": "#/$defs/__schema13"
+        },
+        "inferenceType": {
+          "$ref": "#/$defs/__schema14"
+        }
+      },
+      "required": [
+        "sourceRef",
+        "sourceUrl",
+        "inputPointer",
+        "quote",
+        "inferenceType"
+      ]
+    },
+    "__schema10": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema11": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000,
+          "format": "uri"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema12": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^\\/.*"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema13": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema14": {
+      "type": "string",
+      "enum": [
+        "direct",
+        "paraphrase",
+        "inferred"
+      ]
+    },
+    "__schema15": {
+      "type": "object",
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/__schema16"
+        },
+        "targetAttributeStableKey": {
+          "$ref": "#/$defs/__schema17"
+        },
+        "beforeValue": {
+          "$ref": "#/$defs/__schema18"
+        },
+        "afterValue": {
+          "$ref": "#/$defs/__schema19"
+        },
+        "scopeText": {
+          "$ref": "#/$defs/__schema20"
+        },
+        "reasonText": {
+          "$ref": "#/$defs/__schema21"
+        },
+        "explicitness": {
+          "$ref": "#/$defs/__schema22"
+        },
+        "confidence": {
+          "$ref": "#/$defs/__schema23"
+        }
+      },
+      "required": [
+        "operation",
+        "targetAttributeStableKey",
+        "beforeValue",
+        "afterValue",
+        "scopeText",
+        "reasonText",
+        "explicitness",
+        "confidence"
+      ]
+    },
+    "__schema16": {
+      "type": "string",
+      "enum": [
+        "inherit",
+        "add",
+        "modify",
+        "remove",
+        "invert",
+        "narrow_scope",
+        "emphasize",
+        "unspecified"
+      ]
+    },
+    "__schema17": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 150,
+          "pattern": "^[a-z0-9_.-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema18": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema19": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema20": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "__schema21": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema22": {
+      "type": "string",
+      "enum": [
+        "user_explicit",
+        "inferred"
+      ]
+    },
+    "__schema23": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "__schema24": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "topic",
+        "reason"
+      ]
+    }
+  }
+}

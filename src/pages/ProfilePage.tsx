@@ -4,26 +4,24 @@ import { Link } from "react-router-dom";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { attributeCategoryLabel } from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
-import type { GraphProjection, ProfileView, ProjectionFreshness } from "../../shared/schemas";
 import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stance-labels";
-import { api } from "../api";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
+import { profileApi } from "../features/profile/api";
 import { type DisplayProfileDimension, groupProfileDimensions } from "../lib/profile-dimensions";
 
 const classificationLabels = { stable: "安定傾向", emerging: "発展中", insufficient: "データ少" } as const;
 const TasteGraph = lazy(() => import("../components/TasteGraph").then((module) => ({ default: module.TasteGraph })));
 export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
   const dark = domain === "dark";
-  const apiBase = dark ? "/api/v1/dark" : "/api/v1";
   const appBase = dark ? "/dark-lab/app" : "/app";
   const profile = useQuery({
     queryKey: ["profile", domain],
-    queryFn: () => api<{ profile: ProfileView | null; freshness: ProjectionFreshness }>(`${apiBase}/profile`),
+    queryFn: () => profileApi.current(domain),
     refetchInterval: 10_000,
   });
   const graph = useQuery({
     queryKey: ["profile-graph", domain],
-    queryFn: () => api<{ graph: GraphProjection | null }>(`${apiBase}/profile/graph?detail=standard`),
+    queryFn: () => profileApi.graph(domain),
     enabled: Boolean(profile.data?.profile),
   });
   if (profile.isPending) return <Spinner label="好みプロフィールを読み込んでいます" />;

@@ -3,35 +3,38 @@ import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { evaluationDatabase } from "../scripts/lib/evaluation-database";
 import type { AnalysisDomain } from "../shared/analysis-domain";
+import { anyEntryDraftSchema } from "../shared/contracts/entries";
+import { type GenerationValidationReport, generationRequestInputSchema } from "../shared/contracts/generation";
 import { type MembershipTier, membershipTierSchema } from "../shared/membership";
-import type { GenerationValidationReport } from "../shared/schemas";
-import { anyEntryDraftSchema, generationRequestInputSchema } from "../shared/schemas";
 import { app } from "../worker/app";
+import { activateAnalysisAndRebuild } from "../worker/features/analysis/activation";
+import { processPreferenceAnalysis } from "../worker/features/analysis/preference";
+import { processCharacterAnalysis } from "../worker/features/analysis/understanding";
+import { createEntry } from "../worker/features/entries/create";
+import { createEntryReanalysis } from "../worker/features/entries/reanalysis";
+import { refinePreferenceInput } from "../worker/features/entries/refinement";
+import { loadEntryReview } from "../worker/features/entries/review";
+import { confirmUnderstanding } from "../worker/features/entries/understanding-review";
+import { listGenerations } from "../worker/features/generation/history";
+import { processGeneration } from "../worker/features/generation/process";
+import { createGenerationRequest } from "../worker/features/generation/request";
+import { processProfileRebuild } from "../worker/features/profile/projection";
+import { createJobLlmProvider } from "../worker/llm/execution";
 import * as llmProviders from "../worker/llm/providers";
 import type { StructuredLlmRequest } from "../worker/llm/types";
-import {
-  activateAnalysisAndRebuild,
-  processCharacterAnalysis,
-  processPreferenceAnalysis,
-} from "../worker/services/analysis";
-import { confirmUnderstanding, createEntry, createEntryReanalysis, loadEntryReview } from "../worker/services/entries";
-import { createGenerationRequest, listGenerations, processGeneration } from "../worker/services/generation";
-import { createJobLlmProvider } from "../worker/services/llm-execution";
-import { dispatchOutboxEvent } from "../worker/services/orchestration";
-import { refinePreferenceInput } from "../worker/services/preference-refinement";
-import { processProfileRebuild } from "../worker/services/profile";
+import { dispatchOutboxEvent } from "../worker/runtime/outbox";
 import type { Env } from "../worker/types";
+import { testDatabase } from "./support/database";
 
-const databases: Array<ReturnType<typeof evaluationDatabase>> = [];
+const databases: Array<ReturnType<typeof testDatabase>> = [];
 afterEach(() => {
   for (const db of databases.splice(0)) db.close();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 function setup(tier: MembershipTier = "basic") {
-  const db = evaluationDatabase();
+  const db = testDatabase();
   databases.push(db);
   const owner = crypto.randomUUID(),
     now = new Date().toISOString();
@@ -73,7 +76,7 @@ function draft(domain: AnalysisDomain) {
     ...(domain === "dark" ? { darkContext: { focusDescription: "外部から操作されて敵対する状態" } } : {}),
   });
 }
-function snapshot(db: ReturnType<typeof evaluationDatabase>, jobId: string) {
+function snapshot(db: ReturnType<typeof testDatabase>, jobId: string) {
   return JSON.parse(
     db.database.prepare("SELECT llm_routing_snapshot_json FROM jobs WHERE id=?").get(jobId)
       ?.llm_routing_snapshot_json as string,
@@ -97,7 +100,7 @@ describe("membership persistence and authentication", () => {
   it("enforces the four tiers and the new-user default", () => {
     const db = new DatabaseSync(":memory:");
     try {
-      const root = "docs/詳細設計/database";
+      const root = "database/migrations";
       for (const file of readdirSync(root)
         .filter((name) => name.endsWith(".sql"))
         .sort())

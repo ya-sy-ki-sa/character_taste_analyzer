@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ProfileDimension } from "../shared/schemas";
+import type { ProfileDimension } from "../shared/contracts/profile-response";
 import { groupProfileDimensions } from "../src/lib/profile-dimensions";
-import { profileConditionJson } from "../worker/services/profile-context";
+import { profileConditionJson } from "../worker/features/profile/context";
 
 function dimension(overrides: Partial<ProfileDimension> = {}): ProfileDimension {
   return {

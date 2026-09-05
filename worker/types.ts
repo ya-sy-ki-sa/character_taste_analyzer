@@ -47,7 +47,6 @@ export type Env = {
   EXPORTS?: R2Bucket;
   ASSETS?: Fetcher;
   ENVIRONMENT: "local" | "preview" | "production";
-  DATASTORE_STRATEGY?: string;
   APP_ORIGIN?: string;
   AUTH_PEPPER: string;
   TURNSTILE_SECRET?: string;

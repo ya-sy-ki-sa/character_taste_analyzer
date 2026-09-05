@@ -14,7 +14,6 @@
   },
   "vars": {
     "ENVIRONMENT": "local",
-    "DATASTORE_STRATEGY": "d1",
     "LLM_PROVIDER": "openai",
     "LLM_MODEL": "gpt-5.6-luna",
     "LLM_REASONING_EFFORT": "",
@@ -44,7 +43,7 @@
       "binding": "DB",
       "database_name": "character-taste-lab-current-local",
       "database_id": "00000000-0000-4000-8000-000000000003",
-      "migrations_dir": "docs/詳細設計/database"
+      "migrations_dir": "database/migrations"
     }
   ],
   "r2_buckets": [
@@ -87,7 +86,6 @@
       },
       "vars": {
         "ENVIRONMENT": "local",
-        "DATASTORE_STRATEGY": "d1",
         "LLM_PROVIDER": "replay",
         "LLM_MODEL": "replay-v1",
         "LLM_REASONING_EFFORT": "",
@@ -116,7 +114,7 @@
           "binding": "DB",
           "database_name": "character-taste-lab-current-local",
           "database_id": "00000000-0000-4000-8000-000000000003",
-          "migrations_dir": "docs/詳細設計/database"
+          "migrations_dir": "database/migrations"
         }
       ],
       "r2_buckets": [
@@ -153,7 +151,6 @@
       "name": "character-taste-lab-staging",
       "vars": {
         "ENVIRONMENT": "preview",
-        "DATASTORE_STRATEGY": "d1",
         "LLM_PROVIDER": "workers_ai",
         "LLM_MODEL": "@cf/openai/gpt-oss-120b",
         "LLM_REASONING_EFFORT": "",
@@ -183,7 +180,7 @@
           "binding": "DB",
           "database_name": "character-taste-lab-v2-staging",
           "database_id": "f4ef85cc-ca2c-4e97-93c6-bc77cdca65fb",
-          "migrations_dir": "docs/詳細設計/database"
+          "migrations_dir": "database/migrations"
         }
       ],
       "ai": {
@@ -222,7 +219,6 @@
       "name": "character-taste-analyzer",
       "vars": {
         "ENVIRONMENT": "production",
-        "DATASTORE_STRATEGY": "d1",
         "LLM_PROVIDER": "openai",
         "LLM_MODEL": "gpt-5.6-sol",
         "LLM_REASONING_EFFORT": "",
@@ -252,7 +248,7 @@
           "binding": "DB",
           "database_name": "character-taste-lab",
           "database_id": "5e4c10b5-8d80-4f54-90e4-3624470ce482",
-          "migrations_dir": "docs/詳細設計/database"
+          "migrations_dir": "database/migrations"
         }
       ],
       "ai": {

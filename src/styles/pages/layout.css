@@ -1,0 +1,49 @@
+@layer pages {
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--ctl-line);
+  }
+  .side-nav {
+    display: grid;
+  }
+  .side-nav a,
+  .side-nav-action {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: transparent;
+    border: 0;
+    text-align: left;
+    text-decoration: none;
+  }
+  .side-nav a span,
+  .side-nav-action span {
+    display: grid;
+    place-items: center;
+    font-size: 1.15rem;
+  }
+  .side-nav a b,
+  .side-nav-action b {
+    font-size: 0.86rem;
+  }
+  .sidebar-user {
+    display: grid;
+    align-items: center;
+    gap: 10px;
+    padding-top: 22px;
+  }
+  .page-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 25px;
+  }
+  .page-heading h1 {
+    font-family: Georgia, "Yu Mincho", serif;
+  }
+  .page-heading > div > p:last-child:not(.eyebrow) {
+    max-width: 650px;
+    margin-top: 10px;
+    color: var(--ctl-text-muted);
+  }
+}

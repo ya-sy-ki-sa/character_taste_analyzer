@@ -28,11 +28,13 @@ metadata:
 - 日食、黒蝕、悪、闇、侵食、不穏なdark版の依頼では、兄弟Skill [character-taste-dark-observatory-design](../character-taste-dark-observatory-design/SKILL.md) を併用し、その固有規約を優先する。
 - テーマ切替で機能、主要操作、認証項目、状態の意味を変えない。色だけに頼らず、同じラベル、形、線種、状態文言を保つ。
 
+現行の構成はリポジトリの `docs/architecture.md`、CSSの入口は `src/styles/index.css`、画面部品は `src/features` を参照する。`archive/mockups` は履歴資料であり、現行実装の正本ではない。
+
 ## 適用時の前提
 
 - ユーザーが指定した機能、文言、情報構造を優先する。世界観を理由に機能を追加・削除しない。
 - 既存スタック、コンポーネント、ルーティング、状態管理、テスト方法を先に確認し、それらへ適合させる。
-- `mock-top-01-constellation.html` が存在すれば現行の視覚サンプルとして確認してよい。ただし、このSkill内の規約だけで実装できる状態を維持し、モックへの依存は作らない。
+- `archive/mockups/mock-top-01-constellation.html` が存在すれば過去の視覚サンプルとして確認してよい。ただし、このSkill内の規約だけで実装できる状態を維持し、モックへの依存は作らない。
 - 画面の主目的を一文で定義し、その目的に必要な装置だけを置く。意味のない計器、数値、ステータス、装飾ラベルは作らない。
 
 ## 必ず読むリファレンス

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EmbeddingProvider } from "../worker/embedding/types";
-import { embedSimilarityDocuments, similarityTextChunks } from "../worker/services/similarity-embedding";
+import { embedSimilarityDocuments, similarityTextChunks } from "../worker/features/generation/embedding";
 
 describe("full settings embedding", () => {
   it("keeps the entire input and UTF-8 code points within a byte budget", () => {

@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { createServer } from "vite";
 
 const args = process.argv.slice(2);
@@ -30,7 +31,7 @@ const server = await createServer({
   appType: "custom",
 });
 try {
-  const { runQualityEvaluation } = await server.ssrLoadModule("/worker/evaluation/run.ts");
+  const { runQualityEvaluation } = await server.ssrLoadModule("/evaluation/run.ts");
   const paths = (root) =>
     readdirSync(root, { withFileTypes: true }).flatMap((entry) =>
       entry.isDirectory()
@@ -40,25 +41,28 @@ try {
           : [],
     );
   const sourceHashes = Object.fromEntries(
-    ["worker", "shared", "scripts/lib", "docs/詳細設計/database"]
+    ["worker", "shared", "evaluation", "tests/support", "database/migrations"]
       .flatMap(paths)
       .sort()
       .map((path) => [path, createHash("sha256").update(readFileSync(path)).digest("hex")]),
   );
-  const limit = Number(option("--limit", "67"));
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 67) throw new Error("limit must be between 1 and 67");
+  const { qualityCases } = await server.ssrLoadModule("/evaluation/cases.ts");
+  const limit = Number(option("--limit", String(qualityCases.length)));
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > qualityCases.length)
+    throw new Error(`limit must be between 1 and ${qualityCases.length}`);
+  const { qualityReportSchema, caseFailed } = await server.ssrLoadModule("/evaluation/report.ts");
   const report = await runQualityEvaluation(env, limit, {
     generate: args.includes("--generate"),
     only: option("--only", "").split(",").filter(Boolean),
   });
   if (!report.results.length) throw new Error("No matching evaluation fixtures");
-  const { qualityMetrics, compareQualityReports } = await server.ssrLoadModule("/worker/evaluation/metrics.ts");
+  const { qualityMetrics, compareQualityReports } = await server.ssrLoadModule("/evaluation/metrics.ts");
   report.metrics = qualityMetrics(report);
   report.gitRevision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   report.sourceHashes = sourceHashes;
   const compare = option("--compare");
   if (compare) {
-    const baseline = JSON.parse(readFileSync(compare, "utf8"));
+    const baseline = qualityReportSchema.parse(JSON.parse(readFileSync(compare, "utf8")));
     if (
       baseline.fixtureVersion !== report.fixtureVersion ||
       baseline.model !== report.model ||
@@ -68,15 +72,10 @@ try {
     report.comparison = compareQualityReports(baseline, report);
     report.baseline = { path: compare, sha256: createHash("sha256").update(readFileSync(compare)).digest("hex") };
   }
+  mkdirSync(dirname(output), { recursive: true });
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
   console.log(`Quality evaluation saved: ${output} (${report.results.length} cases)`);
-  if (
-    report.results.some(
-      (result) =>
-        result.error || (result.generation?.result?.status && result.generation.result.status !== "generated"),
-    )
-  )
-    process.exitCode = 1;
+  if (report.results.some(caseFailed)) process.exitCode = 1;
 } finally {
   await server.close();
 }

@@ -1,18 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { loginSchema } from "../shared/contracts/account";
+import { entryDraftSchema, entryReanalysisSchema } from "../shared/contracts/entries";
+import { generatedCharacterCandidateSchema, generationRequestInputSchema } from "../shared/contracts/generation";
+import { understandingReviewMutationSchema } from "../shared/contracts/reviews";
+import { responseChannelSchema } from "../shared/contracts/taxonomy";
+import { understandingCandidateSchema } from "../shared/contracts/understanding";
+import { canonicalEntryInputPointer, entryBaseCharacterName, entryInputSources } from "../shared/entry-input";
 import { responseChannelCatalog, responseChannelCategories } from "../shared/response-channels";
-import {
-  canonicalEntryInputPointer,
-  entryBaseCharacterName,
-  entryDraftSchema,
-  entryInputSources,
-  entryReanalysisSchema,
-  generatedCharacterCandidateSchema,
-  generationRequestInputSchema,
-  loginSchema,
-  responseChannelSchema,
-  understandingCandidateSchema,
-  understandingReviewMutationSchema,
-} from "../shared/schemas";
 
 describe("current input contracts", () => {
   it("accepts login by username and rejects the removed user ID contract", () => {

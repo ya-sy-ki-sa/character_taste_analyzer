@@ -1,0 +1,536 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/GenerationBrief",
+  "$defs": {
+    "GenerationBrief": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "analysisDomain": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "briefId": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "generationRequestId": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "profileSnapshot": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "mode": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "purpose": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "creativeContext": {
+          "$ref": "#/$defs/__schema7"
+        },
+        "preferenceSelections": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "valuePolicy": {
+          "$ref": "#/$defs/__schema24"
+        },
+        "constraints": {
+          "$ref": "#/$defs/__schema25"
+        },
+        "nonRequirements": {
+          "$ref": "#/$defs/__schema26"
+        },
+        "similarityPolicy": {
+          "$ref": "#/$defs/__schema27"
+        },
+        "provenance": {
+          "$ref": "#/$defs/__schema28"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "analysisDomain",
+        "briefId",
+        "generationRequestId",
+        "profileSnapshot",
+        "mode",
+        "purpose",
+        "creativeContext",
+        "preferenceSelections",
+        "valuePolicy",
+        "constraints",
+        "nonRequirements",
+        "similarityPolicy",
+        "provenance"
+      ]
+    },
+    "__schema0": {
+      "type": "string",
+      "const": "2.0"
+    },
+    "__schema1": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "dark"
+      ]
+    },
+    "__schema2": {
+      "type": "string"
+    },
+    "__schema3": {
+      "type": "string"
+    },
+    "__schema4": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "number"
+        },
+        "contentHash": {
+          "type": "string"
+        },
+        "ontologyVersion": {
+          "type": "string"
+        },
+        "algorithmVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "contentHash",
+        "ontologyVersion",
+        "algorithmVersion"
+      ]
+    },
+    "__schema5": {
+      "type": "string",
+      "enum": [
+        "faithful",
+        "balanced",
+        "exploratory"
+      ]
+    },
+    "__schema6": {
+      "type": "string"
+    },
+    "__schema7": {
+      "type": "object",
+      "properties": {
+        "world": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "genre": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "targetDetail": {
+          "type": "string",
+          "const": "detailed"
+        }
+      },
+      "required": [
+        "world",
+        "genre",
+        "role",
+        "tone",
+        "targetDetail"
+      ]
+    },
+    "__schema8": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GenerationSelection"
+      }
+    },
+    "GenerationSelection": {
+      "type": "object",
+      "properties": {
+        "profileSnapshotItemId": {
+          "$ref": "#/$defs/__schema9"
+        },
+        "stableKey": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "label": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "treatment": {
+          "$ref": "#/$defs/Treatment"
+        },
+        "weight": {
+          "$ref": "#/$defs/__schema16"
+        },
+        "condition": {
+          "$ref": "#/$defs/__schema17"
+        },
+        "responseChannel": {
+          "$ref": "#/$defs/__schema18"
+        },
+        "reactionDescription": {
+          "$ref": "#/$defs/__schema19"
+        },
+        "polarity": {
+          "$ref": "#/$defs/__schema20"
+        },
+        "valueStance": {
+          "$ref": "#/$defs/__schema21"
+        },
+        "rationale": {
+          "$ref": "#/$defs/__schema22"
+        },
+        "overrideText": {
+          "$ref": "#/$defs/__schema23"
+        }
+      },
+      "required": [
+        "profileSnapshotItemId",
+        "stableKey",
+        "label",
+        "treatment",
+        "weight",
+        "condition",
+        "responseChannel",
+        "reactionDescription",
+        "polarity",
+        "valueStance",
+        "rationale",
+        "overrideText"
+      ]
+    },
+    "__schema9": {
+      "type": "string"
+    },
+    "__schema10": {
+      "type": "string"
+    },
+    "__schema11": {
+      "type": "string"
+    },
+    "Treatment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/__schema12"
+        },
+        {
+          "$ref": "#/$defs/__schema13"
+        },
+        {
+          "$ref": "#/$defs/__schema14"
+        },
+        {
+          "$ref": "#/$defs/__schema15"
+        }
+      ]
+    },
+    "__schema12": {
+      "type": "string",
+      "const": "required"
+    },
+    "__schema13": {
+      "type": "string",
+      "const": "include"
+    },
+    "__schema14": {
+      "type": "string",
+      "const": "explore"
+    },
+    "__schema15": {
+      "type": "string",
+      "const": "prohibit"
+    },
+    "__schema16": {
+      "type": "number"
+    },
+    "__schema17": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "__schema18": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "__schema19": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "__schema20": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "positive": {
+              "type": "number"
+            },
+            "negative": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "positive",
+            "negative"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema21": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string"
+            },
+            "targetType": {
+              "type": "string"
+            },
+            "orientation": {
+              "type": "string"
+            },
+            "stance": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "target",
+            "targetType",
+            "orientation",
+            "stance",
+            "scope"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema22": {
+      "type": "string"
+    },
+    "__schema23": {
+      "type": "null"
+    },
+    "__schema24": {
+      "type": "object",
+      "properties": {
+        "allowedOrientations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredStances": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string"
+              },
+              "stance": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "target",
+              "stance",
+              "scope"
+            ]
+          }
+        },
+        "redemption": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "required"
+            },
+            {
+              "type": "string",
+              "const": "allowed"
+            },
+            {
+              "type": "string",
+              "const": "not_required"
+            },
+            {
+              "type": "string",
+              "const": "prohibited"
+            }
+          ]
+        },
+        "hiddenGoodness": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "required"
+            },
+            {
+              "type": "string",
+              "const": "allowed"
+            },
+            {
+              "type": "string",
+              "const": "not_required"
+            },
+            {
+              "type": "string",
+              "const": "prohibited"
+            }
+          ]
+        },
+        "moralJustification": {
+          "type": "string",
+          "const": "not_required"
+        },
+        "punishmentOrDefeat": {
+          "type": "string",
+          "const": "not_required"
+        }
+      },
+      "required": [
+        "allowedOrientations",
+        "requiredStances",
+        "redemption",
+        "hiddenGoodness",
+        "moralJustification",
+        "punishmentOrDefeat"
+      ]
+    },
+    "__schema25": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prohibited": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contentBoundaries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "freeInstruction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "required",
+        "prohibited",
+        "contentBoundaries",
+        "freeInstruction"
+      ]
+    },
+    "__schema26": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "__schema27": {
+      "type": "object",
+      "properties": {
+        "avoidNamedCharacters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nameThreshold": {
+          "type": "number"
+        },
+        "semanticThreshold": {
+          "type": "number"
+        },
+        "combinationThreshold": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "avoidNamedCharacters",
+        "nameThreshold",
+        "semanticThreshold",
+        "combinationThreshold"
+      ]
+    },
+    "__schema28": {
+      "type": "object",
+      "properties": {
+        "selectedItemIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "userConstraintHash": {
+          "type": "string"
+        },
+        "compiledAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "selectedItemIds",
+        "userConstraintHash",
+        "compiledAt"
+      ]
+    }
+  }
+}

@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { AnyGeneratedCharacterCandidate, GenerationValidationReport } from "../shared/schemas";
+import type { AnyGeneratedCharacterCandidate, GenerationValidationReport } from "../shared/contracts/generation";
 import {
   expandSnapshotTreatments,
   groupGenerationSnapshotItems,
   snapshotConditionLabel,
 } from "../src/lib/generation-snapshot-items";
-import { compileGenerationSelections, selectionValuePolicy } from "../worker/services/generation-selections";
-import { textOverlap } from "../worker/services/generation-similarity";
+import { textOverlap } from "../worker/features/generation/similarity";
+import { compileGenerationSelections, selectionValuePolicy } from "../worker/features/generation/treatments";
 import {
   GENERATION_POLICY_CHECKS,
   type GenerationCoverageBrief,
   isCharacterContentPointer,
   reconcileGenerationValidation,
-} from "../worker/services/generation-validation";
+} from "../worker/features/generation/validation";
 
 const brief: GenerationCoverageBrief = {
   preferenceSelections: [

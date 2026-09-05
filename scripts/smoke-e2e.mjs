@@ -20,7 +20,9 @@ async function request(path, init = {}) {
   const text = await response.text();
   const payload = text ? JSON.parse(text) : undefined;
   if (!response.ok) throw new Error(`${init.method ?? "GET"} ${path}: ${response.status} ${JSON.stringify(payload)}`);
-  return payload?.data ?? payload;
+  if (response.status === 204) return undefined;
+  if (!payload || !Object.hasOwn(payload, "data")) throw new Error(`Invalid success envelope: ${path}`);
+  return payload.data;
 }
 
 async function waitEntry(entryId, expected) {
@@ -115,7 +117,7 @@ const generation = await request("/generation-requests", {
 });
 let generated;
 for (let attempt = 0; attempt < 30; attempt += 1) {
-  const rows = (await request("/generated-characters")).generations;
+  const rows = (await request("/generation-requests")).generations;
   generated = rows.find((row) => row.generationRequestId === generation.generationRequestId);
   if (generated?.status === "generated") break;
   if (generated?.status === "failed") throw new Error(`generation failed: ${generated.job.errorCode}`);

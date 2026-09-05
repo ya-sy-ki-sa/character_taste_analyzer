@@ -1,0 +1,1 @@
+export const ANALYSIS_MAX_OUTPUT_TOKENS = 100_000;

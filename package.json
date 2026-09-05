@@ -10,9 +10,9 @@
   "scripts": {
     "dev": "vite",
     "dev:offline": "CLOUDFLARE_ENV=offline vite",
-    "build": "tsc --noEmit && vite build && node scripts/remove-build-secrets.mjs",
-    "build:staging": "tsc --noEmit && CLOUDFLARE_ENV=staging vite build && node scripts/remove-build-secrets.mjs",
-    "build:production": "tsc --noEmit && CLOUDFLARE_ENV=production vite build && node scripts/remove-build-secrets.mjs",
+    "build": "npm run typecheck && vite build && node scripts/remove-build-secrets.mjs",
+    "build:staging": "npm run typecheck && CLOUDFLARE_ENV=staging vite build && node scripts/remove-build-secrets.mjs",
+    "build:production": "npm run typecheck && CLOUDFLARE_ENV=production vite build && node scripts/remove-build-secrets.mjs",
     "deploy": "npm run deploy:production",
     "deploy:staging": "npm run build:staging && wrangler deploy --env staging --config wrangler.jsonc",
     "deploy:production": "npm run build:production && wrangler deploy --env production --config wrangler.jsonc",
@@ -25,7 +25,7 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.browser.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.tools.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -34,19 +34,19 @@
     "contracts:ddl": "node scripts/check-ddl.mjs",
     "contracts:schemas": "node scripts/check-schemas.mjs",
     "contracts:openapi": "vitest run tests/openapi-contract.test.ts",
-    "contracts:prompts": "node scripts/check-prompts.mjs",
-    "contracts": "npm run contracts:ddl && npm run contracts:schemas && npm run contracts:openapi && npm run contracts:prompts",
-    "eval:dark:gate": "node scripts/check-dark-eval.mjs",
+    "contracts": "npm run assets:check && npm run contracts:ddl && npm run contracts:schemas && npm run contracts:openapi",
     "bundle:budget": "node scripts/check-bundle-budget.mjs",
     "secret:scan": "node scripts/check-secrets.mjs",
     "licenses:generate": "node scripts/generate-third-party-licenses.mjs",
     "licenses:check": "node scripts/generate-third-party-licenses.mjs --check",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run contracts && npm run licenses:check && npm run build && npm run secret:scan && npm run bundle:budget && npm run test:e2e",
-    "eval:quality": "node scripts/run-quality-evaluation.mjs"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run contracts && npm run architecture:check && npm run licenses:check && npm run build && npm run secret:scan && npm run bundle:budget && npm run test:e2e",
+    "eval:quality": "node scripts/run-quality-evaluation.mjs",
+    "assets:generate": "node scripts/generate-assets.mjs",
+    "assets:check": "node scripts/generate-assets.mjs --check",
+    "architecture:check": "node scripts/check-architecture.mjs"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.2",
-    "@hono/zod-validator": "0.9.1",
     "@tanstack/react-query": "5.102.8",
     "graphology": "0.26.0",
     "graphology-layout-forceatlas2": "0.10.1",
@@ -73,6 +73,7 @@
     "typescript": "7.0.2",
     "vite": "8.2.2",
     "vitest": "4.1.11",
-    "wrangler": "4.128.0"
+    "wrangler": "4.128.0",
+    "@babel/parser": "7.29.8"
   }
 }

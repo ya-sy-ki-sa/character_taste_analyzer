@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "in_scope",
+        "borderline",
+        "out_of_scope"
+      ]
+    },
+    "qualifyingArchetypes": {
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      }
+    },
+    "agencyOrigin": {
+      "type": "string",
+      "enum": [
+        "self_authored",
+        "externally_imposed",
+        "mixed",
+        "unclear"
+      ]
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "whole_character",
+        "phase",
+        "form",
+        "scene",
+        "relationship",
+        "unknown"
+      ]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 3000
+    },
+    "limitations": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      }
+    },
+    "evidence": {
+      "maxItems": 6,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema2"
+      }
+    },
+    "recommendedQuestions": {
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema8"
+      }
+    }
+  },
+  "required": [
+    "verdict",
+    "qualifyingArchetypes",
+    "agencyOrigin",
+    "scope",
+    "rationale",
+    "limitations",
+    "evidence",
+    "recommendedQuestions"
+  ],
+  "$defs": {
+    "__schema0": {
+      "type": "string",
+      "enum": [
+        "villain",
+        "villain_protagonist",
+        "antagonistic_rival",
+        "antihero",
+        "dark_hero",
+        "morally_gray",
+        "fallen_hero",
+        "controlled_hero",
+        "manipulated_former_ally",
+        "betraying_ally",
+        "other_dark"
+      ]
+    },
+    "__schema1": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "__schema2": {
+      "type": "object",
+      "properties": {
+        "sourceRef": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "sourceUrl": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "inputPointer": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "quote": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "inferenceType": {
+          "$ref": "#/$defs/__schema7"
+        }
+      },
+      "required": [
+        "sourceRef",
+        "sourceUrl",
+        "inputPointer",
+        "quote",
+        "inferenceType"
+      ]
+    },
+    "__schema3": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema4": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000,
+          "format": "uri"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema5": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^\\/.*"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema6": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema7": {
+      "type": "string",
+      "enum": [
+        "direct",
+        "paraphrase",
+        "inferred"
+      ]
+    },
+    "__schema8": {
+      "type": "string",
+      "maxLength": 500
+    }
+  }
+}

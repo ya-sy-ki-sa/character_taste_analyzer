@@ -1,4 +1,4 @@
-import type { PreferenceCandidate } from "./schemas";
+import type { PreferenceCandidate } from "./contracts/preference";
 
 export type PreferenceQuestion = PreferenceCandidate["uncertainties"][number];
 

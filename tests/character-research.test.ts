@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type EntryDraft, entryDraftSchema } from "../shared/schemas";
-import { collectCharacterResearch } from "../worker/services/character-research";
+import { type EntryDraft, entryDraftSchema } from "../shared/contracts/entries";
+import { collectCharacterResearch } from "../worker/features/analysis/research";
 import type { Env } from "../worker/types";
 
 const existing: EntryDraft = entryDraftSchema.parse({

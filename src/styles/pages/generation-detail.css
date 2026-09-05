@@ -1,0 +1,56 @@
+@layer pages {
+  .selection-table {
+    padding: 0;
+    overflow: hidden;
+  }
+  .selection-head,
+  .selection-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(130px, 0.25fr);
+    align-items: center;
+    gap: 18px;
+    padding: 11px 16px;
+  }
+  .selection-head {
+    color: var(--ctl-text-muted);
+    background: var(--ctl-chassis);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+  .selection-row + .selection-row {
+    border-top: 1px solid var(--ctl-line);
+  }
+  .selection-row > span {
+    display: grid;
+    min-width: 0;
+  }
+  .selection-row small {
+    color: var(--ctl-text-muted);
+    font-family: monospace;
+    overflow-wrap: anywhere;
+  }
+  .generation-form-card {
+    display: grid;
+    gap: 20px;
+  }
+  .generation-mode.mode-exploratory {
+    color: var(--ctl-caution-text);
+    background: var(--ctl-caution-dim);
+  }
+  .sheet-section {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+  }
+  .sheet-section > span {
+    color: var(--ctl-signal);
+    font:
+      500 1.25rem Georgia,
+      serif;
+  }
+  .sheet-section ul {
+    margin-block: 8px 0;
+    padding-left: 18px;
+  }
+}

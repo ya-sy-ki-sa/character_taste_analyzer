@@ -1,44 +1,85 @@
-import { Hono } from "hono";
+import { createRoute } from "@hono/zod-openapi";
 import { z } from "zod";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
+import { snapshotResponseSchema } from "../../shared/contracts/generation-response";
+import { graphResponseSchema, profileResponseSchema } from "../../shared/contracts/profile-response";
 import { requireSession } from "../auth";
-import { data } from "../http";
-import { dispatchPendingProfileRebuild } from "../services/orchestration";
-import { createDataStoreStrategy } from "../storage/strategy";
-import type { AppEnv } from "../types";
+import { loadCurrentGraph } from "../features/profile/graph";
+import { loadCurrentProfile, loadProjectionFreshness } from "../features/profile/projection";
+import { loadProfileSnapshotItems } from "../features/profile/snapshot";
+import { createApiRouter, data, errorResponses, jsonResponse } from "../http";
+import { dispatchPendingProfileRebuild } from "../runtime/outbox";
 
 export function createProfileRoutes(domain: AnalysisDomain) {
-  const app = new Hono<AppEnv>();
+  const app = createApiRouter();
 
-  app.get("/profile", async (context) => {
-    const session = requireSession(context);
-    const strategy = createDataStoreStrategy(context.env);
-    const [profile, freshness] = await Promise.all([
-      strategy.loadCurrentProfile(session.userId, domain),
-      strategy.loadProjectionFreshness(session.userId),
-    ]);
-    if (!profile && freshness.status === "rebuilding")
-      context.executionCtx.waitUntil(dispatchPendingProfileRebuild(context.env, session.userId));
-    return context.json(data({ profile, freshness }));
-  });
+  app.openapi(
+    createRoute({
+      method: "get",
+      path: "/profile",
+      operationId: domain + "." + "profile.get..profile",
+      request: {},
+      responses: { ...errorResponses, 200: jsonResponse(profileResponseSchema) },
+    }),
+    async (context) => {
+      const session = requireSession(context);
 
-  app.get("/profile/snapshot-items", async (context) => {
-    const session = requireSession(context);
-    return context.json(
-      data(await createDataStoreStrategy(context.env).loadProfileSnapshotItems(session.userId, domain)),
-    );
-  });
+      const [profile, freshness] = await Promise.all([
+        loadCurrentProfile(context.env, session.userId, domain),
+        loadProjectionFreshness(context.env, session.userId),
+      ]);
+      if (!profile && freshness.status === "rebuilding")
+        context.executionCtx.waitUntil(dispatchPendingProfileRebuild(context.env, session.userId));
+      return context.json(data({ profile, freshness }, profileResponseSchema), 200);
+    },
+  );
 
-  app.get("/profile/graph", async (context) => {
-    const session = requireSession(context);
-    const detail = z.enum(["summary", "standard", "expanded"]).catch("standard").parse(context.req.query("detail"));
-    const strategy = createDataStoreStrategy(context.env);
-    const [graph, freshness] = await Promise.all([
-      strategy.loadCurrentGraph(session.userId, domain, detail),
-      strategy.loadProjectionFreshness(session.userId),
-    ]);
-    return context.json(data({ graph, freshness }));
-  });
+  app.openapi(
+    createRoute({
+      method: "get",
+      path: "/profile/snapshot-items",
+      operationId: domain + "." + "profile.get..profile.snapshot.items",
+      request: {},
+      responses: { ...errorResponses, 200: jsonResponse(snapshotResponseSchema) },
+    }),
+    async (context) => {
+      const session = requireSession(context);
+      return context.json(
+        data(await loadProfileSnapshotItems(context.env, session.userId, domain), snapshotResponseSchema),
+        200,
+      );
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: "get",
+      path: "/profile/graph",
+      operationId: domain + "." + "profile.get..profile.graph",
+      request: {
+        query: z.object({
+          detail: z
+            .string()
+            .optional()
+            .describe("summary, standard, expanded; omitted or unrecognized values use standard"),
+        }),
+      },
+      responses: { ...errorResponses, 200: jsonResponse(graphResponseSchema) },
+    }),
+    async (context) => {
+      const session = requireSession(context);
+      const detail = z
+        .enum(["summary", "standard", "expanded"])
+        .catch("standard")
+        .parse(context.req.valid("query").detail);
+
+      const [graph, freshness] = await Promise.all([
+        loadCurrentGraph(context.env, session.userId, domain, detail),
+        loadProjectionFreshness(context.env, session.userId),
+      ]);
+      return context.json(data({ graph, freshness }, graphResponseSchema), 200);
+    },
+  );
 
   return app;
 }

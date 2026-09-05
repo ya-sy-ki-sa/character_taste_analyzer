@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
+import { preferenceRefinementSchema } from "../shared/contracts/refinement";
 import { preferenceQuestions } from "../shared/preference-questions";
-import { preferenceRefinementSchema } from "../shared/quality-schemas";
 
 it("uses the actual recommended question rather than its uncertainty explanation", () => {
   expect(

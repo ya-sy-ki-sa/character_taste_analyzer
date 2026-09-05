@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import type { PreferenceHypothesis } from "../shared/quality-schemas";
-import type { PreferenceCandidate } from "../shared/schemas";
-import { mergeSelectedPreferenceHypotheses } from "../worker/services/preference-retention";
+import type { PreferenceCandidate } from "../shared/contracts/preference";
+import type { PreferenceHypothesis } from "../shared/contracts/refinement";
+import { mergeSelectedPreferenceHypotheses } from "../worker/features/analysis/retention";
 
 it("keeps the analyzed selection once, even when the model decomposes its scope, and fills only omissions", () => {
   const batch = crypto.randomUUID();

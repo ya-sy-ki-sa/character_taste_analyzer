@@ -1,14 +1,17 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { buildDependencies } from "./scripts/lib/build-dependencies.ts";
 
 export default defineConfig({
   plugins: [
     react(),
+    buildDependencies(),
     cloudflare({
       persistState: process.env.E2E_STATE_PATH ? { path: process.env.E2E_STATE_PATH } : true,
     }),
   ],
+  build: { manifest: true },
   server: {
     headers: {
       "Content-Security-Policy":

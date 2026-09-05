@@ -1,10 +1,12 @@
 import { type FormEvent, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
+import type { RegistrationResult } from "../../shared/contracts/account-response";
 import type { SessionUser } from "../../shared/membership";
-import { api, idempotencyKey, setCsrfToken } from "../api";
 import { Turnstile } from "../components/Turnstile";
 import { Brand, Modal, Notice } from "../components/Ui";
+import { accountApi } from "../features/account/api";
+import { idempotencyKey, setCsrfToken } from "../lib/http";
 
 export function Landing({
   domain,
@@ -178,10 +180,7 @@ function LoginModal({ onClose, onLogin }: { onClose(): void; onLogin(user: Sessi
     setSubmitting(true);
     setError(undefined);
     try {
-      const response = await api<{ user: SessionUser; csrfToken: string }>("/api/v1/sessions", {
-        method: "POST",
-        body: JSON.stringify({ username, accessKey, turnstileToken }),
-      });
+      const response = await accountApi.login({ username, accessKey, turnstileToken });
       setCsrfToken(response.csrfToken);
       onLogin(response.user);
     } catch (caught) {
@@ -231,7 +230,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
   const [usageNotesAccepted, setUsageNotesAccepted] = useState(false);
   const [showUsageNotes, setShowUsageNotes] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>();
-  const [created, setCreated] = useState<{ user: SessionUser; accessKey: string; expiresAt: string }>();
+  const [created, setCreated] = useState<RegistrationResult>();
   const [acknowledged, setAcknowledged] = useState(false);
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -244,11 +243,10 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
     setSubmitting(true);
     setError(undefined);
     try {
-      const result = await api<{ user: SessionUser; accessKey: string; expiresAt: string }>("/api/v1/users", {
-        method: "POST",
-        idempotencyKey: requestKey.current,
-        body: JSON.stringify({ username, turnstileToken, idempotencyKey: requestKey.current }),
-      });
+      const result = await accountApi.register(
+        { username, turnstileToken, idempotencyKey: requestKey.current },
+        requestKey.current,
+      );
       setCreated(result);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "作成できませんでした");
@@ -262,10 +260,7 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
     setSubmitting(true);
     setError(undefined);
     try {
-      await api(`/api/v1/users/${created.user.id}/activate`, {
-        method: "POST",
-        body: JSON.stringify({ accessKey: created.accessKey }),
-      });
+      await accountApi.activate(created.user.id, { accessKey: created.accessKey });
       onClose();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "有効化できませんでした");

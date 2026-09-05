@@ -1,42 +1,35 @@
-import {
-  type AnyEntryDraft,
-  canonicalEntryInputPointer,
-  entryBaseCharacterName,
-  entryReferenceMaterial,
-} from "../../shared/schemas";
+import type { AnyEntryDraft } from "../../shared/contracts/entries";
+import type {
+  CharacterAssertionDetail,
+  CustomizationDeltaDetail,
+  EvidenceDetail,
+  ReviewDetail,
+} from "../../shared/contracts/entry-review";
+import { canonicalEntryInputPointer, entryBaseCharacterName, entryReferenceMaterial } from "../../shared/entry-input";
 
-type MarkdownEvidence = {
-  verificationStatus: string;
-  inferenceType: string;
-  quote: string | null;
-  inputPointer: string | null;
-  sourceTitle: string | null;
-  sourceUrl: string | null;
-  sourceProvider: string | null;
-  trustReason: string | null;
-};
-
-type MarkdownAssertion = {
-  raw_label: string;
-  value_text: string;
-  explicitness: string;
-  confidence: number;
-  status: string;
-  evidence: MarkdownEvidence[];
-};
-
-type MarkdownDelta = {
-  operation: string;
-  before_value: string | null;
-  after_value: string | null;
-  reason_text: string | null;
-  confidence: number;
-  status: string;
-};
+type MarkdownEvidence = Pick<
+  EvidenceDetail,
+  | "verificationStatus"
+  | "inferenceType"
+  | "quote"
+  | "inputPointer"
+  | "sourceTitle"
+  | "sourceUrl"
+  | "sourceProvider"
+  | "trustReason"
+>;
+type MarkdownAssertion = Pick<
+  CharacterAssertionDetail,
+  "raw_label" | "value_text" | "explicitness" | "confidence" | "status"
+> & { evidence: MarkdownEvidence[] };
+type MarkdownDelta = Pick<
+  CustomizationDeltaDetail,
+  "operation" | "before_value" | "after_value" | "reason_text" | "confidence" | "status"
+>;
 
 type MarkdownUnderstanding = {
   sourceAssessment: { coverage: string; limitations: string[] };
-  summary: Record<string, string | string[]>;
+  summary: NonNullable<ReviewDetail["understanding"]>["summary"];
   uncertainties: Array<{ topic: string; reason: string }>;
   confidence: number;
   assertions: MarkdownAssertion[];
@@ -161,7 +154,11 @@ function appendUnderstanding(lines: string[], title: string, understanding: Mark
   lines.push(`- 情報充足度: ${coverageLabels[understanding.sourceAssessment.coverage] ?? "未分類"}`);
   lines.push(`- 全体登録内支持度: ${Math.round(understanding.confidence * 100)}%`, "");
   for (const [key, value] of Object.entries(understanding.summary)) {
-    const normalized = Array.isArray(value) ? value.join("、") : value;
+    const normalized = Array.isArray(value)
+      ? value.join("、")
+      : typeof value === "string"
+        ? value
+        : JSON.stringify(value);
     field(lines, summaryLabels[key] ?? "その他の特徴", normalized);
   }
   if (understanding.assertions.length) {

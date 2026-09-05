@@ -1,7 +1,7 @@
-import { Hono } from "hono";
 import { analysisDomainValues, apiPrefixForDomain } from "../shared/analysis-domain";
 import { csrfMiddleware, rateLimitMiddleware, sessionMiddleware } from "./auth";
 import { handleError } from "./error-handler";
+import { createApiRouter } from "./http";
 import { requestBodyLimit, requestMetadata } from "./middleware";
 import { createAccountRoutes } from "./routes/account";
 import { createAuthRoutes } from "./routes/auth";
@@ -10,9 +10,8 @@ import { createGenerationRoutes } from "./routes/generation";
 import { createHealthRoutes } from "./routes/health";
 import { createJobsRoutes } from "./routes/jobs";
 import { createProfileRoutes } from "./routes/profile";
-import type { AppEnv } from "./types";
 
-export const app = new Hono<AppEnv>();
+export const app = createApiRouter();
 
 app.use("*", requestMetadata);
 app.use("/api/v1/*", requestBodyLimit);

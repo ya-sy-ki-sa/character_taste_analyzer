@@ -1,0 +1,430 @@
+@layer pages {
+  .entry-symbol.customized_existing {
+    color: var(--ctl-positive-text);
+    background: var(--ctl-positive-dim);
+  }
+  .job-understanding_review,
+  .job-analysis_review {
+    color: var(--ctl-caution-text);
+    background: var(--ctl-caution-dim);
+  }
+  .job-active,
+  .confidence-stable {
+    color: var(--ctl-positive-text);
+    background: var(--ctl-positive-dim);
+  }
+  .confidence-emerging {
+    color: var(--ctl-structure-text);
+    background: var(--ctl-structure-dim);
+  }
+  .confidence-insufficient {
+    color: var(--ctl-text-muted);
+    background: var(--ctl-chassis);
+  }
+  .trait-meter.negative > i {
+    background: linear-gradient(90deg, var(--ctl-danger), #df8a75);
+  }
+  .danger-text {
+    color: var(--ctl-danger);
+    overflow-wrap: anywhere;
+  }
+  .channel-picker {
+    padding: 16px;
+    border: 1px solid var(--ctl-line);
+    border-radius: var(--ctl-radius-sm);
+  }
+  .channel-picker legend {
+    padding-inline: 6px;
+    font-weight: 700;
+  }
+  .channel-picker-intro {
+    margin: 0 0 14px;
+    color: var(--ctl-text-muted);
+    font-size: 0.88rem;
+  }
+  .channel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 18px;
+  }
+  .channel-option {
+    padding: 7px 8px;
+    border-radius: var(--ctl-radius-sm);
+  }
+  .channel-option:hover {
+    background: var(--ctl-chassis);
+  }
+  .channel-option-copy {
+    display: grid;
+    gap: 2px;
+  }
+  .channel-option-copy b {
+    font-size: 0.92rem;
+  }
+  .channel-option-copy small {
+    color: var(--ctl-text-muted);
+    font-size: 0.78rem;
+    font-weight: 450;
+    line-height: 1.45;
+  }
+  .channel-accordions {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .channel-accordion {
+    overflow: hidden;
+    border: 1px solid var(--ctl-line);
+    border-radius: var(--ctl-radius-sm);
+    background: var(--ctl-field);
+  }
+  .channel-accordion summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .channel-accordion summary::-webkit-details-marker {
+    display: none;
+  }
+  .channel-accordion summary > span:first-child {
+    display: grid;
+    gap: 2px;
+  }
+  .channel-accordion summary small {
+    color: var(--ctl-text-muted);
+    font-size: 0.78rem;
+    font-weight: 450;
+  }
+  .channel-accordion-count {
+    flex: none;
+    color: var(--ctl-signal);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .channel-accordion-count::after {
+    content: "⌄";
+    margin-left: 7px;
+  }
+  .channel-accordion[open] .channel-accordion-count::after {
+    content: "⌃";
+  }
+  .channel-detail-grid {
+    padding: 8px 12px 14px;
+    border-top: 1px solid var(--ctl-line);
+  }
+  .review-stack,
+  .review-summary,
+  .assertion-list > article {
+    display: grid;
+    gap: 10px;
+  }
+  .review-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-block: 14px;
+  }
+  .review-summary > div,
+  .assertion-list > article {
+    padding: 12px 14px;
+    background: var(--ctl-void);
+    border: 1px solid var(--ctl-line);
+    border-radius: var(--ctl-radius-sm);
+  }
+  .review-summary dt,
+  .assertion-list small {
+    color: var(--ctl-text-muted);
+    font-size: 0.73rem;
+  }
+  .assertion-list > article {
+    gap: 2px;
+  }
+  .assertion-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+  }
+  .assertion-card-header > strong {
+    min-width: 0;
+  }
+  .assertion-title {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+  }
+  .user-corrected-badge {
+    padding: 2px 6px;
+    color: var(--ctl-structure);
+    background: var(--ctl-structure-dim);
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+  .confidence-pill {
+    flex: none;
+    padding: 3px 8px;
+    color: var(--ctl-text-muted);
+    background: var(--ctl-panel);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .assertion-value {
+    margin: 3px 0 1px;
+    color: var(--ctl-text-primary);
+    font-size: 0.94rem;
+    font-weight: 550;
+    line-height: 1.65;
+  }
+  .section-help {
+    margin: -3px 0 10px;
+    color: var(--ctl-text-muted);
+    font-size: 0.76rem;
+  }
+  .review-edit-guidance {
+    margin: 0 0 10px;
+    padding: 9px 11px;
+    color: var(--ctl-text-muted);
+    background: var(--ctl-structure-dim);
+    border-radius: 8px;
+    font-size: 0.74rem;
+    line-height: 1.55;
+  }
+  .customization-delta-list {
+    display: grid;
+    gap: 12px;
+  }
+  .customization-delta {
+    display: grid;
+    gap: 13px;
+    padding: 15px 16px;
+    background: var(--ctl-void);
+    border: 1px solid var(--ctl-line);
+    border-radius: var(--ctl-radius-sm);
+  }
+  .customization-delta-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+  }
+  .customization-delta-header > div {
+    display: grid;
+    gap: 3px;
+  }
+  .customization-delta-header strong {
+    color: var(--ctl-text-primary);
+    font-size: 0.93rem;
+  }
+  .customization-delta-header p {
+    color: var(--ctl-text-muted);
+    font-size: 0.72rem;
+  }
+  .customization-comparison {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+  }
+  .customization-comparison section {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    padding: 11px 12px;
+    background: var(--ctl-panel);
+    border: 1px solid var(--ctl-line);
+    border-radius: 8px;
+  }
+  .customization-comparison section > span {
+    color: var(--ctl-text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  .customization-comparison section > p {
+    color: var(--ctl-text-primary);
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+  .customization-comparison .customization-target {
+    background: var(--ctl-structure-dim);
+    border-color: color-mix(in srgb, var(--ctl-structure) 35%, var(--ctl-line));
+  }
+  .customization-arrow {
+    align-self: center;
+    color: var(--ctl-signal);
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+  .customization-reason {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 9px;
+    color: var(--ctl-text-muted);
+    font-size: 0.74rem;
+    line-height: 1.55;
+  }
+  .customization-reason strong {
+    color: var(--ctl-text-primary);
+  }
+  .assertion-list > article.negative {
+    border-color: color-mix(in srgb, var(--ctl-danger) 40%, var(--ctl-line));
+    background: var(--ctl-danger-dim);
+  }
+  .review-item-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--ctl-line);
+  }
+  .review-item-actions button {
+    padding: 3px 0;
+    color: var(--ctl-structure);
+    background: transparent;
+    border: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+  }
+  .review-item-actions button.danger-link {
+    color: var(--ctl-danger);
+  }
+  .manual-add-button {
+    width: 100%;
+    padding: 11px 14px;
+    color: var(--ctl-structure);
+    background: color-mix(in srgb, var(--ctl-structure-dim) 50%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--ctl-structure) 45%, var(--ctl-line));
+    border-radius: var(--ctl-radius-sm);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .review-edit-form {
+    display: grid;
+    gap: 11px;
+    margin-top: 9px;
+    padding: 13px;
+    background: var(--ctl-panel);
+    border: 1px solid var(--ctl-line);
+    border-radius: 9px;
+  }
+  .review-edit-form label {
+    display: grid;
+    gap: 5px;
+  }
+  .review-edit-form label > span {
+    color: var(--ctl-text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .review-edit-form input,
+  .review-edit-form textarea,
+  .review-edit-form select {
+    width: 100%;
+  }
+  .review-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .review-edit-actions .button {
+    min-height: 35px;
+    padding: 7px 12px;
+    font-size: 0.73rem;
+  }
+  .manual-add-form {
+    margin-top: 0;
+    border-style: dashed;
+  }
+  .evidence-disclosure {
+    margin-top: 7px;
+  }
+  .evidence-disclosure > summary {
+    width: fit-content;
+    color: var(--ctl-structure);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .evidence-disclosure > summary:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .evidence-close-label,
+  .evidence-disclosure[open] .evidence-open-label {
+    display: none;
+  }
+  .evidence-disclosure[open] .evidence-close-label {
+    display: inline;
+  }
+  .evidence-list {
+    display: grid;
+    gap: 8px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .evidence-item {
+    display: grid;
+    gap: 7px;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--ctl-panel) 72%, transparent);
+    border-left: 3px solid var(--ctl-line);
+    border-radius: 7px;
+  }
+  .evidence-heading,
+  .evidence-detail {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 9px;
+  }
+  .evidence-status {
+    color: var(--ctl-text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .evidence-verified_quote {
+    border-left-color: var(--ctl-signal);
+  }
+  .evidence-invalid {
+    border-left-color: var(--ctl-danger);
+    background: var(--ctl-danger-dim);
+  }
+  .evidence-detail > span {
+    min-width: 4em;
+    color: var(--ctl-text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .evidence-detail q {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .evidence-detail code {
+    color: var(--ctl-text-muted);
+    font-size: 0.68rem;
+    overflow-wrap: anywhere;
+  }
+  .evidence-warning {
+    color: var(--ctl-danger);
+  }
+  .stance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px;
+  }
+  .stance-grid .card {
+    display: grid;
+    gap: 5px;
+  }
+  .stance-grid small {
+    color: var(--ctl-text-muted);
+  }
+}

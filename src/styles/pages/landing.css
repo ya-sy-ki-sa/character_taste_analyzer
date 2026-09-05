@@ -1,0 +1,122 @@
+@layer pages {
+  .landing {
+    overflow: hidden;
+  }
+  .landing::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    width: 420px;
+    height: 420px;
+    right: -150px;
+    top: -130px;
+    border: 1px solid #e7d7ce;
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 45px rgba(255, 255, 255, 0.2),
+      0 0 0 90px rgba(237, 219, 210, 0.12);
+  }
+  .landing-nav {
+    justify-content: space-between;
+  }
+  .nav-note {
+    color: var(--ctl-text-muted);
+    font-family: Georgia, "Yu Mincho", serif;
+    font-size: 0.88rem;
+    letter-spacing: 0.08em;
+  }
+  .landing-nav-links > a {
+    gap: 7px;
+    transition: transform 0.16s ease;
+  }
+  .hero-copy h1 {
+    margin-top: 19px;
+    font-family: Georgia, "Yu Mincho", serif;
+    font-weight: 500;
+    font-size: clamp(2.8rem, 5.25vw, 5.3rem);
+    line-height: 1.18;
+  }
+  .hero-metrics {
+    display: flex;
+    gap: 0;
+    margin-top: 40px;
+  }
+  .hero-metrics > span {
+    display: grid;
+    gap: 1px;
+    min-width: 130px;
+    padding-right: 25px;
+    margin-right: 25px;
+    border-right: 1px solid var(--ctl-line);
+  }
+  .hero-metrics > span:last-child {
+    border: 0;
+    margin: 0;
+  }
+  .hero-metrics strong {
+    font-family: Georgia, "Yu Mincho", serif;
+  }
+  .hero-metrics small {
+    font-size: 0.72rem;
+  }
+  .user-panel {
+    min-width: 0;
+    padding: 30px;
+    background: color-mix(in srgb, var(--ctl-panel) 88%, transparent);
+    border: 1px solid var(--ctl-line);
+    border-radius: 30px;
+    box-shadow: var(--ctl-elevation);
+    backdrop-filter: blur(12px);
+  }
+  .landing-access-panel {
+    display: grid;
+    align-content: center;
+    gap: 32px;
+    min-height: 320px;
+  }
+  .landing-access-panel h2 {
+    margin-top: 6px;
+  }
+  .sidebar-user > span:nth-child(2) {
+    display: grid;
+    min-width: 0;
+  }
+  .sidebar-user small {
+    font-family: monospace;
+    font-size: 0.7rem;
+  }
+  .avatar {
+    display: grid;
+    place-items: center;
+    font-family: Georgia, serif;
+    font-weight: 700;
+  }
+  .process-strip {
+    align-items: center;
+    border-block: 1px solid var(--ctl-line);
+  }
+  .process-strip b {
+    font:
+      500 2.2rem / 1 Georgia,
+      serif;
+  }
+  .process-strip i {
+    color: var(--ctl-control-edge);
+    font-style: normal;
+  }
+  .landing-footer {
+    display: flex;
+    justify-content: center;
+    max-width: 1080px;
+    margin: 22px auto 0;
+  }
+  .landing-footer a {
+    color: var(--ctl-text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-underline-offset: 4px;
+  }
+  .landing-footer a:hover {
+    color: var(--ctl-local-light);
+  }
+}

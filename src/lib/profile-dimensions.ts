@@ -1,4 +1,4 @@
-import type { ProfileDimension } from "../../shared/schemas";
+import type { ProfileDimension } from "../../shared/contracts/profile-response";
 
 export type DisplayProfileDimension = ProfileDimension & {
   responseChannels: Array<NonNullable<ProfileDimension["responseChannel"]>>;

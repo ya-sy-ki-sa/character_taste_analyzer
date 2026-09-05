@@ -3,8 +3,8 @@ import forceAtlas2 from "graphology-layout-forceatlas2";
 import FA2LayoutSupervisor from "graphology-layout-forceatlas2/worker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
+import type { GraphProjection } from "../../shared/contracts/profile-response";
 import { graphEdgeTypeLabel, graphNodeLabel, graphNodeTypeLabel } from "../../shared/presentation-labels";
-import type { GraphProjection } from "../../shared/schemas";
 import { graphAttributeEntries } from "../lib/graph-labels";
 
 const colorRoles: Record<string, string> = {

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { SessionUser } from "../App";
-import { api, downloadExport } from "../api";
+import type { SessionUser } from "../../shared/membership";
 import { Card, Modal, Notice, PageHeading } from "../components/Ui";
+import { accountApi } from "../features/account/api";
+import { downloadExport } from "../features/account/export";
 
 export function SettingsPage({ user }: { user?: SessionUser }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -109,10 +110,7 @@ function DeleteModal({ user, onClose }: { user: SessionUser; onClose(): void }) 
   async function remove() {
     setSubmitting(true);
     try {
-      await api("/api/v1/account", {
-        method: "DELETE",
-        body: JSON.stringify({ usernameConfirmation: confirmation }),
-      });
+      await accountApi.delete({ usernameConfirmation: confirmation });
       window.location.href = "/";
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "削除できませんでした");

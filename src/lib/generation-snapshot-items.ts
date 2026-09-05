@@ -1,10 +1,4 @@
-export type GenerationSnapshotItem = {
-  id: string;
-  type: string;
-  stableKey: string;
-  label: string;
-  payload: Record<string, unknown>;
-};
+import type { GenerationSnapshotItem } from "../../shared/contracts/generation-response";
 
 export type GenerationSnapshotItemGroup = GenerationSnapshotItem & {
   itemIds: string[];

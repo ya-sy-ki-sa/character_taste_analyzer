@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { darkOntologySeeds } from "../shared/dark-ontology";
+import { frozenDarkAnalyzerFixtures, frozenOutOfScopeFixtures } from "../evaluation/fixtures/dark-analyzer-fixtures";
+import { darkOntologySeeds } from "../shared/catalogs/dark-ontology";
+import { darkTransformationOperationSchema } from "../shared/contracts/dark-understanding";
+import { darkEntrySubmissionSchema, entrySubmissionSchema } from "../shared/contracts/entries";
 import { darkResponseChannelCatalog } from "../shared/dark-response-channels";
-import { darkEntrySubmissionSchema, darkTransformationOperationSchema, entrySubmissionSchema } from "../shared/schemas";
-import { frozenDarkAnalyzerFixtures, frozenOutOfScopeFixtures } from "./fixtures/dark-analyzer-fixtures";
 
 describe("dark lab frozen evaluation fixtures", () => {
   it("freezes at least 48 in-scope cross-category cases and separate negative controls", () => {

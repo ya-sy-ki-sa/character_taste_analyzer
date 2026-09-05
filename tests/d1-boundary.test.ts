@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { D1_ID_VALIDATION_CHUNK_SIZE, validateSnapshotItemIds } from "../worker/services/generation";
+import { D1_ID_VALIDATION_CHUNK_SIZE, validateSnapshotItemIds } from "../worker/features/generation/selections";
 import type { Env } from "../worker/types";
 
 function validationEnv(bindSizes: number[]): Env {

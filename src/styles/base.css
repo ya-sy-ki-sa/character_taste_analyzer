@@ -1,0 +1,164 @@
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body,
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button {
+    color: inherit;
+  }
+  img,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+}
+@layer base {
+  :root {
+    color-scheme: dark;
+    --ctl-void: #06080a;
+    --ctl-chassis: #101315;
+    --ctl-panel: #15191b;
+    --ctl-lens: #080d0e;
+    --ctl-text-primary: #eee6d6;
+    --ctl-text-muted: #aeb5b7;
+    --ctl-control-edge: #667176;
+    --ctl-structure: #c49a5a;
+    --ctl-action: #9f382b;
+    --ctl-action-hover: #b54434;
+    --ctl-signal: #f15d48;
+    --ctl-local-light: #ffd0a5;
+    --ctl-line: rgb(238 230 214 / 15%);
+    --ctl-metal-line: rgb(196 154 90 / 34%);
+    --ctl-shadow: rgb(0 0 0 / 68%);
+    --ctl-font-display: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+    --ctl-font-body: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+    --ctl-font-utility: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --graph-user: #f15d48;
+    --graph-work: #c49a5a;
+    --graph-identity: #d8c49d;
+    --graph-representation: #9aa785;
+    --graph-attribute: #c37852;
+    --graph-raw-attribute: #af9066;
+    --graph-response: #d2a27b;
+    --graph-value: #bd6255;
+    --graph-context: #849095;
+    --graph-edge: #9b9f9d;
+    --graph-edge-negative: #d16b5b;
+    --ctl-field: #0b1012;
+    --ctl-signal-dim: #301714;
+    --ctl-structure-dim: #282218;
+    --ctl-positive: #9aa785;
+    --ctl-positive-text: #d1d9b8;
+    --ctl-positive-dim: #1d241c;
+    --ctl-caution: var(--ctl-structure);
+    --ctl-caution-text: #e2c28f;
+    --ctl-caution-dim: #2b2418;
+    --ctl-structure-text: #d8c19d;
+    --ctl-danger: #ff8171;
+    --ctl-danger-dim: #321814;
+    --ctl-elevation: 0 22px 54px var(--ctl-shadow);
+    --ctl-elevation-tight: 0 12px 26px rgb(0 0 0 / 42%);
+    --ctl-radius-lg: 2px;
+    --ctl-radius-md: 2px;
+    --ctl-radius-sm: 1px;
+  }
+
+  html {
+    min-width: 320px;
+    background: var(--ctl-void);
+  }
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    color: var(--ctl-text-primary);
+    background:
+      radial-gradient(circle at 72% 28%, rgb(196 154 90 / 7%), transparent 34rem),
+      repeating-linear-gradient(116deg, transparent 0 12px, rgb(255 255 255 / 0.7%) 13px, transparent 14px),
+      var(--ctl-void);
+    font-family: var(--ctl-font-body);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: inherit;
+  }
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  ::selection {
+    color: var(--ctl-void);
+    background: var(--ctl-local-light);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ctl-local-light);
+    outline-offset: 3px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    line-height: 1.25;
+    letter-spacing: 0.025em;
+  }
+  h1 {
+    font-size: clamp(2rem, 4vw, 3.5rem);
+  }
+  h2 {
+    font-size: clamp(1.25rem, 2.5vw, 1.8rem);
+  }
+  h3 {
+    font-size: 1.04rem;
+  }
+  small {
+    color: var(--ctl-text-muted);
+  }
+  code {
+    font-family: "SFMono-Regular", Consolas, monospace;
+  }
+  .muted {
+    color: var(--ctl-text-muted);
+  }
+  .centered {
+    text-align: center;
+  }
+  .full {
+    grid-column: 1 / -1;
+  }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}

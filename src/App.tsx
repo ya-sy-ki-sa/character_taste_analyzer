@@ -1,10 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useCallback, useEffect } from "react";
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import type { AnalysisDomain } from "../shared/analysis-domain";
+import { type AnalysisDomain, appPrefixForDomain } from "../shared/analysis-domain";
+import type { MeResponse } from "../shared/contracts/session-response";
 import type { SessionUser } from "../shared/membership";
-import { ApiClientError, api, setCsrfToken, setSessionExpiredHandler } from "./api";
 import { Brand, Spinner } from "./components/Ui";
+import { accountApi } from "./features/account/api";
+import { ApiClientError, setCsrfToken, setSessionExpiredHandler } from "./lib/http";
 import { Landing } from "./pages/Landing";
 
 const EntriesPage = lazy(() => import("./pages/EntriesPage").then((module) => ({ default: module.EntriesPage })));
@@ -14,10 +16,6 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage").then((module) => 
 const AnalyzerStatusPage = lazy(() =>
   import("./pages/AnalyzerStatusPage").then((module) => ({ default: module.AnalyzerStatusPage })),
 );
-
-export type { SessionUser } from "../shared/membership";
-
-type MeResponse = { user: SessionUser; csrfToken: string; expiresAt: string };
 
 export function App() {
   const queryClient = useQueryClient();
@@ -45,7 +43,7 @@ export function App() {
     queryKey: ["me"],
     queryFn: async () => {
       try {
-        const result = await api<MeResponse>("/api/v1/me");
+        const result = await accountApi.me();
         setCsrfToken(result.csrfToken);
         return result;
       } catch (error) {
@@ -155,9 +153,9 @@ function AuthenticatedLayout({
   domain: AnalysisDomain;
   onLogout(): void;
 }) {
-  const base = domain === "dark" ? "/dark-lab/app" : "/app";
+  const base = appPrefixForDomain(domain);
   function logout() {
-    const serverLogout = api("/api/v1/sessions", { method: "DELETE" }).catch(() => undefined);
+    const serverLogout = accountApi.logout().catch(() => undefined);
     onLogout();
     void serverLogout;
   }

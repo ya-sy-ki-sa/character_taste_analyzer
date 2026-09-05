@@ -1,185 +1,115 @@
-import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
-import { activationSchema, loginSchema, registrationSchema } from "../../shared/schemas";
+import { createRoute } from "@hono/zod-openapi";
+import { z } from "zod";
+import { activationSchema, loginSchema, registrationSchema } from "../../shared/contracts/account";
+import { activationResultSchema, registrationResultSchema } from "../../shared/contracts/account-response";
+import { meResponseSchema } from "../../shared/contracts/session-response";
 import { requireSession, verifyTurnstile } from "../auth";
-import { data, requireIdempotencyKey, validateJson } from "../http";
+import { activateAccount, endSession, registerAccount, startSession } from "../features/account/authentication";
+import { createApiRouter, data, errorResponses, jsonResponse, requireIdempotencyKey } from "../http";
 import { clearSessionCookie, readSessionCookie, sessionCookie } from "../lib/cookies";
-import {
-  addDaysIso,
-  addMinutesIso,
-  constantTimeEqual,
-  credentialDigestInput,
-  deriveUuid,
-  hmacHex,
-  normalizeUsername,
-  nowIso,
-  randomToken,
-  sha256Hex,
-} from "../lib/crypto";
-import { first } from "../lib/db";
-import { boundedInteger } from "../lib/numbers";
-import { membershipTierForUser } from "../services/membership";
-import type { AppEnv } from "../types";
 
 export function createAuthRoutes() {
-  const app = new Hono<AppEnv>();
+  const app = createApiRouter();
 
-  app.post("/users", validateJson(registrationSchema), async (context) => {
-    const input = context.req.valid("json");
-    await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
-    const key = requireIdempotencyKey(context.req.header("Idempotency-Key") || input.idempotencyKey);
-    const userId = await deriveUuid(context.env.AUTH_PEPPER, `registration:user:${key}`);
-    const accessKey = await deriveUuid(context.env.AUTH_PEPPER, `registration:key:${key}`);
-    const username = input.username.normalize("NFKC").trim().replace(/\s+/gu, " ");
-    const normalized = normalizeUsername(username);
-    const existing = await first<{
-      id: string;
-      username: string;
-      username_normalized: string;
-      membership_tier: string;
-      status: string;
-      pending_expires_at: string | null;
-    }>(
-      context.env.DB.prepare(
-        `SELECT id,username,username_normalized,status,pending_expires_at,membership_tier FROM users WHERE id=?`,
-      ).bind(userId),
-    );
-    if (existing) {
-      if (existing.username_normalized !== normalized)
-        throw new HTTPException(409, { message: "Idempotency-Keyが別のユーザー名で使用されています" });
+  app.openapi(
+    createRoute({
+      method: "post",
+      path: "/users",
+      operationId: "auth.post..users",
+      request: { body: { required: true, content: { "application/json": { schema: registrationSchema } } } },
+      responses: {
+        ...errorResponses,
+        200: jsonResponse(registrationResultSchema),
+        201: jsonResponse(registrationResultSchema),
+      },
+    }),
+    async (context) => {
+      const input = context.req.valid("json");
+      await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
+      const key = requireIdempotencyKey(context.req.header("Idempotency-Key") || input.idempotencyKey);
+      const { result, status } = await registerAccount(context.env, input, key);
+      return context.json(data(result, registrationResultSchema), status);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: "post",
+      path: "/users/{id}/activate",
+      operationId: "auth.post..users.id.activate",
+      request: {
+        body: { required: true, content: { "application/json": { schema: activationSchema } } },
+        params: z.object({ id: z.string().min(1) }),
+      },
+      responses: { ...errorResponses, 200: jsonResponse(activationResultSchema) },
+    }),
+    async (context) => {
       return context.json(
-        data({
-          user: {
-            id: existing.id,
-            username: existing.username,
-            status: existing.status,
-            membershipTier: membershipTierForUser(existing),
-          },
-          accessKey,
-          expiresAt: existing.pending_expires_at,
-        }),
+        data(
+          await activateAccount(context.env, context.req.param("id"), context.req.valid("json")),
+          activationResultSchema,
+        ),
         200,
       );
-    }
-    const duplicate = await first<{ id: string }>(
-      context.env.DB.prepare(`SELECT id FROM users WHERE username_normalized=?`).bind(normalized),
-    );
-    if (duplicate) throw new HTTPException(409, { message: "そのユーザー名は既に使用されています" });
-    const now = nowIso();
-    const expiresAt = addMinutesIso(15);
-    const digest = await hmacHex(context.env.AUTH_PEPPER, credentialDigestInput(userId, accessKey));
-    const results = await context.env.DB.batch([
-      context.env.DB.prepare(
-        `INSERT INTO users (id,username,username_normalized,status,is_public,pending_expires_at,created_at,updated_at) VALUES (?,?,?,'pending',1,?,?,?)`,
-      ).bind(userId, username, normalized, expiresAt, now, now),
-      context.env.DB.prepare(`INSERT INTO credentials (user_id,key_digest,created_at) VALUES (?,?,?)`).bind(
-        userId,
-        digest,
-        now,
-      ),
-    ]);
-    if (results.some((result) => !result.success))
-      throw new HTTPException(500, { message: "ユーザーを作成できませんでした" });
-    return context.json(
-      data({ user: { id: userId, username, status: "pending", membershipTier: "basic" }, accessKey, expiresAt }),
-      201,
-    );
-  });
+    },
+  );
 
-  app.post("/users/:id/activate", validateJson(activationSchema), async (context) => {
-    const userId = context.req.param("id");
-    const row = await first<{
-      key_digest: string;
-      status: string;
-      pending_expires_at: string | null;
-      username: string;
-      membership_tier: string;
-    }>(
-      context.env.DB.prepare(
-        `SELECT c.key_digest,u.status,u.pending_expires_at,u.username,u.membership_tier FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.id=?`,
-      ).bind(userId),
-    );
-    const submitted = await hmacHex(
-      context.env.AUTH_PEPPER,
-      credentialDigestInput(userId, context.req.valid("json").accessKey),
-    );
-    if (!row || !constantTimeEqual(row.key_digest, submitted))
-      throw new HTTPException(401, { message: "ユーザーIDまたはアクセスキーが無効です" });
-    if (row.status === "active")
+  app.openapi(
+    createRoute({
+      method: "post",
+      path: "/sessions",
+      operationId: "auth.post..sessions",
+      request: { body: { required: true, content: { "application/json": { schema: loginSchema } } } },
+      responses: { ...errorResponses, 200: jsonResponse(meResponseSchema) },
+    }),
+    async (context) => {
+      const input = context.req.valid("json");
+      await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
+      const { result, token, maxAge } = await startSession(context.env, input);
+      context.header("Set-Cookie", sessionCookie(token, maxAge, context.env.ENVIRONMENT));
+      return context.json(data(result, meResponseSchema), 200);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: "delete",
+      path: "/sessions",
+      operationId: "auth.delete..sessions",
+      request: {},
+      responses: { ...errorResponses, 204: { description: "No content" } },
+    }),
+    async (context) => {
+      const token = readSessionCookie(context.req.header("Cookie"), context.env.ENVIRONMENT);
+      await endSession(context.env, token);
+      context.header("Set-Cookie", clearSessionCookie(context.env.ENVIRONMENT));
+      return context.body(null, 204);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: "get",
+      path: "/me",
+      operationId: "auth.get..me",
+      request: {},
+      responses: { ...errorResponses, 200: jsonResponse(meResponseSchema) },
+    }),
+    (context) => {
+      const session = requireSession(context);
       return context.json(
-        data({
-          user: { id: userId, username: row.username, status: "active", membershipTier: membershipTierForUser(row) },
-        }),
+        data(
+          {
+            user: { id: session.userId, username: session.username, membershipTier: session.membershipTier },
+            csrfToken: session.csrfToken,
+            expiresAt: session.expiresAt,
+          },
+          meResponseSchema,
+        ),
+        200,
       );
-    if (row.status !== "pending" || !row.pending_expires_at || row.pending_expires_at <= nowIso())
-      throw new HTTPException(410, { message: "REGISTRATION_EXPIRED" });
-    const now = nowIso();
-    await context.env.DB.prepare(`UPDATE users SET status='active',activated_at=?,updated_at=? WHERE id=?`)
-      .bind(now, now, userId)
-      .run();
-    return context.json(
-      data({
-        user: { id: userId, username: row.username, status: "active", membershipTier: membershipTierForUser(row) },
-      }),
-    );
-  });
-
-  app.post("/sessions", validateJson(loginSchema), async (context) => {
-    const input = context.req.valid("json");
-    await verifyTurnstile(context.env, input.turnstileToken, context.req.header("CF-Connecting-IP"));
-    const row = await first<{ id: string; username: string; key_digest: string; membership_tier: string }>(
-      context.env.DB.prepare(
-        `SELECT u.id,u.username,u.membership_tier,c.key_digest FROM users u JOIN credentials c ON c.user_id=u.id WHERE u.username_normalized=? AND u.status='active'`,
-      ).bind(normalizeUsername(input.username)),
-    );
-    const submitted = await hmacHex(
-      context.env.AUTH_PEPPER,
-      credentialDigestInput(row?.id ?? "00000000-0000-0000-0000-000000000000", input.accessKey),
-    );
-    if (!row || !constantTimeEqual(row.key_digest, submitted))
-      throw new HTTPException(401, { message: "ユーザー名またはログインキーが無効です" });
-    const token = randomToken(32);
-    const csrfToken = await hmacHex(context.env.AUTH_PEPPER, `csrf\u0000${token}`);
-    const now = nowIso();
-    const days = boundedInteger(context.env.SESSION_DAYS, 30, { max: 90 });
-    const expiresAt = addDaysIso(days);
-    await context.env.DB.prepare(
-      `INSERT INTO sessions (id,user_id,token_digest,csrf_digest,expires_at,last_seen_at,created_at) VALUES (?,?,?,?,?,?,?)`,
-    )
-      .bind(crypto.randomUUID(), row.id, await sha256Hex(token), await sha256Hex(csrfToken), expiresAt, now, now)
-      .run();
-    context.header("Set-Cookie", sessionCookie(token, days * 86_400, context.env.ENVIRONMENT));
-    return context.json(
-      data({
-        user: { id: row.id, username: row.username, membershipTier: membershipTierForUser(row) },
-        csrfToken,
-        expiresAt,
-      }),
-    );
-  });
-
-  app.delete("/sessions", async (context) => {
-    const token = readSessionCookie(context.req.header("Cookie"), context.env.ENVIRONMENT);
-    if (token)
-      await context.env.DB.prepare(
-        `UPDATE sessions SET revoked_at=?,revoke_reason='logout' WHERE token_digest=? AND revoked_at IS NULL`,
-      )
-        .bind(nowIso(), await sha256Hex(token))
-        .run();
-    context.header("Set-Cookie", clearSessionCookie(context.env.ENVIRONMENT));
-    return context.body(null, 204);
-  });
-
-  app.get("/me", (context) => {
-    const session = requireSession(context);
-    return context.json(
-      data({
-        user: { id: session.userId, username: session.username, membershipTier: session.membershipTier },
-        csrfToken: session.csrfToken,
-        expiresAt: session.expiresAt,
-      }),
-    );
-  });
+    },
+  );
 
   return app;
 }

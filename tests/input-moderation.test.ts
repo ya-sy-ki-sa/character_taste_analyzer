@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { EntryDraft, GenerationRequestInput } from "../shared/schemas";
-import type { ModerationProvider } from "../worker/moderation/types";
+import type { EntryDraft } from "../shared/contracts/entries";
+import type { GenerationRequestInput } from "../shared/contracts/generation";
 import {
   moderateEntryDraft,
   moderateGenerationInput,
   moderationRejectionMessage,
-} from "../worker/services/input-moderation";
+} from "../worker/features/entries/moderation";
+import type { ModerationProvider } from "../worker/moderation/types";
 import type { Env } from "../worker/types";
 
 function recordingProvider(moderate = vi.fn().mockResolvedValue({ allowed: true, reasons: [] })) {

@@ -1,37 +1,31 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from "vitest";
-import { evaluationDatabase } from "../scripts/lib/evaluation-database";
 import type { AnalysisDomain } from "../shared/analysis-domain";
-import { anyEntryDraftSchema, generationRequestInputSchema } from "../shared/schemas";
-import {
-  activateAnalysisAndRebuild,
-  processCharacterAnalysis,
-  processPreferenceAnalysis,
-} from "../worker/services/analysis";
-import { loadConfirmedUnderstanding } from "../worker/services/confirmed-understanding";
-import {
-  confirmUnderstanding,
-  createEntry,
-  loadEntryReview,
-  mutateUnderstandingReview,
-} from "../worker/services/entries";
-import {
-  createGenerationRequest,
-  deleteGeneration,
-  listGenerations,
-  processGeneration,
-} from "../worker/services/generation";
+import { anyEntryDraftSchema } from "../shared/contracts/entries";
+import { generationRequestInputSchema } from "../shared/contracts/generation";
+import { activateAnalysisAndRebuild } from "../worker/features/analysis/activation";
+import { loadConfirmedUnderstanding } from "../worker/features/analysis/confirmed-understanding";
+import { processPreferenceAnalysis } from "../worker/features/analysis/preference";
+import { processCharacterAnalysis } from "../worker/features/analysis/understanding";
+import { createEntry } from "../worker/features/entries/create";
+import { refinePreferenceInput } from "../worker/features/entries/refinement";
+import { loadEntryReview } from "../worker/features/entries/review";
+import { confirmUnderstanding, mutateUnderstandingReview } from "../worker/features/entries/understanding-review";
+import { deleteGeneration } from "../worker/features/generation/delete";
 import {
   createGenerationFeedback,
   reviewGenerationFeedback,
   selectGenerationCandidate,
-} from "../worker/services/generation-feedback";
-import { refinePreferenceInput } from "../worker/services/preference-refinement";
-import { loadCurrentProfile, processProfileRebuild } from "../worker/services/profile";
-import { loadInputProvenanceSources } from "../worker/services/provenance";
+} from "../worker/features/generation/feedback";
+import { listGenerations } from "../worker/features/generation/history";
+import { processGeneration } from "../worker/features/generation/process";
+import { createGenerationRequest } from "../worker/features/generation/request";
+import { loadCurrentProfile, processProfileRebuild } from "../worker/features/profile/projection";
+import { loadInputProvenanceSources } from "../worker/platform/provenance/sources";
 import type { Env } from "../worker/types";
+import { testDatabase } from "./support/database";
 
-const databases: Array<ReturnType<typeof evaluationDatabase>> = [];
+const databases: Array<ReturnType<typeof testDatabase>> = [];
 function present<T>(value: T): NonNullable<T> {
   if (value === null || value === undefined) throw new Error("Expected test data to be present");
   return value;
@@ -40,7 +34,7 @@ afterEach(() => {
   for (const db of databases.splice(0)) db.close();
 });
 function setup() {
-  const db = evaluationDatabase();
+  const db = testDatabase();
   databases.push(db);
   const owner = crypto.randomUUID(),
     now = new Date().toISOString();

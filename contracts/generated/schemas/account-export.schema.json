@@ -1,0 +1,404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/AccountExportDocument",
+  "$defs": {
+    "AccountExportDocument": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "exportedAt": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "user": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "domains": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "entries": {
+          "$ref": "#/$defs/__schema7"
+        },
+        "sources": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "understanding": {
+          "$ref": "#/$defs/__schema9"
+        },
+        "quality": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "preferenceAnalysis": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "profile": {
+          "$ref": "#/$defs/__schema12"
+        },
+        "graph": {
+          "$ref": "#/$defs/__schema13"
+        },
+        "generation": {
+          "$ref": "#/$defs/__schema14"
+        },
+        "operations": {
+          "$ref": "#/$defs/__schema15"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "exportedAt",
+        "user",
+        "domains",
+        "entries",
+        "sources",
+        "understanding",
+        "quality",
+        "preferenceAnalysis",
+        "profile",
+        "graph",
+        "generation",
+        "operations"
+      ]
+    },
+    "__schema0": {
+      "type": "string",
+      "const": "4.0"
+    },
+    "__schema1": {
+      "type": "string"
+    },
+    "__schema2": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/__schema3"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "__schema3": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "null"
+        ]
+      }
+    },
+    "__schema4": {
+      "type": "object",
+      "properties": {
+        "standard": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "dark": {
+          "$ref": "#/$defs/__schema5"
+        }
+      },
+      "required": [
+        "standard",
+        "dark"
+      ]
+    },
+    "__schema5": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "works": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "identities": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "preferenceAssertions": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "profileDimensions": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "profileSnapshotItems": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "graphNodes": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "graphEdges": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "generationRequests": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "modelRuns": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "jobs": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "darkScopeAssessments": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "darkBaselineSnapshots": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "darkTransformationDeltas": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "entries",
+        "works",
+        "identities",
+        "preferenceAssertions",
+        "profileDimensions",
+        "profileSnapshotItems",
+        "graphNodes",
+        "graphEdges",
+        "generationRequests",
+        "modelRuns",
+        "jobs"
+      ]
+    },
+    "__schema6": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema3"
+      }
+    },
+    "__schema7": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "revisions": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "works": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "identities": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "representations": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "entries",
+        "revisions",
+        "works",
+        "identities",
+        "representations"
+      ]
+    },
+    "__schema8": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "sets": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "setItems": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "sources",
+        "sets",
+        "setItems"
+      ]
+    },
+    "__schema9": {
+      "type": "object",
+      "properties": {
+        "runs": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "assertions": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "customizationDeltas": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "reviews": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "darkScopeAssessments": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "darkBaselineSnapshots": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "darkTransformationDeltas": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "runs",
+        "snapshots",
+        "assertions",
+        "customizationDeltas",
+        "reviews",
+        "darkScopeAssessments",
+        "darkBaselineSnapshots",
+        "darkTransformationDeltas"
+      ]
+    },
+    "__schema10": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "candidates": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "feedback": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "refinements": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "similarityDocuments": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "candidates",
+        "feedback",
+        "refinements",
+        "similarityDocuments"
+      ]
+    },
+    "__schema11": {
+      "type": "object",
+      "properties": {
+        "runs": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "assertions": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "valueStances": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "evidence": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "runs",
+        "assertions",
+        "valueStances",
+        "evidence"
+      ]
+    },
+    "__schema12": {
+      "type": "object",
+      "properties": {
+        "projections": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "snapshotItems": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "projections",
+        "dimensions",
+        "snapshots",
+        "snapshotItems"
+      ]
+    },
+    "__schema13": {
+      "type": "object",
+      "properties": {
+        "snapshots": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "nodes": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "edges": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "snapshots",
+        "nodes",
+        "edges"
+      ]
+    },
+    "__schema14": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "preferences": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "briefs": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "characters": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "basisLinks": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "validations": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "requests",
+        "preferences",
+        "briefs",
+        "characters",
+        "basisLinks",
+        "validations"
+      ]
+    },
+    "__schema15": {
+      "type": "object",
+      "properties": {
+        "modelRuns": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "jobs": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "jobAttempts": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": [
+        "modelRuns",
+        "jobs",
+        "jobAttempts"
+      ]
+    }
+  }
+}

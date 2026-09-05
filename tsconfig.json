@@ -2,7 +2,6 @@
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -15,7 +14,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["@cloudflare/workers-types", "vitest/globals", "node"]
+    "types": [],
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "shared", "worker", "tests", "vite.config.ts", "vitest.config.ts"]
+  "files": []
 }

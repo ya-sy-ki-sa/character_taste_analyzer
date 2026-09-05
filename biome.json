@@ -11,8 +11,9 @@
       "!!**/coverage",
       "!!**/playwright-report",
       "!!**/test-results",
-      "!!docs/詳細設計/api/openapi.as-built.json",
-      "!!docs/詳細設計/prompt-contracts.json"
+      "!!contracts/generated",
+      "!!archive",
+      "!!.artifacts"
     ]
   },
   "formatter": {
@@ -52,7 +53,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/styles.css"],
+      "includes": ["src/styles/**/*.css"],
       "linter": {
         "rules": {
           "complexity": {

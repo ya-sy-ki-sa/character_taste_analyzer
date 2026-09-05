@@ -15,10 +15,10 @@ import { responseChannelLabel } from "../shared/response-channels";
 import { valueOrientationLabel, valueStanceLabel } from "../shared/value-stance-labels";
 import { evidenceQuoteLabel, explicitnessLabel } from "../src/lib/analysis-labels";
 import { graphAttributeEntries } from "../src/lib/graph-labels";
+import { analysisFailureMetadata, safeAnalysisErrorDetail } from "../worker/features/analysis/failures";
+import { hasPreferenceAnalysisCandidates } from "../worker/features/analysis/result-policy";
+import { localizeAttributeReference, localizeUnderstandingSummary } from "../worker/features/profile/attribute-labels";
 import { LlmProviderError, type LlmRunMetadata } from "../worker/llm/types";
-import { analysisFailureMetadata, safeAnalysisErrorDetail } from "../worker/services/analysis";
-import { hasPreferenceAnalysisCandidates } from "../worker/services/analysis-result-policy";
-import { localizeAttributeReference, localizeUnderstandingSummary } from "../worker/services/attribute-labels";
 
 describe("preference analysis result validation", () => {
   it("treats a result without preferences or value stances as empty", () => {
