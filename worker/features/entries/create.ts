@@ -1,5 +1,5 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
-import type { AnyEntrySubmission } from "../../../shared/contracts/entries";
+import type { AnyEntryDraft } from "../../../shared/contracts/entries";
 import {
   entryBaseCharacterName,
   entryInputSources,
@@ -20,7 +20,7 @@ export async function createEntry(
   env: Env,
   ownerUserId: string,
   analysisDomain: AnalysisDomain,
-  draft: AnyEntrySubmission,
+  draft: AnyEntryDraft,
   idempotencyKey: string,
 ): Promise<CreatedEntry> {
   const seed = await sha256Hex(`${ownerUserId}\u0000${idempotencyKey}`);

@@ -55,6 +55,7 @@ export const identityCandidateSchema = z
     match: z.enum(["exact", "work_and_character"]),
   })
   .meta({ id: "IdentityCandidate" });
+export type IdentityCandidate = z.infer<typeof identityCandidateSchema>;
 export const identityCandidatesSchema = z
   .object({ candidates: z.array(identityCandidateSchema) })
   .meta({ id: "IdentityCandidates" });

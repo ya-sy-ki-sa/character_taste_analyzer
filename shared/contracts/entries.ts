@@ -81,9 +81,11 @@ export type EntryReanalysisInput = z.infer<typeof entryReanalysisSchema>;
 
 export const entryDraftSchema = entrySubmissionSchema;
 
-export type EntryDraft = z.infer<typeof entryDraftSchema>;
+/** Validated input with defaults and text normalization applied. */
+export type EntryDraft = z.output<typeof entryDraftSchema>;
 
-export type EntrySubmission = z.infer<typeof entrySubmissionSchema>;
+/** Wire input for registration and reanalysis; optional fields may be omitted. */
+export type EntrySubmission = z.input<typeof entrySubmissionSchema>;
 
 export const darkArchetypeHintSchema = z.enum([
   "villain",
@@ -180,9 +182,9 @@ export const darkEntrySubmissionSchema = z.discriminatedUnion("registrationType"
 
 export const darkEntryReanalysisSchema = z.object({ draft: darkEntrySubmissionSchema });
 
-export type DarkEntryDraft = z.infer<typeof darkEntrySubmissionSchema>;
+export type DarkEntryDraft = z.output<typeof darkEntrySubmissionSchema>;
 
-export type DarkEntrySubmission = DarkEntryDraft;
+export type DarkEntrySubmission = z.input<typeof darkEntrySubmissionSchema>;
 
 export type AnyEntryDraft = EntryDraft | DarkEntryDraft;
 
@@ -199,12 +201,3 @@ export const identityCandidateRequestSchema = z.object({
 });
 
 export type IdentityCandidateRequest = z.infer<typeof identityCandidateRequestSchema>;
-
-export type IdentityCandidate = {
-  workId: string | null;
-  characterIdentityId: string;
-  workTitle: string | null;
-  characterName: string;
-  mediaType: string | null;
-  match: "exact" | "work_and_character";
-};

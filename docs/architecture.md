@@ -41,6 +41,8 @@ JSON成功応答は `{ data: ... }`、エラーは `{ error: { code, message, ..
 
 入力スキーマの `z.input` と、デフォルト値・正規化を適用した `z.output` / `z.infer` を区別します。フロントエンドは共有定義から導出した型を `import type` で参照し、`src/features/*/api.ts` で機能別の通信関数を公開します。`src/lib/http.ts` がCSRF・セッション・envelopeを処理します。ブラウザー用の入力補助は `shared/entry-input.ts` に置き、サーバー用Zod定義を実行時に読み込みません。
 
+登録・再分析の送信用は `EntrySubmission` / `DarkEntrySubmission`、検証後にユースケースへ渡す型は `EntryDraft` / `DarkEntryDraft` です。同一人物候補の `IdentityCandidate` はレスポンススキーマから導出します。
+
 ## 画面とCSS
 
 `src/pages` は画面の組み立て、`src/features` はフォーム、レビュー、候補比較、採用・評価と対応するフックです。登録入力の変換、送信の冪等キー、ポーリング、キャッシュ更新をそれぞれの責務にまとめます。プロフィール・グラフは遅延読み込みを維持します。

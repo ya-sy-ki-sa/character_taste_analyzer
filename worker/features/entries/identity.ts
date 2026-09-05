@@ -1,5 +1,6 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
-import type { IdentityCandidate, IdentityCandidateRequest } from "../../../shared/contracts/entries";
+import type { IdentityCandidateRequest } from "../../../shared/contracts/entries";
+import type { IdentityCandidate } from "../../../shared/contracts/entries-response";
 import { normalizeIdentityPart } from "../../lib/crypto";
 import { all } from "../../lib/db";
 import type { Env } from "../../types";

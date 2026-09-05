@@ -3,9 +3,6 @@
 # 認証情報などのハッシュ計算に使う秘密値。32バイト以上のランダムな値を設定してください。
 AUTH_PEPPER=replace-with-at-least-32-random-bytes
 
-# データ保存方式。現在は Cloudflare D1 を使う d1 に対応しています。
-DATASTORE_STRATEGY=d1
-
 # OpenAI の API キー。OpenAI API は常に Cloudflare AI Gateway 経由で呼び出します。
 OPENAI_API_KEY=replace-with-openai-api-key
 

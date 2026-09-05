@@ -1,6 +1,7 @@
 import { type FormEvent, useRef, useState } from "react";
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
-import type { AnyEntryDraft, IdentityCandidate, IdentityResolution } from "../../../shared/contracts/entries";
+import type { AnyEntryDraft, IdentityResolution } from "../../../shared/contracts/entries";
+import type { IdentityCandidate } from "../../../shared/contracts/entries-response";
 import { entryBaseCharacterName } from "../../../shared/entry-input";
 import { idempotencyKey } from "../../lib/http";
 import { entriesApi } from "./api";

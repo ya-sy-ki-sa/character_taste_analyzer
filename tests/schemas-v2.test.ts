@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loginSchema } from "../shared/contracts/account";
-import { entryDraftSchema, entryReanalysisSchema } from "../shared/contracts/entries";
+import { type EntrySubmission, entryDraftSchema, entryReanalysisSchema } from "../shared/contracts/entries";
 import { generatedCharacterCandidateSchema, generationRequestInputSchema } from "../shared/contracts/generation";
 import { understandingReviewMutationSchema } from "../shared/contracts/reviews";
 import { responseChannelSchema } from "../shared/contracts/taxonomy";
@@ -71,14 +71,16 @@ describe("current input contracts", () => {
   });
 
   it("accepts an entry without a preferred time, scene, or state", () => {
-    const result = entryDraftSchema.parse({
+    const submission: EntrySubmission = {
       registrationType: "original",
       characterName: "オリジナルA",
       characterBasicInfo: "自分の価値観に忠実で、未知の世界を旅する人物。",
-      preference: { responseChannels: ["person_liking"] },
-    });
+      preference: {},
+    };
+    const result = entryDraftSchema.parse(submission);
     expect(result.preferenceContext).toBeUndefined();
     expect(result.referenceMaterial).toBeUndefined();
+    expect(result.preference.responseChannels).toEqual([]);
   });
 
   it("requires basic character information for an original character", () => {

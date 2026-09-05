@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { frozenDarkAnalyzerFixtures, frozenOutOfScopeFixtures } from "../evaluation/fixtures/dark-analyzer-fixtures";
 import { darkOntologySeeds } from "../shared/catalogs/dark-ontology";
 import { darkTransformationOperationSchema } from "../shared/contracts/dark-understanding";
-import { darkEntrySubmissionSchema, entrySubmissionSchema } from "../shared/contracts/entries";
+import {
+  type DarkEntrySubmission,
+  darkEntrySubmissionSchema,
+  entrySubmissionSchema,
+} from "../shared/contracts/entries";
 import { darkResponseChannelCatalog } from "../shared/dark-response-channels";
 
 describe("dark lab frozen evaluation fixtures", () => {
@@ -51,7 +55,7 @@ describe("dark entry contract", () => {
       likedReasons: "正義が反転している点と残った抵抗が好き",
       responseChannels: ["controlled_state_fascination" as const, "inner_resistance_fascination" as const],
     },
-  };
+  } satisfies DarkEntrySubmission;
 
   it("requires a named dark state and accepts dedicated channels", () => {
     expect(darkEntrySubmissionSchema.safeParse(draft).success).toBe(true);
