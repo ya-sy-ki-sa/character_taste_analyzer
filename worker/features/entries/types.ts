@@ -12,6 +12,7 @@ export type ReanalyzedEntry = CreatedEntry & { entryRevisionId: string; revision
 export type EvidenceView = {
   id: string;
   verificationStatus: string;
+  evidenceOrigin?: string;
   inferenceType: string;
   quote: string | null;
   inputPointer: string | null;

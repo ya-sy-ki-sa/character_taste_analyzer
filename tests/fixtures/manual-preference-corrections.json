@@ -1,0 +1,177 @@
+[
+  {
+    "caseId": "A07",
+    "key": "preference-protective",
+    "action": "update",
+    "rawLabel": "仲間が傷つけられたときに真っ先に動き、友達を本気で守る姿",
+    "attributeStableKey": "relationship.protective",
+    "responseChannel": "admiration",
+    "polarity": "positive",
+    "strength": 0.9,
+    "context": {
+      "schemaVersion": "2",
+      "entryScope": "『ONE PIECE』テレビアニメ版・東の海で仲間を集める頃のモンキー・D・ルフィ",
+      "subjects": ["モンキー・D・ルフィ", "仲間・友達"],
+      "relationships": ["仲間や友達を守る"],
+      "narrativePhases": ["仲間が傷つけられた場面"],
+      "conditions": ["仲間が傷つけられたとき", "友達を守るとき"],
+      "exceptions": []
+    },
+    "observed": {
+      "evidenceCount": 0,
+      "score": 0.0855,
+      "confidence": 0.058888
+    },
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/A07/verification.json"
+  },
+  {
+    "caseId": "A07",
+    "key": "preference-gap",
+    "action": "add",
+    "rawLabel": "普段ふざけていても友達を守るときには本気になる差",
+    "attributeStableKey": null,
+    "responseChannel": "person_liking",
+    "polarity": "positive",
+    "strength": 0.8,
+    "context": {
+      "schemaVersion": "2",
+      "entryScope": "東の海で仲間を集める頃",
+      "subjects": [],
+      "relationships": [],
+      "narrativePhases": [],
+      "conditions": ["ユーザーが確認画面で追加・修正"],
+      "exceptions": []
+    },
+    "observed": {
+      "evidenceCount": 0,
+      "score": 0.076,
+      "confidence": 0.052345
+    },
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/A07/verification.json"
+  },
+  {
+    "caseId": "B02",
+    "key": "preference-awkward",
+    "action": "add",
+    "rawLabel": "一人で抱え込み、素直になれない不器用さ",
+    "attributeStableKey": null,
+    "responseChannel": "person_liking",
+    "polarity": "positive",
+    "strength": 0.8,
+    "context": {
+      "schemaVersion": "2",
+      "entryScope": "少年編で第七班にいる頃",
+      "subjects": [],
+      "relationships": [],
+      "narrativePhases": [],
+      "conditions": ["ユーザーが確認画面で追加・修正"],
+      "exceptions": []
+    },
+    "observed": {
+      "evidenceCount": 0,
+      "score": 0.076,
+      "confidence": 0.052345
+    },
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/B02/verification.json"
+  },
+  {
+    "caseId": "C11",
+    "key": "preference-equality",
+    "action": "update",
+    "rawLabel": "中也が太宰に強く言い返せる対等なやり取りを好むという読み",
+    "attributeStableKey": null,
+    "responseChannel": "narrative_interest",
+    "polarity": "positive",
+    "strength": 0.78,
+    "context": {
+      "schemaVersion": "2",
+      "entryScope": "太宰と組む場面における中原中也の反応",
+      "subjects": ["中原中也", "太宰治"],
+      "relationships": ["応酬"],
+      "narrativePhases": [],
+      "conditions": ["太宰治に一方的に振り回されるだけではないこと", "太宰治に強く言い返せること"],
+      "exceptions": []
+    },
+    "observed": {
+      "evidenceCount": 0,
+      "score": 0.0741,
+      "confidence": 0.051036
+    },
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/C11/verification.json"
+  },
+  {
+    "caseId": "C11",
+    "key": "preference-trust",
+    "action": "update",
+    "rawLabel": "中也と太宰が最後には互いを信用し、友達以上になると解釈して楽しむ関係",
+    "attributeStableKey": null,
+    "responseChannel": "narrative_interest",
+    "polarity": "positive",
+    "strength": 0.82,
+    "context": {
+      "schemaVersion": "2",
+      "entryScope": "中原中也と太宰治の関係",
+      "subjects": ["中原中也", "太宰治"],
+      "relationships": ["相互信頼"],
+      "narrativePhases": ["関係の帰結"],
+      "conditions": ["最後には相手を信用する関係であること"],
+      "exceptions": []
+    },
+    "observed": {
+      "evidenceCount": 0,
+      "score": 0.0779,
+      "confidence": 0.053654
+    },
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/C11/verification.json"
+  },
+  {
+    "caseId": "C11",
+    "key": "preference-negative-scoped",
+    "action": "add",
+    "rawLabel": "中也と太宰を支配する側・一方的に服従する側に固定して読む解釈",
+    "attributeStableKey": null,
+    "responseChannel": "narrative_interest",
+    "polarity": "negative",
+    "strength": 0.8,
+    "context": {
+      "schemaVersion": "2",
+      "entryScope": "太宰と組む場面",
+      "subjects": [],
+      "relationships": [],
+      "narrativePhases": [],
+      "conditions": ["ユーザーが確認画面で追加・修正"],
+      "exceptions": []
+    },
+    "observed": {
+      "evidenceCount": 0,
+      "score": 0.076,
+      "confidence": 0.052345
+    },
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/C11/verification.json"
+  },
+  {
+    "caseId": "D10",
+    "key": "preference-memory",
+    "action": "update",
+    "rawLabel": "1999年版で新しい仲間に会う冒険が、学生時代に先を楽しみにした気分を思い出させる愛着",
+    "attributeStableKey": null,
+    "responseChannel": "nostalgic_attachment",
+    "polarity": "positive",
+    "strength": 0.8,
+    "context": {
+      "schemaVersion": "2",
+      "entryScope": "『HUNTER×HUNTER』1999年版および学生時代の記憶への愛着",
+      "subjects": ["『HUNTER×HUNTER』1999年版", "学生時代の記憶", "ゴン＝フリークス"],
+      "relationships": ["最初に触れた版への愛着", "作品視聴と過去の記憶の結びつき"],
+      "narrativePhases": ["1999年版のハンター試験時点"],
+      "conditions": ["新しい仲間に会う冒険を見たとき", "最初に触れた版に対して"],
+      "exceptions": ["2011年版との優劣比較を理由としない", "ゴン本人への好意を含むかは未確認"]
+    },
+    "observed": {
+      "evidenceCount": 0,
+      "score": 0.076,
+      "confidence": 0.052345
+    },
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/D10/verification.json"
+  }
+]

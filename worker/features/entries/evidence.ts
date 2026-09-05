@@ -17,6 +17,7 @@ export async function loadEvidenceViews(
       id: string;
       owner_id: string;
       verification_status: string;
+      evidence_origin: string;
       inference_type: string;
       excerpt_text: string | null;
       user_input_path: string | null;
@@ -30,6 +31,7 @@ export async function loadEvidenceViews(
       items.push({
         id: row.id,
         verificationStatus: row.verification_status,
+        evidenceOrigin: row.evidence_origin,
         inferenceType: row.inference_type,
         quote: row.excerpt_text,
         inputPointer: row.user_input_path,

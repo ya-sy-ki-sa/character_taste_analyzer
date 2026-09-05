@@ -14,6 +14,7 @@ export const evidenceDetailSchema = z
   .object({
     id: z.string(),
     verificationStatus: z.string(),
+    evidenceOrigin: z.string().optional(),
     inferenceType: z.string(),
     quote: z.union([z.string(), z.null()]),
     inputPointer: z.union([z.string(), z.null()]),

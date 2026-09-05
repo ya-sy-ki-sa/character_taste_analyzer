@@ -4,9 +4,11 @@ import type { PreferenceReviewMutation } from "../../../shared/contracts/reviews
 import { darkResponseChannelValues } from "../../../shared/dark-response-channels";
 import { entryScopeText } from "../../../shared/entry-input";
 import { responseChannelValues } from "../../../shared/response-channels";
-import { deriveUuid, normalizeIdentityPart, nowIso } from "../../lib/crypto";
+import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import type { Env } from "../../types";
+import { PREFERENCE_CONFIRMATION_POLICY, preferenceConfirmationText } from "./preference-confirmation";
+import { confirmationStatements } from "./repositories/preference-confirmation";
 import * as repository from "./repositories/preference-review";
 
 export async function rejectPreferenceAnalysisItem(
@@ -113,7 +115,13 @@ export async function mutatePreferenceReview(
         analysisRunId,
       ]),
       ...copies,
-      repository.updatePreferenceAssertions2(env.DB, [changedId, input.targetId, ownerUserId, analysisRunId]),
+      repository.updatePreferenceAssertions2(env.DB, [
+        changedId,
+        input.targetId,
+        ownerUserId,
+        analysisRunId,
+        changedId,
+      ]),
     ]);
     if (results.some((item) => !item.success)) throw new Error("D1_PREFERENCE_REVIEW_FAILED");
     if (!results[0]?.meta.changes) {
@@ -126,103 +134,95 @@ export async function mutatePreferenceReview(
     return { analysisRunId, changedId, action: input.action, replayed: false };
   }
   const draft = anyEntryDraftSchema.parse(JSON.parse(run.registration_payload_json));
-  const contextJson = JSON.stringify({
+  let contextJson = JSON.stringify({
     schemaVersion: "2",
     entryScope: entryScopeText(draft),
     subjects: [],
     relationships: [],
     narrativePhases: [],
-    conditions: ["ユーザーが確認画面で追加・修正"],
+    conditions: [],
     exceptions: [],
   });
+  let attribute: { id: string; label: string } | null = null;
+  let oldRawId: string | null = null;
+  let targetType = "value";
   if (input.action === "add_preference" || input.action === "update_preference") {
-    const allowedChannels = analysisDomain === "dark" ? darkResponseChannelValues : responseChannelValues;
-    if (input.responseChannel !== null && !(allowedChannels as readonly string[]).includes(input.responseChannel))
+    const allowed = analysisDomain === "dark" ? darkResponseChannelValues : responseChannelValues;
+    if (input.responseChannel !== null && !(allowed as readonly string[]).includes(input.responseChannel))
       throw new Error("RESPONSE_CHANNEL_NOT_IN_DOMAIN");
-    const attribute = input.attributeStableKey
-      ? await first<{ id: string }>(
+    attribute = input.attributeStableKey
+      ? await first<{ id: string; label: string }>(
           repository.selectAttributeDefinitions(env.DB, [input.attributeStableKey, analysisDomain]),
         )
       : null;
     if (input.attributeStableKey && !attribute) throw new Error("ATTRIBUTE_NOT_FOUND_IN_DOMAIN");
-    const rawId = await deriveUuid(env.AUTH_PEPPER, `${changedId}:raw`);
-    const old =
-      input.action === "update_preference"
-        ? await first<{ raw_mention_id: string | null; context_json: string }>(
-            repository.selectPreferenceAssertions3(env.DB, [input.targetId, ownerUserId, analysisRunId]),
-          )
-        : null;
-    if (input.action === "update_preference" && !old) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
-    const statements: D1PreparedStatement[] = [
-      ...(old?.raw_mention_id
-        ? [repository.updateAttributeMappings(env.DB, [ownerUserId, now, old.raw_mention_id])]
-        : []),
-      repository.insertRawAttributeMentions(env.DB, [
-        rawId,
-        ownerUserId,
-        changedId,
-        input.rawLabel,
-        normalizeIdentityPart(input.rawLabel),
-        now,
-      ]),
-      repository.insertAttributeMappings(env.DB, [
-        crypto.randomUUID(),
-        rawId,
-        attribute?.id ?? null,
-        attribute ? "accepted" : "unmapped",
-        ownerUserId,
-        now,
-        now,
-      ]),
-      repository.insertPreferenceAssertions(env.DB, [
-        changedId,
-        ownerUserId,
-        analysisRunId,
-        run.entry_revision_id,
-        run.character_identity_id,
-        run.representation_id,
-        attribute?.id ?? null,
-        rawId,
-        analysisDomain,
-        input.polarity,
-        input.responseChannel,
-        input.strength,
-        old?.context_json ?? contextJson,
-        now,
-      ]),
-      ...(input.action === "update_preference"
-        ? [repository.updatePreferenceAssertions2(env.DB, [changedId, input.targetId, ownerUserId, analysisRunId])]
-        : []),
-    ];
-    const results = await env.DB.batch(statements);
-    if (results.some((item) => !item.success) || !results.at(-1)?.meta.changes)
-      throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
-  } else {
-    const old =
-      input.action === "update_value_stance"
-        ? await first<{ scope_json: string }>(
-            repository.selectValueStanceAssertions(env.DB, [input.targetId, ownerUserId, analysisRunId]),
-          )
-        : null;
-    if (input.action === "update_value_stance" && !old) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
-    const statements: D1PreparedStatement[] = [
-      repository.insertValueStanceAssertions(env.DB, [
-        changedId,
-        ownerUserId,
-        analysisRunId,
-        input.targetRef,
-        input.stance,
-        input.orientation,
-        old?.scope_json ?? contextJson,
-        now,
-      ]),
-      ...(input.action === "update_value_stance"
-        ? [repository.updateValueStanceAssertions2(env.DB, [changedId, input.targetId, ownerUserId, analysisRunId])]
-        : []),
-    ];
-    const results = await env.DB.batch(statements);
-    if (results.some((item) => !item.success) || !results.at(-1)?.meta.changes)
-      throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+    if (input.action === "update_preference") {
+      const old = await first<{ raw_mention_id: string | null; context_json: string }>(
+        repository.selectPreferenceAssertions3(env.DB, [input.targetId, ownerUserId, analysisRunId]),
+      );
+      if (!old) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
+      contextJson = old.context_json;
+      oldRawId = old.raw_mention_id;
+    }
+  } else if (input.action === "update_value_stance") {
+    const old = await first<{ scope_json: string; target_type: string }>(
+      repository.selectValueStanceAssertions(env.DB, [input.targetId, ownerUserId, analysisRunId]),
+    );
+    if (!old) throw new Error("PREFERENCE_REVIEW_TARGET_NOT_FOUND");
+    contextJson = old.scope_json;
+    targetType = old.target_type;
+  }
+  const text = preferenceConfirmationText(input, contextJson, attribute?.label ?? null);
+  const sourceId = await deriveUuid(env.AUTH_PEPPER, `${changedId}:confirmation-source`);
+  const pointer = `/confirmedPreferences/${"rawLabel" in input ? "assertions" : "valueStances"}/${changedId}/declaration`;
+  const writeToken = crypto.randomUUID();
+  const metadata = {
+    policyVersion: PREFERENCE_CONFIRMATION_POLICY,
+    action: input.action,
+    previousAssertionId: "targetId" in input ? input.targetId : null,
+    assertionId: changedId,
+    analysisRunId,
+    analysisDomain,
+    submitted: input,
+    context: JSON.parse(contextJson),
+    targetType: "rawLabel" in input ? "attribute" : targetType,
+  };
+  const results = await env.DB.batch(
+    confirmationStatements(env.DB, {
+      changedId,
+      owner: ownerUserId,
+      domain: analysisDomain,
+      runId: analysisRunId,
+      revisionId: run.entry_revision_id,
+      identityId: run.character_identity_id,
+      representationId: run.representation_id,
+      input,
+      contextJson,
+      attributeId: attribute?.id ?? null,
+      oldRawId,
+      targetType,
+      rawId: await deriveUuid(env.AUTH_PEPPER, `${changedId}:raw`),
+      normalizedLabel: "rawLabel" in input ? normalizeIdentityPart(input.rawLabel) : "",
+      mappingId: await deriveUuid(env.AUTH_PEPPER, `${changedId}:mapping`),
+      sourceId,
+      evidenceId: await deriveUuid(env.AUTH_PEPPER, `${changedId}:confirmation-evidence`),
+      writeToken,
+      text,
+      hash: await sha256Hex(text),
+      byteLength: new TextEncoder().encode(text).byteLength,
+      locatorJson: JSON.stringify({ pointer, writeToken }),
+      citationJson: JSON.stringify(metadata),
+      pointer,
+      now,
+    }),
+  );
+  if (results.some((item) => !item.success)) throw new Error("D1_PREFERENCE_REVIEW_FAILED");
+  if (!results[0]?.meta.changes) {
+    const replay = await first<{ id: string }>(
+      repository.selectPreferenceAssertions2(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
+    );
+    if (!replay) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+    return { analysisRunId, changedId, action: input.action, replayed: true };
   }
   return { analysisRunId, changedId, action: input.action, replayed: false };
 }

@@ -13,7 +13,7 @@ export function selectPreferenceAssertions(
            COUNT(ef.id) AS evidence_count,
            COALESCE(GROUP_CONCAT(ef.id || ':' || ef.verification_status || ':' || ef.support_type), '') AS evidence_fingerprint,
            COALESCE(MAX(CASE ef.verification_status
-             WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
+             WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 WHEN 'review' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
              ELSE 0.1 END), 0.1) AS evidence_quality
     FROM preference_assertions pa
@@ -60,7 +60,7 @@ export function selectValueStanceAssertions(
            vs.explicitness, vs.confidence,vs.status,COUNT(ef.id) AS evidence_count,
            COALESCE(GROUP_CONCAT(ef.id || ':' || ef.verification_status || ':' || ef.support_type), '') AS evidence_fingerprint,
            COALESCE(MAX(CASE ef.verification_status
-             WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
+             WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 WHEN 'review' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
              ELSE 0.1 END), 0.1) AS evidence_quality
     FROM value_stance_assertions vs

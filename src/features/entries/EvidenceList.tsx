@@ -52,20 +52,28 @@ export function EvidenceList({ evidence }: { evidence: EvidenceDetail[] }) {
             <li key={item.id} className={`evidence-item evidence-${item.verificationStatus}`}>
               <div className="evidence-heading">
                 <span className="evidence-status">
-                  {evidenceStatusLabels[item.verificationStatus] ?? "検証状態未分類"}
+                  {item.evidenceOrigin === "review" && item.verificationStatus === "verified_quote"
+                    ? "ユーザー確認文"
+                    : (evidenceStatusLabels[item.verificationStatus] ?? "検証状態未分類")}
                 </span>
                 <small>{evidenceInferenceLabels[item.inferenceType] ?? "根拠形式未分類"}</small>
               </div>
               {item.quote && (
                 <div className="evidence-detail">
-                  <span>引用</span>
-                  <q>{evidenceQuoteLabel(item.quote, pointer)}</q>
+                  <span>{item.evidenceOrigin === "review" ? "保存した申告" : "引用"}</span>
+                  <q className={item.evidenceOrigin === "review" ? "evidence-declaration" : undefined}>
+                    {evidenceQuoteLabel(item.quote, pointer)}
+                  </q>
                 </div>
               )}
               {pointer && (
                 <div className="evidence-detail">
                   <span>入力項目</span>
-                  <strong>{inputPointerLabels[pointer] ?? "登録情報"}</strong>
+                  <strong>
+                    {item.evidenceOrigin === "review"
+                      ? "確認画面での保存内容"
+                      : (inputPointerLabels[pointer] ?? "登録情報")}
+                  </strong>
                 </div>
               )}
               {item.verificationStatus === "invalid" && (

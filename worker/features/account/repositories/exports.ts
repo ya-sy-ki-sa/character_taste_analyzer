@@ -219,7 +219,10 @@ export function selectExportAnalysisRuns(db: D1Database, ownerUserId: string): D
 }
 
 export function selectExportPreferenceAssertions(db: D1Database, ownerUserId: string): D1PreparedStatement {
-  return db.prepare(`SELECT * FROM preference_assertions WHERE owner_user_id=?`).bind(ownerUserId);
+  return db
+    .prepare(`SELECT pa.*,rm.raw_label AS originalLabel FROM preference_assertions pa
+    LEFT JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id AND rm.owner_user_id=pa.owner_user_id WHERE pa.owner_user_id=?`)
+    .bind(ownerUserId);
 }
 
 export function selectExportValueStances(db: D1Database, ownerUserId: string): D1PreparedStatement {
