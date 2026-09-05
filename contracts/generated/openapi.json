@@ -1793,6 +1793,360 @@
                       ]
                     }
                   },
+                  "informationQuality": {
+                    "type": "object",
+                    "properties": {
+                      "policyVersion": {
+                        "type": "string"
+                      },
+                      "assessedAt": {
+                        "type": "string",
+                        "enum": [
+                          "analysis"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "limited",
+                          "not_flagged"
+                        ]
+                      },
+                      "contentAspectCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 7
+                      },
+                      "concreteAspectCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 7
+                      },
+                      "completionAttempted": {
+                        "type": "boolean"
+                      },
+                      "reasons": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 1000
+                        },
+                        "maxItems": 10
+                      },
+                      "aspects": {
+                        "type": "object",
+                        "properties": {
+                          "narrativeRole": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "moralityOrientation": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "goals": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "behavior": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "relationships": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "expression": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "narrativeRole",
+                          "moralityOrientation",
+                          "goals",
+                          "values",
+                          "behavior",
+                          "relationships",
+                          "expression"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "policyVersion",
+                      "assessedAt",
+                      "status",
+                      "contentAspectCount",
+                      "concreteAspectCount",
+                      "completionAttempted",
+                      "reasons",
+                      "aspects"
+                    ]
+                  },
                   "sourceAssessment": {
                     "type": "object",
                     "properties": {
@@ -2073,6 +2427,360 @@
                         "modelRunId"
                       ]
                     }
+                  },
+                  "informationQuality": {
+                    "type": "object",
+                    "properties": {
+                      "policyVersion": {
+                        "type": "string"
+                      },
+                      "assessedAt": {
+                        "type": "string",
+                        "enum": [
+                          "analysis"
+                        ]
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "limited",
+                          "not_flagged"
+                        ]
+                      },
+                      "contentAspectCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 7
+                      },
+                      "concreteAspectCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 7
+                      },
+                      "completionAttempted": {
+                        "type": "boolean"
+                      },
+                      "reasons": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 1000
+                        },
+                        "maxItems": 10
+                      },
+                      "aspects": {
+                        "type": "object",
+                        "properties": {
+                          "narrativeRole": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "moralityOrientation": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "goals": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "values": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "behavior": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "relationships": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          },
+                          "expression": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "concrete",
+                                  "label_only",
+                                  "attribution_only",
+                                  "unknown"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 1000
+                              },
+                              "summaryIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              },
+                              "assertionIndexes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "maxItems": 100
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "reason",
+                              "summaryIndexes",
+                              "assertionIndexes"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "narrativeRole",
+                          "moralityOrientation",
+                          "goals",
+                          "values",
+                          "behavior",
+                          "relationships",
+                          "expression"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "policyVersion",
+                      "assessedAt",
+                      "status",
+                      "contentAspectCount",
+                      "concreteAspectCount",
+                      "completionAttempted",
+                      "reasons",
+                      "aspects"
+                    ]
                   },
                   "sourceAssessment": {
                     "type": "object",

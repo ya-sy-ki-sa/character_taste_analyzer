@@ -3,6 +3,7 @@ import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { anyEntryDraftSchema } from "../../shared/contracts/entries";
 import { reviewDetailSchema } from "../../shared/contracts/entry-review";
 import { type AnyPreferenceCandidate, preferenceCandidateSchema } from "../../shared/contracts/preference";
+import type { UnderstandingAudit } from "../../shared/contracts/understanding-quality";
 import { activateAnalysisAndRebuild } from "../../worker/features/analysis/activation";
 import { processPreferenceAnalysis } from "../../worker/features/analysis/preference";
 import { processCharacterAnalysis } from "../../worker/features/analysis/understanding";
@@ -33,6 +34,7 @@ export const context = {
 // These are scripted provider outputs: they verify transport/storage, not live-model extraction accuracy.
 export type Fixture = {
   caseId: string;
+  understanding?: UnderstandingAudit;
   preference: { likedReasons: string; dislikedReasons?: string; responseChannels: string[] };
   expectedAssertions: Array<{
     rawLabel: string;
@@ -94,7 +96,12 @@ export function scriptedCandidate(fixture: Fixture): AnyPreferenceCandidate {
           ]),
   });
 }
-export async function setup(domain: AnalysisDomain, fixture: Fixture = fixtures[0], useScript = true) {
+export async function setup(
+  domain: AnalysisDomain,
+  fixture: Fixture = fixtures[0],
+  useScript = true,
+  beforeConfirm?: (env: Env, owner: string, snapshotId: string) => Promise<void>,
+) {
   const db = testDatabase();
   databases.push(db);
   const owner = crypto.randomUUID(),
@@ -121,6 +128,12 @@ export async function setup(domain: AnalysisDomain, fixture: Fixture = fixtures[
     async generateStructured(request) {
       requests.push(request);
       let value = request.fakeFactory();
+      if (
+        domain === "standard" &&
+        fixture.understanding &&
+        ["character_understanding", "customization_delta", "understanding_audit"].includes(request.operation)
+      )
+        value = fixture.understanding as typeof value;
       if (useScript && /^(dark_)?preference_(analysis|audit)$/.test(request.operation)) {
         const scripted =
           request.operation.endsWith("_analysis") && fixture.generatedCandidate
@@ -165,6 +178,7 @@ export async function setup(domain: AnalysisDomain, fixture: Fixture = fixtures[
   const initial = await loadEntryReview(env, owner, domain, created.entryId);
   if (!initial?.understanding)
     throw new Error(JSON.stringify(db.database.prepare("SELECT error_detail_safe FROM jobs").all()));
+  await beforeConfirm?.(env, owner, initial.understanding.id);
   await confirmUnderstanding(env, owner, domain, initial.understanding.id);
   await processPreferenceAnalysis(env, { ...params, stage: "preference" });
   const detail = await loadEntryReview(env, owner, domain, created.entryId);

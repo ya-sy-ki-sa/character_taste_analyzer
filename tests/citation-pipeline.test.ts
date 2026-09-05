@@ -237,7 +237,9 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
         }),
       ]),
     );
-    expect(requests.filter((item) => item.operation !== "dark_scope_assessment")).toHaveLength(2);
+    expect(requests.filter((item) => item.operation !== "dark_scope_assessment")).toHaveLength(
+      domain === "dark" ? 2 : 4,
+    );
   });
 
   it("does not adopt invalid-only assertions on confirmation, but accepts user corrections", async () => {

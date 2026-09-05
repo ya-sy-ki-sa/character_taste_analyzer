@@ -13,9 +13,11 @@ import { generationBriefSchema } from "./generation-brief";
 import { darkPreferenceCandidateSchema, preferenceCandidateSchema } from "./preference";
 import { graphProjectionSchema } from "./profile-response";
 import { understandingCandidateSchema } from "./understanding";
+import { understandingAuditSchema } from "./understanding-quality";
 
 /** Published wire contracts. The runtime validators are their only source. */
 export const publishedSchemas = {
+  "character-understanding-audit": understandingAuditSchema,
   "character-understanding": understandingCandidateSchema,
   "preference-analysis": preferenceCandidateSchema,
   "generated-character": generatedCharacterCandidateSchema,

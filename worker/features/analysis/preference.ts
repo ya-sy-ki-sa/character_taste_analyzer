@@ -133,7 +133,9 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     };
     const confirmedSummary = rebuildConfirmedUnderstandingSummary(parsedSummary, characterAssertions);
     const understanding: UnderstandingCandidate = {
-      sourceAssessment: JSON.parse(snapshot.source_assessment_json),
+      sourceAssessment: (({ informationQuality: _quality, ...assessment }) => assessment)(
+        JSON.parse(snapshot.source_assessment_json),
+      ),
       summary: { ...confirmedSummary, identity: entry.payload.characterName },
       assertions: confirmed.assertions,
       customizationDeltas: confirmed.customizationDeltas,

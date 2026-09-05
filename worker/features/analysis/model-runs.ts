@@ -40,8 +40,14 @@ export async function persistModelRun(
         ? `${operation}/${PREFERENCE_PROMPT_VERSION}`
         : operation === "preference_hypotheses"
           ? `${operation}/v2.1.0`
-          : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
-      isPreference ? PREFERENCE_SCHEMA_VERSION : operation === "preference_hypotheses" ? "2.1" : "1.0",
+          : metadata.effectiveSettings?.understandingInformationPolicy
+            ? `${operation}/${metadata.effectiveSettings.understandingInformationPolicy}`
+            : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
+      isPreference
+        ? PREFERENCE_SCHEMA_VERSION
+        : operation === "preference_hypotheses"
+          ? "2.1"
+          : (metadata.effectiveSettings?.understandingSchemaVersion ?? "1.0"),
       metadata.providerRequestId ?? null,
       inputHash,
       outputHash,

@@ -4,6 +4,7 @@ import { darkStateModelSchema } from "./dark-understanding";
 import { anyEntryDraftSchema } from "./entries";
 import { hypothesisPreviewSchema } from "./refinement";
 import { registrationTypeSchema } from "./taxonomy";
+import { understandingInformationQualitySchema } from "./understanding-quality";
 
 const understandingSummaryViewSchema = z.record(
   z.string(),
@@ -93,6 +94,7 @@ export const reviewDetailSchema = z
       z.object({
         id: z.string(),
         citationIssues: z.array(citationIssueSchema).optional(),
+        informationQuality: understandingInformationQualitySchema.optional(),
         sourceAssessment: z.object({ coverage: z.string(), limitations: z.array(z.string()) }),
         summary: understandingSummaryViewSchema,
         uncertainties: z.array(z.object({ topic: z.string(), reason: z.string() })),
@@ -106,6 +108,7 @@ export const reviewDetailSchema = z
       z.object({
         id: z.string(),
         citationIssues: z.array(citationIssueSchema).optional(),
+        informationQuality: understandingInformationQualitySchema.optional(),
         sourceAssessment: z.object({ coverage: z.string(), limitations: z.array(z.string()) }),
         summary: understandingSummaryViewSchema,
         uncertainties: z.array(z.object({ topic: z.string(), reason: z.string() })),

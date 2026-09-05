@@ -1,4 +1,8 @@
 {
+  "understandingInformation": {
+    "promptVersion": "understanding-information/v1.0.0",
+    "sha256": "1d3eb06fbd8f1007b525045b7e230d634db674c7e8204dcd725099c091ac5aa7"
+  },
   "preference": {
     "promptVersion": "preference/v3.1.0",
     "sha256": "d8ffc77d3e2b3bec2f89f1f5b1c185a07f355d273625971d76e36fcecf02027b"

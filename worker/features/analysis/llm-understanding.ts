@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { type UnderstandingCandidate, understandingCandidateSchema } from "../../../shared/contracts/understanding";
+import { understandingAuditSchema } from "../../../shared/contracts/understanding-quality";
 import {
   entryBaseCharacterName,
   entryInputSources,
@@ -11,13 +12,16 @@ import { SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
 import { LlmProviderError, type StructuredLlmResult } from "../../llm/types";
 import type { Env } from "../../types";
 import { ontologyPrompt } from "./context";
-import { fakeUnderstanding } from "./deterministic";
+import { fakeUnderstanding, fakeUnderstandingAudit } from "./deterministic";
 import type { CharacterResearch } from "./research";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { AttributeRow, EntryContext } from "./types";
 import {
+  assessUnderstandingInformation,
   explainUnknownUnderstandingAspects,
   UNDERSTANDING_COMPLETENESS_INSTRUCTION,
+  UNDERSTANDING_INFORMATION_INSTRUCTION,
+  UNDERSTANDING_INFORMATION_POLICY,
   understandingQualityIssues,
 } from "./understanding-quality";
 
@@ -64,14 +68,33 @@ export async function understandOne(
   const inputHash = await sha256Hex(JSON.stringify(messages));
   const attempts: NonNullable<StructuredLlmResult<UnderstandingCandidate>["attempts"]> = [];
   const citations: NonNullable<StructuredLlmResult<UnderstandingCandidate>["metadata"]["citations"]> = [];
-  async function recordCall(request: Parameters<typeof entry.llm.generateStructured<UnderstandingCandidate>>[0]) {
+  async function recordCall<T extends UnderstandingCandidate>(
+    request: Parameters<typeof entry.llm.generateStructured<T>>[0],
+  ) {
+    const metadata = (value: StructuredLlmResult<T>["metadata"]) => ({
+      ...value,
+      effectiveSettings: {
+        ...value.effectiveSettings,
+        understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
+        understandingSchemaVersion: request.schemaVersion,
+      },
+    });
     try {
       const result = await entry.llm.generateStructured(request);
+      result.metadata = metadata(result.metadata);
+      if (result.attempts)
+        result.attempts = result.attempts.map((attempt) => ({ ...attempt, metadata: metadata(attempt.metadata) }));
       attempts.push(...(result.attempts ?? [{ output: result.value, metadata: result.metadata }]));
       citations.push(...(result.metadata.citations ?? []));
       return result;
     } catch (error) {
-      if (error instanceof LlmProviderError) error.attempts = [...attempts, ...error.attempts];
+      if (error instanceof LlmProviderError) {
+        error.attempts = [
+          ...attempts,
+          ...error.attempts.map((attempt) => ({ ...attempt, metadata: metadata(attempt.metadata) })),
+        ];
+        if (error.attemptMetadata) error.attemptMetadata = metadata(error.attemptMetadata);
+      }
       throw error;
     }
   }
@@ -96,12 +119,15 @@ export async function understandOne(
   async function audit(candidate: UnderstandingCandidate, suffix: string) {
     return recordCall({
       operation: "understanding_audit",
-      schemaName: "character_understanding_candidate",
-      schemaVersion: "2.0",
-      schema: understandingCandidateSchema,
-      jsonSchema: z.toJSONSchema(understandingCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
+      schemaName: "character_understanding_audit",
+      schemaVersion: "1.0",
+      schema: understandingAuditSchema,
+      jsonSchema: z.toJSONSchema(understandingAuditSchema, { target: "draft-7" }) as Record<string, unknown>,
       messages: [
-        { role: "system", content: `${SYSTEM_INSTRUCTION}\n${UNDERSTANDING_COMPLETENESS_INSTRUCTION}` },
+        {
+          role: "system",
+          content: `${SYSTEM_INSTRUCTION}\n${UNDERSTANDING_COMPLETENESS_INSTRUCTION}\n${UNDERSTANDING_INFORMATION_INSTRUCTION}`,
+        },
         {
           role: "user",
           content: `キャラクター理解候補を元資料と照合し、根拠のない断定・カスタム差分の誤りを訂正した完全な候補を返す。新しい事実や出典を創作せず、モデル知識の確信度を上げない。候補に含まれるモデル知識は公開資料に記述がないだけでは削除せず、対象との不一致や矛盾、知識自体の不確かさがある場合に修正する。削除で空になる項目には項目別の不明理由を残す。嗜好は分析しない。\n${JSON.stringify({ stage, sourcePayload, research, candidate, citations, ontology, allowedInputPointers })}`,
@@ -111,12 +137,13 @@ export async function understandOne(
       temperature: 0,
       idempotencyKey: `${entry.entryRevisionId}:${stage}:${suffix}`,
       safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-      fakeFactory: () => candidate,
+      fakeFactory: () => fakeUnderstandingAudit(candidate),
     });
   }
   let audited = await audit(result.value, "audit");
   let issues = understandingQualityIssues(audited.value);
-  if (issues.length) {
+  let informationQuality = assessUnderstandingInformation(audited.value, false);
+  if (issues.length || informationQuality.status === "limited") {
     const repaired = await recordCall({
       operation: includeCustomization ? "customization_delta" : "character_understanding",
       schemaName: "character_understanding_candidate",
@@ -127,7 +154,7 @@ export async function understandOne(
         ...messages,
         {
           role: "user",
-          content: `監査後の人物像に不足があります。元の登録情報を基準に再検討し、完全な候補を返してください。既成キャラクターでは利用可能な公開情報検索とモデル知識を用いて不足を補ってください。オリジナルやカスタム固有の設定は入力資料の範囲を守ってください。根拠が得られなければ項目別の不明理由を残してください。\n不足: ${JSON.stringify(issues)}\n監査後の候補: ${JSON.stringify(audited.value)}\n取得済み引用: ${JSON.stringify(citations)}`,
+          content: `監査後の人物像に不足があります。元の登録情報を基準に再検討し、完全な候補を返してください。既成キャラクターでは利用可能な公開情報検索とモデル知識を用いて不足を補ってください。オリジナルやカスタム固有の設定は入力資料の範囲を守ってください。根拠が得られなければ項目別の不明理由を残してください。\n不足: ${JSON.stringify([...issues, ...informationQuality.reasons])}\n項目別の情報量判定: ${JSON.stringify(informationQuality.aspects)}\n監査後の候補: ${JSON.stringify(audited.value)}\n取得済み引用: ${JSON.stringify(citations)}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -141,6 +168,7 @@ export async function understandOne(
     });
     audited = await audit(repaired.value, "complete:audit");
     issues = understandingQualityIssues(audited.value);
+    informationQuality = assessUnderstandingInformation(audited.value, true);
   }
   if (issues.length) {
     const error = new LlmProviderError(
@@ -154,9 +182,10 @@ export async function understandOne(
     throw error;
   }
   const value = {
-    ...explainUnknownUnderstandingAspects(audited.value),
+    ...explainUnknownUnderstandingAspects(understandingCandidateSchema.parse(audited.value)),
     sourceAssessment: {
       ...audited.value.sourceAssessment,
+      informationQuality,
       systemResearch: {
         status: research.status,
         query: research.query,

@@ -10,12 +10,14 @@ import type {
   PreferenceCandidate,
 } from "../../../shared/contracts/preference";
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
+import { aspectAssessmentsSchema, type UnderstandingAudit } from "../../../shared/contracts/understanding-quality";
 import {
   entryBaseCharacterName,
   entryPreferenceContext,
   entryReferenceMaterial,
   entryScopeText,
 } from "../../../shared/entry-input";
+import { understandingAspects } from "../../../shared/understanding-aspects";
 import { inputEvidence, modelKnowledgeEvidence, preferenceContextFor } from "./input";
 import type { EntryContext } from "./types";
 import { understandingAspectLabels } from "./understanding-quality";
@@ -565,5 +567,30 @@ export function fakeDarkPreferences(
           },
         ],
     auditNotes: ["人物への好意と行為への道徳的支持を分離"],
+  };
+}
+
+/** Fake output exercises the limited-information flow; it does not judge semantic quality. */
+export function fakeUnderstandingAudit(candidate: UnderstandingCandidate): UnderstandingAudit {
+  return {
+    ...candidate,
+    aspectAssessments: aspectAssessmentsSchema.parse(
+      Object.fromEntries(
+        understandingAspects.map((aspect) => {
+          const summaryIndexes = candidate.summary[aspect].flatMap((text, index) => (text.trim() ? [index] : []));
+          return [
+            aspect,
+            {
+              kind: summaryIndexes.length ? "label_only" : "unknown",
+              reason: summaryIndexes.length
+                ? "固定Providerでは具体性を評価せず、情報不足の表示を検証します。"
+                : "人物像の記述がありません。",
+              summaryIndexes,
+              assertionIndexes: [],
+            },
+          ];
+        }),
+      ),
+    ),
   };
 }

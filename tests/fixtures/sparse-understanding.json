@@ -1,0 +1,757 @@
+[
+  {
+    "caseId": "A04",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/A04/understanding-before.json",
+    "summary": {
+      "identity": "テレビアニメ『鬼滅の刃』に登場する竈門炭治郎。分析範囲は立志編。収集済み公開情報では、『鬼滅の刃』の主人公とされている。",
+      "narrativeRole": ["ヒーロー"],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "作品",
+        "valueText": "鬼滅の刃",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "対象キャラクター",
+        "valueText": "竈門炭治郎",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "媒体",
+        "valueText": "テレビアニメ",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "物語範囲",
+        "valueText": "立志編",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "ヒーロー",
+        "valueText": "『鬼滅の刃』の主人公",
+        "explicitness": "source_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "label_only",
+        "reason": "役割名だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "A13",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/A13/understanding-before.json",
+    "summary": {
+      "identity": "テレビアニメ『ハイキュー!!』に登場する日向翔陽。分析対象の時期は、烏野高校に入って練習を重ねる頃。",
+      "narrativeRole": ["ヒーロー"],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "作品",
+        "valueText": "『ハイキュー!!』に登場する",
+        "explicitness": "source_explicit"
+      },
+      {
+        "rawLabel": "作品内での立場",
+        "valueText": "『ハイキュー!!』の主人公である",
+        "explicitness": "source_explicit"
+      },
+      {
+        "rawLabel": "分析対象時期",
+        "valueText": "烏野高校に入って練習を重ねる頃を対象とする",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "対象媒体",
+        "valueText": "テレビアニメを対象とする",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "キャラクター名",
+        "valueText": "日向翔陽",
+        "explicitness": "user_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "label_only",
+        "reason": "役割名だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "C01",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C01/understanding-before.json",
+    "summary": {
+      "identity": "『ハイキュー!!』の登場人物、影山飛雄。",
+      "narrativeRole": [],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [
+        "日向翔陽との関係を友達以上と読むことは、ユーザー自身の解釈として提示されている。公式の恋人設定としては主張されていない。"
+      ],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "作品・登場人物",
+        "valueText": "影山飛雄は『ハイキュー!!』の登場人物である",
+        "explicitness": "source_explicit"
+      },
+      {
+        "rawLabel": "友達以上という読み方",
+        "valueText": "高校時代の日向翔陽との関係を友達以上の関係として読むのはユーザー自身の解釈であり、公式の恋人設定としては主張されていない",
+        "explicitness": "user_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "attribution_only",
+        "reason": "ユーザー解釈の出所の注記だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "C07",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C07/understanding-before.json",
+    "summary": {
+      "identity": "テレビアニメ『黒子のバスケ』のキャラクター、緑間真太郎。",
+      "narrativeRole": [],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [
+        "高尾和成との高校時代の関係について、友達以上になるという読み方はユーザーの解釈であり、公式の恋人設定としては主張されていない。"
+      ],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "作品・キャラクター同定",
+        "valueText": "緑間真太郎は『黒子のバスケ』のキャラクターである。",
+        "explicitness": "source_explicit"
+      },
+      {
+        "rawLabel": "媒体",
+        "valueText": "対象はテレビアニメとして登録されている。",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "友達以上という読み方",
+        "valueText": "緑間真太郎と高尾和成の関係が友達以上になるという読み方は、ユーザー自身の解釈であり、公式の恋人設定としては主張されていない。",
+        "explicitness": "user_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "attribution_only",
+        "reason": "ユーザー解釈の出所の注記だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "C11",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C11/understanding-before.json",
+    "summary": {
+      "identity": "登録された対象は、テレビアニメ『文豪ストレイドッグス』の中原中也。",
+      "narrativeRole": [],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [
+        "太宰治との関係を「友達以上」と読むことはユーザー自身の解釈であり、公式の恋人設定としては扱わない。"
+      ],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "対象キャラクター",
+        "valueText": "テレビアニメ『文豪ストレイドッグス』に登場する中原中也",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "関係が友達以上になるという読み方",
+        "valueText": "中原中也と太宰治の関係を友達以上として読むことは、ユーザー自身の解釈である。公式の恋人設定としては主張されていない。",
+        "explicitness": "user_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "attribution_only",
+        "reason": "ユーザー解釈の出所の注記だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "C12",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C12/understanding-before.json",
+    "summary": {
+      "identity": "『鋼の錬金術師』のマース・ヒューズ。分析対象としてテレビアニメ（2003年版）が指定されている。",
+      "narrativeRole": [],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [
+        "ロイ・マスタングとの関係が友達以上になるという読み方は、ユーザー自身の解釈として提示されている。"
+      ],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "登場人物としての同定",
+        "valueText": "マース・ヒューズは『鋼の錬金術師』の登場人物である。",
+        "explicitness": "source_explicit"
+      },
+      {
+        "rawLabel": "分析対象媒体",
+        "valueText": "分析対象媒体はテレビアニメ（2003年版）として指定されている。",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "ロイとの関係に関するユーザー解釈",
+        "valueText": "ロイ・マスタングとの関係が友達以上になるという読み方はユーザー自身の解釈であり、公式の恋人設定としては主張されていない。",
+        "explicitness": "user_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "attribution_only",
+        "reason": "ユーザー解釈の出所の注記だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "C13",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/C13/understanding-before.json",
+    "summary": {
+      "identity": "ロイ・マスタング。提示された公開情報では、『鋼の錬金術師』の登場人物とされている。",
+      "narrativeRole": [],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [
+        "ヒューズとの関係が友達以上になるという読み方は、ユーザー自身の解釈として提示されており、公式の恋人設定としては主張されていない。"
+      ],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "人物同定",
+        "valueText": "ロイ・マスタングは『鋼の錬金術師』の登場人物である。",
+        "explicitness": "source_explicit"
+      },
+      {
+        "rawLabel": "恋愛関係に関するユーザー解釈",
+        "valueText": "ヒューズとの関係が友達以上になるという読み方はユーザーの解釈であり、公式の恋人設定としては主張されていない。",
+        "explicitness": "user_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "attribution_only",
+        "reason": "ユーザー解釈の出所の注記だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "D10",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/corrections/D10/final.json",
+    "summary": {
+      "identity": "『HUNTER×HUNTER』の主人公ゴン＝フリークス。対象範囲はテレビアニメ（1999年版）のハンター試験。",
+      "narrativeRole": ["主人公"],
+      "moralityOrientation": [],
+      "goals": [],
+      "values": [],
+      "behavior": [],
+      "relationships": [],
+      "expression": []
+    },
+    "assertions": [
+      {
+        "rawLabel": "1999年版・ハンター試験の対象指定",
+        "valueText": "今回の対象は『HUNTER×HUNTER』テレビアニメ1999年版、ハンター試験の頃のゴン＝フリークス。2011年版との比較や、後の展開を今回の対象に追加しない。",
+        "explicitness": "user_explicit"
+      },
+      {
+        "rawLabel": "主人公",
+        "valueText": "『HUNTER×HUNTER』の主人公である",
+        "explicitness": "source_explicit"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "label_only",
+        "reason": "役割名だけが残っている。",
+        "summaryIndexes": [0],
+        "assertionIndexes": []
+      },
+      "moralityOrientation": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "behavior": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "relationships": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "expression": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      }
+    }
+  },
+  {
+    "caseId": "D03",
+    "source": ".artifacts/live-evaluation/20260905-personas-01/cases/D03/understanding-before.json",
+    "summary": {
+      "identity": "架空のロボット。対象は大山のぶ代さんが声を担当した、1979年から2005年3月までのテレビアニメ版。",
+      "narrativeRole": ["ヒーロー", "脇役", "コミックリリーフ"],
+      "moralityOrientation": ["英雄的方向性"],
+      "goals": [],
+      "values": ["親切", "思いやり", "保護的", "忠実"],
+      "behavior": ["強大な力", "無能・不器用", "主体的", "恐れ"],
+      "relationships": ["献身", "保護的", "忠実"],
+      "expression": ["かわいさ", "非人間的造形", "戯画的・遊戯的な話し方", "コメディ的"]
+    },
+    "assertions": [
+      {
+        "rawLabel": "ヒーロー",
+        "valueText": "のび太を助け、困難を解決しようとする中心的な味方として機能する。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "脇役",
+        "valueText": "物語上はのび太を中心とする展開を支える相棒・保護者的な立場にある。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "コミックリリーフ",
+        "valueText": "ひみつ道具をめぐる失敗や慌てた反応などを通じて、コメディ的な役割も担う。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "非人間的造形",
+        "valueText": "架空のロボットであり、人間ではない存在として設定されている。",
+        "explicitness": "source_explicit"
+      },
+      {
+        "rawLabel": "かわいさ",
+        "valueText": "丸みを帯びた青い外見や猫を思わせる意匠により、親しみやすくかわいらしい造形として表現される。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "親切",
+        "valueText": "困っている相手、とくにのび太を見捨てず、助けようとする親切さを示す。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "思いやり",
+        "valueText": "のび太の苦境や感情に反応し、救済や支援を試みる思いやりがある。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "保護的",
+        "valueText": "のび太を危機やいじめから守ろうとし、ひみつ道具を使って状況を改善しようとする。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "献身",
+        "valueText": "のび太のために継続的にそばにいて、失敗や迷惑を受けても関係を維持する。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "忠実",
+        "valueText": "のび太との約束や関係を重視し、基本的には味方として行動する。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "強大な力",
+        "valueText": "多種多様なひみつ道具を取り出し、通常の人間には不可能な問題解決手段を提供できる。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "無能・不器用",
+        "valueText": "道具の取り扱いを誤ったり、のび太の要求に流されたりして、問題を拡大させることがある。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "主体的",
+        "valueText": "のび太から頼まれるだけでなく、自分から危機への対処や助言を始めることがある。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "恐れ",
+        "valueText": "ネズミを強く苦手としており、普段の保護者的な態度から一転して取り乱すことがある。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "戯画的・遊戯的な話し方",
+        "valueText": "親しみやすく、感情の起伏が伝わるくだけた話し方をする。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "コメディ的",
+        "valueText": "慌てた反応や道具をめぐる騒動を通じて、全体にコメディ寄りの表現を担う。",
+        "explicitness": "model_knowledge"
+      },
+      {
+        "rawLabel": "英雄的方向性",
+        "valueText": "弱い立場の人物を助け、危機を解決しようとする方向性を持つ。",
+        "explicitness": "model_knowledge"
+      }
+    ],
+    "aspectAssessments": {
+      "narrativeRole": {
+        "kind": "concrete",
+        "reason": "具体的な人物描写を属性で保持している。",
+        "summaryIndexes": [0, 1, 2],
+        "assertionIndexes": [0, 1, 2]
+      },
+      "moralityOrientation": {
+        "kind": "concrete",
+        "reason": "具体的な人物描写を属性で保持している。",
+        "summaryIndexes": [0],
+        "assertionIndexes": [16]
+      },
+      "goals": {
+        "kind": "unknown",
+        "reason": "凍結された解析結果では人物像が得られていない。",
+        "summaryIndexes": [],
+        "assertionIndexes": []
+      },
+      "values": {
+        "kind": "concrete",
+        "reason": "具体的な人物描写を属性で保持している。",
+        "summaryIndexes": [0, 1, 2, 3],
+        "assertionIndexes": [5, 6, 7, 9]
+      },
+      "behavior": {
+        "kind": "concrete",
+        "reason": "具体的な人物描写を属性で保持している。",
+        "summaryIndexes": [0, 1, 2, 3],
+        "assertionIndexes": [10, 11, 12, 13]
+      },
+      "relationships": {
+        "kind": "concrete",
+        "reason": "具体的な人物描写を属性で保持している。",
+        "summaryIndexes": [0, 1, 2],
+        "assertionIndexes": [7, 8, 9]
+      },
+      "expression": {
+        "kind": "concrete",
+        "reason": "具体的な人物描写を属性で保持している。",
+        "summaryIndexes": [0, 1, 2, 3],
+        "assertionIndexes": [3, 4, 14, 15]
+      }
+    }
+  }
+]

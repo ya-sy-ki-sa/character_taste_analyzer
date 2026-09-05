@@ -11,6 +11,7 @@ import { AddPreferenceAssertionControl, PreferenceAssertionEditControl } from ".
 import { PreferenceContext } from "./PreferenceContext";
 import { PreferenceRefinement } from "./PreferenceRefinement";
 import { reanalyzableStatuses, reviewSummaryValue, statusLabels, understandingSummaryLabel } from "./presentation";
+import { UnderstandingInformationNotice } from "./UnderstandingInformationNotice";
 import { useEntryReview } from "./use-entry-review";
 import { AddValueStanceControl, ValueStanceEditControl } from "./ValueStanceControls";
 
@@ -107,6 +108,12 @@ export function ReviewModal({
             <Card>
               <p className="eyebrow">BASE CHARACTER UNDERSTANDING</p>
               <h3>既成キャラクターの基本像</h3>
+              {domain === "standard" && (
+                <UnderstandingInformationNotice
+                  quality={value.baseUnderstanding.informationQuality}
+                  editable={value.entry.status === "understanding_review"}
+                />
+              )}
               <p>{String(value.baseUnderstanding.summary.identity ?? "")}</p>
               <dl className="review-summary">
                 {Object.entries(value.baseUnderstanding.summary)
@@ -160,6 +167,12 @@ export function ReviewModal({
             <Card>
               <p className="eyebrow">CHARACTER UNDERSTANDING</p>
               <h3>{value.baseUnderstanding ? "対象像・基本像からの差分" : "キャラクター像"}</h3>
+              {domain === "standard" && (
+                <UnderstandingInformationNotice
+                  quality={value.understanding.informationQuality}
+                  editable={value.entry.status === "understanding_review"}
+                />
+              )}
               <p>{String(value.understanding.summary.identity ?? "")}</p>
               <dl className="review-summary">
                 {Object.entries(value.understanding.summary)

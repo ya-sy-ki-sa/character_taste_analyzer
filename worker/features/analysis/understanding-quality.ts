@@ -1,17 +1,52 @@
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
+import type {
+  UnderstandingAudit,
+  UnderstandingInformationQuality,
+} from "../../../shared/contracts/understanding-quality";
+import {
+  type UnderstandingAspect as Aspect,
+  understandingAspects as aspects,
+  understandingAspectLabels,
+} from "../../../shared/understanding-aspects";
 
-export const understandingAspectLabels = {
-  narrativeRole: "物語での役割",
-  moralityOrientation: "善悪・道徳的な傾向",
-  goals: "目的・目標",
-  values: "重視する価値観",
-  behavior: "行動・振る舞い",
-  relationships: "他者との関係",
-  expression: "表現・雰囲気",
-} as const;
+import { UNDERSTANDING_INFORMATION_POLICY } from "../../llm/prompts/understanding";
 
-type Aspect = keyof typeof understandingAspectLabels;
-const aspects = Object.keys(understandingAspectLabels) as Aspect[];
+export { understandingAspectLabels } from "../../../shared/understanding-aspects";
+
+export {
+  UNDERSTANDING_COMPLETENESS_INSTRUCTION,
+  UNDERSTANDING_INFORMATION_INSTRUCTION,
+  UNDERSTANDING_INFORMATION_POLICY,
+} from "../../llm/prompts/understanding";
+
+export function assessUnderstandingInformation(
+  candidate: UnderstandingAudit,
+  completionAttempted: boolean,
+): UnderstandingInformationQuality {
+  const contentAspectCount = aspects.filter((aspect) => hasContent(candidate.summary[aspect])).length;
+  const concreteAspectCount = aspects.filter(
+    (aspect) => candidate.aspectAssessments[aspect].kind === "concrete",
+  ).length;
+  const limited = contentAspectCount <= 1 || concreteAspectCount < 2;
+  return {
+    policyVersion: UNDERSTANDING_INFORMATION_POLICY,
+    assessedAt: "analysis",
+    status: limited ? "limited" : "not_flagged",
+    contentAspectCount,
+    concreteAspectCount,
+    completionAttempted,
+    reasons: limited
+      ? [
+          ...(contentAspectCount <= 1 ? ["人物像の7項目のうち、内容のある項目が1つ以下です。"] : []),
+          ...(concreteAspectCount < 2
+            ? ["具体的な人物描写を得られた項目が2つ未満です。役割名や出所の注記だけでは人物像を十分に説明できません。"]
+            : []),
+        ]
+      : [],
+    aspects: candidate.aspectAssessments,
+  };
+}
+
 const hasContent = (values: string[]) => values.some((value) => value.trim().length > 0);
 
 function uncertaintyFor(candidate: UnderstandingCandidate, aspect: Aspect) {
@@ -49,13 +84,3 @@ export function explainUnknownUnderstandingAspects(candidate: UnderstandingCandi
   }
   return { ...candidate, summary };
 }
-
-export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `キャラクター像の7項目（${Object.entries(
-  understandingAspectLabels,
-)
-  .map(([key, label]) => `${key}: ${label}`)
-  .join("、")}）をそれぞれ検討してください。
-各項目には根拠のある人物像を具体的な文章で記述し、対応するassertionsにも根拠と出所を残してください。名前・作品名だけでは人物像は完成していません。
-公開資料にないという理由だけで、利用可能なモデル知識を一律に削除しないでください。モデル知識はexplicitnessとsourceRefをmodel_knowledgeとし、確信度を上げずに扱ってください。
-本当に不明な項目はsummaryを空配列にし、uncertaintiesにtopicをその項目の英語キー、reasonを具体的な不明理由として記録してください。「不明」や「確認できません」などの代替文はsummaryに入れないでください。
-全項目を埋めるために設定を創作したり、ユーザーの嗜好を人物の事実へ転用したりしないでください。`;
