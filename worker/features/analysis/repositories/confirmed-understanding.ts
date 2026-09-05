@@ -5,7 +5,7 @@ export function selectCharacterAssertions(
 ): D1PreparedStatement {
   return db
     .prepare(
-      `SELECT a.*,d.stable_key FROM character_assertions a LEFT JOIN attribute_definitions d ON d.id=a.attribute_definition_id WHERE a.snapshot_id=? AND a.owner_user_id=? AND a.status IN ('confirmed','corrected') ORDER BY a.ordinal,a.id`,
+      `SELECT a.*,d.stable_key FROM character_assertions a LEFT JOIN attribute_definitions d ON d.id=a.attribute_definition_id WHERE a.snapshot_id=? AND a.owner_user_id=? AND a.status IN ('confirmed','corrected') AND NOT (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='character_assertion' AND invalid.owner_id=a.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='character_assertion' AND valid.owner_id=a.id AND valid.verification_status!='invalid')) ORDER BY a.ordinal,a.id`,
     )
     .bind(...bindings);
 }
@@ -38,7 +38,7 @@ export function selectCharacterAssertions2(
 ): D1PreparedStatement {
   return db
     .prepare(
-      `SELECT raw_label,value_text,status FROM character_assertions WHERE snapshot_id=? AND owner_user_id=? AND status IN ('rejected','superseded') ORDER BY ordinal,id`,
+      `SELECT a.raw_label,a.value_text,CASE WHEN a.status IN ('rejected','superseded') THEN a.status ELSE 'unverified' END AS status FROM character_assertions a WHERE a.snapshot_id=? AND a.owner_user_id=? AND (a.status IN ('rejected','superseded') OR (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='character_assertion' AND invalid.owner_id=a.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='character_assertion' AND valid.owner_id=a.id AND valid.verification_status!='invalid'))) ORDER BY a.ordinal,a.id`,
     )
     .bind(...bindings);
 }

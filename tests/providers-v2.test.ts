@@ -364,4 +364,45 @@ describe("explicit LLM provider routing", () => {
     ).generateStructured({ ...request, enableWebSearch: true });
     expect(result.value.value).toBe("researched");
   });
+  it.each([false, true])(
+    "collects citations after output text, including output_text coexistence=%s",
+    async (topLevelText) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            id: "resp_citations",
+            ...(topLevelText ? { output_text: '{"value":"collected"}' } : {}),
+            output: [
+              { type: "message", content: [{ type: "output_text", text: '{"value":"collected"}', annotations: [] }] },
+              {
+                type: "web_search_call",
+                action: { sources: [{ url: "https://example.com/search", title: "Search" }] },
+              },
+              {
+                type: "message",
+                content: [
+                  {
+                    annotations: [
+                      { type: "url_citation", url: "https://example.com/annotation", title: "Annotation" },
+                      { type: "other", url: "https://invented.example" },
+                    ],
+                  },
+                ],
+              },
+            ],
+            usage: {},
+          }),
+        ),
+      );
+      const result = await createLlmProvider(
+        providerEnv({ LLM_PROVIDER: "openai", LLM_MODEL: "gpt-5.6-sol", OPENAI_API_KEY: "test-key" }),
+      ).generateStructured(request);
+      expect(result.value.value).toBe("collected");
+      expect(result.metadata.citations).toEqual([
+        { url: "https://example.com/search", title: "Search" },
+        { url: "https://example.com/annotation", title: "Annotation" },
+      ]);
+    },
+  );
 });

@@ -1,4 +1,8 @@
 {
+  "citationVerification": {
+    "promptVersion": "external-id/v1.0.0",
+    "sha256": "7a053e3e2f527e7e777a2cc83a48eba3c777d6680184592d0449a2b4652ab4ec"
+  },
   "preferenceHypotheses": {
     "promptVersion": "preference_hypotheses/v2.1.0",
     "sha256": "20f0e16749ab1cd35f5c31e27fad38ddb2f034c4a5bd99ba6db15ca787abea8e"

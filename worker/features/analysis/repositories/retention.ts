@@ -5,7 +5,7 @@ export function selectPreferenceAssertions(
 ): D1PreparedStatement {
   return db
     .prepare(
-      `SELECT pa.*,rm.raw_label,d.stable_key FROM preference_assertions pa LEFT JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id LEFT JOIN attribute_definitions d ON d.id=pa.attribute_definition_id WHERE pa.analysis_run_id=? AND pa.owner_user_id=? AND pa.status NOT IN ('rejected','superseded') ORDER BY pa.created_at,pa.id`,
+      `SELECT pa.*,rm.raw_label,d.stable_key FROM preference_assertions pa LEFT JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id LEFT JOIN attribute_definitions d ON d.id=pa.attribute_definition_id WHERE pa.analysis_run_id=? AND pa.owner_user_id=? AND pa.status NOT IN ('rejected','superseded') AND NOT (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='preference_assertion' AND invalid.owner_id=pa.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='preference_assertion' AND valid.owner_id=pa.id AND valid.verification_status!='invalid')) ORDER BY pa.created_at,pa.id`,
     )
     .bind(...bindings);
 }
@@ -16,7 +16,7 @@ export function selectValueStanceAssertions(
 ): D1PreparedStatement {
   return db
     .prepare(
-      `SELECT * FROM value_stance_assertions WHERE analysis_run_id=? AND owner_user_id=? AND status NOT IN ('rejected','superseded') ORDER BY created_at,id`,
+      `SELECT vs.* FROM value_stance_assertions vs WHERE vs.analysis_run_id=? AND vs.owner_user_id=? AND vs.status NOT IN ('rejected','superseded') AND NOT (EXISTS (SELECT 1 FROM evidence_fragments bad WHERE bad.owner_type='value_stance_assertion' AND bad.owner_id=vs.id AND bad.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments good WHERE good.owner_type='value_stance_assertion' AND good.owner_id=vs.id AND good.verification_status!='invalid')) ORDER BY vs.created_at,vs.id`,
     )
     .bind(...bindings);
 }

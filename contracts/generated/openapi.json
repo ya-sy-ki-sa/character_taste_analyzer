@@ -1729,6 +1729,70 @@
                   "id": {
                     "type": "string"
                   },
+                  "citationIssues": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "unknown_source_ref",
+                            "url_not_allowed",
+                            "conflicting_reference",
+                            "source_unavailable",
+                            "quote_not_found"
+                          ]
+                        },
+                        "sourceRef": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "sourceUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "inputPointer": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "targetType": {
+                          "type": "string",
+                          "enum": [
+                            "character_assertion",
+                            "preference_assertion",
+                            "value_stance_assertion"
+                          ]
+                        },
+                        "targetId": {
+                          "type": "string"
+                        },
+                        "evidenceIndex": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "modelRunId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "sourceRef",
+                        "sourceUrl",
+                        "inputPointer",
+                        "targetType",
+                        "targetId",
+                        "evidenceIndex",
+                        "modelRunId"
+                      ]
+                    }
+                  },
                   "sourceAssessment": {
                     "type": "object",
                     "properties": {
@@ -1946,6 +2010,70 @@
                   "id": {
                     "type": "string"
                   },
+                  "citationIssues": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "unknown_source_ref",
+                            "url_not_allowed",
+                            "conflicting_reference",
+                            "source_unavailable",
+                            "quote_not_found"
+                          ]
+                        },
+                        "sourceRef": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "sourceUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "inputPointer": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "targetType": {
+                          "type": "string",
+                          "enum": [
+                            "character_assertion",
+                            "preference_assertion",
+                            "value_stance_assertion"
+                          ]
+                        },
+                        "targetId": {
+                          "type": "string"
+                        },
+                        "evidenceIndex": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "modelRunId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "sourceRef",
+                        "sourceUrl",
+                        "inputPointer",
+                        "targetType",
+                        "targetId",
+                        "evidenceIndex",
+                        "modelRunId"
+                      ]
+                    }
+                  },
                   "sourceAssessment": {
                     "type": "object",
                     "properties": {
@@ -2155,6 +2283,70 @@
                 "properties": {
                   "id": {
                     "type": "string"
+                  },
+                  "citationIssues": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "unknown_source_ref",
+                            "url_not_allowed",
+                            "conflicting_reference",
+                            "source_unavailable",
+                            "quote_not_found"
+                          ]
+                        },
+                        "sourceRef": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "sourceUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "inputPointer": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "targetType": {
+                          "type": "string",
+                          "enum": [
+                            "character_assertion",
+                            "preference_assertion",
+                            "value_stance_assertion"
+                          ]
+                        },
+                        "targetId": {
+                          "type": "string"
+                        },
+                        "evidenceIndex": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "modelRunId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "sourceRef",
+                        "sourceUrl",
+                        "inputPointer",
+                        "targetType",
+                        "targetId",
+                        "evidenceIndex",
+                        "modelRunId"
+                      ]
+                    }
                   },
                   "hypothesisPreview": {
                     "anyOf": [

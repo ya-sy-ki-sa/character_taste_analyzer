@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { citationIssueSchema } from "./citations";
 import { darkStateModelSchema } from "./dark-understanding";
 import { anyEntryDraftSchema } from "./entries";
 import { hypothesisPreviewSchema } from "./refinement";
@@ -90,6 +91,7 @@ export const reviewDetailSchema = z
       z.null(),
       z.object({
         id: z.string(),
+        citationIssues: z.array(citationIssueSchema).optional(),
         sourceAssessment: z.object({ coverage: z.string(), limitations: z.array(z.string()) }),
         summary: understandingSummaryViewSchema,
         uncertainties: z.array(z.object({ topic: z.string(), reason: z.string() })),
@@ -102,6 +104,7 @@ export const reviewDetailSchema = z
       z.null(),
       z.object({
         id: z.string(),
+        citationIssues: z.array(citationIssueSchema).optional(),
         sourceAssessment: z.object({ coverage: z.string(), limitations: z.array(z.string()) }),
         summary: understandingSummaryViewSchema,
         uncertainties: z.array(z.object({ topic: z.string(), reason: z.string() })),
@@ -113,6 +116,7 @@ export const reviewDetailSchema = z
       z.null(),
       z.object({
         id: z.string(),
+        citationIssues: z.array(citationIssueSchema).optional(),
         hypothesisPreview: z.union([hypothesisPreviewSchema, z.null()]).optional(),
         qualityContext: z
           .object({ refinementMode: z.string().nullable().optional(), evidenceInsufficient: z.boolean().optional() })

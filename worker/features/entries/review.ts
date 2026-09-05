@@ -193,6 +193,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
           id: snapshot.id,
           baseSnapshotId: snapshot.base_snapshot_id,
           sourceAssessment: JSON.parse(snapshot.source_assessment_json),
+          citationIssues: JSON.parse(snapshot.source_assessment_json).citationIssues ?? [],
           summary: localizeUnderstandingSummary(JSON.parse(snapshot.summary_json), attributeLabels),
           uncertainties: JSON.parse(snapshot.uncertainties_json),
           confidence: snapshot.overall_confidence,
@@ -205,6 +206,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
       ? {
           id: baseSnapshot.id,
           sourceAssessment: JSON.parse(baseSnapshot.source_assessment_json),
+          citationIssues: JSON.parse(baseSnapshot.source_assessment_json).citationIssues ?? [],
           summary: localizeUnderstandingSummary(JSON.parse(baseSnapshot.summary_json), attributeLabels),
           uncertainties: JSON.parse(baseSnapshot.uncertainties_json),
           confidence: baseSnapshot.overall_confidence,
@@ -220,6 +222,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
           id: analysis.id,
           hypothesisPreview,
           qualityContext: JSON.parse(analysis.quality_context_json),
+          citationIssues: JSON.parse(analysis.quality_context_json).citationIssues ?? [],
           summary: JSON.parse(analysis.summary_json),
           uncertainties: JSON.parse(analysis.uncertainties_json),
           status: analysis.status,

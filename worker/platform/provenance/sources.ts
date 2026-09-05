@@ -2,6 +2,7 @@ import { nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import type { Env } from "../../types";
 import * as repository from "./repositories/sources";
+import { canonicalSourceUrl } from "./urls";
 import type { ProvenanceSource } from "./verifier";
 
 export {
@@ -45,7 +46,15 @@ export async function prepareExternalProvenanceSources(
 ): Promise<{ sources: ProvenanceSource[]; statements: D1PreparedStatement[] }> {
   const result: ProvenanceSource[] = [];
   const prepared: D1PreparedStatement[] = [];
-  for (const source of new Map(sources.map((item) => [item.url, item])).values()) {
+  const unique = new Map<string, (typeof sources)[number]>();
+  for (const source of sources) {
+    const key = canonicalSourceUrl(source.url);
+    const previous = unique.get(key);
+    // Search annotations often repeat a collected document with only a title.
+    // Keep its collected text so exact quotes remain verifiable.
+    if (!previous || (!previous.excerpt?.trim() && source.excerpt?.trim())) unique.set(key, source);
+  }
+  for (const source of unique.values()) {
     const now = nowIso();
     const existing = await first<{
       source_id: string;

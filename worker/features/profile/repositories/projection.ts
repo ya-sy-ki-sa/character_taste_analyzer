@@ -15,15 +15,15 @@ export function selectPreferenceAssertions(
            COALESCE(MAX(CASE ef.verification_status
              WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
-             WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
+             ELSE 0.1 END), 0.1) AS evidence_quality
     FROM preference_assertions pa
     JOIN entry_revisions er ON er.id = pa.entry_revision_id
     JOIN user_character_entries e ON e.id = er.entry_id AND e.active_revision_number = er.revision_number
     JOIN character_identities ci ON ci.id = pa.character_identity_id
     LEFT JOIN attribute_definitions ad ON ad.id = pa.attribute_definition_id
     JOIN raw_attribute_mentions rm ON rm.id = pa.raw_mention_id
-    LEFT JOIN evidence_fragments ef ON ef.owner_type = 'preference_assertion' AND ef.owner_id = pa.id
-    WHERE pa.owner_user_id = ? AND pa.status IN ('confirmed', 'corrected')
+    LEFT JOIN evidence_fragments ef ON ef.owner_type = 'preference_assertion' AND ef.owner_id = pa.id AND ef.verification_status!='invalid'
+    WHERE pa.owner_user_id = ? AND pa.status IN ('confirmed', 'corrected') AND NOT (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='preference_assertion' AND invalid.owner_id=pa.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='preference_assertion' AND valid.owner_id=pa.id AND valid.verification_status!='invalid'))
       AND e.owner_user_id = ? AND e.status = 'active'
       AND pa.analysis_run_id=(SELECT latest.id FROM analysis_runs latest WHERE latest.entry_revision_id=pa.entry_revision_id AND latest.owner_user_id=pa.owner_user_id AND latest.status='succeeded' ORDER BY latest.run_generation DESC LIMIT 1)
     GROUP BY pa.id
@@ -62,15 +62,15 @@ export function selectValueStanceAssertions(
            COALESCE(MAX(CASE ef.verification_status
              WHEN 'verified_quote' THEN CASE ef.evidence_origin WHEN 'user_input' THEN 1.0 ELSE 0.9 END
              WHEN 'source_attributed' THEN 0.7 WHEN 'model_knowledge' THEN 0.35
-             WHEN 'invalid' THEN 0.05 ELSE 0.1 END), 0.1) AS evidence_quality
+             ELSE 0.1 END), 0.1) AS evidence_quality
     FROM value_stance_assertions vs
     JOIN analysis_runs ar ON ar.id = vs.analysis_run_id
     JOIN entry_revisions er ON er.id = ar.entry_revision_id
     JOIN user_character_entries e ON e.id = er.entry_id AND e.active_revision_number = er.revision_number
     JOIN character_representations cr ON cr.id=er.representation_id
     JOIN character_identities ci ON ci.id=cr.character_identity_id
-    LEFT JOIN evidence_fragments ef ON ef.owner_type = 'value_stance_assertion' AND ef.owner_id = vs.id
-    WHERE vs.owner_user_id = ? AND vs.status IN ('confirmed', 'corrected')
+    LEFT JOIN evidence_fragments ef ON ef.owner_type = 'value_stance_assertion' AND ef.owner_id = vs.id AND ef.verification_status!='invalid'
+    WHERE vs.owner_user_id = ? AND vs.status IN ('confirmed', 'corrected') AND NOT (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='value_stance_assertion' AND invalid.owner_id=vs.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='value_stance_assertion' AND valid.owner_id=vs.id AND valid.verification_status!='invalid'))
       AND e.owner_user_id = ? AND e.status = 'active'
       AND ar.id=(SELECT latest.id FROM analysis_runs latest WHERE latest.entry_revision_id=ar.entry_revision_id AND latest.owner_user_id=ar.owner_user_id AND latest.status='succeeded' ORDER BY latest.run_generation DESC LIMIT 1)
     GROUP BY vs.id ORDER BY vs.id

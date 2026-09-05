@@ -3,6 +3,7 @@ import { DARK_GENERATION_SYSTEM, GENERATION_SYSTEM, GENERATION_VALIDATION_SYSTEM
 import { HYPOTHESIS_SYSTEM } from "./hypotheses";
 
 export const promptRegistry = {
+  citationVerification: { promptVersion: CITATION_POLICY_VERSION, text: CITATION_INSTRUCTION },
   preferenceHypotheses: { promptVersion: "preference_hypotheses/v2.1.0", text: HYPOTHESIS_SYSTEM },
   darkAnalysis: { promptVersion: "dark_analysis/v2.0.0", text: DARK_SYSTEM_INSTRUCTION },
   darkGeneration: { promptVersion: "dark_generation/v2.0.0", text: DARK_GENERATION_SYSTEM },
@@ -10,3 +11,5 @@ export const promptRegistry = {
   generation: { promptVersion: "character_generation/v2.0.0", text: GENERATION_SYSTEM },
   generationValidation: { promptVersion: "generation_validation/v2.0.0", text: GENERATION_VALIDATION_SYSTEM },
 } as const;
+
+import { CITATION_INSTRUCTION, CITATION_POLICY_VERSION } from "../../platform/provenance/registry";

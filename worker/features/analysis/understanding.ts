@@ -1,14 +1,13 @@
+import type { CitationIssue } from "../../../shared/contracts/citations";
 import type { DarkBaselineUnderstanding } from "../../../shared/contracts/dark-understanding";
 import { normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
-import {
-  loadInputProvenanceSources,
-  prepareExternalProvenanceSources,
-  verifyEvidenceReference,
-} from "../../platform/provenance/sources";
+import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
+import { loadInputProvenanceSources, prepareExternalProvenanceSources } from "../../platform/provenance/sources";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "../jobs/execution";
+import { citationAwareProvider, logCitationIssues, verifyAssertionEvidence } from "./citations";
 import { analysisFenceIsCurrent, supersedeAnalysisClaim } from "./claims";
 import { loadEntry, loadOntology } from "./context";
 import { analysisErrorCode, analysisFailureMetadata, safeAnalysisErrorDetail, updateFailure } from "./failures";
@@ -50,6 +49,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       return;
     }
     const research = await collectCharacterResearch(env, entry.payload);
+    entry.llm = await citationAwareProvider(entry.llm, research.sources);
     if (params.analysisDomain === "dark" && (await ensureDarkScope(env, params, entry, research, claim)) === "waiting")
       return;
 
@@ -117,6 +117,8 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       ...externalProvenance.sources,
     ];
     const allowedUrls = new Set(externalSources.map((source) => source.url));
+    const citationRegistry = new CitationRegistry();
+    await citationRegistry.add(externalSources);
 
     const attributeByKey = new Map(ontology.map((item) => [item.stable_key, item]));
     const commitStep = `commit-understanding:${claim.attemptId}`;
@@ -206,6 +208,50 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       statements.push(...attemptRuns.map((item) => item.statement));
       const modelRun = attemptRuns.at(-1);
       if (!modelRun) throw new Error("MODEL_RUN_MISSING");
+      const citationIssues: CitationIssue[] = [];
+      const verifiedAssertions = await Promise.all(
+        call.value.assertions.map(async (assertion) => {
+          const id = crypto.randomUUID();
+          const verified = await verifyAssertionEvidence(
+            assertion,
+            provenanceSources,
+            allowedUrls,
+            citationRegistry,
+            { targetType: "character_assertion", targetId: id, modelRunId: modelRun.id },
+            citationIssues,
+          );
+          return { id, ...verified };
+        }),
+      );
+      call.value = {
+        ...call.value,
+        assertions: call.value.assertions.map((assertion, index) => ({
+          ...assertion,
+          confidence: verifiedAssertions[index].confidence,
+        })),
+        sourceAssessment: {
+          ...call.value.sourceAssessment,
+          coverage:
+            verifiedAssertions.length &&
+            verifiedAssertions.every(
+              (item) =>
+                item.evidence.length && item.evidence.every((evidence) => evidence.verificationStatus === "invalid"),
+            )
+              ? "none"
+              : citationIssues.length && call.value.sourceAssessment.coverage === "sufficient"
+                ? "partial"
+                : call.value.sourceAssessment.coverage,
+          limitations: [
+            ...call.value.sourceAssessment.limitations,
+            ...(citationIssues.length
+              ? [
+                  "照合できない根拠は採用しません。無効な根拠しかない属性は、修正保存するまで次の好み分析には使用しません。",
+                ]
+              : []),
+          ].slice(-50),
+        },
+      };
+      logCitationIssues(modelRun.id, citationIssues);
       const runId = crypto.randomUUID();
       const snapshotId = crypto.randomUUID();
       const snapshotGeneration = await first<{ next_generation: number }>(
@@ -244,7 +290,11 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           snapshotGeneration.next_generation,
           entry.payload.preferenceContext ?? null,
           Math.min(1, confidence),
-          JSON.stringify(call.value.sourceAssessment),
+          JSON.stringify({
+            ...call.value.sourceAssessment,
+            citationIssues,
+            citationPolicyVersion: CITATION_POLICY_VERSION,
+          }),
           JSON.stringify(
             "darkState" in call.value
               ? { ...call.value.summary, darkState: call.value.darkState, auditNotes: call.value.auditNotes }
@@ -259,7 +309,8 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       );
 
       for (const [ordinal, assertion] of call.value.assertions.entries()) {
-        const assertionId = crypto.randomUUID();
+        const verifiedAssertion = verifiedAssertions[ordinal];
+        const assertionId = verifiedAssertion.id;
         const rawId = crypto.randomUUID();
         const attribute = assertion.attributeStableKey ? attributeByKey.get(assertion.attributeStableKey) : undefined;
         statements.push(
@@ -305,8 +356,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
             now,
           ]),
         );
-        for (const evidence of assertion.evidence) {
-          const verified = await verifyEvidenceReference(evidence, provenanceSources, allowedUrls);
+        for (const verified of verifiedAssertion.evidence) {
           statements.push(
             repository.insertEvidenceFragments(env.DB, [
               crypto.randomUUID(),

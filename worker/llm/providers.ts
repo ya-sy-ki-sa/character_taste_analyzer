@@ -82,57 +82,54 @@ function extractText(payload: unknown): {
   citations?: Array<{ url: string; title: string }>;
 } {
   const object = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-  if (typeof object.response === "string")
-    return { text: object.response, usage: object.usage as Record<string, unknown> };
-  if (typeof object.output_text === "string")
-    return {
-      text: object.output_text,
-      requestId: typeof object.id === "string" ? object.id : undefined,
-      usage: object.usage as Record<string, unknown>,
-    };
+  const citations = new Map<string, { url: string; title: string }>();
+  const texts: string[] = [];
+  const record = (value: unknown) => {
+    if (!value || typeof value !== "object") return;
+    const source = value as Record<string, unknown>;
+    if (typeof source.url === "string")
+      citations.set(source.url, {
+        url: source.url,
+        title: typeof source.title === "string" ? source.title : source.url,
+      });
+  };
+  if (Array.isArray(object.output)) {
+    for (const value of object.output) {
+      if (!value || typeof value !== "object") continue;
+      const item = value as Record<string, unknown>;
+      const action = item.action as Record<string, unknown> | undefined;
+      if (item.type === "web_search_call" && Array.isArray(action?.sources)) action.sources.forEach(record);
+      if (!Array.isArray(item.content)) continue;
+      for (const value of item.content) {
+        if (!value || typeof value !== "object") continue;
+        const part = value as Record<string, unknown>;
+        if (Array.isArray(part.annotations)) {
+          for (const annotation of part.annotations) {
+            if (annotation && typeof annotation === "object" && annotation.type === "url_citation") record(annotation);
+          }
+        }
+        if (typeof part.text === "string") texts.push(part.text);
+      }
+    }
+  }
+  const common = {
+    requestId: typeof object.id === "string" ? object.id : undefined,
+    usage: object.usage as Record<string, unknown>,
+    citations: [...citations.values()],
+  };
+  if (typeof object.response === "string") return { ...common, text: object.response };
+  if (typeof object.output_text === "string") return { ...common, text: object.output_text };
   if (Array.isArray(object.choices)) {
     const choice = object.choices[0] as Record<string, unknown> | undefined;
     const message = choice?.message as Record<string, unknown> | undefined;
     if (typeof message?.content === "string")
       return {
+        ...common,
         text: message.content,
-        usage: object.usage as Record<string, unknown>,
         finishReason: typeof choice?.finish_reason === "string" ? choice.finish_reason : undefined,
       };
   }
-  if (Array.isArray(object.output)) {
-    const citations = new Map<string, { url: string; title: string }>();
-    for (const item of object.output as Array<Record<string, unknown>>) {
-      const action = item.action as Record<string, unknown> | undefined;
-      if (Array.isArray(action?.sources))
-        for (const source of action.sources as Array<Record<string, unknown>>) {
-          if (typeof source.url === "string")
-            citations.set(source.url, {
-              url: source.url,
-              title: typeof source.title === "string" ? source.title : source.url,
-            });
-        }
-      if (!Array.isArray(item.content)) continue;
-      for (const part of item.content as Array<Record<string, unknown>>) {
-        if (Array.isArray(part.annotations))
-          for (const annotation of part.annotations as Array<Record<string, unknown>>) {
-            const url = typeof annotation.url === "string" ? annotation.url : undefined;
-            if (url)
-              citations.set(url, {
-                url,
-                title: typeof annotation.title === "string" ? annotation.title : url,
-              });
-          }
-        if (typeof part.text === "string")
-          return {
-            text: part.text,
-            requestId: typeof object.id === "string" ? object.id : undefined,
-            usage: object.usage as Record<string, unknown>,
-            citations: [...citations.values()],
-          };
-      }
-    }
-  }
+  if (texts.length) return { ...common, text: texts.join("\n") };
   if (object.result && typeof object.result === "object") return extractText(object.result);
   if (payload && typeof payload === "object")
     return { text: JSON.stringify(payload), usage: object.usage as Record<string, unknown> };

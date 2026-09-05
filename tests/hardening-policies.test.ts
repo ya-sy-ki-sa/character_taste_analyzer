@@ -6,11 +6,7 @@ import { jsonPointerExists, validateGenerationCoverage } from "../worker/feature
 import { isRetryableFailure, jobClaimDisposition } from "../worker/features/jobs/policy";
 import { profileConditionJson } from "../worker/features/profile/context";
 import { workflowInstanceIdForEvent } from "../worker/platform/outbox/protocol";
-import {
-  type ProvenanceSource,
-  ProvenanceVerificationError,
-  verifyEvidenceReference,
-} from "../worker/platform/provenance/verifier";
+import { type ProvenanceSource, verifyEvidenceReference } from "../worker/platform/provenance/verifier";
 import { nextQuotaSlot, quotaLimit } from "../worker/platform/quota/policy";
 
 const source: ProvenanceSource = {
@@ -71,24 +67,18 @@ describe("provenance verifier", () => {
     });
   });
 
-  it("accepts only annotated external URLs", async () => {
-    const error = await verifyEvidenceReference(
-      evidence({
-        sourceRef: null,
-        sourceUrl: "https://invalid.example",
-        inputPointer: null,
-      }),
+  it("invalidates an uncollected URL without throwing or using model knowledge", async () => {
+    const result = await verifyEvidenceReference(
+      evidence({ sourceRef: null, sourceUrl: "https://invalid.example", inputPointer: null }),
       [],
       new Set(["https://allowed.example"]),
-    ).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(ProvenanceVerificationError);
-    expect(error).toMatchObject({
-      code: "EXTERNAL_CITATION_NOT_ALLOWED",
-      safeDetail: expect.stringContaining("参照URL: https://invalid.example"),
-    });
-    expect((error as ProvenanceVerificationError).safeDetail).toContain(
-      "このエラー自体はOpenAIの拒否やセンシティブ判定を示しません",
     );
+    expect(result).toMatchObject({
+      verificationStatus: "invalid",
+      sourceId: null,
+      evidenceOrigin: "source",
+      issueReason: "url_not_allowed",
+    });
   });
 
   it("classifies mismatched direct quotes as invalid", async () => {
@@ -180,7 +170,7 @@ describe("provenance verifier", () => {
     });
   });
 
-  it("matches the observed malformed percent-encoded Wikipedia URL to its allowed source", async () => {
+  it("invalidates the observed malformed percent-encoded Wikipedia URL", async () => {
     const allowedUrl =
       "https://ja.wikipedia.org/wiki/%E5%8A%87%E5%A0%B4%E7%89%88BLEACH_The_DiamondDust_Rebellion_%E3%82%82%E3%81%86%E4%B8%80%E3%81%A4%E3%81%AE%E6%B0%B7%E8%BC%AA%E4%B8%B8";
     const malformedUrl =
@@ -200,13 +190,13 @@ describe("provenance verifier", () => {
     );
 
     expect(result).toMatchObject({
-      sourceId: "bleach-wikipedia",
+      sourceId: null,
       evidenceOrigin: "source",
-      verificationStatus: "source_attributed",
+      verificationStatus: "invalid",
     });
   });
 
-  it("repairs multiple malformed UTF-8 percent encodings in the same observed Wikipedia URL", async () => {
+  it("invalidates multiple malformed UTF-8 percent encodings", async () => {
     const allowedUrl =
       "https://ja.wikipedia.org/wiki/%E5%8A%87%E5%A0%B4%E7%89%88BLEACH_The_DiamondDust_Rebellion_%E3%82%82%E3%81%86%E4%B8%80%E3%81%A4%E3%81%AE%E6%B0%B7%E8%BC%AA%E4%B8%B8";
     const malformedUrl =
@@ -226,13 +216,13 @@ describe("provenance verifier", () => {
     );
 
     expect(result).toMatchObject({
-      sourceId: "bleach-wikipedia-multiple-repairs",
+      sourceId: null,
       evidenceOrigin: "source",
-      verificationStatus: "source_attributed",
+      verificationStatus: "invalid",
     });
   });
 
-  it("repairs a duplicated incomplete UTF-8 prefix before the complete encoded character", async () => {
+  it("invalidates a duplicated incomplete UTF-8 prefix", async () => {
     const suffix = "character-profile-".repeat(4);
     const allowedUrl = `https://allowed.example/wiki/%E8%BC%AA-${suffix}`;
     const malformedUrl = `https://allowed.example/wiki/%E8%BC輪-${suffix}`;
@@ -250,7 +240,7 @@ describe("provenance verifier", () => {
       new Set([allowedUrl]),
     );
 
-    expect(result.sourceId).toBe("utf8-prefix-repair");
+    expect(result).toMatchObject({ sourceId: null, verificationStatus: "invalid" });
   });
 
   it("rejects percent-encoding corruption that requires more than three repairs", async () => {
@@ -264,7 +254,7 @@ describe("provenance verifier", () => {
         [],
         new Set([allowedUrl]),
       ),
-    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+    ).resolves.toMatchObject({ sourceId: null, verificationStatus: "invalid" });
   });
 
   it("rejects malformed percent encoding when repairs match more than one allowed URL", async () => {
@@ -277,14 +267,14 @@ describe("provenance verifier", () => {
         [],
         new Set([`https://allowed.example/wiki/%AA-${suffix}`, `https://allowed.example/wiki/%AB-${suffix}`]),
       ),
-    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+    ).resolves.toMatchObject({ sourceId: null, verificationStatus: "invalid" });
   });
 
   it.each([
     ["deletion", "characterprofile-"],
     ["insertion", "character--profile-"],
     ["substitution", "character-profila-"],
-  ])("accepts a one-character %s in a sufficiently long path", async (_variation, changedSegment) => {
+  ])("invalidates a one-character %s in a long path", async (_variation, changedSegment) => {
     const repeatedPath = "character-profile-".repeat(4);
     const allowedUrl = `https://allowed.example/articles/${repeatedPath}`;
     const evidenceUrl = allowedUrl.replace("character-profile-", changedSegment);
@@ -302,10 +292,10 @@ describe("provenance verifier", () => {
       new Set([allowedUrl]),
     );
 
-    expect(result.sourceId).toBe("approximate-path");
+    expect(result).toMatchObject({ sourceId: null, verificationStatus: "invalid" });
   });
 
-  it("accepts a one-character difference in a sufficiently long query", async () => {
+  it("invalidates a one-character difference in a long query", async () => {
     const path = "character-profile-".repeat(4);
     const allowedUrl = `https://allowed.example/articles/${path}?chapter=1234567890`;
     const evidenceUrl = allowedUrl.replace("1234567890", "1234567891");
@@ -323,7 +313,7 @@ describe("provenance verifier", () => {
       new Set([allowedUrl]),
     );
 
-    expect(result.sourceId).toBe("approximate-query");
+    expect(result).toMatchObject({ sourceId: null, verificationStatus: "invalid" });
   });
 
   it.each([
@@ -345,7 +335,7 @@ describe("provenance verifier", () => {
         [],
         new Set([allowedUrl]),
       ),
-    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+    ).resolves.toMatchObject({ sourceId: null, verificationStatus: "invalid" });
   });
 
   it("rejects an approximate URL when two allowed sources are equally close", async () => {
@@ -358,7 +348,7 @@ describe("provenance verifier", () => {
         [],
         new Set([`${prefix}y`, `${prefix}z`]),
       ),
-    ).rejects.toMatchObject({ code: "EXTERNAL_CITATION_NOT_ALLOWED" });
+    ).resolves.toMatchObject({ sourceId: null, verificationStatus: "invalid" });
   });
 
   it("keeps a non-direct mismatched quote source-attributed", async () => {

@@ -18,6 +18,7 @@ import {
 } from "../../../shared/entry-input";
 import { inputEvidence, modelKnowledgeEvidence, preferenceContextFor } from "./input";
 import type { EntryContext } from "./types";
+import { understandingAspectLabels } from "./understanding-quality";
 
 export function refinedFakePreferences<T extends AnyPreferenceCandidate>(
   entry: EntryContext,
@@ -361,7 +362,7 @@ export function fakeUnderstanding(payload: AnyEntryDraft, includeCustomization: 
         ? inputEvidence(primarySource.pointer, primarySource.text.slice(0, 200), "direct")
         : modelKnowledgeEvidence(),
     });
-  return {
+  const candidate: UnderstandingCandidate = {
     sourceAssessment: {
       coverage: (characterBasicInfo?.length ?? 0) + (referenceMaterial?.length ?? 0) >= 300 ? "partial" : "minimal",
       limitations: payload.registrationType === "original" ? [] : ["決定論的テストでは外部の公開情報検索を行わない"],
@@ -405,6 +406,11 @@ export function fakeUnderstanding(payload: AnyEntryDraft, includeCustomization: 
         : [],
     uncertainties: [{ topic: "資料範囲", reason: "入力資料の外側は判定しない" }],
   };
+  for (const aspect of Object.keys(understandingAspectLabels) as Array<keyof typeof understandingAspectLabels>) {
+    if (!candidate.summary[aspect].length)
+      candidate.uncertainties.push({ topic: aspect, reason: "決定論的テストの入力資料からは確認できない" });
+  }
+  return candidate;
 }
 
 export function fakePreferences(payload: EntryDraft, understanding: UnderstandingCandidate): PreferenceCandidate {

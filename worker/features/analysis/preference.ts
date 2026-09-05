@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CitationIssue } from "../../../shared/contracts/citations";
 import {
   type DarkTransformationDelta,
   type DarkUnderstandingCandidate,
@@ -18,9 +19,11 @@ import { all, first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
 import { SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
 import type { LlmRunMetadata } from "../../llm/types";
-import { loadInputProvenanceSources, verifyEvidenceReference } from "../../platform/provenance/sources";
+import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
+import { loadInputProvenanceSources } from "../../platform/provenance/sources";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "../jobs/execution";
+import { citationAwareProvider, logCitationIssues, verifyAssertionEvidence } from "./citations";
 import { analysisFenceIsCurrent, supersedeAnalysisClaim } from "./claims";
 import { loadConfirmedUnderstanding } from "./confirmed-understanding";
 import { loadEntry, loadOntology, ontologyPrompt } from "./context";
@@ -112,6 +115,10 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     entry.preferenceReviewHistory = previousReviews;
     const provenanceSources = await loadInputProvenanceSources(env, entry.sourceSetId);
     const allowedUrls = new Set(provenanceSources.flatMap((source) => (source.url ? [source.url] : [])));
+    const externalSources = [...allowedUrls].map((url) => ({ url, title: url }));
+    const citationRegistry = new CitationRegistry();
+    await citationRegistry.add(externalSources);
+    entry.llm = await citationAwareProvider(entry.llm, externalSources);
     const confirmed = await loadConfirmedUnderstanding(env, params.ownerUserId, snapshot.id);
     entry.reviewExclusions = confirmed.excluded;
     const characterAssertions = confirmed.rows;
@@ -336,6 +343,38 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       );
     const modelRun = attemptRuns.at(-1);
     if (!modelRun) throw new Error("MODEL_RUN_MISSING");
+    const modelRunId = modelRun.id;
+    const citationIssues: CitationIssue[] = [];
+    async function verifyCandidates(
+      items: Array<{ evidence: import("../../../shared/contracts/evidence").EvidenceReference[]; confidence: number }>,
+      targetType: CitationIssue["targetType"],
+    ) {
+      return Promise.all(
+        items.map(async (assertion) => {
+          const id = crypto.randomUUID();
+          const verified = await verifyAssertionEvidence(
+            assertion,
+            provenanceSources,
+            allowedUrls,
+            citationRegistry,
+            { targetType, targetId: id, modelRunId },
+            citationIssues,
+          );
+          return { id, ...verified };
+        }),
+      );
+    }
+    const verifiedPreferences = await verifyCandidates(result.value.preferenceAssertions, "preference_assertion");
+    const verifiedStances = await verifyCandidates(result.value.valueStanceAssertions, "value_stance_assertion");
+    // Keep provider outputs unchanged for the run hash.
+    result = { ...result, value: structuredClone(result.value) };
+    result.value.preferenceAssertions.forEach((item, index) => {
+      item.confidence = verifiedPreferences[index].confidence;
+    });
+    result.value.valueStanceAssertions.forEach((item, index) => {
+      item.confidence = verifiedStances[index].confidence;
+    });
+    logCitationIssues(modelRun.id, citationIssues);
     const runId = crypto.randomUUID();
     const now = nowIso();
     const commitStep = `commit-preference:${claim.attemptId}`;
@@ -374,6 +413,8 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       repository.updateAnalysisRuns(env.DB, [
         JSON.stringify({
           schemaVersion: "2.1",
+          citationIssues,
+          citationPolicyVersion: CITATION_POLICY_VERSION,
           refinementMode: selected.length ? "selection" : (entry.refinement?.mode ?? null),
           retainedFromAnalysisRunId: entry.refinement?.context?.baseAnalysisRunId ?? null,
           confirmedUnderstandingSnapshotId: snapshot.id,
@@ -390,8 +431,9 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     statements.push(...(await retainPreferenceStatements(env, params.ownerUserId, runId, retained)));
     const attributeByKey = new Map(ontology.map((item) => [item.stable_key, item]));
     const preferenceIds: string[] = [];
-    for (const assertion of result.value.preferenceAssertions) {
-      const id = crypto.randomUUID();
+    for (const [index, assertion] of result.value.preferenceAssertions.entries()) {
+      const verifiedAssertion = verifiedPreferences[index];
+      const id = verifiedAssertion.id;
       preferenceIds.push(id);
       const rawId = crypto.randomUUID();
       const attribute = assertion.attributeStableKey ? attributeByKey.get(assertion.attributeStableKey) : undefined;
@@ -437,8 +479,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
           now,
         ]),
       );
-      for (const evidence of assertion.evidence) {
-        const verified = await verifyEvidenceReference(evidence, provenanceSources, allowedUrls);
+      for (const verified of verifiedAssertion.evidence) {
         statements.push(
           repository.insertEvidenceFragments(env.DB, [
             crypto.randomUUID(),
@@ -459,8 +500,9 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         );
       }
     }
-    for (const stance of result.value.valueStanceAssertions) {
-      const id = crypto.randomUUID();
+    for (const [index, stance] of result.value.valueStanceAssertions.entries()) {
+      const verifiedAssertion = verifiedStances[index];
+      const id = verifiedAssertion.id;
       statements.push(
         repository.insertValueStanceAssertions(env.DB, [
           id,
@@ -476,8 +518,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
           now,
         ]),
       );
-      for (const evidence of stance.evidence) {
-        const verified = await verifyEvidenceReference(evidence, provenanceSources, allowedUrls);
+      for (const verified of verifiedAssertion.evidence) {
         statements.push(
           repository.insertEvidenceFragments2(env.DB, [
             crypto.randomUUID(),

@@ -29,7 +29,9 @@ export async function persistModelRun(
       metadata.requestedModel,
       metadata.resolvedModel,
       operation,
-      operation === "preference_hypotheses" ? `${operation}/v2.1.0` : `${operation}/v1.0.1`,
+      operation === "preference_hypotheses"
+        ? `${operation}/v2.1.0`
+        : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
       operation === "preference_hypotheses" ? "2.1" : "1.0",
       metadata.providerRequestId ?? null,
       inputHash,
