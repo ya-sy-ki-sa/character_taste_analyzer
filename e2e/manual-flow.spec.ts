@@ -81,7 +81,8 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   manualBaseAssertion = baseUnderstandingCard
     .locator(".assertion-list > article")
     .filter({ hasText: "E2E基本像修正属性" });
-  await expect(manualBaseAssertion.getByText("ユーザーが修正した基本像の理解内容", { exact: true })).toBeVisible();
+  await expect(manualBaseAssertion.locator(".assertion-value")).toHaveText("ユーザーが修正した基本像の理解内容");
+  await expect(manualBaseAssertion.locator("q")).toHaveText("ユーザーが修正した基本像の理解内容");
   await expect(manualBaseAssertion.getByText("ユーザー修正", { exact: true })).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await manualBaseAssertion.getByRole("button", { name: "削除", exact: true }).click();
@@ -100,7 +101,8 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await manualAssertion.getByLabel("内容").fill("ユーザーが修正した理解内容");
   await manualAssertion.getByRole("button", { name: "修正を保存" }).click();
   manualAssertion = targetUnderstandingCard.locator(".assertion-list > article").filter({ hasText: "E2E修正属性" });
-  await expect(manualAssertion.getByText("ユーザーが修正した理解内容", { exact: true })).toBeVisible();
+  await expect(manualAssertion.locator(".assertion-value")).toHaveText("ユーザーが修正した理解内容");
+  await expect(manualAssertion.locator("q")).toHaveText("ユーザーが修正した理解内容");
   await expect(manualAssertion.getByText("ユーザー修正", { exact: true })).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await manualAssertion.getByRole("button", { name: "削除", exact: true }).click();

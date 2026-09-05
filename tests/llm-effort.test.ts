@@ -126,7 +126,7 @@ describe("LLM reasoning effort transport", () => {
     ]);
   });
 
-  it("keeps saved snapshots without effort unspecified after environment changes", async () => {
+  it("keeps the saved model-default effort after environment changes", async () => {
     const { bodies } = mockOpenAi();
     const env = environment();
     const snapshot = llmRoutingSnapshotSchema.parse(
@@ -250,6 +250,17 @@ describe("LLM reasoning effort transport", () => {
 });
 
 describe("reasoning effort configuration validation", () => {
+  it("requires the current snapshot version and an explicit effort value", () => {
+    const snapshot = resolveLlmRoutingSnapshot(environment(), "basic");
+    expect(snapshot.tier.primary.effort).toBeNull();
+    expect(llmRoutingSnapshotSchema.safeParse(snapshot).success).toBe(true);
+    expect(llmRoutingSnapshotSchema.safeParse({ ...snapshot, policyVersion: "membership-v1" }).success).toBe(false);
+    const { effort: _effort, ...primary } = snapshot.tier.primary;
+    expect(llmRoutingSnapshotSchema.safeParse({ ...snapshot, tier: { ...snapshot.tier, primary } }).success).toBe(
+      false,
+    );
+  });
+
   it.each<Partial<Env>>([
     { LLM_REASONING_EFFORT: "ultra" },
     { LLM_REASONING_EFFORT: "HIGH" },

@@ -10,25 +10,13 @@ export async function newJobLlmRoutingJson(env: Env, ownerUserId: string): Promi
 }
 
 export async function createJobLlmProvider(env: Env, jobId: string, ownerUserId: string) {
-  const read = () =>
-    first<{ llm_routing_snapshot_json: string | null }>(
-      env.DB.prepare(
-        "SELECT llm_routing_snapshot_json FROM jobs WHERE id=? AND owner_user_id=? AND job_type IN ('character_analysis','generation')",
-      ).bind(jobId, ownerUserId),
-    );
-  let job = await read();
+  const job = await first<{ llm_routing_snapshot_json: string | null }>(
+    env.DB.prepare(
+      "SELECT llm_routing_snapshot_json FROM jobs WHERE id=? AND owner_user_id=? AND job_type IN ('character_analysis','generation')",
+    ).bind(jobId, ownerUserId),
+  );
   if (!job) throw new Error("LLM_JOB_NOT_FOUND");
-  if (job.llm_routing_snapshot_json === null) {
-    // An old job must not inherit a subsequently granted tier or tier override.
-    const legacy = resolveLlmRoutingSnapshot(env, "basic", true);
-    await env.DB.prepare(
-      "UPDATE jobs SET llm_routing_snapshot_json=? WHERE id=? AND owner_user_id=? AND llm_routing_snapshot_json IS NULL",
-    )
-      .bind(JSON.stringify(legacy), jobId, ownerUserId)
-      .run();
-    // Read the winner if another worker initialized the same legacy job.
-    job = await read();
-  }
-  const snapshot = llmRoutingSnapshotSchema.parse(JSON.parse(job?.llm_routing_snapshot_json ?? "null"));
+  if (!job.llm_routing_snapshot_json) throw new Error("LLM_JOB_ROUTING_REQUIRED");
+  const snapshot = llmRoutingSnapshotSchema.parse(JSON.parse(job.llm_routing_snapshot_json));
   return createLlmProvider(env, { snapshot, jobId });
 }

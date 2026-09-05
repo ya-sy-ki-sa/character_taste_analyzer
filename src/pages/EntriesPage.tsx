@@ -110,7 +110,7 @@ type ReviewDetail = {
     hypothesisPreview?: import("../../shared/quality-schemas").HypothesisPreview | null;
     qualityContext?: { refinementMode?: string; evidenceInsufficient?: boolean };
     summary: { userExplicitSummary: string[]; inferredSummary: string[]; limitations: string[] };
-    uncertainties: Array<{ topic: string; reason: string; recommendedQuestion?: string | null }>;
+    uncertainties: Array<{ topic: string; reason: string; recommendedQuestion: string | null }>;
     assertions: Array<{
       id: string;
       raw_label: string;
@@ -365,18 +365,7 @@ const analysisErrorLabels: Record<string, string> = {
   EXTERNAL_CITATION_NOT_ALLOWED: "LLMの回答に確認できない外部出典が含まれていました",
   EVIDENCE_SOURCE_INVALID: "LLMの回答に確認できない根拠が含まれていました",
   PREFERENCE_ANALYSIS_EMPTY: "好みの候補を生成できませんでした",
-  JOB_ATTEMPT_SCOPE_REPAIRED: "解析を再実行してください",
 };
-
-const analysisErrorFallbackDetails: Record<string, string> = {
-  EXTERNAL_CITATION_NOT_ALLOWED:
-    "LLMの構造化応答は取得できましたが、回答内の参照URLがWeb Search注釈・収集済み出典と一致しなかったため、本システムが根拠としての採用を拒否しました。このエラー自体はOpenAIの拒否やセンシティブ判定を示しません。",
-};
-
-function analysisErrorDetail(code: string, detail: string | null): string {
-  if (detail && detail !== code) return detail;
-  return analysisErrorFallbackDetails[code] ?? "LLMから詳細情報を取得できませんでした。再実行すると詳細を記録します。";
-}
 
 const reanalyzableStatuses = new Set(["understanding_review", "analysis_review", "active", "failed"]);
 
@@ -527,7 +516,7 @@ export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
                   <strong>{analysisErrorLabels[entry.job.errorCode] ?? "解析中にエラーが発生しました"}</strong>
                   <span>
                     <b>エラー詳細</b>
-                    {analysisErrorDetail(entry.job.errorCode, entry.job.errorDetail)}
+                    {entry.job.errorDetail ?? "エラーの詳細は記録されていません。"}
                   </span>
                 </div>
               )}

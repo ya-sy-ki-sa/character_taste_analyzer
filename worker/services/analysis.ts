@@ -34,7 +34,7 @@ import { all, first } from "../lib/db";
 import { type LlmProvider, LlmProviderError, type LlmRunMetadata } from "../llm/types";
 import type { CharacterAnalysisWorkflowParams, Env } from "../types";
 import { type CharacterResearch, collectCharacterResearch } from "./character-research";
-import { loadConfirmedUnderstanding, prepareConfirmedReviewSources } from "./confirmed-understanding";
+import { loadConfirmedUnderstanding } from "./confirmed-understanding";
 import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "./jobs";
 import { createJobLlmProvider } from "./llm-execution";
 import { outboxStatement } from "./orchestration";
@@ -2135,7 +2135,6 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     );
 
     entry.preferenceReviewHistory = previousReviews;
-    await prepareConfirmedReviewSources(env, params.ownerUserId, snapshot.id, entry.sourceSetId);
     const provenanceSources = await loadInputProvenanceSources(env, entry.sourceSetId);
     const allowedUrls = new Set(provenanceSources.flatMap((source) => (source.url ? [source.url] : [])));
     const confirmed = await loadConfirmedUnderstanding(env, params.ownerUserId, snapshot.id);

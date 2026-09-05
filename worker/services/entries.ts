@@ -21,6 +21,7 @@ import { deriveUuid, normalizeIdentityPart, nowIso, sha256Hex } from "../lib/cry
 import { all, first, placeholders } from "../lib/db";
 import type { Env } from "../types";
 import { localizeAttributeReference, localizeUnderstandingSummary } from "./attribute-labels";
+import { confirmedReviewSourceStatements } from "./confirmed-understanding";
 import { newJobLlmRoutingJson } from "./llm-execution";
 import { outboxStatement } from "./orchestration";
 import { prepareQuotaReservation } from "./quota";
@@ -1445,9 +1446,9 @@ export async function mutateUnderstandingReview(
     };
   }
 
-  const context = await first<{ id: string }>(
+  const context = await first<{ id: string; source_set_id: string | null }>(
     env.DB.prepare(`
-      SELECT s.id FROM character_understanding_snapshots s
+      SELECT s.id,er.source_set_id FROM character_understanding_snapshots s
       JOIN character_understanding_runs ur ON ur.id=s.understanding_run_id
       JOIN entry_revisions er ON er.id=ur.entry_revision_id
       JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
@@ -1549,6 +1550,7 @@ export async function mutateUnderstandingReview(
         ownerUserId,
         snapshotId,
       ),
+      ...(await confirmedReviewSourceStatements(env, ownerUserId, changedId, input.valueText, context.source_set_id)),
     ]);
     if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
       throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");
@@ -1636,6 +1638,7 @@ export async function mutateUnderstandingReview(
         ownerUserId,
         snapshotId,
       ),
+      ...(await confirmedReviewSourceStatements(env, ownerUserId, changedId, input.valueText, context.source_set_id)),
     ]);
     if (results.some((result) => !result.success) || results.some((result) => !result.meta.changes))
       throw new Error("UNDERSTANDING_REVIEW_STATE_CHANGED");

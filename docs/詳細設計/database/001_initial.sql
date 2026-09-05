@@ -12,6 +12,8 @@ CREATE TABLE users (
   activated_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  membership_tier TEXT NOT NULL DEFAULT 'basic'
+  CHECK (membership_tier IN ('basic', 'silver', 'gold', 'premium')),
   UNIQUE (username_normalized)
 );
 
@@ -72,7 +74,9 @@ CREATE TABLE works (
   title_normalized TEXT NOT NULL,
   media_type TEXT,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark'))
 );
 
 CREATE INDEX idx_works_search ON works (title_normalized, id);
@@ -87,6 +91,8 @@ CREATE TABLE character_identities (
   name_normalized TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark')),
   CHECK ((origin_type = 'original' AND owner_user_id IS NOT NULL) OR origin_type = 'existing')
 );
 
@@ -131,11 +137,10 @@ CREATE TABLE attribute_schema_versions (
   description TEXT,
   content_hash TEXT NOT NULL,
   published_at TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark'))
 );
-
-CREATE UNIQUE INDEX uq_attribute_schema_active
-  ON attribute_schema_versions (status) WHERE status = 'active';
 
 CREATE TABLE attribute_definitions (
   id TEXT PRIMARY KEY,
@@ -220,7 +225,9 @@ CREATE TABLE user_character_entries (
   revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  archived_at TEXT
+  archived_at TEXT,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark'))
 );
 
 CREATE INDEX idx_entries_owner_status_updated
@@ -249,7 +256,7 @@ CREATE TABLE model_run_metadata (
   id TEXT PRIMARY KEY,
   owner_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
   provider TEXT NOT NULL,
-  transport TEXT NOT NULL CHECK (transport IN ('direct', 'ai_gateway', 'binding', 'replay', 'fake')),
+  transport TEXT NOT NULL CHECK (transport IN ('ai_gateway', 'replay', 'fake')),
   adapter_version TEXT NOT NULL,
   requested_model TEXT NOT NULL,
   resolved_model TEXT NOT NULL,
@@ -272,7 +279,9 @@ CREATE TABLE model_run_metadata (
   effective_settings_json TEXT NOT NULL DEFAULT '{}',
   ignored_parameters_json TEXT NOT NULL DEFAULT '[]',
   provider_response_diagnostics_json TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark'))
 );
 
 CREATE INDEX idx_model_runs_owner_created ON model_run_metadata (owner_user_id, created_at, id);
@@ -435,6 +444,7 @@ CREATE TABLE analysis_runs (
   started_at TEXT,
   completed_at TEXT,
   created_at TEXT NOT NULL,
+  quality_context_json TEXT NOT NULL DEFAULT '{"schemaVersion":"2.1"}',
   UNIQUE (entry_revision_id, run_generation)
 );
 
@@ -449,28 +459,91 @@ CREATE TABLE preference_assertions (
   representation_id TEXT NOT NULL REFERENCES character_representations(id) ON DELETE RESTRICT,
   attribute_definition_id TEXT REFERENCES attribute_definitions(id) ON DELETE SET NULL,
   raw_mention_id TEXT REFERENCES raw_attribute_mentions(id) ON DELETE SET NULL,
-  polarity TEXT NOT NULL CHECK (polarity IN ('positive', 'negative', 'mixed')),
+  analysis_domain TEXT NOT NULL DEFAULT 'standard' CHECK (analysis_domain IN ('standard','dark')),
+  polarity TEXT NOT NULL CHECK (polarity IN ('positive','negative','mixed')),
   response_channel TEXT NOT NULL CHECK (response_channel IN (
-    'person_liking', 'aesthetic_liking', 'voice_performance_liking',
-    'narrative_interest', 'empathy', 'admiration', 'curiosity', 'root_for',
-    'protectiveness', 'motion_expression_liking', 'staging_liking',
-    'character_craft_appreciation', 'actual_similarity', 'self_projection',
-    'wishful_identification', 'narrative_identification',
-    'complementary_attraction', 'vicarious_fulfillment', 'parasocial_closeness',
-    'companionship_desire', 'guidance_seeking', 'comfort_attachment',
-    'long_term_attachment', 'romantic_attraction', 'sexual_attraction',
-    'sympathy', 'emotional_impact', 'meaningful_appreciation', 'humor_enjoyment',
-    'identity_exploration', 'escapist_immersion', 'emotion_regulation',
-    'motivation', 'self_expansion', 'moral_support',
-    'fascination_with_transgression', 'love_to_hate', 'desire_no_redemption',
-    'representation_affirmation', 'identity_expression', 'social_bonding',
-    'creative_inspiration', 'nostalgic_attachment', 'fandom_support'
+    'person_liking',
+    'aesthetic_liking',
+    'voice_performance_liking',
+    'narrative_interest',
+    'empathy',
+    'admiration',
+    'curiosity',
+    'root_for',
+    'protectiveness',
+    'motion_expression_liking',
+    'staging_liking',
+    'character_craft_appreciation',
+    'actual_similarity',
+    'self_projection',
+    'wishful_identification',
+    'narrative_identification',
+    'complementary_attraction',
+    'vicarious_fulfillment',
+    'parasocial_closeness',
+    'companionship_desire',
+    'guidance_seeking',
+    'comfort_attachment',
+    'long_term_attachment',
+    'romantic_attraction',
+    'sexual_attraction',
+    'sympathy',
+    'emotional_impact',
+    'meaningful_appreciation',
+    'humor_enjoyment',
+    'identity_exploration',
+    'escapist_immersion',
+    'emotion_regulation',
+    'motivation',
+    'self_expansion',
+    'moral_support',
+    'fascination_with_transgression',
+    'love_to_hate',
+    'desire_no_redemption',
+    'representation_affirmation',
+    'identity_expression',
+    'social_bonding',
+    'creative_inspiration',
+    'nostalgic_attachment',
+    'fandom_support',
+    'dark_character_liking',
+    'villain_role_fascination',
+    'menacing_aesthetic_liking',
+    'dark_performance_liking',
+    'dark_competence_admiration',
+    'power_fantasy',
+    'transgression_fascination',
+    'moral_distance_appreciation',
+    'dark_love_to_hate',
+    'root_for_dark_side',
+    'villain_pov_identification',
+    'vicarious_transgression',
+    'dominance_fascination',
+    'controlled_state_fascination',
+    'corruption_arc_fascination',
+    'betrayal_fascination',
+    'former_ally_tragedy',
+    'identity_erosion_fascination',
+    'inner_resistance_fascination',
+    'surrender_fascination',
+    'toxic_bond_fascination',
+    'selective_tenderness_contrast',
+    'fear_thrill',
+    'dark_curiosity',
+    'rescue_restore_desire',
+    'preserve_dark_state',
+    'no_redemption_preference',
+    'dark_outcome_interest',
+    'safe_taboo_exploration',
+    'dark_romantic_attraction',
+    'dark_sexual_attraction',
+    'dark_creative_inspiration'
   )),
   strength REAL NOT NULL CHECK (strength BETWEEN 0.0 AND 1.0),
-  explicitness TEXT NOT NULL CHECK (explicitness IN ('user_explicit', 'user_confirmed', 'inferred', 'model_knowledge')),
+  explicitness TEXT NOT NULL CHECK (explicitness IN ('user_explicit','user_confirmed','inferred','model_knowledge')),
   confidence REAL NOT NULL CHECK (confidence BETWEEN 0.0 AND 1.0),
   context_json TEXT NOT NULL DEFAULT '{}',
-  status TEXT NOT NULL CHECK (status IN ('proposed', 'confirmed', 'corrected', 'rejected', 'superseded')),
+  status TEXT NOT NULL CHECK (status IN ('proposed','confirmed','corrected','rejected','superseded')),
   superseded_by_id TEXT REFERENCES preference_assertions(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL,
   CHECK (id <> superseded_by_id),
@@ -478,8 +551,8 @@ CREATE TABLE preference_assertions (
 );
 
 CREATE INDEX idx_preference_assertions_owner_status
-  ON preference_assertions (owner_user_id, status, attribute_definition_id, response_channel, id);
-CREATE INDEX idx_preference_assertions_entry ON preference_assertions (entry_revision_id, created_at, id);
+  ON preference_assertions (owner_user_id,analysis_domain,status,attribute_definition_id,response_channel,id);
+CREATE INDEX idx_preference_assertions_entry ON preference_assertions (entry_revision_id,created_at,id);
 
 CREATE TABLE value_stance_assertions (
   id TEXT PRIMARY KEY,
@@ -569,6 +642,8 @@ CREATE TABLE profile_dimensions (
   flags_json TEXT NOT NULL DEFAULT '[]',
   rank_order INTEGER NOT NULL CHECK (rank_order >= 0),
   created_at TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark')),
   CHECK (attribute_definition_id IS NOT NULL OR raw_label IS NOT NULL)
 );
 
@@ -604,6 +679,8 @@ CREATE TABLE profile_snapshot_items (
   content_hash TEXT NOT NULL,
   ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
   created_at TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark')),
   UNIQUE (profile_snapshot_id, ordinal)
 );
 
@@ -636,6 +713,8 @@ CREATE TABLE graph_projection_nodes (
   label TEXT NOT NULL,
   weight REAL NOT NULL CHECK (weight BETWEEN 0.0 AND 1.0),
   payload_json TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark')),
   PRIMARY KEY (projection_snapshot_id, node_id)
 );
 
@@ -654,6 +733,8 @@ CREATE TABLE graph_projection_edges (
   weight REAL NOT NULL CHECK (weight BETWEEN 0.0 AND 1.0),
   confidence REAL NOT NULL CHECK (confidence BETWEEN 0.0 AND 1.0),
   payload_json TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark')),
   PRIMARY KEY (projection_snapshot_id, edge_id),
   FOREIGN KEY (projection_snapshot_id, source_node_id)
     REFERENCES graph_projection_nodes(projection_snapshot_id, node_id) ON DELETE CASCADE,
@@ -675,7 +756,9 @@ CREATE TABLE generation_requests (
   brief_revision INTEGER NOT NULL DEFAULT 0 CHECK (brief_revision >= 0),
   revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark'))
 );
 
 CREATE INDEX idx_generation_requests_owner ON generation_requests (owner_user_id, created_at, id);
@@ -791,6 +874,10 @@ CREATE TABLE jobs (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   completed_at TEXT,
+  analysis_domain TEXT NOT NULL DEFAULT 'standard'
+  CHECK (analysis_domain IN ('standard','dark')),
+  llm_routing_snapshot_json TEXT
+  CHECK (llm_routing_snapshot_json IS NULL OR json_valid(llm_routing_snapshot_json)),
   UNIQUE (owner_user_id, job_type, target_type, target_id, input_generation),
   CHECK (owner_user_id IS NOT NULL OR job_type = 'account_deletion')
 );
@@ -876,3 +963,151 @@ CREATE INDEX idx_account_exports_owner_created
   ON account_exports (owner_user_id, created_at, id);
 CREATE INDEX idx_account_exports_expiry
   ON account_exports (status, expires_at, id);
+
+
+-- Current domain and quality schema.
+CREATE UNIQUE INDEX uq_attribute_schema_active_domain
+  ON attribute_schema_versions (analysis_domain) WHERE status='active';
+
+CREATE INDEX idx_entries_owner_domain_status
+  ON user_character_entries (owner_user_id,analysis_domain,status,updated_at,id);
+
+CREATE INDEX idx_works_owner_domain
+  ON works (owner_user_id,analysis_domain,updated_at,id);
+
+CREATE INDEX idx_identities_owner_domain
+  ON character_identities (owner_user_id,analysis_domain,updated_at,id);
+
+CREATE INDEX idx_jobs_owner_domain
+  ON jobs (owner_user_id,analysis_domain,created_at,id);
+
+CREATE INDEX idx_profile_dimensions_domain
+  ON profile_dimensions (profile_projection_id,analysis_domain,rank_order,id);
+
+CREATE INDEX idx_profile_snapshot_items_domain
+  ON profile_snapshot_items (profile_snapshot_id,analysis_domain,ordinal,id);
+
+CREATE INDEX idx_generation_requests_domain
+  ON generation_requests (owner_user_id,analysis_domain,created_at,id);
+
+CREATE TABLE dark_scope_assessments (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_revision_id TEXT NOT NULL REFERENCES entry_revisions(id) ON DELETE CASCADE,
+  verdict TEXT NOT NULL CHECK (verdict IN ('in_scope','borderline','out_of_scope')),
+  status TEXT NOT NULL CHECK (status IN ('proposed','accepted','overridden','cancelled')),
+  assessment_json TEXT NOT NULL,
+  model_run_metadata_id TEXT REFERENCES model_run_metadata(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT,
+  UNIQUE (entry_revision_id)
+);
+
+CREATE INDEX idx_dark_scope_owner ON dark_scope_assessments (owner_user_id,status,created_at,id);
+
+CREATE TABLE dark_baseline_snapshots (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_revision_id TEXT NOT NULL REFERENCES entry_revisions(id) ON DELETE CASCADE,
+  representation_id TEXT NOT NULL REFERENCES character_representations(id) ON DELETE RESTRICT,
+  baseline_json TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  model_run_metadata_id TEXT REFERENCES model_run_metadata(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (entry_revision_id)
+);
+
+CREATE TABLE dark_transformation_deltas (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_revision_id TEXT NOT NULL REFERENCES entry_revisions(id) ON DELETE CASCADE,
+  understanding_snapshot_id TEXT NOT NULL REFERENCES character_understanding_snapshots(id) ON DELETE CASCADE,
+  operation TEXT NOT NULL CHECK (operation IN (
+    'retained','amplified','suppressed','inverted','removed','introduced','ambiguous'
+  )),
+  aspect TEXT NOT NULL,
+  before_value TEXT,
+  after_value TEXT,
+  detail_json TEXT NOT NULL,
+  confidence REAL NOT NULL CHECK (confidence BETWEEN 0.0 AND 1.0),
+  ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+  created_at TEXT NOT NULL,
+  UNIQUE (understanding_snapshot_id,ordinal)
+);
+
+CREATE INDEX idx_dark_delta_snapshot ON dark_transformation_deltas (understanding_snapshot_id,ordinal,id);
+
+CREATE TABLE generation_candidates (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  generation_request_id TEXT NOT NULL REFERENCES generation_requests(id) ON DELETE CASCADE,
+  generation_brief_id TEXT NOT NULL REFERENCES generation_briefs(id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL CHECK (ordinal BETWEEN 1 AND 3),
+  model_run_metadata_id TEXT REFERENCES model_run_metadata(id) ON DELETE SET NULL,
+  status TEXT NOT NULL CHECK (status IN ('passed','failed')),
+  character_json TEXT,
+  validation_json TEXT NOT NULL,
+  similarity_json TEXT NOT NULL,
+  comparison_json TEXT NOT NULL DEFAULT '{}',
+  selected_at TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE (generation_request_id,ordinal)
+);
+
+CREATE UNIQUE INDEX idx_generation_selected ON generation_candidates(generation_request_id) WHERE selected_at IS NOT NULL;
+
+CREATE TABLE character_similarity_documents (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source_ref TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  model TEXT NOT NULL,
+  vector_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (owner_user_id,source_ref,content_hash,model)
+);
+
+CREATE TABLE generation_feedback (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  analysis_domain TEXT NOT NULL CHECK (analysis_domain IN ('standard','dark')),
+  generated_character_id TEXT REFERENCES generated_characters(id) ON DELETE SET NULL,
+  candidate_id TEXT REFERENCES generation_candidates(id) ON DELETE SET NULL,
+  character_name TEXT NOT NULL,
+  output_pointer TEXT NOT NULL,
+  output_excerpt TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  preference_json TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('proposed','confirmed','rejected')),
+  request_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT
+);
+
+CREATE INDEX idx_feedback_owner_status ON generation_feedback(owner_user_id,status,analysis_domain);
+
+CREATE TABLE preference_refinements (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_revision_id TEXT NOT NULL REFERENCES entry_revisions(id) ON DELETE CASCADE,
+  mode TEXT NOT NULL CHECK (mode IN ('questions','hypotheses')),
+  answers_json TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  context_json TEXT NOT NULL DEFAULT '{}',
+  hypotheses_json TEXT
+);
+
+CREATE TRIGGER generation_feedback_review_once BEFORE UPDATE OF status ON generation_feedback
+WHEN OLD.status!='proposed'
+BEGIN SELECT RAISE(ABORT,'PREFERENCE_REVIEW_STATE_CHANGED'); END;
+
+CREATE TRIGGER preference_refinement_current_review BEFORE INSERT ON preference_refinements
+WHEN NOT EXISTS (
+  SELECT 1 FROM entry_revisions er JOIN user_character_entries e ON e.id=er.entry_id
+  JOIN jobs j ON j.target_id=e.id AND j.target_type='entry' AND j.owner_user_id=e.owner_user_id
+    AND j.input_generation=er.revision_number
+  WHERE er.id=NEW.entry_revision_id AND e.owner_user_id=NEW.owner_user_id
+    AND e.active_revision_number=er.revision_number AND e.status='analysis_review' AND j.status='waiting_for_user'
+)
+BEGIN SELECT RAISE(ABORT,'PREFERENCE_REVIEW_STATE_CHANGED'); END;

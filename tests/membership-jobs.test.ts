@@ -94,21 +94,20 @@ const probe = {
 };
 
 describe("membership persistence and authentication", () => {
-  it("migrates existing users and enforces the four tiers and non-null default", () => {
+  it("enforces the four tiers and the new-user default", () => {
     const db = new DatabaseSync(":memory:");
     try {
       const root = "docs/詳細設計/database";
       for (const file of readdirSync(root)
-        .filter((name) => name.endsWith(".sql") && !name.startsWith("006_"))
+        .filter((name) => name.endsWith(".sql"))
         .sort())
         db.exec(readFileSync(`${root}/${file}`, "utf8"));
       db.exec(
-        "INSERT INTO users (id,username,username_normalized,status,created_at,updated_at) VALUES ('old','old','old','active','now','now')",
+        "INSERT INTO users (id,username,username_normalized,status,created_at,updated_at) VALUES ('member','member','member','active','now','now')",
       );
-      db.exec(readFileSync(`${root}/006_membership_llm_routing.sql`, "utf8"));
-      expect(db.prepare("SELECT membership_tier FROM users WHERE id='old'").get()?.membership_tier).toBe("basic");
+      expect(db.prepare("SELECT membership_tier FROM users WHERE id='member'").get()?.membership_tier).toBe("basic");
       for (const tier of membershipTierSchema.options)
-        db.prepare("UPDATE users SET membership_tier=? WHERE id='old'").run(tier);
+        db.prepare("UPDATE users SET membership_tier=? WHERE id='member'").run(tier);
       expect(() => db.exec("UPDATE users SET membership_tier='admin'")).toThrow();
       expect(() => db.exec("UPDATE users SET membership_tier=NULL")).toThrow();
       db.exec(
@@ -278,7 +277,14 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
       env,
       owner,
       domain,
-      generationRequestInputSchema.parse({ mode: "faithful", purpose: "独創的な人物を作成", selectedItemIds: ids }),
+      generationRequestInputSchema.parse({
+        profileSnapshotId: db.database
+          .prepare("SELECT profile_snapshot_id FROM profile_snapshot_items WHERE id=?")
+          .get(ids[0])?.profile_snapshot_id,
+        mode: "faithful",
+        purpose: "独創的な人物を作成",
+        selectedItemIds: ids,
+      }),
       crypto.randomUUID(),
     );
     expect(snapshot(db, generation.jobId as string)).toMatchObject({
@@ -343,11 +349,11 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("keeps persisted jobs without effort unspecified after effort is configured", async () => {
+  it("keeps the persisted model-default effort after effort is configured", async () => {
     const { db, env, owner } = setup();
     const entry = await createEntry(env, owner, domain, draft(domain), crypto.randomUUID());
     const saved = snapshot(db, entry.jobId);
-    expect(saved.tier.primary).not.toHaveProperty("effort");
+    expect(saved.tier.primary.effort).toBeNull();
     env.LLM_REASONING_EFFORT = "max";
     env.LLM_TIER_ROUTES_JSON = '{"basic":{"provider":"fake","model":"new-model","effort":"high"}}';
     const llm = await createJobLlmProvider(env, entry.jobId, owner);
@@ -395,22 +401,16 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     expect(snapshot(db, replay.jobId).membershipTier).toBe("gold");
   });
 
-  it("initializes a legacy job once with basic and common routes, with owner isolation", async () => {
+  it("requires a stored routing snapshot and enforces owner isolation", async () => {
     const { db, env, owner } = setup("premium");
     const entry = await createEntry(env, owner, domain, draft(domain), crypto.randomUUID());
-    db.database.prepare("UPDATE jobs SET llm_routing_snapshot_json=NULL WHERE id=?").run(entry.jobId);
     await expect(createJobLlmProvider(env, entry.jobId, "another-user")).rejects.toThrow("LLM_JOB_NOT_FOUND");
+    db.database.prepare("UPDATE jobs SET llm_routing_snapshot_json=NULL WHERE id=?").run(entry.jobId);
+    await expect(createJobLlmProvider(env, entry.jobId, owner)).rejects.toThrow("LLM_JOB_ROUTING_REQUIRED");
     expect(
       db.database.prepare("SELECT llm_routing_snapshot_json FROM jobs WHERE id=?").get(entry.jobId)
         ?.llm_routing_snapshot_json,
     ).toBeNull();
-    await Promise.all([createJobLlmProvider(env, entry.jobId, owner), createJobLlmProvider(env, entry.jobId, owner)]);
-    const saved = snapshot(db, entry.jobId);
-    expect(saved).toMatchObject({ membershipTier: "basic", tier: { primary: { model: "common-original" } } });
-    env.LLM_MODEL = "changed";
-    const llm = await createJobLlmProvider(env, entry.jobId, owner);
-    expect((await llm.generateStructured(probe)).metadata.requestedModel).toBe("common-original");
-    expect(snapshot(db, entry.jobId)).toEqual(saved);
   });
 
   it("preserves premium failures and model selection through the existing three-attempt limit", async () => {

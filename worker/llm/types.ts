@@ -40,7 +40,7 @@ export type StructuredLlmRequest<T> = {
 export type LlmRunMetadata = {
   operation?: LlmOperation;
   provider: LlmProviderId;
-  transport: "direct" | "ai_gateway" | "binding" | "replay" | "fake";
+  transport: "ai_gateway" | "replay" | "fake";
   adapterVersion: string;
   requestedModel: string;
   resolvedModel: string;

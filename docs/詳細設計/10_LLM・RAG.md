@@ -63,7 +63,7 @@ OpenAIはProvider Native endpoint、Workers AIはGateway ID付き`AI` bindingを
 ```typescript
 interface LlmRunMetadata {
   provider: "openai" | "workers_ai" | "replay" | "fake";
-  transport: "ai_gateway" | "replay" | "fake"; // direct/bindingは既存DB行の互換値としてのみ残す
+  transport: "ai_gateway" | "replay" | "fake";
   adapterVersion: string;
   requestedModel: string;
   resolvedModel: string;
@@ -280,7 +280,7 @@ Schemaは次を正式契約とする。
 
 - [CharacterUnderstanding](schemas/character-understanding.schema.json)
 - [PreferenceAnalysis](schemas/preference-analysis.schema.json)
-- [GenerationBrief](schemas/generation-brief.schema.json)
+- [GenerationBrief](schemas/generation-brief.v2.schema.json)
 - [GeneratedCharacter](schemas/generated-character.schema.json)
 
 ## 11. Prompt/version管理

@@ -100,52 +100,40 @@ export async function loadConfirmedUnderstanding(env: Env, ownerUserId: string, 
   };
 }
 
-/** Review corrections are persisted user input even when older revisions have no evidence fragment. */
-export async function prepareConfirmedReviewSources(
+/** Persist each review edit and its provenance in the same batch. */
+export async function confirmedReviewSourceStatements(
   env: Env,
   ownerUserId: string,
-  snapshotId: string,
+  assertionId: string,
+  valueText: string,
   sourceSetId: string | null,
-) {
-  const corrections = await all<{ id: string; value_text: string }>(
+): Promise<D1PreparedStatement[]> {
+  const id = await deriveUuid(env.AUTH_PEPPER, `review-source:${ownerUserId}:${assertionId}`);
+  const now = nowIso();
+  const pointer = `/confirmedUnderstanding/assertions/${assertionId}/valueText`;
+  return [
     env.DB.prepare(
-      `SELECT a.id,a.value_text FROM character_assertions a WHERE a.snapshot_id=? AND a.owner_user_id=? AND a.status IN ('confirmed','corrected') AND a.explicitness='user_explicit' AND EXISTS (SELECT 1 FROM understanding_reviews r WHERE r.snapshot_id=a.snapshot_id AND r.owner_user_id=a.owner_user_id AND r.decision='correct' AND json_extract(r.correction_payload_json,'$.changedId')=a.id)`,
-    ).bind(snapshotId, ownerUserId),
-  );
-  const statements: D1PreparedStatement[] = [];
-  for (const row of corrections) {
-    const id = await deriveUuid(env.AUTH_PEPPER, `review-source:${ownerUserId}:${row.id}`),
-      now = nowIso(),
-      pointer = `/confirmedUnderstanding/assertions/${row.id}/valueText`;
-    statements.push(
-      env.DB.prepare(
-        `INSERT OR IGNORE INTO sources (id,owner_user_id,title,source_type,citation_json,rights_basis,mime_type,byte_size,content_hash,locator_json,text_content,token_estimate,created_at,updated_at) VALUES (?,?,'確認時の訂正','user_text','{}','user_provided','text/plain',?,?,?,?,?,?,?)`,
-      ).bind(
-        id,
-        ownerUserId,
-        new TextEncoder().encode(row.value_text).byteLength,
-        await sha256Hex(row.value_text),
-        JSON.stringify({ pointer }),
-        row.value_text,
-        Math.ceil(row.value_text.length / 3),
-        now,
-        now,
-      ),
-    );
-    if (sourceSetId)
-      statements.push(
-        env.DB.prepare(
-          `INSERT OR IGNORE INTO source_set_items (source_set_id,source_id,priority,usage_type) VALUES (?,?,0,'user_definition')`,
-        ).bind(sourceSetId, id),
-      );
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO evidence_fragments (id,owner_user_id,owner_type,owner_id,source_id,evidence_origin,support_type,excerpt_text,user_input_path,verification_status,inference_type,confidence,created_at) SELECT ?,?,'character_assertion',?,?,'review','supports',?,?,'verified_quote','direct',1,? WHERE NOT EXISTS (SELECT 1 FROM evidence_fragments WHERE owner_type='character_assertion' AND owner_id=? AND source_id=?)`,
-      ).bind(crypto.randomUUID(), ownerUserId, row.id, id, row.value_text, pointer, now, row.id, id),
-    );
-  }
-  if (statements.length) {
-    const results = await env.DB.batch(statements);
-    if (results.some((item) => !item.success)) throw new Error("D1_PROVENANCE_SOURCE_FAILED");
-  }
+      `INSERT INTO sources (id,owner_user_id,title,source_type,citation_json,rights_basis,mime_type,byte_size,content_hash,locator_json,text_content,token_estimate,created_at,updated_at) VALUES (?,?,'確認時の訂正','user_text','{}','user_provided','text/plain',?,?,?,?,?,?,?)`,
+    ).bind(
+      id,
+      ownerUserId,
+      new TextEncoder().encode(valueText).byteLength,
+      await sha256Hex(valueText),
+      JSON.stringify({ pointer }),
+      valueText,
+      Math.ceil(valueText.length / 3),
+      now,
+      now,
+    ),
+    ...(sourceSetId
+      ? [
+          env.DB.prepare(
+            `INSERT INTO source_set_items (source_set_id,source_id,priority,usage_type) VALUES (?,?,0,'user_definition')`,
+          ).bind(sourceSetId, id),
+        ]
+      : []),
+    env.DB.prepare(
+      `INSERT INTO evidence_fragments (id,owner_user_id,owner_type,owner_id,source_id,evidence_origin,support_type,excerpt_text,user_input_path,verification_status,inference_type,confidence,created_at) VALUES (?,?,'character_assertion',?,?,'review','supports',?,?,'verified_quote','direct',1,?)`,
+    ).bind(crypto.randomUUID(), ownerUserId, assertionId, id, valueText, pointer, now),
+  ];
 }

@@ -10,26 +10,34 @@ const routeSchema = z
   .strictObject({
     provider: z.enum(["openai", "workers_ai", "replay", "fake"]),
     model: z.string().trim().min(1),
-    effort: llmReasoningEffortSchema.optional(),
+    effort: llmReasoningEffortSchema.nullable(),
   })
   .refine(
     (route) =>
-      route.effort === undefined ||
+      route.effort === null ||
       route.provider !== "workers_ai" ||
       (["@cf/openai/gpt-oss-120b", "@cf/openai/gpt-oss-20b"].includes(route.model) &&
         ["low", "medium", "high"].includes(route.effort)),
     { message: "このWorkers AIモデルでは指定したeffortを利用できません", path: ["effort"] },
   );
 export type LlmRoute = z.infer<typeof routeSchema>;
+const configuredRouteSchema = z
+  .strictObject({
+    provider: z.enum(["openai", "workers_ai", "replay", "fake"]),
+    model: z.string().trim().min(1),
+    effort: llmReasoningEffortSchema.optional(),
+  })
+  .transform((route) => ({ ...route, effort: route.effort ?? null }))
+  .pipe(routeSchema);
 const tierRoutesSchema = z.strictObject({
-  basic: routeSchema.optional(),
-  silver: routeSchema.optional(),
-  gold: routeSchema.optional(),
-  premium: routeSchema.optional(),
+  basic: configuredRouteSchema.optional(),
+  silver: configuredRouteSchema.optional(),
+  gold: configuredRouteSchema.optional(),
+  premium: configuredRouteSchema.optional(),
 });
 const routePolicySchema = z.strictObject({ primary: routeSchema, fallback: routeSchema.nullable() });
 export const llmRoutingSnapshotSchema = z.strictObject({
-  policyVersion: z.literal("membership-v1"),
+  policyVersion: z.literal("membership-v2"),
   membershipTier: membershipTierSchema,
   common: routePolicySchema,
   tier: routePolicySchema,
@@ -37,7 +45,7 @@ export const llmRoutingSnapshotSchema = z.strictObject({
 export type LlmRoutingSnapshot = z.infer<typeof llmRoutingSnapshotSchema>;
 export type LlmExecutionContext = { snapshot: LlmRoutingSnapshot; jobId?: string };
 
-// Keep v1 exhaustive: a new operation must explicitly choose its routing policy.
+// A new operation must explicitly choose its routing policy.
 export const llmOperationRouting = {
   character_understanding: "tier",
   understanding_audit: "tier",
@@ -69,7 +77,7 @@ export function parseTierRoutes(value: string | undefined) {
 
 export function parseCommonLlmRoutes(env: Env) {
   try {
-    const primary = routeSchema.parse({
+    const primary = configuredRouteSchema.parse({
       provider: env.LLM_PROVIDER,
       model: env.LLM_MODEL,
       effort: env.LLM_REASONING_EFFORT?.trim() || undefined,
@@ -77,7 +85,7 @@ export function parseCommonLlmRoutes(env: Env) {
     const fallbackEffort = env.LLM_FALLBACK_REASONING_EFFORT?.trim() || undefined;
     const fallback =
       env.LLM_FALLBACK_PROVIDER || env.LLM_FALLBACK_MODEL || fallbackEffort
-        ? routeSchema.parse({
+        ? configuredRouteSchema.parse({
             provider: env.LLM_FALLBACK_PROVIDER,
             model: env.LLM_FALLBACK_MODEL,
             effort: fallbackEffort,
@@ -89,17 +97,13 @@ export function parseCommonLlmRoutes(env: Env) {
   }
 }
 
-export function resolveLlmRoutingSnapshot(
-  env: Env,
-  membershipTier: MembershipTier,
-  legacy = false,
-): LlmRoutingSnapshot {
+export function resolveLlmRoutingSnapshot(env: Env, membershipTier: MembershipTier): LlmRoutingSnapshot {
   const { primary, fallback } = parseCommonLlmRoutes(env);
   const distinctFallback = (route: LlmRoute) =>
     fallback && (fallback.provider !== route.provider || fallback.model !== route.model) ? fallback : null;
-  const tierPrimary = legacy ? primary : (parseTierRoutes(env.LLM_TIER_ROUTES_JSON)[membershipTier] ?? primary);
+  const tierPrimary = parseTierRoutes(env.LLM_TIER_ROUTES_JSON)[membershipTier] ?? primary;
   return {
-    policyVersion: "membership-v1",
+    policyVersion: "membership-v2",
     membershipTier,
     common: { primary, fallback: distinctFallback(primary) },
     tier: { primary: tierPrimary, fallback: membershipTier === "basic" ? distinctFallback(tierPrimary) : null },

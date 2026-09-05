@@ -3,7 +3,7 @@
 - 文書種別: 詳細設計
 - 作成日: 2026-08-29
 - 基準: 現行Worker、共有Zod schema、生成OpenAPI、baseline DDL
-- 互換方針: 旧Entry、旧根拠、key rotation等の互換API／列／tableは保持しない
+- 互換方針: 改修前との後方互換性は保証しない。旧形式の補完、旧API専用分岐、データコピー用migration、旧CSS変数は保持しない
 - 初期運用: Cloudflare無料枠の`free_validation`
 - LLM: OpenAI Adapterを初期必須、Workers AI Adapterを選択可能とし、環境設定で切り替える。ローカルの手動画面確認はWorkers AIを既定とし、自動テストはFake/Replayを使う。外部LLMの費用とquotaはCloudflare無料枠管理と分離する
 
@@ -63,7 +63,7 @@
 | [D1初期DDL](database/001_initial.sql) | 初期migration |
 | [CharacterUnderstanding Schema](schemas/character-understanding.schema.json) | キャラクター基本像のLLM出力 |
 | [PreferenceAnalysis Schema](schemas/preference-analysis.schema.json) | 嗜好・価値スタンスのLLM出力 |
-| [GenerationBrief Schema](schemas/generation-brief.schema.json) | 生成条件 |
+| [GenerationBrief Schema](schemas/generation-brief.v2.schema.json) | 生成条件 |
 | [GeneratedCharacter Schema](schemas/generated-character.schema.json) | オリジナルキャラクター出力 |
 | [GraphProjection Schema](schemas/graph-projection.schema.json) | ブラウザへ渡すグラフ |
 

@@ -218,6 +218,7 @@ describe("current input contracts", () => {
     const id = crypto.randomUUID();
     const input = generationRequestInputSchema.safeParse({
       purpose: "テスト",
+      profileSnapshotId: crypto.randomUUID(),
       selectedItemIds: [id],
       prohibitedItemIds: [id],
     });
@@ -228,6 +229,7 @@ describe("current input contracts", () => {
     const id = crypto.randomUUID();
     const input = generationRequestInputSchema.safeParse({
       purpose: "テスト",
+      profileSnapshotId: crypto.randomUUID(),
       selectedItemIds: [id],
       redemption: "required",
       hiddenGoodness: "required",
@@ -238,5 +240,13 @@ describe("current input contracts", () => {
   it("requires structured generation coverage", () => {
     const parsed = generatedCharacterCandidateSchema.safeParse({ schemaVersion: "1.0", briefId: crypto.randomUUID() });
     expect(parsed.success).toBe(false);
+  });
+
+  it("requires the displayed profile snapshot for generation", () => {
+    const input = { purpose: "テスト", selectedItemIds: [crypto.randomUUID()] };
+    expect(generationRequestInputSchema.safeParse(input).success).toBe(false);
+    expect(generationRequestInputSchema.safeParse({ ...input, profileSnapshotId: crypto.randomUUID() }).success).toBe(
+      true,
+    );
   });
 });

@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
+import { loadProjectionFreshness } from "../worker/services/profile";
 import { createD1DataStoreStrategy } from "../worker/storage/d1-strategy";
 import type { Env } from "../worker/types";
 
@@ -100,6 +101,24 @@ afterEach(() => {
 });
 
 describe("profile snapshot item selection", () => {
+  it("reports unsupported algorithms without inventing a rebuild generation", async () => {
+    current = testDatabase();
+    current.database.exec("UPDATE profile_projections SET algorithm_version='profile/v1.1.0'");
+    expect(await loadProjectionFreshness(current.env, "owner")).toEqual({
+      status: "failed",
+      desiredGeneration: 1,
+      builtGeneration: 1,
+      errorCode: "PROFILE_ALGORITHM_UNSUPPORTED",
+    });
+    expect(await createD1DataStoreStrategy(current.env).loadProfileSnapshotItems("owner", "standard")).toEqual({
+      snapshot: null,
+      items: [],
+    });
+    expect(
+      current.database.prepare("SELECT desired_generation FROM projection_rebuild_states").get()?.desired_generation,
+    ).toBe(1);
+  });
+
   it("returns the snapshot attached to the current projection instead of a higher orphan generation", async () => {
     current = testDatabase();
 

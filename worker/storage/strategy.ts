@@ -39,7 +39,7 @@ import type {
 } from "../services/generation-feedback";
 import type { loadCurrentGraph } from "../services/graph";
 import type { refinePreferenceInput } from "../services/preference-refinement";
-import type { ensureCurrentProfileAlgorithm, loadCurrentProfile, loadProjectionFreshness } from "../services/profile";
+import type { loadCurrentProfile, loadProjectionFreshness } from "../services/profile";
 import type { CharacterAnalysisWorkflowParams, Env, GenerationWorkflowParams } from "../types";
 import { createD1DataStoreStrategy } from "./d1-strategy";
 
@@ -130,10 +130,7 @@ export interface CharacterTasteDataStoreStrategy {
     analysisRunId: string,
   ): ReturnType<typeof activateAnalysisAndRebuild>;
   loadCurrentProfile(ownerUserId: string, analysisDomain: AnalysisDomain): ReturnType<typeof loadCurrentProfile>;
-  ensureCurrentProfileAlgorithm(
-    ownerUserId: string,
-    analysisDomain: AnalysisDomain,
-  ): ReturnType<typeof ensureCurrentProfileAlgorithm>;
+
   loadProjectionFreshness(ownerUserId: string): ReturnType<typeof loadProjectionFreshness>;
   loadProfileSnapshotItems(ownerUserId: string, analysisDomain: AnalysisDomain): Promise<ProfileSnapshotItems>;
   loadCurrentGraph(

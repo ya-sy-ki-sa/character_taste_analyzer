@@ -216,22 +216,6 @@ describe("解析エラーの再実行", () => {
     expect(screen.getByText("エラー詳細")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "解析を再実行" })).not.toBeInTheDocument();
   });
-
-  it("旧形式の出典エラーコードだけでもOpenAI拒否ではないことを説明する", async () => {
-    const failed = entry("failed", false);
-    failed.job.errorCode = "EXTERNAL_CITATION_NOT_ALLOWED";
-    failed.job.errorDetail = "EXTERNAL_CITATION_NOT_ALLOWED";
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ data: { entries: [failed] } }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    renderPage();
-    await screen.findByText("LLMの回答に確認できない外部出典が含まれていました");
-    expect(screen.getByText(/このエラー自体はOpenAIの拒否やセンシティブ判定を示しません/u)).toBeInTheDocument();
-  });
 });
 
 describe("好みの候補の確認", () => {

@@ -218,8 +218,7 @@ export async function dispatchPendingOutbox(env: Env, limit = 50): Promise<numbe
 
 /**
  * Recovers an owner-scoped profile rebuild that was persisted while no cron or
- * post-commit dispatcher was running (for example, a side-by-side local D1
- * migration). dispatchOutboxEvent owns the lease, so this is safe to race with
+ * post-commit dispatcher was running. dispatchOutboxEvent owns the lease, so this is safe to race with
  * the normal dispatcher.
  */
 export async function dispatchPendingProfileRebuild(env: Env, ownerUserId: string): Promise<boolean> {

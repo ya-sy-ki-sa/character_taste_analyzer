@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EntryDraft, GenerationRequestInput } from "../shared/schemas";
+import type { ModerationProvider } from "../worker/moderation/types";
 import {
   moderateEntryDraft,
   moderateGenerationInput,
   moderationRejectionMessage,
 } from "../worker/services/input-moderation";
-import type { ModerationProvider } from "../worker/moderation/types";
 import type { Env } from "../worker/types";
 
 function recordingProvider(moderate = vi.fn().mockResolvedValue({ allowed: true, reasons: [] })) {
@@ -50,6 +50,7 @@ describe("LLM input pre-moderation", () => {
       role: "役割",
       tone: "トーン",
       freeInstruction: "指示",
+      profileSnapshotId: "00000000-0000-4000-8000-000000000002",
       selectedItemIds: ["00000000-0000-4000-8000-000000000001"],
       prohibitedItemIds: [],
     } satisfies GenerationRequestInput;

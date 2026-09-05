@@ -2,7 +2,7 @@
 
 ## 方針と対象
 
-登録時と移行前のユーザーはベーシック。内部値は `basic` / `silver` / `gold` / `premium`、表示名はベーシック／シルバー／ゴールド／プレミアムとする。通常版とダーク版で同じメンバーシップを使用する。今回の初期設定は全ティアで従来のモデルを継承し、モデルの実力・費用・待ち時間の比較は別途行う。
+新規登録時のユーザーはベーシック。内部値は `basic` / `silver` / `gold` / `premium`、表示名はベーシック／シルバー／ゴールド／プレミアムとする。通常版とダーク版で同じメンバーシップを使用する。初期設定は全ティアで共通モデルを継承し、モデルの実力・費用・待ち時間の比較は別途行う。
 
 | 用途 | 選択 | 理由 |
 |---|---|---|
@@ -60,13 +60,13 @@ Workers AIでは、このアプリのeffort対応範囲を `@cf/openai/gpt-oss-1
 
 ## 保存・実行・API
 
-`006_membership_llm_routing.sql` で `users.membership_tier`（NOT NULL、DEFAULT basic、4値のCHECK）と `jobs.llm_routing_snapshot_json` を追加する。ティアの権利判定はサーバーで取得したユーザー情報を `membershipTierForUser` へ渡す。将来の権利付与方式はこの境界に集約する。クライアントのティア・モデル指定を選択に使用しない。
+現行baselineの `001_initial.sql` で `users.membership_tier`（NOT NULL、DEFAULT basic、4値のCHECK）と `jobs.llm_routing_snapshot_json` を定義する。ティアの権利判定はサーバーで取得したユーザー情報を `membershipTierForUser` へ渡す。将来の権利付与方式はこの境界に集約する。クライアントのティア・モデル指定を選択に使用しない。
 
-新規登録・再解析・生成のジョブは作成batch内で割当を保存する。JSONの `policyVersion: membership-v1`、`membershipTier`、`common` / `tier` のprimary・fallbackは解決済みの値とし、秘密情報は含めない。ユーザー確認後の続行、追加質問・仮説、再試行、冪等リプレイは同じ割当を使用する。設定・ティア変更は新規ジョブから有効となる。
+新規登録・再解析・生成のジョブは作成batch内で割当を保存する。JSONの `policyVersion: membership-v2`、`membershipTier`、`common` / `tier` のprimary・fallbackは解決済みの値とし、秘密情報は含めない。ユーザー確認後の続行、追加質問・仮説、再試行、冪等リプレイは同じ割当を使用する。設定・ティア変更は新規ジョブから有効となる。
 
-各primary・fallbackには指定時のみ `effort` を保存し、形式修復も元試行の値を引き継ぐ。保存済み割当にeffortがない既存ジョブは、現在の環境設定で補完せず未指定のまま実行する。任意フィールドの追加なので `membership-v1` と既存DBを維持し、追加マイグレーションは不要。クライアントからeffortを指定するAPIは追加しない。
+各primary・fallbackには `effort` を必須で保存する。モデル既定値を使う場合は明示的にnullとし、形式修復と再試行も保存済みの値を引き継ぐ。環境設定のeffort省略は新規ジョブ作成時にnullへ解決する。クライアントからeffortを指定するAPIは追加しない。
 
-移行前ジョブのNULL割当は次回実行時に、ベーシックとその時点の共通モデル・共通fallbackで一度だけ初期化する。この初期化にはティア上書きを適用しない。更新条件 `IS NULL` と再読込により並行実行時の確定値を共有する。保存済みJSONが不正なら現在設定で補完せず失敗する。
+分析・生成ジョブには作成時の割当が必要。NULL割当は `LLM_JOB_ROUTING_REQUIRED`、旧policyVersion・effort欠落・不正JSONは検証エラーとし、現在設定から補完しない。
 
 Workflowとローカルdispatcherはいずれも共通サービス入口で `createJobLlmProvider` を呼び、ジョブID・所有者IDで保存済み割当を取得する。下位ヘルパーにはこのProviderを明示的に渡し、リクエストやWorkflow payloadからモデル設定を受け取らない。実行時の認証情報はWorkerの現在のbindingを使用する。
 
@@ -78,10 +78,10 @@ Workflowとローカルdispatcherはいずれも共通サービス入口で `cre
 
 ## 検証と適用順
 
-- 移行前ユーザー・新規ユーザーの既定値、CHECK制約、認証APIの実DB参照、クライアント指定による昇格防止。
+- 新規ユーザーの既定値、CHECK制約、認証APIの実DB参照、クライアント指定による昇格防止。
 - 4ティア×全用途の呼び分け、形式修復のモデル継承、設定不正、上位ティア専用の接続設定検査。
 - 通常版・ダーク版で分析→確認→嗜好分析→仮説→生成・検査・比較を通し、ティア・設定変更後もモデルと記録が固定されること。
-- 再解析が新しい割当を使用すること、旧ジョブの並行初期化・所有者分離、混雑時のfallbackと既存の3回上限。
+- 再解析が新しい割当を使用すること、割当未保存・旧形式の拒否と所有者分離、混雑時のfallbackと既存の3回上限。
 - 型チェック、全単体試験、DDL・Schema・OpenAPI・prompt契約、build、既存E2E。
 
-適用時は先に追加マイグレーション、その後Workerを更新する。初回設定は `{}` を維持する。実モデルの比較・本番適用は別途実施し、今回の検証はFake／Replay・モックと一時DBで行う。
+DBは現行baselineと通常版／ダーク版のseedで新規構築する。旧DBからの追加マイグレーションは提供しない。初回設定は `{}` とする。実モデルの比較・本番適用は別途実施し、今回の検証はFake／Replay・モックと一時DBで行う。

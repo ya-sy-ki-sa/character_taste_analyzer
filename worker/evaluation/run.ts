@@ -64,7 +64,7 @@ export async function runQualityEvaluation(
         });
         const selections = db.database
           .prepare(
-            `SELECT i.id,i.item_type FROM profile_snapshot_items i JOIN profile_snapshots s ON s.id=i.profile_snapshot_id WHERE i.analysis_domain=? AND s.profile_generation=? ORDER BY i.ordinal LIMIT 8`,
+            `SELECT i.id,i.item_type,i.profile_snapshot_id FROM profile_snapshot_items i JOIN profile_snapshots s ON s.id=i.profile_snapshot_id WHERE i.analysis_domain=? AND s.profile_generation=? ORDER BY i.ordinal LIMIT 8`,
           )
           .all(fixture.domain, profile.freshness.desiredGeneration);
         const selectedItemIds = selections
@@ -76,6 +76,7 @@ export async function runQualityEvaluation(
             owner,
             fixture.domain,
             generationRequestInputSchema.parse({
+              profileSnapshotId: selections[0].profile_snapshot_id,
               mode: "faithful",
               purpose: "同じ条件で独創的なオリジナルキャラクターを比較する",
               selectedItemIds,

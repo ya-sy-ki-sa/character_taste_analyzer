@@ -22,6 +22,13 @@ export async function loadInputProvenanceSources(env: Env, sourceSetId: string |
       SELECT s.id,s.locator_json,s.text_content,s.source_type,s.citation_json FROM source_set_items ssi
       JOIN sources s ON s.id=ssi.source_id
       WHERE ssi.source_set_id=?
+        AND (NOT EXISTS (
+          SELECT 1 FROM evidence_fragments e WHERE e.source_id=s.id AND e.evidence_origin='review'
+        ) OR EXISTS (
+          SELECT 1 FROM evidence_fragments e JOIN character_assertions a
+            ON e.owner_type='character_assertion' AND a.id=e.owner_id AND a.owner_user_id=s.owner_user_id
+          WHERE e.source_id=s.id AND e.evidence_origin='review' AND a.status IN ('confirmed','corrected')
+        ))
       ORDER BY ssi.priority,s.id
     `,
     ).bind(sourceSetId),

@@ -616,7 +616,7 @@ export const preferenceCandidateSchema = z.object({
       z.object({
         topic: z.string().min(1).max(500),
         reason: z.string().min(1).max(2_000),
-        recommendedQuestion: z.string().max(1_000).nullable(),
+        recommendedQuestion: z.string().trim().min(1).max(500).nullable(),
       }),
     )
     .max(50),
@@ -735,7 +735,7 @@ export const generationModeSchema = z.enum(["faithful", "balanced", "exploratory
 export const accountExportRequestSchema = z.object({}).strict();
 export const generationRequestInputSchema = z
   .object({
-    profileSnapshotId: z.string().uuid().optional(),
+    profileSnapshotId: z.string().uuid(),
     mode: generationModeSchema.default("balanced"),
     purpose: text(2_000),
     world: optionalText(4_000),

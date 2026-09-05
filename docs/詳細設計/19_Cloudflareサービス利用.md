@@ -94,7 +94,7 @@ assets.run_worker_first    = /api/*
 
 ### 4.2 D1
 
-D1は「失うとシステムの業務状態を復元できない正本」である。現行baselineは46テーブルで、主に次のデータを保持する。
+D1は「失うとシステムの業務状態を復元できない正本」である。現行baselineは53テーブルで、主に次のデータを保持する。
 
 | 分類 | 主な内容 |
 |---|---|
@@ -352,7 +352,7 @@ custom domain、Cloudflare DNS zone、WAF ruleの有無はリポジトリから�
 | Workers AI／OpenAI／AI Gateway routing | [`worker/llm/providers.ts`](../../worker/llm/providers.ts) |
 | Embedding adapterと現行設定 | [`worker/embedding/providers.ts`](../../worker/embedding/providers.ts) |
 | 必須binding／secretのreadiness条件 | [`worker/config.ts`](../../worker/config.ts) |
-| 46テーブルの正本schema | [`database/001_initial.sql`](database/001_initial.sql) |
+| 53テーブルの正本schema | [`database/001_initial.sql`](database/001_initial.sql) |
 | build、deploy、D1 migration command | [`package.json`](../../package.json) |
 
 Cloudflare側の仕様を確認する場合は、公式の[Workers Static Assets SPA routing](https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/)、[D1 Workers Binding API](https://developers.cloudflare.com/d1/worker-api/)、[R2 Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)、[Workflows](https://developers.cloudflare.com/workflows/get-started/guide/)、[Workers AIとAI Gateway](https://developers.cloudflare.com/ai-gateway/integrations/aig-workers-ai-binding/)、[Turnstile server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)、[Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)、[Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/)を参照する。

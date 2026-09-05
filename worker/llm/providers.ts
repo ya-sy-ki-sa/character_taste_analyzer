@@ -620,9 +620,9 @@ class DeterministicProvider implements LlmProvider {
 }
 
 function provider(env: Env, route: LlmRoute): LlmProvider {
-  if (route.provider === "workers_ai") return new WorkersAiLlmProvider(env, route.model, route.effort);
-  if (route.provider === "openai") return new OpenAiLlmProvider(env, route.model, route.effort);
-  return new DeterministicProvider(route.provider, route.model, route.effort);
+  if (route.provider === "workers_ai") return new WorkersAiLlmProvider(env, route.model, route.effort ?? undefined);
+  if (route.provider === "openai") return new OpenAiLlmProvider(env, route.model, route.effort ?? undefined);
+  return new DeterministicProvider(route.provider, route.model, route.effort ?? undefined);
 }
 
 class LlmProviderRouter implements LlmProvider {

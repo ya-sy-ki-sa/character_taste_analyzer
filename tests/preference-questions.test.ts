@@ -13,15 +13,13 @@ it("uses the actual recommended question rather than its uncertainty explanation
     ]),
   ).toEqual(["強さへの感嘆と、物語を盛り上げる面白さのどちらに惹かれますか？"]);
 });
-it("turns legacy statements into answerable questions, with a safe length and default questions", () => {
-  const result = preferenceQuestions([
-    { topic: "悪や残酷さへの好意", reason: "支持されていない。", recommendedQuestion: "判断できない。" },
-  ]);
-  expect(result[0]).toContain("どのように感じますか？");
-  expect(result[0]).not.toContain("判断できない");
+it("uses general questions for an empty report and omits explicitly absent questions", () => {
   expect(preferenceQuestions([]).every((question) => question.includes("？"))).toBe(true);
-  expect(preferenceQuestions([{ topic: "a".repeat(500), reason: "b" }])[0].length).toBeLessThanOrEqual(500);
+  expect(
+    preferenceQuestions([{ topic: "悪や残酷さへの好意", reason: "支持されていない。", recommendedQuestion: null }]),
+  ).toEqual([]);
 });
+
 it("requires a nonempty, unique selection of saved hypothesis IDs", () => {
   const id = crypto.randomUUID(),
     input = { mode: "selection", hypothesisBatchId: crypto.randomUUID(), selectedHypothesisIds: [id] };

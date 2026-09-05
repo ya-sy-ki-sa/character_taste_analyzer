@@ -74,8 +74,6 @@ export function createAccountRoutes() {
       await Promise.all(objects.flatMap((item) => (item.object_key ? [bucket.delete(item.object_key)] : [])));
     }
     const results = await context.env.DB.batch([
-      // 001_initial.sqlの修正前に作成されたlocal D1でも、jobsのSET NULL/CHECK競合を起こさない。
-      context.env.DB.prepare(`DELETE FROM jobs WHERE owner_user_id=?`).bind(session.userId),
       context.env.DB.prepare(`DELETE FROM users WHERE id=?`).bind(session.userId),
     ]);
     if (results.some((result) => !result.success))

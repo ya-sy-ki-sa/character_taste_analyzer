@@ -14136,6 +14136,7 @@
                   }
                 },
                 "required": [
+                  "profileSnapshotId",
                   "purpose",
                   "selectedItemIds"
                 ],
@@ -23322,6 +23323,7 @@
                   }
                 },
                 "required": [
+                  "profileSnapshotId",
                   "purpose",
                   "selectedItemIds"
                 ],

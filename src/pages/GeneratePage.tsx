@@ -29,7 +29,7 @@ type GenerationRow = {
   mode: GenerationRequestInput["mode"];
   createdAt: string;
   character: AnyGeneratedCharacterCandidate | null;
-  candidates?: GenerationOption[];
+  candidates: GenerationOption[];
   job: { status: string | null; errorCode: string | null };
 };
 
@@ -101,12 +101,13 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
       overrides,
     );
     try {
+      if (!snapshot.data?.snapshot) throw new Error("生成に使うプロフィールを読み込んでください。");
       await api(`${apiBase}/generation-requests`, {
         method: "POST",
         idempotencyKey: idempotencyKey(),
         body: JSON.stringify({
           mode,
-          profileSnapshotId: snapshot.data?.snapshot?.id,
+          profileSnapshotId: snapshot.data.snapshot.id,
           purpose,
           world: world || undefined,
           genre: genre || undefined,
@@ -160,7 +161,7 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
       setDetail({
         ...detail,
         character: option.character,
-        candidates: detail.candidates?.map((item) => ({ ...item, selected: item.id === option.id })),
+        candidates: detail.candidates.map((item) => ({ ...item, selected: item.id === option.id })),
       });
       await queryClient.invalidateQueries({ queryKey: ["generated-characters", domain] });
       setNotice("採用する案を保存しました。");
@@ -372,11 +373,11 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
                     <>
                       <h3>{item.character.identity.name}</h3>
                       <p>{item.character.identity.oneLineConcept}</p>
-                      {Boolean(item.candidates?.length) && (
+                      {Boolean(item.candidates.length) && (
                         <small>
-                          {item.candidates?.some((candidate) => candidate.selected)
+                          {item.candidates.some((candidate) => candidate.selected)
                             ? "採用済み"
-                            : `${item.candidates?.length}案 · 採用する案を選択`}
+                            : `${item.candidates.length}案 · 採用する案を選択`}
                         </small>
                       )}
                       <footer>
@@ -412,7 +413,7 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
           character={detail.character}
           onClose={() => setDetail(undefined)}
           comparison={
-            detail.candidates?.length ? (
+            detail.candidates.length ? (
               <>
                 {error && <Notice tone="danger">{error}</Notice>}
                 <CandidateComparison
@@ -429,11 +430,11 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
             ) : null
           }
         >
-          {Boolean(detail.candidates?.length) && (
+          {Boolean(detail.candidates.length) && (
             <GenerationFeedback
               key={detail.character.identity.name}
               domain={domain}
-              option={detail.candidates?.find(
+              option={detail.candidates.find(
                 (item) => item.character.identity.name === detail.character?.identity.name,
               )}
             />

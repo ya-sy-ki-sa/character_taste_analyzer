@@ -56,7 +56,7 @@ export function SettingsPage({ user }: { user?: SessionUser }) {
             <ul>
               <li>既成キャラクターではWikipedia、Wikidata、OpenAI Web Search、モデル知識を補助情報として利用します</li>
               <li>根拠には出典と検証状態を保存し、原文へ移動できるのは原文照合済みの引用だけです</li>
-              <li>モデル知識・出典だけ確認できた根拠・旧データは、検証済み引用と区別して表示します</li>
+              <li>モデル知識・出典だけ確認できた根拠は、検証済み引用と区別して表示します</li>
               <li>資格情報やユーザー名をLLMへ送りません</li>
               <li>プロンプト・応答本文をアプリログへ残しません</li>
             </ul>

@@ -48,6 +48,8 @@ npm run dev:offline
 
 現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`docs/詳細設計/database`です。
 
+改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当と明示的な `effort`（モデル既定値はnull）が必要で、生成要求には `profileSnapshotId` が必須です。
+
 ## AI Provider
 
 メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` にティア別の `{ provider, model }` と任意の `effort` を設定できます。初期値 `{}` は全ティアで共通モデルと推論量を継承します。共通の推論量は `LLM_REASONING_EFFORT`、fallback先は `LLM_FALLBACK_REASONING_EFFORT` で指定し、空欄ではモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定・Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ別LLM設計](docs/詳細設計/20_メンバーシップ別LLM.md)を参照してください。

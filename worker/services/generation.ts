@@ -466,24 +466,13 @@ export async function createGenerationRequest(
     if (existing.user_constraints_json !== JSON.stringify(input)) throw new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
     return { generationRequestId: existing.id, status: existing.status, jobId: existing.job_id, replayed: true };
   }
-  const freshness = await first<{ desired_generation: number; built_generation: number; status: string }>(
-    env.DB.prepare(
-      `SELECT desired_generation,built_generation,status FROM projection_rebuild_states WHERE owner_user_id=?`,
-    ).bind(ownerUserId),
-  );
-  if (
-    !input.profileSnapshotId &&
-    freshness &&
-    (freshness.desired_generation !== freshness.built_generation || freshness.status !== "current")
-  )
-    throw new Error("PROFILE_REBUILDING");
   const snapshot = await first<{ id: string }>(
     env.DB.prepare(`
-      SELECT ps.id FROM profile_snapshots ps JOIN profile_projections pp ON pp.id=ps.profile_projection_id
-      WHERE ps.owner_user_id=? AND (CASE WHEN ? IS NOT NULL THEN ps.id=? ELSE pp.status='current' END)
+      SELECT ps.id FROM profile_snapshots ps
+      WHERE ps.owner_user_id=? AND ps.id=?
         AND EXISTS (SELECT 1 FROM profile_snapshot_items psi WHERE psi.profile_snapshot_id=ps.id AND psi.analysis_domain=?)
       ORDER BY ps.profile_generation DESC,ps.created_at DESC LIMIT 1
-    `).bind(ownerUserId, input.profileSnapshotId ?? null, input.profileSnapshotId ?? null, analysisDomain),
+    `).bind(ownerUserId, input.profileSnapshotId, analysisDomain),
   );
   if (!snapshot) throw new Error("PROFILE_REQUIRED");
   const allIds = [...new Set([...input.selectedItemIds, ...input.prohibitedItemIds])];
@@ -1083,7 +1072,11 @@ export async function listGenerations(env: Env, ownerUserId: string, analysisDom
     SELECT gc.id,gr.id AS request_id,gr.status,gr.mode,gr.created_at,gc.character_json,j.status AS job_status,j.error_code
     FROM generation_requests gr LEFT JOIN generated_characters gc ON gc.generation_request_id=gr.id
     LEFT JOIN jobs j ON j.target_type='generation_request' AND j.target_id=gr.id
-    WHERE gr.owner_user_id=? AND gr.analysis_domain=? ORDER BY gr.created_at DESC,gr.id
+    WHERE gr.owner_user_id=? AND gr.analysis_domain=?
+      AND (gr.status!='generated' OR EXISTS (
+        SELECT 1 FROM generation_candidates c WHERE c.generation_request_id=gr.id AND c.status='passed'
+      ))
+    ORDER BY gr.created_at DESC,gr.id
   `).bind(ownerUserId, analysisDomain),
   );
   const candidates = await all<{

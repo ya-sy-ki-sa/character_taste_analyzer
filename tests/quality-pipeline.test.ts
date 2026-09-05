@@ -28,6 +28,7 @@ import {
 } from "../worker/services/generation-feedback";
 import { refinePreferenceInput } from "../worker/services/preference-refinement";
 import { loadCurrentProfile, processProfileRebuild } from "../worker/services/profile";
+import { loadInputProvenanceSources } from "../worker/services/provenance";
 import type { Env } from "../worker/types";
 
 const databases: Array<ReturnType<typeof evaluationDatabase>> = [];
@@ -61,7 +62,7 @@ function setup() {
   } as Env;
   return { db, owner, env };
 }
-async function analyzed(domain: AnalysisDomain, empty = false) {
+async function understood(domain: AnalysisDomain, empty = false) {
   const context = setup(),
     { env, owner } = context;
   const draft = anyEntryDraftSchema.parse({
@@ -89,16 +90,21 @@ async function analyzed(domain: AnalysisDomain, empty = false) {
     detail?.understanding,
     JSON.stringify(context.db.database.prepare("SELECT error_code,error_detail_safe FROM jobs").all()),
   ).toBeTruthy();
+  return { ...context, params, detail: present(detail) };
+}
+async function analyzed(domain: AnalysisDomain, empty = false) {
+  const context = await understood(domain, empty);
+  const { env, owner, params, detail } = context;
   await confirmUnderstanding(env, owner, domain, detail?.understanding?.id as string);
   await processPreferenceAnalysis(env, { ...params, stage: "preference" });
-  const reviewed = await loadEntryReview(env, owner, domain, entry.entryId);
+  const reviewed = await loadEntryReview(env, owner, domain, params.entryId);
   expect(
     reviewed?.preferenceAnalysis,
     JSON.stringify(context.db.database.prepare("SELECT error_code,error_detail_safe FROM jobs").all()),
   ).toBeTruthy();
   return { ...context, params, detail: reviewed as NonNullable<typeof reviewed> };
 }
-describe("quality pipeline against migrated D1 schema", () => {
+describe("quality pipeline against current D1 schema", () => {
   it("reloads corrected assertions, original evidence, scope and confirmed customization deltas", async () => {
     const { db, env, owner } = setup();
     const draft = anyEntryDraftSchema.parse({
@@ -164,6 +170,15 @@ describe("quality pipeline against migrated D1 schema", () => {
       },
       crypto.randomUUID(),
     );
+    // Edits are already citable before confirmation or another analysis runs.
+    const reviewEvidence = db.database
+      .prepare(
+        "SELECT e.excerpt_text,e.verification_status FROM evidence_fragments e JOIN character_assertions a ON a.id=e.owner_id WHERE a.snapshot_id=? AND e.evidence_origin='review' AND a.status='corrected'",
+      )
+      .all(snapshot?.id as string);
+    expect(reviewEvidence).toEqual([
+      { excerpt_text: "強制された行動であり本人の意思ではない", verification_status: "verified_quote" },
+    ]);
     await confirmUnderstanding(env, owner, "standard", snapshot?.id as string);
     const confirmed = await loadConfirmedUnderstanding(env, owner, snapshot?.id as string);
     expect(confirmed.assertions.some((item) => item.valueText === removed?.value_text)).toBe(false);
@@ -206,6 +221,76 @@ describe("quality pipeline against migrated D1 schema", () => {
       saved.map((item) => [item.value_text, item.confidence, item.explicitness]),
     );
   });
+  it("keeps review provenance atomic and excludes superseded or deleted edits", async () => {
+    const { db, env, owner, detail } = await understood("standard");
+    const snapshotId = detail.understanding?.id as string;
+    const sourceSetId = db.database
+      .prepare(
+        "SELECT er.source_set_id FROM entry_revisions er JOIN user_character_entries e ON e.id=er.entry_id WHERE e.owner_user_id=?",
+      )
+      .get(owner)?.source_set_id as string;
+    const key = crypto.randomUUID();
+    const input = {
+      action: "add_assertion" as const,
+      rawLabel: "手動設定",
+      valueText: "訂正前の設定",
+      attributeStableKey: null,
+    };
+    const added = await mutateUnderstandingReview(env, owner, "standard", snapshotId, input, key);
+    await mutateUnderstandingReview(env, owner, "standard", snapshotId, input, key);
+    expect(
+      db.database.prepare("SELECT COUNT(*) AS count FROM evidence_fragments WHERE owner_id=?").get(added.changedId)
+        ?.count,
+    ).toBe(1);
+    const changed = await mutateUnderstandingReview(
+      env,
+      owner,
+      "standard",
+      snapshotId,
+      {
+        action: "update_assertion",
+        targetId: added.changedId,
+        rawLabel: "手動設定",
+        valueText: "訂正後の設定",
+        attributeStableKey: null,
+      },
+      crypto.randomUUID(),
+    );
+    let sources = await loadInputProvenanceSources(env, sourceSetId);
+    expect(sources.some((source) => source.text === "訂正前の設定")).toBe(false);
+    expect(sources.some((source) => source.text === "訂正後の設定")).toBe(true);
+    await mutateUnderstandingReview(
+      env,
+      owner,
+      "standard",
+      snapshotId,
+      { action: "delete_assertion", targetId: changed.changedId },
+      crypto.randomUUID(),
+    );
+    sources = await loadInputProvenanceSources(env, sourceSetId);
+    expect(sources.some((source) => source.text === "訂正後の設定")).toBe(false);
+    db.database.exec(
+      "CREATE TRIGGER reject_review_evidence BEFORE INSERT ON evidence_fragments WHEN NEW.evidence_origin='review' BEGIN SELECT RAISE(ABORT,'test failure'); END;",
+    );
+    await expect(
+      mutateUnderstandingReview(
+        env,
+        owner,
+        "standard",
+        snapshotId,
+        { ...input, valueText: "失敗した訂正" },
+        crypto.randomUUID(),
+      ),
+    ).rejects.toThrow();
+    expect(
+      db.database.prepare("SELECT COUNT(*) AS count FROM character_assertions WHERE value_text='失敗した訂正'").get()
+        ?.count,
+    ).toBe(0);
+    expect(
+      db.database.prepare("SELECT COUNT(*) AS count FROM sources WHERE text_content='失敗した訂正'").get()?.count,
+    ).toBe(0);
+  });
+
   it.each(["standard", "dark"] as const)(
     "generates and selects validated candidates, confirms feedback only explicitly (%s)",
     async (domain) => {
@@ -228,6 +313,9 @@ describe("quality pipeline against migrated D1 schema", () => {
         owner,
         domain,
         generationRequestInputSchema.parse({
+          profileSnapshotId: db.database
+            .prepare("SELECT profile_snapshot_id FROM profile_snapshot_items WHERE id=?")
+            .get(ids[0])?.profile_snapshot_id,
           mode: "faithful",
           purpose: "独創的な人物を作成",
           selectedItemIds: ids,
@@ -250,6 +338,13 @@ describe("quality pipeline against migrated D1 schema", () => {
       expect(db.database.prepare("SELECT COUNT(*) AS count FROM generation_candidates").get()?.count).toBe(3);
       expect(result.candidates).toHaveLength(3);
       expect(result.candidates.every((candidate) => !candidate.selected)).toBe(true);
+      db.database.exec("SAVEPOINT missing_candidates");
+      db.database
+        .prepare("DELETE FROM generation_candidates WHERE generation_request_id=?")
+        .run(result.generationRequestId);
+      expect(await listGenerations(env, owner, domain)).toEqual([]);
+      db.database.exec("ROLLBACK TO missing_candidates; RELEASE missing_candidates");
+
       const candidate = result.candidates.at(-1) as (typeof result.candidates)[number];
       await expect(
         selectGenerationCandidate(env, "other-owner", domain, result.generationRequestId, candidate.id),

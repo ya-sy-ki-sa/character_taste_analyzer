@@ -66,7 +66,7 @@ describe.each(membershipTierSchema.options)("%s routing", (tier) => {
         membershipTier: tier,
         operation,
         selectionReason: common ? "common" : "tier",
-        policyVersion: "membership-v1",
+        policyVersion: "membership-v2",
         jobId: "job",
       });
       expect(result.attempts?.[0].metadata).toEqual(result.metadata);

@@ -29,7 +29,6 @@ const store = {
   archiveEntry: vi.fn(),
   confirmUnderstanding: vi.fn(),
   activateAnalysisAndRebuild: vi.fn(),
-  ensureCurrentProfileAlgorithm: vi.fn(),
   loadCurrentProfile: vi.fn(),
   loadProjectionFreshness: vi.fn(),
   loadCurrentGraph: vi.fn(),
@@ -287,21 +286,19 @@ describe.each(["standard", "dark"] as const)("%s API routes", (domain) => {
     store.loadCurrentGraph.mockResolvedValue(graph);
     store.loadProjectionFreshness.mockResolvedValue(freshness);
     const response = await request(`${prefix}/profile/graph?detail=invalid`);
-    expect(await response.json()).toEqual({ data: domain === "dark" ? { graph } : { graph, freshness } });
+    expect(await response.json()).toEqual({ data: { graph, freshness } });
     expect(store.loadCurrentGraph).toHaveBeenCalledExactlyOnceWith(ownerId, domain, "standard");
-    expect(store.loadProjectionFreshness).toHaveBeenCalledTimes(domain === "dark" ? 0 : 1);
+    expect(store.loadProjectionFreshness).toHaveBeenCalledTimes(1);
   });
 
-  it.each([null, "rebuild-event"])("recovers profile rebuilds without duplicate dispatch (%s)", async (event) => {
-    store.ensureCurrentProfileAlgorithm.mockResolvedValue(event ? { outboxEventId: event } : null);
+  it("dispatches an already queued profile rebuild", async () => {
     store.loadCurrentProfile.mockResolvedValue(null);
     store.loadProjectionFreshness.mockResolvedValue({ status: "rebuilding" });
     const response = await request(`${prefix}/profile`);
     expect(response.status).toBe(200);
-    expect(store.ensureCurrentProfileAlgorithm).toHaveBeenCalledExactlyOnceWith(ownerId, domain);
     expect(store.loadCurrentProfile).toHaveBeenCalledExactlyOnceWith(ownerId, domain);
-    expect(dispatchPendingProfileRebuild).toHaveBeenCalledTimes(event ? 0 : 1);
-    expect(dispatchOutboxEvent).toHaveBeenCalledTimes(event ? 1 : 0);
+    expect(dispatchPendingProfileRebuild).toHaveBeenCalledTimes(1);
+    expect(dispatchOutboxEvent).not.toHaveBeenCalled();
   });
 
   it("preserves generation history URLs and deletion status", async () => {
@@ -353,6 +350,7 @@ describe.each(["standard", "dark"] as const)("%s API routes", (domain) => {
     moderate.mockRejectedValue(new ModerationProviderError("unavailable", "MODERATION_PROVIDER_UNAVAILABLE"));
     const response = await request(`${prefix}/generation-requests`, "POST", {
       purpose: "物語",
+      profileSnapshotId: resourceId,
       selectedItemIds: [resourceId],
     });
     expect(response.status).toBe(503);
