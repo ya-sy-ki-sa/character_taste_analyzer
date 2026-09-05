@@ -7,10 +7,10 @@ const migrations = readdirSync("database/migrations")
   .sort()
   .map((name) => readFileSync(`database/migrations/${name}`, "utf8"));
 
-export function testDatabase() {
+export function testDatabase(options: { migrationCount?: number } = {}) {
   const database = new DatabaseSync(":memory:");
   database.exec("PRAGMA foreign_keys=ON");
-  for (const sql of migrations) database.exec(sql);
+  for (const sql of migrations.slice(0, options.migrationCount ?? migrations.length)) database.exec(sql);
   class Statement {
     constructor(
       private sql: string,

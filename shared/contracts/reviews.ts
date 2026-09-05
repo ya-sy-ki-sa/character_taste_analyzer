@@ -22,7 +22,7 @@ export const preferenceReviewAssertionFields = {
     .nullable()
     .default(null),
   polarity: z.enum(["positive", "negative", "mixed"]),
-  responseChannel: z.union([responseChannelSchema, darkResponseChannelSchema]),
+  responseChannel: z.union([responseChannelSchema, darkResponseChannelSchema]).nullable(),
   strength: z.number().min(0).max(1),
 };
 
@@ -33,6 +33,11 @@ export const preferenceReviewStanceFields = {
 };
 
 export const preferenceReviewMutationSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("set_response_channel"),
+    targetId: z.string().uuid(),
+    responseChannel: preferenceReviewAssertionFields.responseChannel,
+  }),
   z.object({ action: z.literal("add_preference"), ...preferenceReviewAssertionFields }),
   z.object({ action: z.literal("update_preference"), targetId: z.string().uuid(), ...preferenceReviewAssertionFields }),
   z.object({ action: z.literal("add_value_stance"), ...preferenceReviewStanceFields }),

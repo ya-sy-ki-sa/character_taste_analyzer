@@ -88,8 +88,8 @@ export function GenerationConditions({
               <strong>{snapshotItemLabel(item)}</strong>
               <small>
                 {snapshotItemTypeLabel(item.type)}
-                {item.responseChannels.length
-                  ? `・${item.responseChannels.map((channel) => responseChannelLabel(channel)).join("／")}`
+                {item.responseChannels.length || item.hasUnresolvedResponseChannel
+                  ? `・${[...item.responseChannels.map(responseChannelLabel), ...(item.hasUnresolvedResponseChannel ? [responseChannelLabel(null)] : [])].join("／")}`
                   : ""}
                 {snapshotScopeLabel(item.conditions)}
               </small>
@@ -104,7 +104,13 @@ export function GenerationConditions({
                     return (
                       <label className="quality-question" key={id}>
                         <span>
-                          {responseChannelLabel(String(individual.payload.responseChannel ?? ""))}
+                          {individual.type === "value_stance"
+                            ? "価値態度"
+                            : responseChannelLabel(
+                                typeof individual.payload.responseChannel === "string"
+                                  ? individual.payload.responseChannel
+                                  : null,
+                              )}
                           {scope ? ` · ${scope}` : ""}
                         </span>
                         <select

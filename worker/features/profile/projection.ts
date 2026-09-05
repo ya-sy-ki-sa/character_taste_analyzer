@@ -221,6 +221,7 @@ function buildDimensions(rows: WeightedAssertion[]): BuiltDimension[] {
     const conditionJson = firstRow.conditionJson;
     const condition = JSON.parse(conditionJson) as Record<string, unknown>;
     const flags = [
+      ...(firstRow.response_channel === null ? ["response_channel_unresolved"] : []),
       ...(!firstRow.attribute_definition_id ? ["unmapped"] : []),
       ...(Object.entries(condition).some(
         ([key, value]) => key !== "schemaVersion" && (Array.isArray(value) ? value.length > 0 : Boolean(value)),

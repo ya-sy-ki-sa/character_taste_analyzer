@@ -18,6 +18,11 @@ import { hmacHex, normalizeIdentityPart, nowIso, sha256Hex } from "../../lib/cry
 import { all, first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
 import { SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
+import {
+  EXPLICIT_PREFERENCE_INSTRUCTION,
+  PREFERENCE_PROMPT_VERSION,
+  PREFERENCE_SCHEMA_VERSION,
+} from "../../llm/prompts/preference";
 import type { LlmRunMetadata } from "../../llm/types";
 import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
 import { loadInputProvenanceSources } from "../../platform/provenance/sources";
@@ -187,7 +192,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       { role: "system" as const, content: SYSTEM_INSTRUCTION },
       {
         role: "user" as const,
-        content: `確認済みキャラクター理解とユーザーの好きな理由を分け、嗜好候補を抽出してください。キャラクターが持つ全属性を自動で好きにしないでください。ヴィラン性や悪そのものへの好意を悲劇性や知性に言い換えないでください。ユーザーが選択したresponse channelは、その定義どおりに優先して使ってください。根拠不足なら候補0件を正常な結果として返し、uncertaintiesに追加で尋ねる具体的な質問を最大3件書いてください。反応経路の選択だけから対象属性への好意を推定しないでください。未選択のchannelを推測する場合は、好きな理由に十分な根拠があるものだけに限定してください。\n以前の好みの訂正・削除（correctedは訂正後の内容を尊重し、rejectedとsupersededは復活させない）: ${JSON.stringify(previousReviews)}\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(
+        content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n確認済みキャラクター理解とユーザーの好きな理由を分け、嗜好候補を抽出してください。キャラクターが持つ全属性を自動で好きにしないでください。ヴィラン性や悪そのものへの好意を悲劇性や知性に言い換えないでください。ユーザーが選択したresponse channelは、その定義どおりに優先して使ってください。根拠不足なら候補0件を正常な結果として返し、uncertaintiesに追加で尋ねる具体的な質問を最大3件書いてください。反応経路の選択だけから対象属性への好意を推定しないでください。未選択のchannelを推測する場合は、好きな理由に十分な根拠があるものだけに限定してください。\n以前の好みの訂正・削除（correctedは訂正後の内容を尊重し、rejectedとsupersededは復活させない）: ${JSON.stringify(previousReviews)}\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(
           entryInputSources(entry.payload)
             .filter((source) => source.pointer.startsWith("/preference/"))
             .map((source) => source.pointer),
@@ -257,7 +262,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       result = await entry.llm.generateStructured({
         operation: "preference_analysis",
         schemaName: "preference_analysis_candidate",
-        schemaVersion: "1.0",
+        schemaVersion: PREFERENCE_SCHEMA_VERSION,
         schema: preferenceCandidateSchema,
         jsonSchema: z.toJSONSchema(preferenceCandidateSchema, {
           target: "draft-7",
@@ -276,7 +281,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         { role: "system" as const, content: SYSTEM_INSTRUCTION },
         {
           role: "user" as const,
-          content: `嗜好候補を独立監査し完全な改訂結果を返してください。訂正済み理解が優先で、削除済み特徴を原資料から復活させないでください。入力に支持されない推定、好意と道徳的支持の混同、条件や反応経路の拡大を除去します。好きな理由と苦手な理由をそれぞれ照合し、明示的な苦手条件を、人物にその設定がないという理由だけで削除しないでください。肯定・否定が別の条件なら別候補で保持してください。候補0件は正常です。推測をuser_explicitへ格上げせず、根拠やURLを捏造しないでください。\n${JSON.stringify(
+          content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n嗜好候補を独立監査し完全な改訂結果を返してください。訂正済み理解が優先で、削除済み特徴を原資料から復活させないでください。入力に支持されない推定、好意と道徳的支持の混同、条件や反応経路の拡大を除去します。好きな理由と苦手な理由をそれぞれ照合し、明示的な苦手条件を、人物にその設定がないという理由だけで削除しないでください。肯定・否定が別の条件なら別候補で保持してください。候補0件は正常です。推測をuser_explicitへ格上げせず、根拠やURLを捏造しないでください。\n${JSON.stringify(
             {
               candidate: initial,
               confirmedUnderstanding: understanding,
@@ -295,7 +300,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       result = await entry.llm.generateStructured({
         operation: "preference_audit",
         schemaName: "preference_analysis_candidate",
-        schemaVersion: "2.0",
+        schemaVersion: PREFERENCE_SCHEMA_VERSION,
         schema: preferenceCandidateSchema,
         jsonSchema: z.toJSONSchema(preferenceCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
         messages: auditMessages,
@@ -412,7 +417,13 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     statements.push(
       repository.updateAnalysisRuns(env.DB, [
         JSON.stringify({
-          schemaVersion: "2.1",
+          schemaVersion: "2.2",
+          preferencePromptVersion: PREFERENCE_PROMPT_VERSION,
+          preferenceAssertionCount: result.value.preferenceAssertions.length + retained.preferences.length,
+          valueStanceAssertionCount: result.value.valueStanceAssertions.length + retained.stances.length,
+          unresolvedResponseChannelCount:
+            result.value.preferenceAssertions.filter((item) => item.responseChannel === null).length +
+            retained.preferences.filter((item) => item.response_channel === null).length,
           citationIssues,
           citationPolicyVersion: CITATION_POLICY_VERSION,
           refinementMode: selected.length ? "selection" : (entry.refinement?.mode ?? null),

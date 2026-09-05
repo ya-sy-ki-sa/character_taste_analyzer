@@ -216,4 +216,23 @@
   .preference-channel-item > .preference-source-label {
     color: var(--ctl-structure);
   }
+  .preference-channel-item .review-item-actions {
+    flex-wrap: wrap;
+  }
+  .preference-channel-item .review-edit-form {
+    flex: 1 0 100%;
+    min-width: 0;
+  }
+  @media (max-width: 430px) {
+    .preference-channel-item .assertion-card-header {
+      flex-direction: column;
+      gap: 8px;
+    }
+    .preference-channel-item .review-edit-actions {
+      flex-direction: column;
+    }
+    .preference-channel-item .review-edit-actions .button {
+      min-height: 48px;
+    }
+  }
 }

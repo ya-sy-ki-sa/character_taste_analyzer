@@ -215,3 +215,61 @@ export function updateValueStanceAssertions2(
                WHERE id=? AND owner_user_id=? AND analysis_run_id=? AND status IN ('proposed','corrected')`)
     .bind(...bindings);
 }
+
+/** The active-row predicate is evaluated inside the batch, including concurrent retries. */
+export function copyPreferenceWithChannel(
+  db: D1Database,
+  bindings: readonly [
+    changedId: unknown,
+    responseChannel: unknown,
+    now: unknown,
+    targetId: unknown,
+    ownerUserId: unknown,
+    analysisRunId: unknown,
+  ],
+): D1PreparedStatement {
+  return db
+    .prepare(`INSERT INTO preference_assertions
+    (id,owner_user_id,analysis_run_id,entry_revision_id,character_identity_id,representation_id,
+     attribute_definition_id,raw_mention_id,analysis_domain,polarity,response_channel,strength,
+     explicitness,confidence,context_json,status,created_at)
+    SELECT ?,owner_user_id,analysis_run_id,entry_revision_id,character_identity_id,representation_id,
+     attribute_definition_id,raw_mention_id,analysis_domain,polarity,?,strength,
+     explicitness,confidence,context_json,'corrected',?
+    FROM preference_assertions WHERE id=? AND owner_user_id=? AND analysis_run_id=?
+      AND status IN ('proposed','corrected')`)
+    .bind(...bindings);
+}
+
+export function selectPreferenceEvidenceIds(
+  db: D1Database,
+  bindings: readonly [targetId: unknown, ownerUserId: unknown],
+): D1PreparedStatement {
+  return db
+    .prepare(`SELECT id FROM evidence_fragments
+    WHERE owner_type='preference_assertion' AND owner_id=? AND owner_user_id=?`)
+    .bind(...bindings);
+}
+
+export function copyPreferenceEvidence(
+  db: D1Database,
+  bindings: readonly [
+    newEvidenceId: unknown,
+    changedId: unknown,
+    evidenceId: unknown,
+    ownerUserId: unknown,
+    changedIdAgain: unknown,
+  ],
+): D1PreparedStatement {
+  return db
+    .prepare(`INSERT INTO evidence_fragments
+    (id,owner_user_id,owner_type,owner_id,source_id,evidence_origin,support_type,quote_start,quote_end,
+     quote_hash,excerpt_text,user_input_path,verification_status,inference_type,confidence,created_at)
+    SELECT ?,e.owner_user_id,e.owner_type,?,e.source_id,e.evidence_origin,e.support_type,e.quote_start,e.quote_end,
+     e.quote_hash,e.excerpt_text,e.user_input_path,e.verification_status,e.inference_type,e.confidence,e.created_at
+    FROM evidence_fragments e JOIN preference_assertions old ON old.id=e.owner_id
+    WHERE e.id=? AND e.owner_user_id=? AND e.owner_type='preference_assertion'
+      AND old.status IN ('proposed','corrected')
+      AND EXISTS (SELECT 1 FROM preference_assertions WHERE id=?)`)
+    .bind(...bindings);
+}

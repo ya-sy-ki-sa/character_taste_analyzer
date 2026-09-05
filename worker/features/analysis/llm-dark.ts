@@ -12,6 +12,7 @@ import { darkResponseChannelPrompt } from "../../../shared/dark-response-channel
 import { entryBaseCharacterName, entryInputSources } from "../../../shared/entry-input";
 import { hmacHex, sha256Hex } from "../../lib/crypto";
 import { DARK_SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
+import { EXPLICIT_PREFERENCE_INSTRUCTION, PREFERENCE_SCHEMA_VERSION } from "../../llm/prompts/preference";
 import { loadInputProvenanceSources } from "../../platform/provenance/sources";
 import type { Env } from "../../types";
 import { ontologyPrompt } from "./context";
@@ -167,7 +168,7 @@ export async function analyzeDarkPreferences(
     { role: "system" as const, content: DARK_SYSTEM_INSTRUCTION },
     {
       role: "user" as const,
-      content: `確認済みダーク状態の理解とユーザー入力から、ダーク領域に限定した嗜好候補を抽出してください。元キャラクターの通常的特徴は嗜好へ含めず、対象状態・変化差分への反応だけを扱ってください。「元の正義が残る」は自我・道徳の残存への魅力、「正義が反転した」は価値反転への魅力としてdark.*属性へ対応させます。人物への好意と行為への道徳的支持を分け、不要な善化・悲劇化・贖罪をしないでください。根拠がなければ候補0件を正常結果として返してください。\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(payload.preference)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n許可Pointer: ${JSON.stringify(
+      content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n確認済みダーク状態の理解とユーザー入力から、ダーク領域に限定した嗜好候補を抽出してください。元キャラクターの通常的特徴は嗜好へ含めず、対象状態・変化差分への反応だけを扱ってください。「元の正義が残る」は自我・道徳の残存への魅力、「正義が反転した」は価値反転への魅力としてdark.*属性へ対応させます。人物への好意と行為への道徳的支持を分け、不要な善化・悲劇化・贖罪をしないでください。根拠がなければ候補0件を正常結果として返してください。\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(payload.preference)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n許可Pointer: ${JSON.stringify(
         entryInputSources(payload)
           .filter((item) => item.pointer.startsWith("/preference/"))
           .map((item) => item.pointer),
@@ -178,7 +179,7 @@ export async function analyzeDarkPreferences(
   const result = await entry.llm.generateStructured({
     operation: "dark_preference_analysis",
     schemaName: "dark_preference_candidate",
-    schemaVersion: "1.0",
+    schemaVersion: PREFERENCE_SCHEMA_VERSION,
     schema: darkPreferenceCandidateSchema,
     jsonSchema: z.toJSONSchema(darkPreferenceCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
     messages,
@@ -211,14 +212,14 @@ export async function auditDarkPreferences(
     { role: "system" as const, content: DARK_SYSTEM_INSTRUCTION },
     {
       role: "user" as const,
-      content: `確認済み理解（原資料より優先）: ${JSON.stringify(understanding)}\n次のダーク嗜好候補を独立監査し、完全な改訂結果を返してください。入力根拠のない嗜好推定、通常属性、元キャラクター自体への一般嗜好、不要な善化・悲劇化を削除してください。候補0件は正常です。新しい事実・URL・入力根拠は追加しないでください。\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n照合資料: ${JSON.stringify(auditSources)}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
+      content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n確認済み理解（原資料より優先）: ${JSON.stringify(understanding)}\n次のダーク嗜好候補を独立監査し、完全な改訂結果を返してください。入力根拠のない嗜好推定、通常属性、元キャラクター自体への一般嗜好、不要な善化・悲劇化を削除してください。候補0件は正常です。事実・URL・入力根拠を捏造しないでください。\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n照合資料: ${JSON.stringify(auditSources)}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
   const result = await entry.llm.generateStructured({
     operation: "dark_preference_audit",
     schemaName: "dark_preference_candidate",
-    schemaVersion: "1.0",
+    schemaVersion: PREFERENCE_SCHEMA_VERSION,
     schema: darkPreferenceCandidateSchema,
     jsonSchema: z.toJSONSchema(darkPreferenceCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
     messages,

@@ -85,6 +85,46 @@ export async function mutatePreferenceReview(
   }>(repository.selectAnalysisRuns2(env.DB, [analysisRunId, ownerUserId, ownerUserId, analysisDomain]));
   if (!run) throw new Error("PREFERENCE_REVIEW_NOT_FOUND");
   const now = nowIso();
+  if (input.action === "set_response_channel") {
+    const allowed = analysisDomain === "dark" ? darkResponseChannelValues : responseChannelValues;
+    if (input.responseChannel !== null && !(allowed as readonly string[]).includes(input.responseChannel))
+      throw new Error("RESPONSE_CHANNEL_NOT_IN_DOMAIN");
+    const evidence = await all<{ id: string }>(
+      repository.selectPreferenceEvidenceIds(env.DB, [input.targetId, ownerUserId]),
+    );
+    const copies = await Promise.all(
+      evidence.map(async (item) =>
+        repository.copyPreferenceEvidence(env.DB, [
+          await deriveUuid(env.AUTH_PEPPER, `${changedId}:evidence:${item.id}`),
+          changedId,
+          item.id,
+          ownerUserId,
+          changedId,
+        ]),
+      ),
+    );
+    const results = await env.DB.batch([
+      repository.copyPreferenceWithChannel(env.DB, [
+        changedId,
+        input.responseChannel,
+        now,
+        input.targetId,
+        ownerUserId,
+        analysisRunId,
+      ]),
+      ...copies,
+      repository.updatePreferenceAssertions2(env.DB, [changedId, input.targetId, ownerUserId, analysisRunId]),
+    ]);
+    if (results.some((item) => !item.success)) throw new Error("D1_PREFERENCE_REVIEW_FAILED");
+    if (!results[0]?.meta.changes) {
+      const replay = await first<{ id: string }>(
+        repository.selectPreferenceAssertions2(env.DB, [changedId, ownerUserId, changedId, ownerUserId]),
+      );
+      if (!replay) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+      return { analysisRunId, changedId, action: input.action, replayed: true };
+    }
+    return { analysisRunId, changedId, action: input.action, replayed: false };
+  }
   const draft = anyEntryDraftSchema.parse(JSON.parse(run.registration_payload_json));
   const contextJson = JSON.stringify({
     schemaVersion: "2",
@@ -97,7 +137,7 @@ export async function mutatePreferenceReview(
   });
   if (input.action === "add_preference" || input.action === "update_preference") {
     const allowedChannels = analysisDomain === "dark" ? darkResponseChannelValues : responseChannelValues;
-    if (!(allowedChannels as readonly string[]).includes(input.responseChannel))
+    if (input.responseChannel !== null && !(allowedChannels as readonly string[]).includes(input.responseChannel))
       throw new Error("RESPONSE_CHANNEL_NOT_IN_DOMAIN");
     const attribute = input.attributeStableKey
       ? await first<{ id: string }>(

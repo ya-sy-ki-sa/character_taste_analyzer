@@ -1,0 +1,156 @@
+[
+  {
+    "caseId": "A07",
+    "preference": {
+      "likedReasons": "仲間が傷つけられたときに真っ先に動くところがかっこいい。普段はふざけていても、友達を守るときは本気になる差が好き。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "仲間を守る行動",
+        "quote": "仲間が傷つけられたときに真っ先に動くところがかっこいい。",
+        "responseChannel": null,
+        "conditions": []
+      },
+      {
+        "rawLabel": "普段との落差",
+        "quote": "普段はふざけていても、友達を守るときは本気になる差が好き。",
+        "responseChannel": null,
+        "conditions": ["友達を守るとき"]
+      }
+    ]
+  },
+  {
+    "caseId": "B05",
+    "preference": {
+      "likedReasons": "冷たく見える行動の裏に別の事情があると分かるところに惹かれる。やったことが全部正しいと思うわけではなく、簡単に割り切れない人物として考えたい。",
+      "dislikedReasons": "誰かを傷つける行為そのものを褒めたいわけではない。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "行動の裏事情",
+        "quote": "冷たく見える行動の裏に別の事情があると分かるところに惹かれる。",
+        "responseChannel": null,
+        "conditions": []
+      },
+      {
+        "rawLabel": "割り切れない人物像",
+        "quote": "やったことが全部正しいと思うわけではなく、簡単に割り切れない人物として考えたい。",
+        "responseChannel": null,
+        "conditions": ["やったことが全部正しいとは思わない"]
+      }
+    ]
+  },
+  {
+    "caseId": "C02",
+    "preference": {
+      "likedReasons": "言葉が少なくても通じる二人が好き。そこに友情以上を感じる。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "言葉が少なくても通じ合う関係",
+        "quote": "言葉が少なくても通じる二人が好き。",
+        "responseChannel": null,
+        "conditions": ["ユーザーは友情以上を感じる"]
+      }
+    ]
+  },
+  {
+    "caseId": "C10",
+    "preference": {
+      "likedReasons": "口では互いを嫌がっていても、いざというときに相手の動きを信じて任せるところが好き。対等に言い返せる二人だから、友情以上を想像する余地がある。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "信頼して任せる関係",
+        "quote": "いざというときに相手の動きを信じて任せるところが好き。",
+        "responseChannel": null,
+        "conditions": []
+      },
+      {
+        "rawLabel": "対等に言い返せる関係",
+        "quote": "対等に言い返せる二人だから、友情以上を想像する余地がある。",
+        "responseChannel": null,
+        "conditions": ["友情以上というユーザーの想像"]
+      }
+    ]
+  },
+  {
+    "caseId": "D02",
+    "preference": {
+      "likedReasons": "あの声を聞くと、翌日友達と話したのを思い出す。今も好きだなと思う。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "友人との記憶を伴う現在の好意",
+        "quote": "あの声を聞くと、翌日友達と話したのを思い出す。今も好きだなと思う。",
+        "responseChannel": null,
+        "conditions": ["声を聞くと翌日友達と話したのを思い出す"]
+      }
+    ]
+  },
+  {
+    "caseId": "A12",
+    "preference": {
+      "likedReasons": "助けたい相手のために怖い場所へ行くのがかっこいい。ぶっきらぼうでも行動で守ってくれるところに憧れる。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "怖くても相手を助けに行く行動",
+        "quote": "助けたい相手のために怖い場所へ行くのがかっこいい。",
+        "responseChannel": "admiration",
+        "conditions": []
+      },
+      {
+        "rawLabel": "行動で守る人物への憧れ",
+        "quote": "ぶっきらぼうでも行動で守ってくれるところに憧れる。",
+        "responseChannel": "admiration",
+        "conditions": []
+      }
+    ]
+  },
+  {
+    "caseId": "C05",
+    "preference": {
+      "likedReasons": "目立たない方が一方的に支えるだけじゃなく、火神も黒子を必要とするところが好き。互いの強さを成立させる相棒が、友達以上になると想像する。",
+      "responseChannels": []
+    },
+    "expectedAssertions": [
+      {
+        "rawLabel": "互いの強さを成立させる相棒",
+        "quote": "互いの強さを成立させる相棒が、友達以上になると想像する。",
+        "responseChannel": "narrative_interest",
+        "conditions": ["友達以上というユーザーの想像"]
+      }
+    ]
+  },
+  {
+    "caseId": "B03",
+    "preference": {
+      "likedReasons": "気になるけど、理由はまだよく分からない。",
+      "responseChannels": []
+    },
+    "expectedAssertions": []
+  },
+  {
+    "caseId": "C03",
+    "preference": {
+      "likedReasons": "この二人が気になる。まだ何が好きかは説明できない。",
+      "responseChannels": []
+    },
+    "expectedAssertions": []
+  },
+  {
+    "caseId": "D03",
+    "preference": {
+      "likedReasons": "昔から好きだけど、理由はうまく説明できない。",
+      "responseChannels": []
+    },
+    "expectedAssertions": []
+  }
+]

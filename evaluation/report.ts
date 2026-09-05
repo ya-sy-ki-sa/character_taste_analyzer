@@ -23,7 +23,7 @@ export const successfulCaseSchema = z.object({
   expectsEmpty: z.boolean(),
   assertions: z.array(
     z.object({
-      response_channel: z.string(),
+      response_channel: z.string().nullable(),
       polarity: z.string(),
       context_json: z.string(),
       explicitness: z.string(),

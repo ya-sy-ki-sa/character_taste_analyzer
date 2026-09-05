@@ -12,6 +12,7 @@ import * as research from "../worker/features/analysis/research";
 import { loadRetainedPreferences } from "../worker/features/analysis/retention";
 import { processCharacterAnalysis } from "../worker/features/analysis/understanding";
 import { createEntry } from "../worker/features/entries/create";
+import { mutatePreferenceReview } from "../worker/features/entries/preference-review";
 import { loadEntryReview } from "../worker/features/entries/review";
 import { confirmUnderstanding, mutateUnderstandingReview } from "../worker/features/entries/understanding-review";
 import { processProfileRebuild } from "../worker/features/profile/projection";
@@ -153,9 +154,15 @@ async function setup(domain: AnalysisDomain, fixture = failures[0], allInvalid =
         const candidate = value as PreferenceCandidate;
         const template = candidate.preferenceAssertions[0];
         candidate.preferenceAssertions = [
-          { ...template, attributeStableKey: null, rawLabel: "無効な好み", evidence: [bad] },
-          { ...template, attributeStableKey: null, rawLabel: "有効な好み", evidence: [input] },
-          { ...template, attributeStableKey: null, rawLabel: "混在する好み", evidence: [bad, input] },
+          { ...template, attributeStableKey: null, rawLabel: "無効な好み", responseChannel: null, evidence: [bad] },
+          { ...template, attributeStableKey: null, rawLabel: "有効な好み", responseChannel: null, evidence: [input] },
+          {
+            ...template,
+            attributeStableKey: null,
+            rawLabel: "混在する好み",
+            responseChannel: null,
+            evidence: [bad, input],
+          },
         ];
         const stance = candidate.valueStanceAssertions[0];
         candidate.valueStanceAssertions = [
@@ -284,6 +291,25 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     if (!analysis) throw new Error("missing preferences");
     expect(analysis.citationIssues).toHaveLength(3);
     expect(analysis.assertions.find((item) => item.raw_label === "無効な好み")?.confidence).toBe(0);
+    const invalid = analysis.assertions.find((item) => item.raw_label === "無効な好み");
+    if (!invalid) throw new Error("missing invalid preference");
+    const correction = await mutatePreferenceReview(
+      env,
+      owner,
+      domain,
+      analysis.id,
+      {
+        action: "set_response_channel",
+        targetId: invalid.id,
+        responseChannel: domain === "dark" ? "dark_character_liking" : "admiration",
+      },
+      crypto.randomUUID(),
+    );
+    const corrected = await loadEntryReview(env, owner, domain, params.entryId);
+    expect(corrected?.preferenceAnalysis?.assertions.find((item) => item.id === correction.changedId)).toMatchObject({
+      confidence: 0,
+      evidence: [expect.objectContaining({ verificationStatus: "invalid" })],
+    });
     const activated = await activateAnalysisAndRebuild(env, owner, domain, analysis.id);
     await processProfileRebuild(env, {
       jobId: activated.profileJobId,

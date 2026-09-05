@@ -18,7 +18,7 @@ export function PreferenceAssertionForm({
     raw_label: string;
     stable_key: string | null;
     polarity: string;
-    response_channel: string;
+    response_channel: string | null;
     strength: number;
   };
   domain: AnalysisDomain;
@@ -34,7 +34,7 @@ export function PreferenceAssertionForm({
   const [polarity, setPolarity] = useState<"positive" | "negative" | "mixed">(
     initial?.polarity === "negative" || initial?.polarity === "mixed" ? initial.polarity : "positive",
   );
-  const [responseChannel, setResponseChannel] = useState(initial?.response_channel ?? channels[0].value);
+  const [responseChannel, setResponseChannel] = useState(initial?.response_channel ?? "");
   const [strength, setStrength] = useState(initial?.strength ?? 0.8);
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -42,11 +42,18 @@ export function PreferenceAssertionForm({
       rawLabel,
       attributeStableKey: attributeStableKey || null,
       polarity,
-      responseChannel: responseChannel as ResponseChannel | DarkResponseChannel,
+      responseChannel: (responseChannel || null) as ResponseChannel | DarkResponseChannel | null,
       strength,
     };
     const saved = initial
-      ? await onMutate({ action: "update_preference", targetId: initial.id, ...common })
+      ? await onMutate(
+          rawLabel === initial.raw_label &&
+            attributeStableKey === (initial.stable_key ?? "") &&
+            polarity === initial.polarity &&
+            strength === initial.strength
+            ? { action: "set_response_channel", targetId: initial.id, responseChannel: common.responseChannel }
+            : { action: "update_preference", targetId: initial.id, ...common },
+        )
       : await onMutate({ action: "add_preference", ...common });
     if (saved) onCancel();
   }
@@ -70,6 +77,7 @@ export function PreferenceAssertionForm({
       <label>
         <span>反応経路</span>
         <select value={responseChannel} onChange={(event) => setResponseChannel(event.target.value)}>
+          <option value="">未確定</option>
           {channels.map((item) => (
             <option key={item.value} value={item.value}>
               {item.label}
@@ -114,7 +122,7 @@ export function PreferenceAssertionEditControl(props: {
     raw_label: string;
     stable_key: string | null;
     polarity: string;
-    response_channel: string;
+    response_channel: string | null;
     strength: number;
   };
   domain: AnalysisDomain;

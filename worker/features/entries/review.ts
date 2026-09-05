@@ -98,7 +98,7 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
         id: string;
         raw_label: string;
         polarity: string;
-        response_channel: string;
+        response_channel: string | null;
         strength: number;
         explicitness: string;
         confidence: number;

@@ -1,6 +1,7 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import { nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
+import { PREFERENCE_PROMPT_VERSION, PREFERENCE_SCHEMA_VERSION } from "../../llm/prompts/preference";
 import { LlmProviderError, type LlmRunMetadata } from "../../llm/types";
 import type { Env } from "../../types";
 import * as repository from "./repositories/model-runs";
@@ -16,6 +17,12 @@ export async function persistModelRun(
   analysisDomain: AnalysisDomain = "standard",
 ): Promise<{ id: string; statement: D1PreparedStatement }> {
   operation = metadata.operation ?? operation;
+  const isPreference = [
+    "preference_analysis",
+    "preference_audit",
+    "dark_preference_analysis",
+    "dark_preference_audit",
+  ].includes(operation);
   const id = crypto.randomUUID();
   const outputHash = await sha256Hex(JSON.stringify(output));
   return {
@@ -29,10 +36,12 @@ export async function persistModelRun(
       metadata.requestedModel,
       metadata.resolvedModel,
       operation,
-      operation === "preference_hypotheses"
-        ? `${operation}/v2.1.0`
-        : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
-      operation === "preference_hypotheses" ? "2.1" : "1.0",
+      isPreference
+        ? `${operation}/${PREFERENCE_PROMPT_VERSION}`
+        : operation === "preference_hypotheses"
+          ? `${operation}/v2.1.0`
+          : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
+      isPreference ? PREFERENCE_SCHEMA_VERSION : operation === "preference_hypotheses" ? "2.1" : "1.0",
       metadata.providerRequestId ?? null,
       inputHash,
       outputHash,

@@ -119,7 +119,13 @@ export const reviewDetailSchema = z
         citationIssues: z.array(citationIssueSchema).optional(),
         hypothesisPreview: z.union([hypothesisPreviewSchema, z.null()]).optional(),
         qualityContext: z
-          .object({ refinementMode: z.string().nullable().optional(), evidenceInsufficient: z.boolean().optional() })
+          .object({
+            refinementMode: z.string().nullable().optional(),
+            evidenceInsufficient: z.boolean().optional(),
+            preferenceAssertionCount: z.number().int().nonnegative().optional(),
+            valueStanceAssertionCount: z.number().int().nonnegative().optional(),
+            unresolvedResponseChannelCount: z.number().int().nonnegative().optional(),
+          })
           .optional(),
         summary: z.object({
           userExplicitSummary: z.array(z.string()),
@@ -134,7 +140,7 @@ export const reviewDetailSchema = z
             id: z.string(),
             raw_label: z.string(),
             polarity: z.string(),
-            response_channel: z.string(),
+            response_channel: z.string().nullable(),
             strength: z.number(),
             explicitness: z.string(),
             confidence: z.number(),

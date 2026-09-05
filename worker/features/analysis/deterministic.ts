@@ -30,9 +30,7 @@ export function refinedFakePreferences<T extends AnyPreferenceCandidate>(
     return { ...candidate, preferenceAssertions: [], valueStanceAssertions: [] };
   const hypothesis = entry.refinement.mode === "hypotheses";
   const answer = entry.refinement.answers[0]?.answer;
-  const channel =
-    entry.payload.preference.responseChannels[0] ??
-    (entry.analysisDomain === "dark" ? "dark_character_liking" : "narrative_interest");
+  const channel = entry.payload.preference.responseChannels[0] ?? null;
   return {
     ...candidate,
     preferenceAssertions: understanding.assertions.slice(0, 3).map((item) => ({
@@ -413,21 +411,12 @@ export function fakeUnderstanding(payload: AnyEntryDraft, includeCustomization: 
   return candidate;
 }
 
-export function fakePreferences(payload: EntryDraft, understanding: UnderstandingCandidate): PreferenceCandidate {
+export function fakePreferences(payload: EntryDraft, _understanding: UnderstandingCandidate): PreferenceCandidate {
   const liked = payload.preference.likedReasons ?? "";
   const disliked = payload.preference.dislikedReasons ?? "";
-  const channels = payload.preference.responseChannels.length
-    ? payload.preference.responseChannels
-    : ["person_liking" as const];
+  const channels = payload.preference.responseChannels.length ? payload.preference.responseChannels : [null];
   const matched = keywordAttributes.filter(([pattern]) => pattern.test(liked)).slice(0, 12);
-  const sources = !liked
-    ? []
-    : matched.length
-      ? matched.map(([, stableKey, label]) => ({ stableKey, label }))
-      : understanding.assertions.slice(0, 8).map((item) => ({
-          stableKey: item.attributeStableKey,
-          label: item.rawLabel,
-        }));
+  const sources = matched.map(([, stableKey, label]) => ({ stableKey, label }));
   const preferenceAssertions: PreferenceCandidate["preferenceAssertions"] = sources
     .flatMap((item, index) =>
       channels.slice(0, 3).map((responseChannel) => ({
@@ -449,7 +438,7 @@ export function fakePreferences(payload: EntryDraft, understanding: Understandin
       attributeStableKey: stableKey,
       rawLabel: label,
       polarity: "negative",
-      responseChannel: "person_liking",
+      responseChannel: channels[0] ?? null,
       strength: 0.9,
       explicitness: "user_explicit",
       confidence: 0.92,
@@ -485,17 +474,17 @@ export function fakePreferences(payload: EntryDraft, understanding: Understandin
   return {
     summary: {
       userExplicitSummary: [liked, payload.preference.valueStanceNote].filter((item): item is string => Boolean(item)),
-      inferredSummary: liked ? [] : ["確認済みキャラクター属性からの暫定候補"],
-      limitations: liked ? [] : ["好きな理由が未入力のため確認が必要"],
+      inferredSummary: [],
+      limitations: sources.length ? [] : ["好みの対象・理由を具体化する必要がある"],
     },
     preferenceAssertions,
     valueStanceAssertions,
-    uncertainties: liked
+    uncertainties: sources.length
       ? []
       : [
           {
             topic: "好きな理由",
-            reason: "明示入力がない",
+            reason: "具体的な好みの対象・理由を特定できない",
             recommendedQuestion: "どの点が特に好きですか？",
           },
         ],
@@ -504,20 +493,14 @@ export function fakePreferences(payload: EntryDraft, understanding: Understandin
 
 export function fakeDarkPreferences(
   payload: DarkEntryDraft,
-  understanding: DarkUnderstandingCandidate,
+  _understanding: DarkUnderstandingCandidate,
 ): DarkPreferenceCandidate {
   const liked = payload.preference.likedReasons ?? "";
   const disliked = payload.preference.dislikedReasons ?? "";
-  const channels = payload.preference.responseChannels;
+  const channels = payload.preference.responseChannels.length ? payload.preference.responseChannels : [null];
   const positiveMatches = darkKeywordAttributes.filter(([pattern]) => pattern.test(liked)).slice(0, 20);
   const negativeMatches = darkKeywordAttributes.filter(([pattern]) => pattern.test(disliked)).slice(0, 12);
-  const sources = positiveMatches.length
-    ? positiveMatches.map(([, stableKey, label]) => ({ stableKey, label }))
-    : liked
-      ? understanding.assertions
-          .slice(0, 6)
-          .map((item) => ({ stableKey: item.attributeStableKey, label: item.rawLabel }))
-      : [];
+  const sources = positiveMatches.map(([, stableKey, label]) => ({ stableKey, label }));
   const preferenceAssertions: DarkPreferenceCandidate["preferenceAssertions"] = sources.flatMap((item) =>
     channels.slice(0, 4).map((responseChannel) => ({
       attributeStableKey: item.stableKey,
@@ -532,7 +515,7 @@ export function fakeDarkPreferences(
     })),
   );
   for (const [, stableKey, label] of negativeMatches) {
-    const responseChannel = channels[0] ?? "dark_character_liking";
+    const responseChannel = channels[0] ?? null;
     preferenceAssertions.push({
       attributeStableKey: stableKey,
       rawLabel: label,
@@ -549,7 +532,7 @@ export function fakeDarkPreferences(
     summary: {
       userExplicitSummary: [liked, payload.preference.valueStanceNote].filter((item): item is string => Boolean(item)),
       inferredSummary: [],
-      limitations: liked || channels.length ? [] : ["好きな理由・惹かれ方が未入力のため嗜好を特定しない"],
+      limitations: sources.length ? [] : ["好みの対象・理由を具体化する必要がある"],
     },
     preferenceAssertions,
     valueStanceAssertions: payload.preference.valueStanceNote
@@ -572,10 +555,15 @@ export function fakeDarkPreferences(
           },
         ]
       : [],
-    uncertainties:
-      liked || channels.length
-        ? []
-        : [{ topic: "ダーク嗜好", reason: "明示入力がない", recommendedQuestion: "どのダークな要素に惹かれますか？" }],
+    uncertainties: sources.length
+      ? []
+      : [
+          {
+            topic: "ダーク嗜好",
+            reason: "具体的な好みの対象・理由を特定できない",
+            recommendedQuestion: "どのダークな要素に惹かれますか？",
+          },
+        ],
     auditNotes: ["人物への好意と行為への道徳的支持を分離"],
   };
 }

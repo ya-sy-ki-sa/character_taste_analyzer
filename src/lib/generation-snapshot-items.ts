@@ -4,6 +4,7 @@ export type GenerationSnapshotItemGroup = GenerationSnapshotItem & {
   itemIds: string[];
   responseChannels: string[];
   conditions: Record<string, unknown>[];
+  hasUnresolvedResponseChannel: boolean;
 };
 
 export type SnapshotTreatment = "include" | "prohibit" | "omit";
@@ -39,11 +40,15 @@ export function groupGenerationSnapshotItems(items: GenerationSnapshotItem[]): G
         ...item,
         itemIds: [item.id],
         responseChannels: responseChannel ? [responseChannel] : [],
+        hasUnresolvedResponseChannel:
+          (item.type === "dimension" || item.type === "negative_preference") && responseChannel === null,
         conditions: condition ? [condition] : [],
       });
       continue;
     }
     current.itemIds.push(item.id);
+    current.hasUnresolvedResponseChannel ||=
+      (item.type === "dimension" || item.type === "negative_preference") && responseChannel === null;
     if (responseChannel && !current.responseChannels.includes(responseChannel)) {
       current.responseChannels.push(responseChannel);
     }

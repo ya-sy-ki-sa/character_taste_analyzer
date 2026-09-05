@@ -280,17 +280,20 @@
       min-height: auto;
     }
     .confidence-card {
-      grid-template-columns: auto 1fr;
+      grid-template-columns: minmax(0, 1fr) auto;
       justify-items: start;
       gap: 20px;
       text-align: left;
+    }
+    .confidence-card > p:last-child {
+      grid-column: 1 / -1;
     }
     .evidence-ring {
       width: 104px;
       height: 104px;
     }
     .trait-row {
-      grid-template-columns: 24px 1fr auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
     }
     .trait-meter {
       grid-column: 2 / -1;

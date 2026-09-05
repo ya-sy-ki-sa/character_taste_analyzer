@@ -40,3 +40,13 @@ npm run eval:quality -- --output .artifacts/evaluations/subset.json --limit 4
 Viteのmanifestと `build-dependencies.json` を使用して、実際の静的依存をたどります。ファイル名の正規表現でmain/graphを推測しません。初期読み込み、各遅延画面、グラフ、すべてのCSSのgzip合計を [check-bundle-budget.mjs](../scripts/check-bundle-budget.mjs) で検査します。初期読み込みへのサーバー・Zod・グラフエンジン混入も失敗にします。
 
 通常版・dark版を1440×1000、1366×768、390×844、320×720で比較します。モーダル、フォーカス復帰、Escape、入力エラー、長文、横はみ出し、モーション軽減を含めます。今回の基準・結果は[改修検証記録](refactor-validation.md)にまとめます。
+
+## 反応経路が未確定の明示的な好み
+
+嗜好候補の `responseChannel: null` は「反応経路未確定」です。対象・理由が具体的なら既存の生成・監査2回で候補を保持し、確認後に属性・条件の集計へ含めます。経路不明による確信度の減額は行いません。曖昧な好意だけなら要約と質問に残します。経路だけの編集は `set_response_channel` を使い、引用・文脈・強度・確信度を引き継ぎます。無効根拠を有効化する操作ではありません。
+
+リリース時は `004_nullable_preference_channel.sql` をアプリ更新より先に適用してください。既存レコードの自動再解析・過去評価の上書きは行いません。旧NOT NULLスキーマへのロールバックは、null候補が保存された後には適用できません。
+
+[固定fixture](../tests/fixtures/explicit-preferences.json)の入力は `.artifacts/live-evaluation/20260905-personas-01/cases/{ID}/preference-before.json` から取得しました。A07・B05・C02・C10・D02、対照例A12・C05、曖昧例B03・C03・D03を含みます。`expectedAssertions` は改善後に保持すべき内容として人手で定義した期待値で、実モデルが返した出力ではありません。[パイプラインテスト](../tests/explicit-preference-pipeline.test.ts)は固定応答の保存・引用検証・レビュー・プロフィール・生成briefへの伝達と呼出数を検証します。B05の価値態度だけを、好みの抽出成功とは数えません。
+
+実モデルの取りこぼし改善は、このテストだけでは実証しません。実APIで再評価する際は別出力先を使用し、候補件数に加えて、対象・引用・条件・否定と未確定経路の保持をfixtureの期待内容と照合してください。`preferenceAssertionCount`、`valueStanceAssertionCount`、`unresolvedResponseChannelCount` は生成時の品質情報であり、意味的な抽出正確性を表す指標ではありません。

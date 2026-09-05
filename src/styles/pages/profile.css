@@ -5,6 +5,9 @@
     gap: 20px;
     margin-bottom: 25px;
   }
+  .profile-overview > * {
+    min-width: 0;
+  }
   .summary-card {
     display: grid;
     align-content: center;

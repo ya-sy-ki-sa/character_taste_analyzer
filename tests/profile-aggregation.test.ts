@@ -24,6 +24,20 @@ function dimension(overrides: Partial<ProfileDimension> = {}): ProfileDimension 
 }
 
 describe("profile aggregation", () => {
+  it("keeps the unresolved marker when known and unknown channels share an attribute", () => {
+    for (const values of [
+      [dimension(), dimension({ responseChannel: null })],
+      [dimension({ responseChannel: null }), dimension()],
+    ]) {
+      const grouped = groupProfileDimensions(values);
+      expect(grouped).toHaveLength(1);
+      expect(grouped[0]).toMatchObject({
+        responseChannels: ["narrative_interest"],
+        hasUnresolvedResponseChannel: true,
+        evidenceCount: 2,
+      });
+    }
+  });
   it("uses only the current structured context as an aggregation condition", () => {
     expect(profileConditionJson(null)).toBe("{}");
     expect(profileConditionJson(" キャラクター全体 ")).toBe("{}");

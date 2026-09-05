@@ -3,6 +3,7 @@ import type { ProfileDimension } from "../../shared/contracts/profile-response";
 export type DisplayProfileDimension = ProfileDimension & {
   responseChannels: Array<NonNullable<ProfileDimension["responseChannel"]>>;
   conditions: Record<string, unknown>[];
+  hasUnresolvedResponseChannel: boolean;
 };
 
 function canonicalCondition(value: Record<string, unknown>): string {
@@ -30,10 +31,12 @@ export function groupProfileDimensions(dimensions: ProfileDimension[]): DisplayP
       groups.set(key, {
         ...item,
         responseChannels: item.responseChannel ? [item.responseChannel] : [],
+        hasUnresolvedResponseChannel: item.responseChannel === null,
         conditions: [item.condition],
       });
       continue;
     }
+    current.hasUnresolvedResponseChannel ||= item.responseChannel === null;
     if (item.responseChannel && !current.responseChannels.includes(item.responseChannel)) {
       current.responseChannels.push(item.responseChannel);
     }

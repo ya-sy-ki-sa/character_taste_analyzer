@@ -2515,6 +2515,18 @@
                       },
                       "evidenceInsufficient": {
                         "type": "boolean"
+                      },
+                      "preferenceAssertionCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "valueStanceAssertionCount": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "unresolvedResponseChannelCount": {
+                        "type": "integer",
+                        "minimum": 0
                       }
                     }
                   },
@@ -2590,7 +2602,10 @@
                           "type": "string"
                         },
                         "response_channel": {
-                          "type": "string"
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "strength": {
                           "type": "number"
@@ -11939,6 +11954,119 @@
                       "action": {
                         "type": "string",
                         "enum": [
+                          "set_response_channel"
+                        ]
+                      },
+                      "targetId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "responseChannel": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "person_liking",
+                              "aesthetic_liking",
+                              "voice_performance_liking",
+                              "narrative_interest",
+                              "empathy",
+                              "admiration",
+                              "curiosity",
+                              "root_for",
+                              "protectiveness",
+                              "motion_expression_liking",
+                              "staging_liking",
+                              "character_craft_appreciation",
+                              "actual_similarity",
+                              "self_projection",
+                              "wishful_identification",
+                              "narrative_identification",
+                              "complementary_attraction",
+                              "vicarious_fulfillment",
+                              "parasocial_closeness",
+                              "companionship_desire",
+                              "guidance_seeking",
+                              "comfort_attachment",
+                              "long_term_attachment",
+                              "romantic_attraction",
+                              "sexual_attraction",
+                              "sympathy",
+                              "emotional_impact",
+                              "meaningful_appreciation",
+                              "humor_enjoyment",
+                              "identity_exploration",
+                              "escapist_immersion",
+                              "emotion_regulation",
+                              "motivation",
+                              "self_expansion",
+                              "moral_support",
+                              "fascination_with_transgression",
+                              "love_to_hate",
+                              "desire_no_redemption",
+                              "representation_affirmation",
+                              "identity_expression",
+                              "social_bonding",
+                              "creative_inspiration",
+                              "nostalgic_attachment",
+                              "fandom_support"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "dark_character_liking",
+                              "villain_role_fascination",
+                              "menacing_aesthetic_liking",
+                              "dark_performance_liking",
+                              "dark_competence_admiration",
+                              "power_fantasy",
+                              "transgression_fascination",
+                              "moral_distance_appreciation",
+                              "dark_love_to_hate",
+                              "root_for_dark_side",
+                              "villain_pov_identification",
+                              "vicarious_transgression",
+                              "dominance_fascination",
+                              "controlled_state_fascination",
+                              "corruption_arc_fascination",
+                              "betrayal_fascination",
+                              "former_ally_tragedy",
+                              "identity_erosion_fascination",
+                              "inner_resistance_fascination",
+                              "surrender_fascination",
+                              "toxic_bond_fascination",
+                              "selective_tenderness_contrast",
+                              "fear_thrill",
+                              "dark_curiosity",
+                              "rescue_restore_desire",
+                              "preserve_dark_state",
+                              "no_redemption_preference",
+                              "dark_outcome_interest",
+                              "safe_taboo_exploration",
+                              "dark_romantic_attraction",
+                              "dark_sexual_attraction",
+                              "dark_creative_inspiration"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "targetId",
+                      "responseChannel"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
                           "add_preference"
                         ]
                       },
@@ -12051,6 +12179,9 @@
                               "dark_sexual_attraction",
                               "dark_creative_inspiration"
                             ]
+                          },
+                          {
+                            "type": "null"
                           }
                         ]
                       },
@@ -12190,6 +12321,9 @@
                               "dark_sexual_attraction",
                               "dark_creative_inspiration"
                             ]
+                          },
+                          {
+                            "type": "null"
                           }
                         ]
                       },
@@ -17256,6 +17390,119 @@
                       "action": {
                         "type": "string",
                         "enum": [
+                          "set_response_channel"
+                        ]
+                      },
+                      "targetId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "responseChannel": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "person_liking",
+                              "aesthetic_liking",
+                              "voice_performance_liking",
+                              "narrative_interest",
+                              "empathy",
+                              "admiration",
+                              "curiosity",
+                              "root_for",
+                              "protectiveness",
+                              "motion_expression_liking",
+                              "staging_liking",
+                              "character_craft_appreciation",
+                              "actual_similarity",
+                              "self_projection",
+                              "wishful_identification",
+                              "narrative_identification",
+                              "complementary_attraction",
+                              "vicarious_fulfillment",
+                              "parasocial_closeness",
+                              "companionship_desire",
+                              "guidance_seeking",
+                              "comfort_attachment",
+                              "long_term_attachment",
+                              "romantic_attraction",
+                              "sexual_attraction",
+                              "sympathy",
+                              "emotional_impact",
+                              "meaningful_appreciation",
+                              "humor_enjoyment",
+                              "identity_exploration",
+                              "escapist_immersion",
+                              "emotion_regulation",
+                              "motivation",
+                              "self_expansion",
+                              "moral_support",
+                              "fascination_with_transgression",
+                              "love_to_hate",
+                              "desire_no_redemption",
+                              "representation_affirmation",
+                              "identity_expression",
+                              "social_bonding",
+                              "creative_inspiration",
+                              "nostalgic_attachment",
+                              "fandom_support"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "dark_character_liking",
+                              "villain_role_fascination",
+                              "menacing_aesthetic_liking",
+                              "dark_performance_liking",
+                              "dark_competence_admiration",
+                              "power_fantasy",
+                              "transgression_fascination",
+                              "moral_distance_appreciation",
+                              "dark_love_to_hate",
+                              "root_for_dark_side",
+                              "villain_pov_identification",
+                              "vicarious_transgression",
+                              "dominance_fascination",
+                              "controlled_state_fascination",
+                              "corruption_arc_fascination",
+                              "betrayal_fascination",
+                              "former_ally_tragedy",
+                              "identity_erosion_fascination",
+                              "inner_resistance_fascination",
+                              "surrender_fascination",
+                              "toxic_bond_fascination",
+                              "selective_tenderness_contrast",
+                              "fear_thrill",
+                              "dark_curiosity",
+                              "rescue_restore_desire",
+                              "preserve_dark_state",
+                              "no_redemption_preference",
+                              "dark_outcome_interest",
+                              "safe_taboo_exploration",
+                              "dark_romantic_attraction",
+                              "dark_sexual_attraction",
+                              "dark_creative_inspiration"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "targetId",
+                      "responseChannel"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
                           "add_preference"
                         ]
                       },
@@ -17368,6 +17615,9 @@
                               "dark_sexual_attraction",
                               "dark_creative_inspiration"
                             ]
+                          },
+                          {
+                            "type": "null"
                           }
                         ]
                       },
@@ -17507,6 +17757,9 @@
                               "dark_sexual_attraction",
                               "dark_creative_inspiration"
                             ]
+                          },
+                          {
+                            "type": "null"
                           }
                         ]
                       },

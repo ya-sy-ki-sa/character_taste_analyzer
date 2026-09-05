@@ -329,7 +329,8 @@ const responseChannelByValue = new Map<string, (typeof responseChannelCatalog)[n
   responseChannelCatalog.map((item) => [item.value, item]),
 );
 
-export function responseChannelLabel(value: string): string {
+export function responseChannelLabel(value: string | null): string {
+  if (value === null) return "反応経路未確定";
   const standardLabel = responseChannelByValue.get(value)?.label;
   if (standardLabel) return standardLabel;
   return (darkResponseChannelValues as readonly string[]).includes(value)

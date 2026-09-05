@@ -225,9 +225,10 @@ function DimensionRow({
         <strong>{item.label}</strong>
         <small>
           {attributeCategoryLabel(item.category)}・
-          {item.responseChannels.length
-            ? item.responseChannels.map((channel) => responseChannelLabel(channel)).join("／")
-            : "反応経路なし"}
+          {[
+            ...item.responseChannels.map(responseChannelLabel),
+            ...(item.hasUnresolvedResponseChannel ? [responseChannelLabel(null)] : []),
+          ].join("／")}
           {scopeLabel ? `・対象：${scopeLabel}` : ""}・支持 +{Math.round(item.positiveScore * 100)} / -
           {Math.round(item.negativeScore * 100)}・確認済み {item.identityCount}人／{item.workCount}作品・独立根拠
           {item.evidenceCount}件

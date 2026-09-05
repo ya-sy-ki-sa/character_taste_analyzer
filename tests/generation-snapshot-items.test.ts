@@ -14,6 +14,23 @@ function item(overrides: Partial<GenerationSnapshotItem> = {}): GenerationSnapsh
 }
 
 describe("generation snapshot item grouping", () => {
+  it.each(["dimension", "negative_preference"])("retains an unresolved marker for mixed %s selections", (type) => {
+    const known = item({ type });
+    const unknown = item({ type, payload: { responseChannel: null, condition: {} } });
+    for (const rows of [
+      [known, unknown],
+      [unknown, known],
+    ]) {
+      const groups = groupGenerationSnapshotItems(rows);
+      expect(groups[0]).toMatchObject({ hasUnresolvedResponseChannel: true, responseChannels: ["narrative_interest"] });
+      expect(expandSnapshotTreatments(groups, { [groups[0].id]: "include" }).selectedItemIds).toEqual(
+        rows.map((row) => row.id),
+      );
+    }
+    expect(
+      groupGenerationSnapshotItems([item({ type: "value_stance", payload: {} })])[0].hasUnresolvedResponseChannel,
+    ).toBe(false);
+  });
   it("groups the same attribute while retaining channels, scopes, and source ids", () => {
     const first = item();
     const second = item({
