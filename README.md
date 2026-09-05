@@ -44,7 +44,7 @@ npm run dev:offline
 
 `offline`環境はLLMをReplay、EmbeddingをFakeへ明示的に切り替えます。Playwrightは専用portと毎回新しい一時D1を使い、既存serverや開発D1を再利用しません。通常起動時に失敗をFake成功へ置き換える暗黙fallbackはありません。
 
-現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`docs/詳細設計/database`の2つのbaselineです。
+現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`docs/詳細設計/database`です。
 
 ## AI Provider
 
@@ -96,14 +96,26 @@ npm run verify
 ```
 
 - 単体試験: Zod契約、カスタム差分の意味制約、LLM／Embedding Provider切替、Workers AI capacity保持、共通数値処理
-- DDL契約: migration 6件、66テーブル、初期統制属性94件
+- DDL契約: migration適用、テーブル構成、通常版／ダーク版の統制属性
 - as-built OpenAPI、Zod/JSON Schema、prompt hash、bundle budget、secret scan
 - coverage: deterministic core全体80%/branch 75%、状態・quota・provenance・generation validatorはbranch 90%
 - API smoke: 登録→理解確認→好み確認→プロフィール→グラフ→生成
 - Playwright: 3方式登録画面と全主要導線、CSRF／Origin／水平権限／stored XSS、logout／session失効／account削除
-- 現行unitは15ファイル・102テスト。ローカルE2EはChromium全7件、Firefox smoke、mobile smokeの計9件を確認済みです。WebKit smokeはCIの`--with-deps`環境で必須実行します。
+- PlaywrightはChromiumで全件、Firefoxとmobileでsession smokeを実行します。WebKit smokeはホストの依存ライブラリが利用可能な場合に実行し、CIでは`--with-deps`で準備します。テスト対象と件数は`tests/`、`e2e/`および実行結果を参照してください。
 
 Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全build scriptは終了時に`dist`配下を検査し、path検証済みの秘密artifactだけを削除します。`dist`に`.dev.vars`が残るbuildは失敗として扱ってください。
+
+## ソース構成
+
+- `src/`: React画面、UI部品、ブラウザ向けAPIクライアント
+- `shared/`: 入出力スキーマ、通常版／ダーク版の語彙、共通の型
+- `worker/index.ts`: Workerのfetch・scheduled入口とWorkflowの公開
+- `worker/app.ts`: Honoのmiddleware順序と機能別ルートの組み立て
+- `worker/routes/`: 認証、登録・レビュー、プロフィール、生成、ジョブ、アカウント、ヘルスチェック
+- `worker/http.ts`、`worker/middleware.ts`、`worker/error-handler.ts`: 入力検証、共通ヘッダー、エラー応答
+- `worker/services/`、`worker/storage/`: ユースケースとDataStore Strategy／D1 Adapter
+
+通常版とダーク版のHTTP処理は同じルートfactoryへドメインを渡して組み立てます。専用の入力スキーマ、生成履歴URL、グラフ応答の差は各ルートに明示しています。API契約テストは`worker/app.ts`に実際に登録されたルートとOpenAPIの一致を検証し、`tests/api-routes.test.ts`で両ドメインの認証・入力検証・非同期配送を確認します。
 
 ## ライセンス
 
@@ -120,7 +132,7 @@ P0〜P2の縦断機能を実装済みです。`AUTH-01`は仕様として現状�
 - public visibility/consent、運用console
 - 大規模GraphProjectionのcursor page、IndexedDB cache、neighbor API
 
-現行のデータ契約は46テーブルのbaseline DDLへ統合済みです。キャラクターdomainのDataStore Strategy境界とD1 Adapterは分離して実装しています。
+現行のデータ契約は`docs/詳細設計/database`のDDLで管理しています。キャラクターdomainのDataStore Strategy境界とD1 Adapterは分離して実装しています。
 
 ## Cloudflareへ配置する前に
 

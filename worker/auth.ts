@@ -5,9 +5,9 @@ import { readSessionCookie, sessionCookie } from "./lib/cookies";
 import { addDaysIso, constantTimeEqual, hmacHex, nowIso, sha256Hex } from "./lib/crypto";
 import { first } from "./lib/db";
 import { boundedInteger } from "./lib/numbers";
-import type { AppVariables, Env, Session } from "./types";
+import type { AppEnv, Env, Session } from "./types";
 
-type AppContext = Context<{ Bindings: Env; Variables: AppVariables }>;
+type AppContext = Context<AppEnv>;
 type SessionRow = {
   id: string;
   user_id: string;
@@ -43,7 +43,7 @@ export async function resolveSession(env: Env, cookieHeader?: string): Promise<S
   };
 }
 
-export const sessionMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVariables }>(async (context, next) => {
+export const sessionMiddleware = createMiddleware<AppEnv>(async (context, next) => {
   const token = readSessionCookie(context.req.header("Cookie"), context.env.ENVIRONMENT);
   let session = await resolveSession(context.env, context.req.header("Cookie"));
   if (session && token) {
@@ -82,28 +82,26 @@ async function consumeRateLimit(env: Env, scope: string, subject: string, maximu
   if ((result?.count ?? 0) > maximum) throw new HTTPException(429, { message: "短時間にリクエストが集中しています" });
 }
 
-export const rateLimitMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVariables }>(
-  async (context, next) => {
-    if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) return next();
-    const ip = context.req.header("CF-Connecting-IP") || context.req.header("X-Real-IP") || "local";
-    const session = context.get("session");
-    if (session) {
-      await Promise.all([
-        consumeRateLimit(context.env, "ip", ip, boundedInteger(context.env.IP_WRITE_LIMIT_PER_MIN, 120), 60),
-        consumeRateLimit(
-          context.env,
-          "user",
-          session.userId,
-          boundedInteger(context.env.USER_WRITE_LIMIT_PER_MIN, 60),
-          60,
-        ),
-      ]);
-    } else {
-      await consumeRateLimit(context.env, "public", ip, boundedInteger(context.env.PUBLIC_WRITE_LIMIT_10_MIN, 30), 600);
-    }
-    await next();
-  },
-);
+export const rateLimitMiddleware = createMiddleware<AppEnv>(async (context, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) return next();
+  const ip = context.req.header("CF-Connecting-IP") || context.req.header("X-Real-IP") || "local";
+  const session = context.get("session");
+  if (session) {
+    await Promise.all([
+      consumeRateLimit(context.env, "ip", ip, boundedInteger(context.env.IP_WRITE_LIMIT_PER_MIN, 120), 60),
+      consumeRateLimit(
+        context.env,
+        "user",
+        session.userId,
+        boundedInteger(context.env.USER_WRITE_LIMIT_PER_MIN, 60),
+        60,
+      ),
+    ]);
+  } else {
+    await consumeRateLimit(context.env, "public", ip, boundedInteger(context.env.PUBLIC_WRITE_LIMIT_10_MIN, 30), 600);
+  }
+  await next();
+});
 
 export function requireSession(context: AppContext): Session {
   const session = context.get("session");
@@ -111,7 +109,7 @@ export function requireSession(context: AppContext): Session {
   return session;
 }
 
-export const csrfMiddleware = createMiddleware<{ Bindings: Env; Variables: AppVariables }>(async (context, next) => {
+export const csrfMiddleware = createMiddleware<AppEnv>(async (context, next) => {
   if (["GET", "HEAD", "OPTIONS"].includes(context.req.method)) return next();
   const origin = context.req.header("Origin");
   const expected = context.env.APP_ORIGIN || new URL(context.req.url).origin;

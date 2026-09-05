@@ -74,7 +74,7 @@ flowchart TB
 
 ### 4.1 WorkersとWorkers Static Assets
 
-Workersは本システムの入口である。`worker/index.ts`のHonoアプリが`/api/v1/*`を処理し、ユーザー登録、ログイン、キャラクター登録、レビュー、Profile／Graph参照、生成、export、アカウント削除などを提供する。
+Workersは本システムの入口である。`worker/index.ts`が公開するfetchから`worker/app.ts`のHonoアプリへ接続し、`worker/routes/`の機能別ルートが`/api/v1/*`を処理する。ユーザー登録、ログイン、キャラクター登録、レビュー、Profile／Graph参照、生成、export、アカウント削除などを提供する。
 
 Reactのbuild成果物は同じWorkersデプロイのStatic Assetsとして配信する。
 
@@ -341,7 +341,10 @@ custom domain、Cloudflare DNS zone、WAF ruleの有無はリポジトリから�
 | 確認対象 | リポジトリ内の根拠 |
 |---|---|
 | Worker、Static Assets、D1、R2、AI、Cron、Workflow、Observabilityの構成 | [`wrangler.jsonc`](../../wrangler.jsonc) |
-| API routing、security header、readiness、download、scheduled handler | [`worker/index.ts`](../../worker/index.ts) |
+| Worker入口、scheduled handler | [`worker/index.ts`](../../worker/index.ts) |
+| API routing、共通middlewareの順序 | [`worker/app.ts`](../../worker/app.ts) |
+| security header、body制限、error envelope | [`worker/middleware.ts`](../../worker/middleware.ts)、[`worker/error-handler.ts`](../../worker/error-handler.ts) |
+| readiness、export download | [`worker/routes/health.ts`](../../worker/routes/health.ts)、[`worker/routes/account.ts`](../../worker/routes/account.ts) |
 | 4つのWorkflow classとretry／timeout | [`worker/workflows.ts`](../../worker/workflows.ts) |
 | D1 Outbox、lease、Workflow instance ID、再配送 | [`worker/services/orchestration.ts`](../../worker/services/orchestration.ts) |
 | export JSON作成、R2 put/delete、24時間期限 | [`worker/services/exports.ts`](../../worker/services/exports.ts) |

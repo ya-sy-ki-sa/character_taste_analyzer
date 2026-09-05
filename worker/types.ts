@@ -83,6 +83,8 @@ export type Session = {
   expiresAt: string;
 };
 
+export type AppEnv = { Bindings: Env; Variables: AppVariables };
+
 export type AppVariables = {
   requestId: string;
   session?: Session;
