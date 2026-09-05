@@ -179,6 +179,15 @@ describe("membership persistence and authentication", () => {
 describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
   it.each(membershipTierSchema.options)("pins %s across analysis, review, hypotheses and generation", async (tier) => {
     const { db, env, owner } = setup(tier);
+    env.LLM_REASONING_EFFORT = "low";
+    env.LLM_TIER_ROUTES_JSON = JSON.stringify(
+      Object.fromEntries(
+        membershipTierSchema.options.map((item) => [
+          item,
+          { provider: "fake", model: `${item}-original`, effort: "high" },
+        ]),
+      ),
+    );
     const fetchMock = vi.fn(() => {
       throw new Error("Unexpected remote call");
     });
@@ -196,6 +205,7 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     };
     // The actual dispatcher uses these same service entrypoints in local mode.
     env.LLM_MODEL = "common-changed";
+    env.LLM_REASONING_EFFORT = "max";
     env.LLM_TIER_ROUTES_JSON = "{}";
     db.database.prepare("UPDATE users SET membership_tier='premium' WHERE id=?").run(owner);
     expect(await dispatchOutboxEvent(env, entry.outboxEventId as string)).toBe(true);
@@ -249,6 +259,7 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
         membershipTier: tier,
         operation: run.operation,
         jobId: entry.jobId,
+        primary: { effort: run.operation === "dark_scope_assessment" ? "low" : "high" },
       });
     }
     const activated = await activateAnalysisAndRebuild(env, owner, domain, preference?.id as string);
@@ -272,9 +283,10 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     );
     expect(snapshot(db, generation.jobId as string)).toMatchObject({
       membershipTier: "premium",
-      tier: { primary: { model: "common-changed" } },
+      tier: { primary: { model: "common-changed", effort: "max" } },
     });
     env.LLM_MODEL = "changed-again";
+    env.LLM_REASONING_EFFORT = "none";
     env.LLM_TIER_ROUTES_JSON = '{"premium":{"provider":"openai","model":"must-not-call"}}';
     // Return a semantic rejection on the first inspection, then a valid repaired
     // inspection. Keep the actual router and metadata persistence in this test.
@@ -325,15 +337,40 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
       expect(JSON.parse(run.effective_settings_json as string).llmRouting).toMatchObject({
         membershipTier: "premium",
         jobId: generation.jobId,
+        primary: { effort: "max" },
       });
     }
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps persisted jobs without effort unspecified after effort is configured", async () => {
+    const { db, env, owner } = setup();
+    const entry = await createEntry(env, owner, domain, draft(domain), crypto.randomUUID());
+    const saved = snapshot(db, entry.jobId);
+    expect(saved.tier.primary).not.toHaveProperty("effort");
+    env.LLM_REASONING_EFFORT = "max";
+    env.LLM_TIER_ROUTES_JSON = '{"basic":{"provider":"fake","model":"new-model","effort":"high"}}';
+    const llm = await createJobLlmProvider(env, entry.jobId, owner);
+    const result = await llm.generateStructured(probe);
+    expect(result.metadata.effectiveSettings?.reasoningEffort).toBeNull();
+    expect(result.metadata.ignoredParameters).not.toContain("reasoningEffort");
+    expect(result.metadata.effectiveSettings?.llmRouting).toMatchObject({ primary: saved.tier.primary });
+    expect(snapshot(db, entry.jobId)).toEqual(saved);
   });
 
   it("rejects client tier/model fields and snapshots the current tier for reanalysis", async () => {
     const { db, env, owner } = setup("silver");
     expect(() =>
       anyEntryDraftSchema.parse({ ...draft(domain), membershipTier: "premium", model: "untrusted" }),
+    ).toThrow();
+    expect(() => anyEntryDraftSchema.parse({ ...draft(domain), effort: "max" })).toThrow();
+    expect(() =>
+      generationRequestInputSchema.parse({
+        mode: "faithful",
+        purpose: "test",
+        selectedItemIds: [crypto.randomUUID()],
+        effort: "max",
+      }),
     ).toThrow();
     const entry = await createEntry(env, owner, domain, draft(domain), crypto.randomUUID());
     await processCharacterAnalysis(env, {

@@ -24,9 +24,9 @@
 
 ## 設定
 
-`LLM_TIER_ROUTES_JSON` は任意のJSON object。指定できるキーは4ティアのみで、各値は `{ "provider": "openai|workers_ai|replay|fake", "model": "モデル名" }`。モデル名は前後空白を除去し、空文字を拒否する。未知のキー・Provider、部分的な接続先、JSON不正はreadinessエラー `LLM_TIER_ROUTES_INVALID` とする。APIキーなどの秘密値はこのJSONに含めない。
+`LLM_TIER_ROUTES_JSON` は任意のJSON object。指定できるキーは4ティアのみで、各値は `{ "provider": "openai|workers_ai|replay|fake", "model": "モデル名", "effort": "high" }`。`effort` は省略可能。モデル名は前後空白を除去し、空文字を拒否する。未知のキー・Provider、不正なeffort、部分的な接続先、JSON不正はreadinessエラー `LLM_TIER_ROUTES_INVALID` とする。APIキーなどの秘密値はこのJSONに含めない。
 
-全環境の初期値は以下。各ティアが `LLM_PROVIDER` / `LLM_MODEL` を継承する。
+全環境の初期値は以下。各ティアが `LLM_PROVIDER` / `LLM_MODEL` / `LLM_REASONING_EFFORT` を継承する。
 
 ```json
 {}
@@ -46,11 +46,25 @@
 
 ベーシックと共通処理は、retryableな失敗に限り `LLM_FALLBACK_PROVIDER` / `LLM_FALLBACK_MODEL` を使用する。同一Providerの異なるモデルも代替にできるが、選択したprimaryと同一の接続先は除外する。シルバー以上のティア別処理はfallbackを無効とし、既存のジョブ再試行を使う。拒否・不正出力など非retryableな失敗を代替モデルへ回さない。OpenAIの `service_tier`（Flex等）はサービス側の処理方式であり、このメンバーシップとは独立する。
 
+### 推論量（effort）
+
+共通モデルには `LLM_REASONING_EFFORT`、フォールバック先には `LLM_FALLBACK_REASONING_EFFORT` を指定する。環境変数の未設定・空欄・空白のみはAPIへ送信せず、モデルの既定動作を維持する。`none` は明示的なAPI指定で、未設定とは区別する。初期値は全環境で空欄とする。
+
+ティア全体を省略すると、共通設定のeffortも継承する。一方、ティアのprovider・modelを明示してeffortを省略した場合は、そのモデルの既定値を使用する。フォールバックも専用設定だけを使用し、primaryのeffortを継承しない。これにより異なるモデルへ未対応のeffortを自動適用しない。JSON内のeffortには空文字やnullを指定できず、既定値を使う場合はキー自体を省略する。
+
+OpenAIには `reasoning: { effort }` として送信する。設定値は `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`。モデルによって対応範囲が異なるため、モデル固有の対応値は[OpenAIの推論ガイド](https://developers.openai.com/api/docs/guides/reasoning)とモデル仕様で確認する。未対応の組み合わせに対するAPIの拒否を、別のeffortで再送したりfallbackしたりしない。
+
+Workers AIでは、このアプリのeffort対応範囲を `@cf/openai/gpt-oss-120b` / `@cf/openai/gpt-oss-20b` の `low` / `medium` / `high` とし、Chat Completions形式の `reasoning_effort` で送信する（[Workers AIモデル仕様](https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b/)、導入済み `@cloudflare/workers-types` の `ChatCompletionsCommonOptions` に準拠）。それ以外のモデル・値への明示指定は設定エラーとする。Fake／Replayは指定値を割当に保存するが、決定論的な応答は変更しない。
+
+共通・フォールバックの不正値、未対応のWorkers AI設定、フォールバック先なしのeffort指定はreadinessエラー `LLM_ROUTES_INVALID` とする。ティア内の不正設定は `LLM_TIER_ROUTES_INVALID` とする。いずれも実行時にも検証し、不正設定で外部APIを呼ばない。モデレーションとEmbeddingにはeffortを適用しない。
+
 ## 保存・実行・API
 
 `006_membership_llm_routing.sql` で `users.membership_tier`（NOT NULL、DEFAULT basic、4値のCHECK）と `jobs.llm_routing_snapshot_json` を追加する。ティアの権利判定はサーバーで取得したユーザー情報を `membershipTierForUser` へ渡す。将来の権利付与方式はこの境界に集約する。クライアントのティア・モデル指定を選択に使用しない。
 
 新規登録・再解析・生成のジョブは作成batch内で割当を保存する。JSONの `policyVersion: membership-v1`、`membershipTier`、`common` / `tier` のprimary・fallbackは解決済みの値とし、秘密情報は含めない。ユーザー確認後の続行、追加質問・仮説、再試行、冪等リプレイは同じ割当を使用する。設定・ティア変更は新規ジョブから有効となる。
+
+各primary・fallbackには指定時のみ `effort` を保存し、形式修復も元試行の値を引き継ぐ。保存済み割当にeffortがない既存ジョブは、現在の環境設定で補完せず未指定のまま実行する。任意フィールドの追加なので `membership-v1` と既存DBを維持し、追加マイグレーションは不要。クライアントからeffortを指定するAPIは追加しない。
 
 移行前ジョブのNULL割当は次回実行時に、ベーシックとその時点の共通モデル・共通fallbackで一度だけ初期化する。この初期化にはティア上書きを適用しない。更新条件 `IS NULL` と再読込により並行実行時の確定値を共有する。保存済みJSONが不正なら現在設定で補完せず失敗する。
 
@@ -59,6 +73,8 @@ Workflowとローカルdispatcherはいずれも共通サービス入口で `cre
 登録（冪等リプレイを含む）・有効化・ログイン・`GET /api/v1/me` の `data.user` に `membershipTier` を追加する。既存セッションでもDB上の最新ティアを返す。ユーザーデータexportにも `membership_tier` を含める。ティアを変更するendpointは提供しない。
 
 `model_run_metadata` のoperation・requested/resolved model・トークン・latencyに加え、`effective_settings_json.llmRouting` にティア、用途、元用途、`selectionReason: tier|common`、policyVersion、jobId、primary、fallbackを記録する。成功・失敗・形式修復・fallbackの各試行を保存する。Fake／Replayではrequested modelに設定値、resolved modelに実際の決定論的Adapter識別子を記録する。
+
+`effective_settings_json.reasoningEffort` に各試行でAPIへ送信した推論量を記録し、未指定はnullとする。割当側のeffortも `llmRouting.primary` / `fallback` に残す。Fake／Replayでは実効値をnullとし、明示指定があれば `ignored_parameters_json` に `reasoningEffort` を記録する。
 
 ## 検証と適用順
 

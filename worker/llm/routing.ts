@@ -3,10 +3,23 @@ import { type MembershipTier, membershipTierSchema } from "../../shared/membersh
 import type { Env } from "../types";
 import { type LlmOperation, LlmProviderError } from "./types";
 
-const routeSchema = z.strictObject({
-  provider: z.enum(["openai", "workers_ai", "replay", "fake"]),
-  model: z.string().trim().min(1),
-});
+export const llmReasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+export type LlmReasoningEffort = z.infer<typeof llmReasoningEffortSchema>;
+
+const routeSchema = z
+  .strictObject({
+    provider: z.enum(["openai", "workers_ai", "replay", "fake"]),
+    model: z.string().trim().min(1),
+    effort: llmReasoningEffortSchema.optional(),
+  })
+  .refine(
+    (route) =>
+      route.effort === undefined ||
+      route.provider !== "workers_ai" ||
+      (["@cf/openai/gpt-oss-120b", "@cf/openai/gpt-oss-20b"].includes(route.model) &&
+        ["low", "medium", "high"].includes(route.effort)),
+    { message: "このWorkers AIモデルでは指定したeffortを利用できません", path: ["effort"] },
+  );
 export type LlmRoute = z.infer<typeof routeSchema>;
 const tierRoutesSchema = z.strictObject({
   basic: routeSchema.optional(),
@@ -54,16 +67,34 @@ export function parseTierRoutes(value: string | undefined) {
   }
 }
 
+export function parseCommonLlmRoutes(env: Env) {
+  try {
+    const primary = routeSchema.parse({
+      provider: env.LLM_PROVIDER,
+      model: env.LLM_MODEL,
+      effort: env.LLM_REASONING_EFFORT?.trim() || undefined,
+    });
+    const fallbackEffort = env.LLM_FALLBACK_REASONING_EFFORT?.trim() || undefined;
+    const fallback =
+      env.LLM_FALLBACK_PROVIDER || env.LLM_FALLBACK_MODEL || fallbackEffort
+        ? routeSchema.parse({
+            provider: env.LLM_FALLBACK_PROVIDER,
+            model: env.LLM_FALLBACK_MODEL,
+            effort: fallbackEffort,
+          })
+        : null;
+    return { primary, fallback };
+  } catch {
+    throw new LlmProviderError("共通・フォールバックのモデルまたはeffort設定が不正です", "LLM_ROUTES_INVALID", false);
+  }
+}
+
 export function resolveLlmRoutingSnapshot(
   env: Env,
   membershipTier: MembershipTier,
   legacy = false,
 ): LlmRoutingSnapshot {
-  const primary = routeSchema.parse({ provider: env.LLM_PROVIDER, model: env.LLM_MODEL });
-  const fallback =
-    env.LLM_FALLBACK_PROVIDER && env.LLM_FALLBACK_MODEL
-      ? routeSchema.parse({ provider: env.LLM_FALLBACK_PROVIDER, model: env.LLM_FALLBACK_MODEL })
-      : null;
+  const { primary, fallback } = parseCommonLlmRoutes(env);
   const distinctFallback = (route: LlmRoute) =>
     fallback && (fallback.provider !== route.provider || fallback.model !== route.model) ? fallback : null;
   const tierPrimary = legacy ? primary : (parseTierRoutes(env.LLM_TIER_ROUTES_JSON)[membershipTier] ?? primary);

@@ -1,4 +1,4 @@
-import { parseTierRoutes } from "./llm/routing";
+import { parseCommonLlmRoutes, parseTierRoutes } from "./llm/routing";
 import type { Env } from "./types";
 
 export type ConfigValidation = { ready: boolean; errors: string[] };
@@ -20,6 +20,11 @@ export function validateConfig(env: Env): ConfigValidation {
     errors.push("LLM_FALLBACK_DUPLICATES_PRIMARY");
   if (env.OPENAI_FLEX_ENABLED !== undefined && !["true", "false"].includes(env.OPENAI_FLEX_ENABLED))
     errors.push("OPENAI_FLEX_ENABLED_INVALID");
+  try {
+    parseCommonLlmRoutes(env);
+  } catch {
+    errors.push("LLM_ROUTES_INVALID");
+  }
   let tierProviders: string[] = [];
   try {
     tierProviders = Object.values(parseTierRoutes(env.LLM_TIER_ROUTES_JSON)).map((route) => route.provider);

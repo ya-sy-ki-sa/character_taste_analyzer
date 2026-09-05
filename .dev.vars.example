@@ -12,8 +12,21 @@ OPENAI_API_KEY=replace-with-openai-api-key
 # OpenAI の Flex Processing を使う場合は true。false の場合は処理方式を指定しません。
 OPENAI_FLEX_ENABLED=false
 
-# ティア別モデルの任意設定。各ティアに {"provider":"接続先","model":"モデル名"} を指定します。
-# ティア名は basic / silver / gold / premium。省略したティアは LLM_PROVIDER / LLM_MODEL を継承します。
+# 共通モデルの推論量。空欄ではAPIに送信せず、モデルの既定値を使用します。
+# OpenAIでは none / minimal / low / medium / high / xhigh / max を指定できますが、対応値はモデルによって異なります。
+# Workers AIでは @cf/openai/gpt-oss-120b と @cf/openai/gpt-oss-20b の low / medium / high に対応しています。
+# noneは明示的な指定であり、空欄とは異なります。Fake / Replayでは推論量を変更しません。
+LLM_REASONING_EFFORT=
+
+# フォールバック先の推論量。LLM_FALLBACK_PROVIDER / LLM_FALLBACK_MODEL を設定した場合だけ指定できます。
+# 空欄ではフォールバック先モデルの既定値を使用し、共通モデルの推論量は引き継ぎません。
+LLM_FALLBACK_REASONING_EFFORT=
+
+# ティア別モデルの任意設定。各ティアに {"provider":"接続先","model":"モデル名","effort":"high"} を指定します。
+# ティア名は basic / silver / gold / premium。省略したティアは共通の接続先・モデル・推論量を継承します。
+# ティアの接続先を明示してeffortだけ省略した場合は、そのモデルの既定値を使用します。
+# 例: {"premium":{"provider":"openai","model":"gpt-5.6-sol","effort":"high"}}
+# 推論量を含む割当はジョブ作成時に保存され、設定変更は新規ジョブから反映されます。
 LLM_TIER_ROUTES_JSON={}
 
 # 自由記述の入力を事前チェックする接続先。通常は openai、外部 API を使わない試験では fake を指定します。

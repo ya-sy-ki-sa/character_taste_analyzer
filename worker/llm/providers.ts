@@ -1,6 +1,12 @@
 import { sha256Hex } from "../lib/crypto";
 import type { Env } from "../types";
-import { type LlmExecutionContext, resolveLlmRoutingSnapshot, selectLlmRoute } from "./routing";
+import {
+  type LlmExecutionContext,
+  type LlmReasoningEffort,
+  type LlmRoute,
+  resolveLlmRoutingSnapshot,
+  selectLlmRoute,
+} from "./routing";
 import type {
   LlmMessage,
   LlmProvider,
@@ -11,7 +17,7 @@ import type {
 } from "./types";
 import { LlmProviderError } from "./types";
 
-const ADAPTER_VERSION = "1.2.0";
+const ADAPTER_VERSION = "1.3.0";
 const OPENAI_REQUEST_TIMEOUT_MS = 15 * 60_000;
 
 function openAiServiceTier(env: Env): "flex" | undefined {
@@ -272,6 +278,7 @@ class WorkersAiLlmProvider extends RemoteProvider {
   constructor(
     private readonly env: Env,
     private readonly model: string,
+    private readonly effort?: LlmReasoningEffort,
   ) {
     super();
   }
@@ -290,6 +297,7 @@ class WorkersAiLlmProvider extends RemoteProvider {
           messages,
           max_tokens: request.maxOutputTokens,
           temperature: request.temperature,
+          ...(this.effort ? { reasoning_effort: this.effort } : {}),
           response_format: { type: "json_schema", json_schema: request.jsonSchema },
         },
         { gateway: { id: this.env.AI_GATEWAY_GATEWAY_ID } },
@@ -315,7 +323,11 @@ class WorkersAiLlmProvider extends RemoteProvider {
             : undefined,
         latencyMs: Date.now() - started,
         dataRetentionMode: "unknown",
-        effectiveSettings: { maxOutputTokens: request.maxOutputTokens, temperature: request.temperature },
+        effectiveSettings: {
+          maxOutputTokens: request.maxOutputTokens,
+          temperature: request.temperature,
+          reasoningEffort: this.effort ?? null,
+        },
         ignoredParameters: [],
       };
       throw providerError;
@@ -334,6 +346,12 @@ class WorkersAiLlmProvider extends RemoteProvider {
         latencyMs: Date.now() - started,
         finishReason: normalized.finishReason,
         dataRetentionMode: "unknown" as const,
+        effectiveSettings: {
+          maxOutputTokens: request.maxOutputTokens,
+          temperature: request.temperature,
+          reasoningEffort: this.effort ?? null,
+        },
+        ignoredParameters: [],
       },
     };
   }
@@ -344,6 +362,7 @@ class OpenAiLlmProvider extends RemoteProvider {
   constructor(
     private readonly env: Env,
     private readonly model: string,
+    private readonly effort?: LlmReasoningEffort,
   ) {
     super();
   }
@@ -376,6 +395,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         },
         body: JSON.stringify({
           model: this.model,
+          ...(this.effort ? { reasoning: { effort: this.effort } } : {}),
           ...(serviceTier ? { service_tier: serviceTier } : {}),
           input: messages,
           store: false,
@@ -418,6 +438,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
           serviceTier: serviceTier ?? "auto",
+          reasoningEffort: this.effort ?? null,
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },
@@ -470,6 +491,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
           serviceTier: serviceTier ?? "auto",
+          reasoningEffort: this.effort ?? null,
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },
@@ -493,6 +515,7 @@ class OpenAiLlmProvider extends RemoteProvider {
       effectiveSettings: {
         maxOutputTokens: request.maxOutputTokens,
         serviceTier: serviceTier ?? "auto",
+        reasoningEffort: this.effort ?? null,
         webSearch: request.enableWebSearch === true,
         safetyIdentifier: request.safetyIdentifier ?? null,
       },
@@ -548,6 +571,7 @@ class OpenAiLlmProvider extends RemoteProvider {
         effectiveSettings: {
           maxOutputTokens: request.maxOutputTokens,
           serviceTier: serviceTier ?? "auto",
+          reasoningEffort: this.effort ?? null,
           webSearch: request.enableWebSearch === true,
           safetyIdentifier: request.safetyIdentifier ?? null,
         },
@@ -562,6 +586,7 @@ class DeterministicProvider implements LlmProvider {
   constructor(
     readonly providerId: "replay" | "fake",
     private readonly model: string,
+    private readonly effort?: LlmReasoningEffort,
   ) {}
   async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
     const started = Date.now();
@@ -582,8 +607,9 @@ class DeterministicProvider implements LlmProvider {
         maxOutputTokens: request.maxOutputTokens,
         temperature: request.temperature,
         safetyIdentifier: request.safetyIdentifier ?? null,
+        reasoningEffort: null,
       },
-      ignoredParameters: [],
+      ignoredParameters: this.effort ? ["reasoningEffort"] : [],
     };
     return {
       value,
@@ -593,10 +619,10 @@ class DeterministicProvider implements LlmProvider {
   }
 }
 
-function provider(env: Env, id: LlmProviderId, model: string): LlmProvider {
-  if (id === "workers_ai") return new WorkersAiLlmProvider(env, model);
-  if (id === "openai") return new OpenAiLlmProvider(env, model);
-  return new DeterministicProvider(id, model);
+function provider(env: Env, route: LlmRoute): LlmProvider {
+  if (route.provider === "workers_ai") return new WorkersAiLlmProvider(env, route.model, route.effort);
+  if (route.provider === "openai") return new OpenAiLlmProvider(env, route.model, route.effort);
+  return new DeterministicProvider(route.provider, route.model, route.effort);
 }
 
 class LlmProviderRouter implements LlmProvider {
@@ -610,7 +636,7 @@ class LlmProviderRouter implements LlmProvider {
   async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
     const { snapshot, jobId } = this.context;
     const route = selectLlmRoute(snapshot, request.operation, request.repairOfOperation);
-    const primary = provider(this.env, route.primary.provider, route.primary.model);
+    const primary = provider(this.env, route.primary);
     const annotate = (metadata: LlmRunMetadata): LlmRunMetadata => ({
       ...metadata,
       operation: request.operation,
@@ -647,7 +673,7 @@ class LlmProviderRouter implements LlmProvider {
       if (!(error instanceof LlmProviderError)) throw error;
       annotateError(error);
       if (!error.retryable || !route.fallback) throw error;
-      const fallback = provider(this.env, route.fallback.provider, route.fallback.model);
+      const fallback = provider(this.env, route.fallback);
       try {
         const result = annotateResult(
           await fallback.generateStructured({
