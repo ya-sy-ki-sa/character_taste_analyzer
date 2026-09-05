@@ -1,16 +1,38 @@
-# Copy to .dev.vars and replace the values. Never commit .dev.vars.
+# このファイルを .dev.vars にコピーし、値を設定してください。.dev.vars はコミットしないでください。
+
+# 認証情報などのハッシュ計算に使う秘密値。32バイト以上のランダムな値を設定してください。
 AUTH_PEPPER=replace-with-at-least-32-random-bytes
+
+# データ保存方式。現在は Cloudflare D1 を使う d1 に対応しています。
 DATASTORE_STRATEGY=d1
 
-# OpenAI Provider Native API is always called through Cloudflare AI Gateway.
+# OpenAI の API キー。OpenAI API は常に Cloudflare AI Gateway 経由で呼び出します。
 OPENAI_API_KEY=replace-with-openai-api-key
+
+# OpenAI の Flex Processing を使う場合は true。false の場合は処理方式を指定しません。
 OPENAI_FLEX_ENABLED=false
+
+# ティア別モデルの任意設定。各ティアに {"provider":"接続先","model":"モデル名"} を指定します。
+# ティア名は basic / silver / gold / premium。省略したティアは LLM_PROVIDER / LLM_MODEL を継承します。
+LLM_TIER_ROUTES_JSON={}
+
+# 自由記述の入力を事前チェックする接続先。通常は openai、外部 API を使わない試験では fake を指定します。
 MODERATION_PROVIDER=openai
+
+# 入力の事前チェックに使うモデル名。
 MODERATION_MODEL=omni-moderation-latest
+
+# AI Gateway を作成した Cloudflare アカウントの ID。
 AI_GATEWAY_ACCOUNT_ID=replace-with-cloudflare-account-id
+
+# 使用する AI Gateway の ID。
 AI_GATEWAY_GATEWAY_ID=default
-# Cloudflare API token with Account > AI Gateway > Run permission.
+
+# 「アカウント > AI Gateway > 実行（Run）」権限を持つ Cloudflare API トークン。
 AI_GATEWAY_TOKEN=replace-with-cloudflare-ai-gateway-token
 
+# 登録・ログイン時のボット対策に使う Turnstile のシークレットキー。本番では必須です。
+# ローカルでは空欄にできます。
 TURNSTILE_SECRET=
+
 # `npm run dev:offline`は専用のoffline環境を選び、Replay/Fakeで動くため、AI関連の値は使用しません。
