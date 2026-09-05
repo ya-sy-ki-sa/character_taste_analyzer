@@ -418,19 +418,6 @@
   .evidence-warning {
     color: var(--ctl-danger);
   }
-  .stance-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 12px;
-  }
-  .stance-grid .card {
-    display: grid;
-    gap: 5px;
-  }
-  .stance-grid small {
-    color: var(--ctl-text-muted);
-  }
-
   .understanding-evidence-summary {
     margin-block: 16px;
     padding-block: 12px;

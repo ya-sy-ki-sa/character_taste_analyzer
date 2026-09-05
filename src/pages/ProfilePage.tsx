@@ -4,10 +4,10 @@ import { Link } from "react-router-dom";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { attributeCategoryLabel } from "../../shared/presentation-labels";
 import { responseChannelLabel } from "../../shared/response-channels";
-import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stance-labels";
 import { Card, EmptyState, Notice, PageHeading, Spinner } from "../components/Ui";
 import { PreferenceContext } from "../features/entries/PreferenceContext";
 import { profileApi } from "../features/profile/api";
+import { ValueStanceList } from "../features/profile/ValueStanceList";
 import { type DisplayProfileDimension, groupProfileDimensions } from "../lib/profile-dimensions";
 
 const classificationLabels = { stable: "安定傾向", emerging: "発展中", insufficient: "データ少" } as const;
@@ -123,31 +123,7 @@ export function ProfilePage({ domain }: { domain: AnalysisDomain }) {
           <p>最大傾向の登録内支持度です。好みの確率や人格評価ではありません。</p>
         </Card>
       </section>
-      {value.valueStances.length > 0 && (
-        <section className="section-block">
-          <div className="section-title">
-            <div>
-              <p className="eyebrow">VALUE STANCES</p>
-              <h2>価値・善悪との関わり方</h2>
-            </div>
-            <small>人物への好意や道徳的支持とは別系列</small>
-          </div>
-          <div className="stance-grid">
-            {value.valueStances.map((item) => (
-              <Card
-                key={`${item.orientation}:${item.stance}:${item.targetRef ?? ""}:${JSON.stringify(item.scope ?? {})}`}
-              >
-                <strong>{valueOrientationLabel(item.orientation)}</strong>
-                <span>
-                  {valueStanceLabel(item.stance)}・{item.count}件
-                </span>
-                <small>{item.labels.join("、")}</small>
-                <PreferenceContext value={item.scope} />
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
+      <ValueStanceList items={value.valueStances} />
       <section className="section-block">
         <div className="section-title">
           <div>

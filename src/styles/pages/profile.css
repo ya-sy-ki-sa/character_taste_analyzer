@@ -73,6 +73,168 @@
     color: var(--ctl-text-muted);
     font-size: 0.79rem;
   }
+  .value-stances .section-title {
+    flex-wrap: wrap;
+  }
+  .value-stance-help {
+    font-size: 0.875rem;
+  }
+  .value-stance-groups {
+    border: 1px solid var(--ctl-line);
+    background: var(--ctl-panel);
+    font-size: 0.875rem;
+    line-height: 1.75;
+  }
+  .value-stance-group + .value-stance-group {
+    border-top: 1px solid var(--ctl-metal-line);
+  }
+  .value-stance-group-summary {
+    display: block;
+    min-height: 44px;
+    padding: 16px 24px;
+    background: var(--ctl-chassis);
+    list-style: none;
+  }
+  .value-stance-group-summary h3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+  .value-stance-group-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .value-stance-group-count {
+    color: var(--ctl-text-muted);
+    font-size: 0.875rem;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  .value-stance-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--ctl-line);
+  }
+  .value-stance-list > li + li {
+    border-top: 1px solid var(--ctl-line);
+  }
+  .value-stance-summary {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.65fr) minmax(0, 1.75fr) auto;
+    align-items: start;
+    gap: 16px 24px;
+    min-height: 44px;
+    padding: 20px 24px;
+    overflow-wrap: anywhere;
+    list-style: none;
+  }
+  .value-stance-summary::-webkit-details-marker,
+  .value-stance-group-summary::-webkit-details-marker {
+    display: none;
+  }
+  summary.value-stance-summary,
+  .value-stance-group-summary {
+    cursor: pointer;
+  }
+  summary.value-stance-summary:hover,
+  .value-stance-group-summary:hover {
+    background: var(--ctl-chassis);
+  }
+  summary.value-stance-summary:focus-visible,
+  .value-stance-group-summary:focus-visible {
+    outline: 2px solid var(--ctl-text-primary);
+    outline-offset: -3px;
+  }
+  .value-stance-overview {
+    display: grid;
+    align-content: start;
+    gap: 4px;
+    min-width: 0;
+  }
+  .value-stance-overview > strong {
+    font-size: 1rem;
+  }
+  .value-stance-position {
+    min-width: 0;
+    font-weight: 600;
+  }
+  .value-stance-target {
+    display: grid;
+    grid-template-columns: 4em minmax(0, 1fr);
+    gap: 4px 12px;
+  }
+  .value-stance-label,
+  .value-stance-context dt {
+    color: var(--ctl-text-muted);
+  }
+  .value-stance-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ctl-text-muted);
+    font-size: 0.875rem;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  .value-stance-toggle::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+  }
+  .value-stance-details[open] .value-stance-toggle::before,
+  .value-stance-group[open] > .value-stance-group-summary .value-stance-toggle::before {
+    transform: rotate(225deg) translate(-2px, -1px);
+  }
+  .value-stance-context {
+    display: grid;
+    gap: 12px;
+    margin: 0 24px;
+    padding-block: 16px 24px;
+    border-top: 1px solid var(--ctl-line);
+    overflow-wrap: anywhere;
+  }
+  .value-stance-context > div {
+    display: grid;
+    grid-template-columns: 9em minmax(0, 1fr);
+    align-items: start;
+    gap: 4px 16px;
+  }
+  .value-stance-context dd {
+    margin: 0;
+  }
+  @media (max-width: 720px) {
+    .value-stance-group-summary {
+      padding-inline: 16px;
+    }
+    .value-stance-summary {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+      padding: 16px;
+    }
+    .value-stance-target,
+    .value-stance-context > div {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .value-stance-overview {
+      gap: 8px;
+    }
+    .value-stance-context {
+      margin-inline: 16px;
+      padding-bottom: 16px;
+    }
+  }
   .trait-list {
     display: grid;
     gap: 16px;

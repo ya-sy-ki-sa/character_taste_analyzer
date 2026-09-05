@@ -60,7 +60,6 @@
   }
 
   .cluster-grid,
-  .stance-grid,
   .settings-grid,
   .capability-grid,
   .reading-grid,
@@ -71,7 +70,6 @@
   }
 
   .cluster-grid article,
-  .stance-grid .card,
   .settings-grid .card,
   .capability-grid article,
   .reading-grid article,
