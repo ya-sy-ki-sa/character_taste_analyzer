@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { type DarkResponseChannel, darkResponseChannelCatalog } from "../../shared/dark-response-channels";
 import {
@@ -25,6 +25,7 @@ import {
 } from "../../shared/schemas";
 import { valueOrientationLabel, valueStanceLabel } from "../../shared/value-stance-labels";
 import { api, idempotencyKey } from "../api";
+import { PreferenceRefinement } from "../components/QualityControls";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 import { evidenceQuoteLabel, explicitnessLabel } from "../lib/analysis-labels";
 import { buildCharacterMarkdown, characterMarkdownFilename } from "../lib/entry-markdown";
@@ -106,8 +107,10 @@ type ReviewDetail = {
   };
   preferenceAnalysis: null | {
     id: string;
+    hypothesisPreview?: import("../../shared/quality-schemas").HypothesisPreview | null;
+    qualityContext?: { refinementMode?: string; evidenceInsufficient?: boolean };
     summary: { userExplicitSummary: string[]; inferredSummary: string[]; limitations: string[] };
-    uncertainties: Array<{ topic: string; reason: string }>;
+    uncertainties: Array<{ topic: string; reason: string; recommendedQuestion?: string | null }>;
     assertions: Array<{
       id: string;
       raw_label: string;
@@ -609,6 +612,120 @@ export function EntriesPage({ domain }: { domain: AnalysisDomain }) {
   );
 }
 
+function useEntrySubmission({
+  domain,
+  form,
+  reanalysis,
+  onCreated,
+}: {
+  domain: AnalysisDomain;
+  form: FormState;
+  reanalysis?: { entryId: string; draft: AnyEntryDraft };
+  onCreated(): void;
+}) {
+  const apiBase = domain === "dark" ? "/api/v1/dark" : "/api/v1";
+  const [phase, setPhase] = useState<"idle" | "checking" | "saving">("idle");
+  const inFlight = useRef(false);
+  const requestKeys = useRef(new Map<string, string>());
+  const [error, setError] = useState<string>();
+  const [candidates, setCandidates] = useState<IdentityCandidate[]>();
+  const [selectedIdentityId, setSelectedIdentityId] = useState("new");
+  const requiresIdentityResolution =
+    form.registrationType !== "original" &&
+    (!reanalysis ||
+      identityCharacterName(form).trim() !== entryBaseCharacterName(reanalysis.draft).trim() ||
+      (reanalysis.draft.registrationType !== "original" &&
+        form.workTitle.trim() !== reanalysis.draft.workTitle.trim()));
+
+  function invalidateCandidates() {
+    setCandidates(undefined);
+    setSelectedIdentityId("new");
+    setError(undefined);
+  }
+
+  function selectIdentity(value: string) {
+    setSelectedIdentityId(value);
+    setError(undefined);
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    // State updates alone do not block another submit in the same event batch.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setError(undefined);
+    let failureMessage = reanalysis ? "再分析を開始できませんでした" : "登録できませんでした";
+    try {
+      let resolvedCandidates = candidates;
+      let resolvedIdentityId = selectedIdentityId;
+      if (requiresIdentityResolution && resolvedCandidates === undefined) {
+        setPhase("checking");
+        failureMessage = "同一キャラクター候補を確認できませんでした";
+        const result = await api<{ candidates: IdentityCandidate[] }>(`${apiBase}/identity-candidates`, {
+          method: "POST",
+          body: JSON.stringify({
+            workTitle: form.workTitle,
+            characterName: identityCharacterName(form),
+            mediaType: form.mediaType || undefined,
+          }),
+        });
+        resolvedCandidates = result.candidates;
+        resolvedIdentityId = result.candidates.length ? "" : "new";
+        setCandidates(resolvedCandidates);
+        setSelectedIdentityId(resolvedIdentityId);
+        if (resolvedCandidates.length) return;
+      }
+      if (requiresIdentityResolution && !resolvedIdentityId) {
+        setError("既存の同一人物情報を再利用するか、別物として新規登録するか選んでください");
+        return;
+      }
+      const selectedCandidate = resolvedCandidates?.find((item) => item.characterIdentityId === resolvedIdentityId);
+      const identityResolution: IdentityResolution = requiresIdentityResolution
+        ? selectedCandidate
+          ? {
+              mode: "reuse",
+              workId: selectedCandidate.workId,
+              characterIdentityId: selectedCandidate.characterIdentityId,
+            }
+          : { mode: "new" }
+        : reanalysis && reanalysis.draft.registrationType !== "original"
+          ? reanalysis.draft.identityResolution
+          : { mode: "new" };
+      setPhase("saving");
+      failureMessage = reanalysis ? "再分析を開始できませんでした" : "登録できませんでした";
+      const payload = entrySubmissionFromForm(form, identityResolution, domain);
+      const path = reanalysis ? `${apiBase}/entries/${reanalysis.entryId}/reanalysis` : `${apiBase}/entries`;
+      const body = JSON.stringify(reanalysis ? { draft: payload } : payload);
+      // Retain keys for each submitted payload until this form is closed, including retries after edits are undone.
+      const signature = JSON.stringify([path, body]);
+      let requestKey = requestKeys.current.get(signature);
+      if (!requestKey) {
+        requestKey = idempotencyKey();
+        requestKeys.current.set(signature, requestKey);
+      }
+      await api(path, { method: "POST", idempotencyKey: requestKey, body });
+      onCreated();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : failureMessage);
+    } finally {
+      inFlight.current = false;
+      setPhase("idle");
+    }
+  }
+
+  return {
+    submitting: phase !== "idle",
+    progressLabel: phase === "checking" ? "候補を確認中…" : phase === "saving" ? "保存・開始中…" : undefined,
+    error,
+    candidates,
+    selectedIdentityId,
+    selectIdentity,
+    invalidateCandidates,
+    requiresIdentityResolution,
+    submit,
+  };
+}
+
 function EntryFormModal({
   domain,
   onClose,
@@ -618,17 +735,31 @@ function EntryFormModal({
   onClose(): void;
   onCreated(): void;
 }) {
-  const apiBase = domain === "dark" ? "/api/v1/dark" : "/api/v1";
   const [form, setForm] = useState<FormState>(() => emptyForm(domain));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>();
-  const [candidates, setCandidates] = useState<IdentityCandidate[]>();
-  const [selectedIdentityId, setSelectedIdentityId] = useState<string>("new");
+  const {
+    submitting,
+    progressLabel,
+    error,
+    candidates,
+    selectedIdentityId,
+    selectIdentity,
+    invalidateCandidates,
+    submit,
+  } = useEntrySubmission({ domain, form, onCreated });
+  const requestClose = () => {
+    const hasUnsavedChanges = JSON.stringify(form) !== JSON.stringify(emptyForm(domain));
+    if (
+      hasUnsavedChanges &&
+      !window.confirm("入力途中の内容があります。閉じると入力内容は失われます。閉じてもよろしいですか？")
+    ) {
+      return;
+    }
+    onClose();
+  };
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
     if (["registrationType", "workTitle", "baseCharacterName", "characterName", "mediaType"].includes(key)) {
-      setCandidates(undefined);
-      setSelectedIdentityId("new");
+      invalidateCandidates();
     }
   };
   const toggleResponseChannel = (value: ResponseChannel | DarkResponseChannel, selected: boolean) =>
@@ -641,289 +772,233 @@ function EntryFormModal({
         : form.responseChannels.filter((item) => item !== value),
     );
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(undefined);
-    let resolvedCandidates = candidates;
-    let resolvedIdentityId = selectedIdentityId;
-    if (form.registrationType !== "original" && candidates === undefined) {
-      try {
-        const result = await api<{ candidates: IdentityCandidate[] }>(`${apiBase}/identity-candidates`, {
-          method: "POST",
-          body: JSON.stringify({
-            workTitle: form.workTitle,
-            characterName: identityCharacterName(form),
-            mediaType: form.mediaType || undefined,
-          }),
-        });
-        setCandidates(result.candidates);
-        setSelectedIdentityId(result.candidates.length ? "" : "new");
-        resolvedCandidates = result.candidates;
-        resolvedIdentityId = result.candidates.length ? "" : "new";
-        if (result.candidates.length) return;
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "同一キャラクター候補を確認できませんでした");
-        return;
-      } finally {
-        setSubmitting(false);
-      }
-    }
-    if (form.registrationType !== "original" && !resolvedIdentityId) {
-      setError("既存の同一人物情報を再利用するか、別物として新規登録するか選んでください");
-      setSubmitting(false);
-      return;
-    }
-    const selectedCandidate = resolvedCandidates?.find((item) => item.characterIdentityId === resolvedIdentityId);
-    const identityResolution = selectedCandidate
-      ? {
-          mode: "reuse" as const,
-          workId: selectedCandidate.workId,
-          characterIdentityId: selectedCandidate.characterIdentityId,
-        }
-      : { mode: "new" as const };
-    const payload = entrySubmissionFromForm(form, identityResolution, domain);
-    try {
-      await api(`${apiBase}/entries`, {
-        method: "POST",
-        idempotencyKey: idempotencyKey(),
-        body: JSON.stringify(payload),
-      });
-      onCreated();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "登録できませんでした");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
-    <Modal title={domain === "dark" ? "ダークキャラクターを登録" : "キャラクターを登録"} onClose={onClose} wide>
-      <form className="entry-form" onSubmit={submit}>
-        <fieldset className="segmented">
-          <legend>登録方法</legend>
-          {(["existing", "customized_existing", "original"] as const).map((type) => (
-            <button
-              type="button"
-              key={type}
-              className={form.registrationType === type ? "active" : ""}
-              onClick={() => update("registrationType", type)}
-            >
-              {type === "existing" ? "既成" : type === "customized_existing" ? "既成（カスタム）" : "オリジナル"}
-            </button>
-          ))}
-        </fieldset>
-        <div className="form-grid">
-          {form.registrationType !== "original" && (
-            <label>
-              <span>
-                作品名 <b>必須</b>
-              </span>
-              <input
-                required
-                maxLength={200}
-                value={form.workTitle}
-                onChange={(event) => update("workTitle", event.target.value)}
-              />
-            </label>
-          )}
-          {form.registrationType === "customized_existing" && (
-            <label>
-              <span>
-                既成キャラクター名 <b>必須</b>
-              </span>
-              <input
-                required
-                maxLength={200}
-                value={form.baseCharacterName}
-                onChange={(event) => update("baseCharacterName", event.target.value)}
-              />
-              <small>元キャラクターを特定し、「既成キャラクターの基本像」を調べるための名前です。</small>
-            </label>
-          )}
-          <label>
-            <span>
-              キャラクター名 <b>必須</b>
-            </span>
-            <input
-              required
-              maxLength={200}
-              value={form.characterName}
-              onChange={(event) => update("characterName", event.target.value)}
-            />
-            {form.registrationType === "customized_existing" && (
-              <small>カスタム後のキャラクター名です。一覧や解析画面ではこちらを表示します。</small>
-            )}
-          </label>
-          {form.registrationType !== "original" && (
-            <label>
-              <span>媒体・版</span>
-              <input
-                maxLength={100}
-                value={form.mediaType}
-                onChange={(event) => update("mediaType", event.target.value)}
-                placeholder="アニメ版、ゲーム版など"
-              />
-            </label>
-          )}
-          {form.registrationType === "original" && (
-            <label className="full">
-              <span>
-                キャラクター基本情報 <b>必須</b>
-              </span>
-              <textarea
-                required
-                rows={7}
-                maxLength={20000}
-                value={form.characterBasicInfo}
-                onChange={(event) => update("characterBasicInfo", event.target.value)}
-                placeholder="性格、価値観、目的、行動、他者との関係、物語上の役割など"
-              />
-              <small>このオリジナルキャラクターがどのような人物か分かる、基本的な設定を入力してください。</small>
-            </label>
-          )}
-          {domain === "dark" && <DarkContextFields form={form} update={update} />}
-          <label className="full">
-            <span>特に好きな時期・場面・状態（任意）</span>
-            <input
-              maxLength={2000}
-              value={form.preferenceContext}
-              onChange={(event) => update("preferenceContext", event.target.value)}
-              placeholder="例：記憶を失っていた時期、第7話で別人格が現れている間"
-            />
-            <small>キャラクター全体ではなく、特定の時期や場面、状態に限って好きな場合に入力してください。</small>
-          </label>
-          {form.registrationType === "customized_existing" && (
-            <>
+    <Modal title={domain === "dark" ? "ダークキャラクターを登録" : "キャラクターを登録"} onClose={requestClose} wide>
+      <form className="entry-form" onSubmit={submit} aria-busy={submitting}>
+        <fieldset className="entry-form-fields" disabled={submitting} aria-label="登録内容">
+          <fieldset className="segmented">
+            <legend>登録方法</legend>
+            {(["existing", "customized_existing", "original"] as const).map((type) => (
+              <button
+                type="button"
+                key={type}
+                className={form.registrationType === type ? "active" : ""}
+                onClick={() => update("registrationType", type)}
+              >
+                {type === "existing" ? "既成" : type === "customized_existing" ? "既成（カスタム）" : "オリジナル"}
+              </button>
+            ))}
+          </fieldset>
+          <div className="form-grid">
+            {form.registrationType !== "original" && (
               <label>
-                <span>カスタムの種類</span>
-                <select
-                  value={form.representationType}
-                  onChange={(event) =>
-                    update("representationType", event.target.value as FormState["representationType"])
-                  }
-                >
-                  <option value="user_interpretation">独自解釈</option>
-                  <option value="facet">特定の側面</option>
-                  <option value="scene_state">特定の場面・状態</option>
-                  <option value="transformative">二次創作</option>
-                  <option value="alternate_setting">別設定</option>
-                </select>
+                <span>
+                  作品名 <b>必須</b>
+                </span>
+                <input
+                  required
+                  maxLength={200}
+                  value={form.workTitle}
+                  onChange={(event) => update("workTitle", event.target.value)}
+                />
               </label>
+            )}
+            {form.registrationType === "customized_existing" && (
+              <label>
+                <span>
+                  既成キャラクター名 <b>必須</b>
+                </span>
+                <input
+                  required
+                  maxLength={200}
+                  value={form.baseCharacterName}
+                  onChange={(event) => update("baseCharacterName", event.target.value)}
+                />
+                <small>元キャラクターを特定し、「既成キャラクターの基本像」を調べるための名前です。</small>
+              </label>
+            )}
+            <label>
+              <span>
+                キャラクター名 <b>必須</b>
+              </span>
+              <input
+                required
+                maxLength={200}
+                value={form.characterName}
+                onChange={(event) => update("characterName", event.target.value)}
+              />
+              {form.registrationType === "customized_existing" && (
+                <small>カスタム後のキャラクター名です。一覧や解析画面ではこちらを表示します。</small>
+              )}
+            </label>
+            {form.registrationType !== "original" && (
+              <label>
+                <span>媒体・版</span>
+                <input
+                  maxLength={100}
+                  value={form.mediaType}
+                  onChange={(event) => update("mediaType", event.target.value)}
+                  placeholder="アニメ版、ゲーム版など"
+                />
+              </label>
+            )}
+            {form.registrationType === "original" && (
               <label className="full">
                 <span>
-                  基本像からどう違うか <b>必須</b>
+                  キャラクター基本情報 <b>必須</b>
                 </span>
                 <textarea
                   required
-                  rows={4}
-                  maxLength={8000}
-                  value={form.customizationDescription}
-                  onChange={(event) => update("customizationDescription", event.target.value)}
+                  rows={7}
+                  maxLength={20000}
+                  value={form.characterBasicInfo}
+                  onChange={(event) => update("characterBasicInfo", event.target.value)}
+                  placeholder="性格、価値観、目的、行動、他者との関係、物語上の役割など"
                 />
+                <small>このオリジナルキャラクターがどのような人物か分かる、基本的な設定を入力してください。</small>
               </label>
-            </>
-          )}
-          <label className="full">
-            <span>解析に加えたい参考情報（任意）</span>
-            <textarea
-              rows={7}
-              maxLength={20000}
-              value={form.referenceMaterial}
-              onChange={(event) => update("referenceMaterial", event.target.value)}
-              placeholder={
-                form.registrationType === "customized_existing"
-                  ? "例：改変前の公式設定や人物像について、解析に加えたい情報"
-                  : form.registrationType === "original"
-                    ? "例：基本情報とは別に参照させたい設定メモや補足資料"
-                    : "例：公式プロフィールや作中描写について、解析に加えたい情報"
-              }
-            />
-            <small>
-              {form.registrationType === "original"
-                ? "基本情報に加えて参照させたい資料がある場合に入力してください。"
-                : "未入力でも、作品名とキャラクター名をもとにシステムが基本情報を調べます。資料がある場合は補足として入力してください。"}
-            </small>
-          </label>
-          <label className="full">
-            <span>あなた自身のキャラクター解釈</span>
-            <textarea
-              rows={3}
-              maxLength={4000}
-              value={form.userCharacterView}
-              onChange={(event) => update("userCharacterView", event.target.value)}
-            />
-          </label>
-          <label className="full">
-            <span>好きな理由</span>
-            <textarea
-              rows={4}
-              maxLength={4000}
-              value={form.likedReasons}
-              onChange={(event) => update("likedReasons", event.target.value)}
-              placeholder="例：言葉遣い、考え方、人間関係、特定の場面での振る舞い"
-            />
-          </label>
-          <label className="full">
-            <span>苦手な要素・このキャラで好きではない点</span>
-            <textarea
-              rows={3}
-              maxLength={4000}
-              value={form.dislikedReasons}
-              onChange={(event) => update("dislikedReasons", event.target.value)}
-            />
-          </label>
-          <ResponseChannelPicker domain={domain} selected={form.responseChannels} onChange={toggleResponseChannel} />
-          <label className="full">
-            <span>善悪・価値観について残したいニュアンス</span>
-            <textarea
-              rows={3}
-              maxLength={2000}
-              value={form.valueStanceNote}
-              onChange={(event) => update("valueStanceNote", event.target.value)}
-              placeholder="例：このキャラクターの価値観や行動を、好きな理由としてどう捉えているか"
-            />
-          </label>
-        </div>
-        {form.registrationType !== "original" && candidates && candidates.length > 0 && (
-          <fieldset className="identity-resolution">
-            <legend>同じ作品・キャラクターの登録候補</legend>
-            <p>同一人物なら既存の同一人物情報を再利用します。今回の解釈・表現はどちらを選んでも新しく保存されます。</p>
-            {candidates.map((candidate) => (
-              <label className="check-row" key={candidate.characterIdentityId}>
+            )}
+            {domain === "dark" && <DarkContextFields form={form} update={update} />}
+            <label className="full">
+              <span>特に好きな時期・場面・状態（任意）</span>
+              <input
+                maxLength={2000}
+                value={form.preferenceContext}
+                onChange={(event) => update("preferenceContext", event.target.value)}
+                placeholder="例：記憶を失っていた時期、第7話で別人格が現れている間"
+              />
+              <small>キャラクター全体ではなく、特定の時期や場面、状態に限って好きな場合に入力してください。</small>
+            </label>
+            {form.registrationType === "customized_existing" && (
+              <>
+                <label>
+                  <span>カスタムの種類</span>
+                  <select
+                    value={form.representationType}
+                    onChange={(event) =>
+                      update("representationType", event.target.value as FormState["representationType"])
+                    }
+                  >
+                    <option value="user_interpretation">独自解釈</option>
+                    <option value="facet">特定の側面</option>
+                    <option value="scene_state">特定の場面・状態</option>
+                    <option value="transformative">二次創作</option>
+                    <option value="alternate_setting">別設定</option>
+                  </select>
+                </label>
+                <label className="full">
+                  <span>
+                    基本像からどう違うか <b>必須</b>
+                  </span>
+                  <textarea
+                    required
+                    rows={4}
+                    maxLength={8000}
+                    value={form.customizationDescription}
+                    onChange={(event) => update("customizationDescription", event.target.value)}
+                  />
+                </label>
+              </>
+            )}
+            <label className="full">
+              <span>解析に加えたい参考情報（任意）</span>
+              <textarea
+                rows={7}
+                maxLength={20000}
+                value={form.referenceMaterial}
+                onChange={(event) => update("referenceMaterial", event.target.value)}
+                placeholder={
+                  form.registrationType === "customized_existing"
+                    ? "例：改変前の公式設定や人物像について、解析に加えたい情報"
+                    : form.registrationType === "original"
+                      ? "例：基本情報とは別に参照させたい設定メモや補足資料"
+                      : "例：公式プロフィールや作中描写について、解析に加えたい情報"
+                }
+              />
+              <small>
+                {form.registrationType === "original"
+                  ? "基本情報に加えて参照させたい資料がある場合に入力してください。"
+                  : "未入力でも、作品名とキャラクター名をもとにシステムが基本情報を調べます。資料がある場合は補足として入力してください。"}
+              </small>
+            </label>
+            <label className="full">
+              <span>あなた自身のキャラクター解釈</span>
+              <textarea
+                rows={3}
+                maxLength={4000}
+                value={form.userCharacterView}
+                onChange={(event) => update("userCharacterView", event.target.value)}
+              />
+            </label>
+            <label className="full">
+              <span>好きな理由</span>
+              <textarea
+                rows={4}
+                maxLength={4000}
+                value={form.likedReasons}
+                onChange={(event) => update("likedReasons", event.target.value)}
+                placeholder="例：言葉遣い、考え方、人間関係、特定の場面での振る舞い"
+              />
+            </label>
+            <label className="full">
+              <span>苦手な要素・このキャラで好きではない点</span>
+              <textarea
+                rows={3}
+                maxLength={4000}
+                value={form.dislikedReasons}
+                onChange={(event) => update("dislikedReasons", event.target.value)}
+              />
+            </label>
+            <ResponseChannelPicker domain={domain} selected={form.responseChannels} onChange={toggleResponseChannel} />
+            <label className="full">
+              <span>善悪・価値観について残したいニュアンス</span>
+              <textarea
+                rows={3}
+                maxLength={2000}
+                value={form.valueStanceNote}
+                onChange={(event) => update("valueStanceNote", event.target.value)}
+                placeholder="例：このキャラクターの価値観や行動を、好きな理由としてどう捉えているか"
+              />
+            </label>
+          </div>
+          {form.registrationType !== "original" && candidates && candidates.length > 0 && (
+            <fieldset className="identity-resolution">
+              <legend>同じ作品・キャラクターの登録候補</legend>
+              <p>
+                同一人物なら既存の同一人物情報を再利用します。今回の解釈・表現はどちらを選んでも新しく保存されます。いずれかを選択して開始ボタンを押してください。
+              </p>
+              {candidates.map((candidate) => (
+                <label className="check-row" key={candidate.characterIdentityId}>
+                  <input
+                    type="radio"
+                    name="identity-resolution"
+                    checked={selectedIdentityId === candidate.characterIdentityId}
+                    onChange={() => selectIdentity(candidate.characterIdentityId)}
+                  />
+                  <span>
+                    既存の同一人物情報を再利用：{candidate.workTitle} / {candidate.characterName}
+                  </span>
+                </label>
+              ))}
+              <label className="check-row">
                 <input
                   type="radio"
                   name="identity-resolution"
-                  checked={selectedIdentityId === candidate.characterIdentityId}
-                  onChange={() => setSelectedIdentityId(candidate.characterIdentityId)}
+                  checked={selectedIdentityId === "new"}
+                  onChange={() => selectIdentity("new")}
                 />
-                <span>
-                  既存の同一人物情報を再利用：{candidate.workTitle} / {candidate.characterName}
-                </span>
+                <span>同名だが別物として新規登録</span>
               </label>
-            ))}
-            <label className="check-row">
-              <input
-                type="radio"
-                name="identity-resolution"
-                checked={selectedIdentityId === "new"}
-                onChange={() => setSelectedIdentityId("new")}
-              />
-              <span>同名だが別物として新規登録</span>
-            </label>
-          </fieldset>
-        )}
+            </fieldset>
+          )}
+        </fieldset>
         {error && <Notice tone="danger">{error}</Notice>}
         <div className="modal-actions">
-          <button type="button" className="button button-ghost" onClick={onClose}>
+          <button type="button" className="button button-ghost" onClick={requestClose}>
             キャンセル
           </button>
           <button type="submit" className="button button-primary" disabled={submitting}>
-            {submitting
-              ? "確認中…"
-              : form.registrationType !== "original" && candidates === undefined
-                ? "同一キャラクター候補を確認"
-                : "保存して理解抽出を開始"}
+            {progressLabel ?? "保存して理解抽出を開始"}
           </button>
         </div>
       </form>
@@ -1158,17 +1233,22 @@ function ReanalysisForm({
   onClose(): void;
   onCreated(): void;
 }) {
-  const apiBase = domain === "dark" ? "/api/v1/dark" : "/api/v1";
   const [form, setForm] = useState<FormState>(() => formStateFromDraft(draft));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>();
-  const [candidates, setCandidates] = useState<IdentityCandidate[]>();
-  const [selectedIdentityId, setSelectedIdentityId] = useState<string>("new");
+  const {
+    submitting,
+    progressLabel,
+    error,
+    candidates,
+    selectedIdentityId,
+    selectIdentity,
+    invalidateCandidates,
+    requiresIdentityResolution,
+    submit,
+  } = useEntrySubmission({ domain, form, reanalysis: { entryId, draft }, onCreated });
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
-    if (["workTitle", "baseCharacterName", "characterName"].includes(key)) {
-      setCandidates(undefined);
-      setSelectedIdentityId("new");
+    if (["workTitle", "baseCharacterName", "characterName", "mediaType"].includes(key)) {
+      invalidateCandidates();
     }
   };
   const toggleResponseChannel = (value: ResponseChannel | DarkResponseChannel, selected: boolean) =>
@@ -1180,266 +1260,209 @@ function ReanalysisForm({
           : [...form.responseChannels, value]
         : form.responseChannels.filter((item) => item !== value),
     );
-  const identityChanged =
-    identityCharacterName(form).trim() !== entryBaseCharacterName(draft).trim() ||
-    (draft.registrationType !== "original" && form.workTitle.trim() !== draft.workTitle.trim());
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(undefined);
-    let resolvedCandidates = candidates;
-    let resolvedIdentityId = selectedIdentityId;
-    if (form.registrationType !== "original" && identityChanged && candidates === undefined) {
-      try {
-        const result = await api<{ candidates: IdentityCandidate[] }>(`${apiBase}/identity-candidates`, {
-          method: "POST",
-          body: JSON.stringify({
-            workTitle: form.workTitle,
-            characterName: identityCharacterName(form),
-            mediaType: form.mediaType || undefined,
-          }),
-        });
-        setCandidates(result.candidates);
-        setSelectedIdentityId(result.candidates.length ? "" : "new");
-        resolvedCandidates = result.candidates;
-        resolvedIdentityId = result.candidates.length ? "" : "new";
-        if (result.candidates.length) return;
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "同一キャラクター候補を確認できませんでした");
-        return;
-      } finally {
-        setSubmitting(false);
-      }
-    }
-    if (form.registrationType !== "original" && identityChanged && !resolvedIdentityId) {
-      setError("既存の同一人物情報を再利用するか、別物として扱うか選んでください");
-      setSubmitting(false);
-      return;
-    }
-    const currentResolution: IdentityResolution =
-      draft.registrationType !== "original" ? draft.identityResolution : { mode: "new" };
-    const selectedCandidate = resolvedCandidates?.find((item) => item.characterIdentityId === resolvedIdentityId);
-    const identityResolution: IdentityResolution = identityChanged
-      ? selectedCandidate
-        ? {
-            mode: "reuse",
-            workId: selectedCandidate.workId,
-            characterIdentityId: selectedCandidate.characterIdentityId,
-          }
-        : { mode: "new" }
-      : currentResolution;
-    try {
-      await api(`${apiBase}/entries/${entryId}/reanalysis`, {
-        method: "POST",
-        body: JSON.stringify({ draft: entrySubmissionFromForm(form, identityResolution, domain) }),
-      });
-      onCreated();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "再分析を開始できませんでした");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   return (
-    <form className="entry-form" onSubmit={submit}>
+    <form className="entry-form" onSubmit={submit} aria-busy={submitting}>
       <Notice tone="warning">
         現在の解析履歴は残ります。再分析を始めると、新しい結果を確認するまでこの登録は累積プロフィールの集計対象外になります。
       </Notice>
-      <fieldset className="segmented" disabled>
-        <legend>登録方法（変更できません）</legend>
-        <button type="button" className="active">
-          {form.registrationType === "existing"
-            ? "既成"
-            : form.registrationType === "customized_existing"
-              ? "既成（カスタム）"
-              : "オリジナル"}
-        </button>
-      </fieldset>
-      <div className="form-grid">
-        {form.registrationType !== "original" && (
-          <label>
-            <span>
-              作品名 <b>必須</b>
-            </span>
-            <input
-              required
-              maxLength={200}
-              value={form.workTitle}
-              onChange={(event) => update("workTitle", event.target.value)}
-            />
-          </label>
-        )}
-        {form.registrationType === "customized_existing" && (
-          <label>
-            <span>
-              既成キャラクター名 <b>必須</b>
-            </span>
-            <input
-              required
-              maxLength={200}
-              value={form.baseCharacterName}
-              onChange={(event) => update("baseCharacterName", event.target.value)}
-            />
-            <small>元キャラクターを特定し、「既成キャラクターの基本像」を再分析するための名前です。</small>
-          </label>
-        )}
-        <label>
-          <span>
-            キャラクター名 <b>必須</b>
-          </span>
-          <input
-            required
-            maxLength={200}
-            value={form.characterName}
-            onChange={(event) => update("characterName", event.target.value)}
-          />
-          {form.registrationType === "customized_existing" && (
-            <small>カスタム後の表示名です。一覧や解析画面ではこちらを表示します。</small>
-          )}
-        </label>
-        {form.registrationType !== "original" && (
-          <label>
-            <span>媒体・版</span>
-            <input
-              maxLength={100}
-              value={form.mediaType}
-              onChange={(event) => update("mediaType", event.target.value)}
-              placeholder="アニメ版、ゲーム版など"
-            />
-          </label>
-        )}
-        {form.registrationType === "original" && (
-          <label className="full">
-            <span>
-              キャラクター基本情報 <b>必須</b>
-            </span>
-            <textarea
-              required
-              rows={7}
-              maxLength={20000}
-              value={form.characterBasicInfo}
-              onChange={(event) => update("characterBasicInfo", event.target.value)}
-            />
-          </label>
-        )}
-        {domain === "dark" && <DarkContextFields form={form} update={update} />}
-        <label className="full">
-          <span>特に好きな時期・場面・状態（任意）</span>
-          <input
-            maxLength={2000}
-            value={form.preferenceContext}
-            onChange={(event) => update("preferenceContext", event.target.value)}
-          />
-        </label>
-        {form.registrationType === "customized_existing" && (
-          <>
+      <fieldset className="entry-form-fields" disabled={submitting} aria-label="再分析する入力">
+        <fieldset className="segmented" disabled>
+          <legend>登録方法（変更できません）</legend>
+          <button type="button" className="active">
+            {form.registrationType === "existing"
+              ? "既成"
+              : form.registrationType === "customized_existing"
+                ? "既成（カスタム）"
+                : "オリジナル"}
+          </button>
+        </fieldset>
+        <div className="form-grid">
+          {form.registrationType !== "original" && (
             <label>
-              <span>カスタムの種類</span>
-              <select
-                value={form.representationType}
-                onChange={(event) =>
-                  update("representationType", event.target.value as FormState["representationType"])
-                }
-              >
-                <option value="user_interpretation">独自解釈</option>
-                <option value="facet">特定の側面</option>
-                <option value="scene_state">特定の場面・状態</option>
-                <option value="transformative">二次創作</option>
-                <option value="alternate_setting">別設定</option>
-              </select>
+              <span>
+                作品名 <b>必須</b>
+              </span>
+              <input
+                required
+                maxLength={200}
+                value={form.workTitle}
+                onChange={(event) => update("workTitle", event.target.value)}
+              />
             </label>
+          )}
+          {form.registrationType === "customized_existing" && (
+            <label>
+              <span>
+                既成キャラクター名 <b>必須</b>
+              </span>
+              <input
+                required
+                maxLength={200}
+                value={form.baseCharacterName}
+                onChange={(event) => update("baseCharacterName", event.target.value)}
+              />
+              <small>元キャラクターを特定し、「既成キャラクターの基本像」を再分析するための名前です。</small>
+            </label>
+          )}
+          <label>
+            <span>
+              キャラクター名 <b>必須</b>
+            </span>
+            <input
+              required
+              maxLength={200}
+              value={form.characterName}
+              onChange={(event) => update("characterName", event.target.value)}
+            />
+            {form.registrationType === "customized_existing" && (
+              <small>カスタム後の表示名です。一覧や解析画面ではこちらを表示します。</small>
+            )}
+          </label>
+          {form.registrationType !== "original" && (
+            <label>
+              <span>媒体・版</span>
+              <input
+                maxLength={100}
+                value={form.mediaType}
+                onChange={(event) => update("mediaType", event.target.value)}
+                placeholder="アニメ版、ゲーム版など"
+              />
+            </label>
+          )}
+          {form.registrationType === "original" && (
             <label className="full">
               <span>
-                基本像からどう違うか <b>必須</b>
+                キャラクター基本情報 <b>必須</b>
               </span>
               <textarea
                 required
-                rows={4}
-                maxLength={8000}
-                value={form.customizationDescription}
-                onChange={(event) => update("customizationDescription", event.target.value)}
+                rows={7}
+                maxLength={20000}
+                value={form.characterBasicInfo}
+                onChange={(event) => update("characterBasicInfo", event.target.value)}
               />
             </label>
-          </>
-        )}
-        <label className="full">
-          <span>解析に加えたい参考情報（任意）</span>
-          <textarea
-            rows={7}
-            maxLength={20000}
-            value={form.referenceMaterial}
-            onChange={(event) => update("referenceMaterial", event.target.value)}
-          />
-        </label>
-        <label className="full">
-          <span>あなた自身のキャラクター解釈</span>
-          <textarea
-            rows={3}
-            maxLength={4000}
-            value={form.userCharacterView}
-            onChange={(event) => update("userCharacterView", event.target.value)}
-          />
-        </label>
-        <label className="full">
-          <span>好きな理由</span>
-          <textarea
-            rows={5}
-            maxLength={4000}
-            value={form.likedReasons}
-            onChange={(event) => update("likedReasons", event.target.value)}
-            placeholder="思い出した理由や、分析結果へ反映したい具体的な点を入力してください"
-          />
-        </label>
-        <label className="full">
-          <span>苦手な要素・このキャラで好きではない点</span>
-          <textarea
-            rows={3}
-            maxLength={4000}
-            value={form.dislikedReasons}
-            onChange={(event) => update("dislikedReasons", event.target.value)}
-          />
-        </label>
-        <ResponseChannelPicker domain={domain} selected={form.responseChannels} onChange={toggleResponseChannel} />
-        <label className="full">
-          <span>善悪・価値観について残したいニュアンス</span>
-          <textarea
-            rows={3}
-            maxLength={2000}
-            value={form.valueStanceNote}
-            onChange={(event) => update("valueStanceNote", event.target.value)}
-          />
-        </label>
-      </div>
-      {form.registrationType !== "original" && identityChanged && candidates && candidates.length > 0 && (
-        <fieldset className="identity-resolution">
-          <legend>変更後の作品・キャラクターに一致する候補</legend>
-          <p>同一人物なら既存の同一人物情報を再利用します。別物の場合は新規として扱います。</p>
-          {candidates.map((candidate) => (
-            <label className="check-row" key={candidate.characterIdentityId}>
+          )}
+          {domain === "dark" && <DarkContextFields form={form} update={update} />}
+          <label className="full">
+            <span>特に好きな時期・場面・状態（任意）</span>
+            <input
+              maxLength={2000}
+              value={form.preferenceContext}
+              onChange={(event) => update("preferenceContext", event.target.value)}
+            />
+          </label>
+          {form.registrationType === "customized_existing" && (
+            <>
+              <label>
+                <span>カスタムの種類</span>
+                <select
+                  value={form.representationType}
+                  onChange={(event) =>
+                    update("representationType", event.target.value as FormState["representationType"])
+                  }
+                >
+                  <option value="user_interpretation">独自解釈</option>
+                  <option value="facet">特定の側面</option>
+                  <option value="scene_state">特定の場面・状態</option>
+                  <option value="transformative">二次創作</option>
+                  <option value="alternate_setting">別設定</option>
+                </select>
+              </label>
+              <label className="full">
+                <span>
+                  基本像からどう違うか <b>必須</b>
+                </span>
+                <textarea
+                  required
+                  rows={4}
+                  maxLength={8000}
+                  value={form.customizationDescription}
+                  onChange={(event) => update("customizationDescription", event.target.value)}
+                />
+              </label>
+            </>
+          )}
+          <label className="full">
+            <span>解析に加えたい参考情報（任意）</span>
+            <textarea
+              rows={7}
+              maxLength={20000}
+              value={form.referenceMaterial}
+              onChange={(event) => update("referenceMaterial", event.target.value)}
+            />
+          </label>
+          <label className="full">
+            <span>あなた自身のキャラクター解釈</span>
+            <textarea
+              rows={3}
+              maxLength={4000}
+              value={form.userCharacterView}
+              onChange={(event) => update("userCharacterView", event.target.value)}
+            />
+          </label>
+          <label className="full">
+            <span>好きな理由</span>
+            <textarea
+              rows={5}
+              maxLength={4000}
+              value={form.likedReasons}
+              onChange={(event) => update("likedReasons", event.target.value)}
+              placeholder="思い出した理由や、分析結果へ反映したい具体的な点を入力してください"
+            />
+          </label>
+          <label className="full">
+            <span>苦手な要素・このキャラで好きではない点</span>
+            <textarea
+              rows={3}
+              maxLength={4000}
+              value={form.dislikedReasons}
+              onChange={(event) => update("dislikedReasons", event.target.value)}
+            />
+          </label>
+          <ResponseChannelPicker domain={domain} selected={form.responseChannels} onChange={toggleResponseChannel} />
+          <label className="full">
+            <span>善悪・価値観について残したいニュアンス</span>
+            <textarea
+              rows={3}
+              maxLength={2000}
+              value={form.valueStanceNote}
+              onChange={(event) => update("valueStanceNote", event.target.value)}
+            />
+          </label>
+        </div>
+        {requiresIdentityResolution && candidates && candidates.length > 0 && (
+          <fieldset className="identity-resolution">
+            <legend>変更後の作品・キャラクターに一致する候補</legend>
+            <p>
+              同一人物なら既存の同一人物情報を再利用します。別物の場合は新規として扱います。いずれかを選択して開始ボタンを押してください。
+            </p>
+            {candidates.map((candidate) => (
+              <label className="check-row" key={candidate.characterIdentityId}>
+                <input
+                  type="radio"
+                  name="reanalysis-identity-resolution"
+                  checked={selectedIdentityId === candidate.characterIdentityId}
+                  onChange={() => selectIdentity(candidate.characterIdentityId)}
+                />
+                <span>
+                  既存の同一人物情報を再利用：{candidate.workTitle} / {candidate.characterName}
+                </span>
+              </label>
+            ))}
+            <label className="check-row">
               <input
                 type="radio"
                 name="reanalysis-identity-resolution"
-                checked={selectedIdentityId === candidate.characterIdentityId}
-                onChange={() => setSelectedIdentityId(candidate.characterIdentityId)}
+                checked={selectedIdentityId === "new"}
+                onChange={() => selectIdentity("new")}
               />
-              <span>
-                既存の同一人物情報を再利用：{candidate.workTitle} / {candidate.characterName}
-              </span>
+              <span>別物として新規登録</span>
             </label>
-          ))}
-          <label className="check-row">
-            <input
-              type="radio"
-              name="reanalysis-identity-resolution"
-              checked={selectedIdentityId === "new"}
-              onChange={() => setSelectedIdentityId("new")}
-            />
-            <span>別物として新規登録</span>
-          </label>
-        </fieldset>
-      )}
+          </fieldset>
+        )}
+      </fieldset>
       <small>入力を変更せず、現在の内容でもう一度分析することもできます。</small>
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="modal-actions">
@@ -1447,11 +1470,7 @@ function ReanalysisForm({
           キャンセル
         </button>
         <button type="submit" className="button button-primary" disabled={submitting}>
-          {submitting
-            ? "確認中…"
-            : form.registrationType !== "original" && identityChanged && candidates === undefined
-              ? "同一キャラクター候補を確認"
-              : "入力を保存して再分析"}
+          {progressLabel ?? "入力を保存して再分析"}
         </button>
       </div>
     </form>
@@ -1822,6 +1841,32 @@ function ReviewModal({
                 <p className="review-edit-guidance">
                   認識と違う候補は個別に削除できます。削除した候補はプロフィールへ反映されません。
                 </p>
+              )}
+              {value.preferenceAnalysis.qualityContext?.refinementMode === "hypotheses" && (
+                <Notice tone="info">ここにある候補は仮説です。自分に合う候補だけを残して確認してください。</Notice>
+              )}
+              {["analysis_review", "analyzing"].includes(value.entry.status) && (
+                <details
+                  className="quality-refinement"
+                  open={
+                    Boolean(value.preferenceAnalysis.hypothesisPreview) ||
+                    value.preferenceAnalysis.qualityContext?.evidenceInsufficient
+                  }
+                >
+                  <summary>追加質問・仮説候補を使う</summary>
+                  <PreferenceRefinement
+                    key={value.preferenceAnalysis.id}
+                    apiBase={apiBase}
+                    entryId={value.entry.id}
+                    questions={value.preferenceAnalysis.uncertainties}
+                    preview={value.preferenceAnalysis.hypothesisPreview ?? null}
+                    analyzing={value.entry.status === "analyzing"}
+                    onUpdated={async () => {
+                      await detail.refetch();
+                      await onUpdated();
+                    }}
+                  />
+                </details>
               )}
               <div className="preference-attribute-list">
                 {value.preferenceAnalysis.assertions.length === 0 &&

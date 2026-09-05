@@ -86,7 +86,7 @@ export async function claimJob(
   if (stepAttemptNumber > 3) return { status: "attempts_exhausted" };
   const now = nowIso();
   const attemptId = crypto.randomUUID();
-  const leaseExpires = new Date(Date.now() + 10 * 60_000).toISOString();
+  const leaseExpires = new Date(Date.now() + (stepName === "character-generation" ? 90 : 30) * 60_000).toISOString();
   const results = await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO job_attempts

@@ -1,0 +1,5324 @@
+{
+  "schemaVersion": "1.0",
+  "fixtureVersion": "quality/v1",
+  "provider": "openai",
+  "model": "gpt-5.6-luna",
+  "createdAt": "2026-09-05T01:55:47.780Z",
+  "results": [
+    {
+      "id": "standard-narrative",
+      "domain": "standard",
+      "expectedChannels": ["narrative_interest"],
+      "expectsEmpty": false,
+      "assertions": [
+        {
+          "response_channel": "narrative_interest",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"評価対象キャラクター\",\"subjects\":[\"評価対象 standard-narrative\"],\"relationships\":[\"仲間との関係\"],\"narrativePhases\":[],\"conditions\":[\"裏切りが物語を面白くする場合\"],\"exceptions\":[]}",
+          "explicitness": "user_explicit"
+        }
+      ],
+      "generation": null,
+      "detail": {
+        "entry": {
+          "id": "81613784-e5f9-4347-9ef0-0cd914bd44e6",
+          "status": "analysis_review",
+          "registrationType": "original",
+          "draft": {
+            "preference": {
+              "likedReasons": "裏切りで物語を面白くするところが好き。自分が同じようになりたいわけではない。",
+              "responseChannels": []
+            },
+            "registrationType": "original",
+            "characterName": "評価対象 standard-narrative",
+            "characterBasicInfo": "冷静で計算高い敵役。仲間を裏切って自分の目的を追う。"
+          }
+        },
+        "ontologyAttributes": [
+          {
+            "stableKey": "ability.incompetent",
+            "label": "無能・不器用"
+          },
+          {
+            "stableKey": "ability.intelligent",
+            "label": "知性"
+          },
+          {
+            "stableKey": "ability.powerful",
+            "label": "強大な力"
+          },
+          {
+            "stableKey": "ability.strategic",
+            "label": "戦略性"
+          },
+          {
+            "stableKey": "aesthetic.beautiful",
+            "label": "美しさ"
+          },
+          {
+            "stableKey": "aesthetic.cute",
+            "label": "かわいさ"
+          },
+          {
+            "stableKey": "aesthetic.elegant",
+            "label": "優美・洗練"
+          },
+          {
+            "stableKey": "aesthetic.grotesque",
+            "label": "異形・グロテスク"
+          },
+          {
+            "stableKey": "aesthetic.intimidating",
+            "label": "威圧的造形"
+          },
+          {
+            "stableKey": "aesthetic.nonhuman",
+            "label": "非人間的造形"
+          },
+          {
+            "stableKey": "aesthetic.ordinary",
+            "label": "平凡・目立たない造形"
+          },
+          {
+            "stableKey": "agency.dominant",
+            "label": "支配的"
+          },
+          {
+            "stableKey": "agency.proactive",
+            "label": "主体的"
+          },
+          {
+            "stableKey": "agency.submissive",
+            "label": "服従的"
+          },
+          {
+            "stableKey": "change.corruption",
+            "label": "堕落"
+          },
+          {
+            "stableKey": "change.flat",
+            "label": "変化しない"
+          },
+          {
+            "stableKey": "change.growth",
+            "label": "成長"
+          },
+          {
+            "stableKey": "change.no_redemption",
+            "label": "改心しない"
+          },
+          {
+            "stableKey": "duality.conflicted",
+            "label": "内的葛藤"
+          },
+          {
+            "stableKey": "duality.inconsistent",
+            "label": "矛盾・不整合"
+          },
+          {
+            "stableKey": "duality.masked",
+            "label": "仮面・表裏"
+          },
+          {
+            "stableKey": "duality.single_minded",
+            "label": "一貫・迷いのなさ"
+          },
+          {
+            "stableKey": "evil.affirms",
+            "label": "悪を肯定する"
+          },
+          {
+            "stableKey": "evil.enjoys_cruelty",
+            "label": "残酷さを楽しむ"
+          },
+          {
+            "stableKey": "goodness.hostile",
+            "label": "善への敵対"
+          },
+          {
+            "stableKey": "goodness.indifferent",
+            "label": "善への無関心"
+          },
+          {
+            "stableKey": "goodness.instrumental",
+            "label": "善を手段として扱う"
+          },
+          {
+            "stableKey": "morality.amoral",
+            "label": "道徳を判断軸にしない"
+          },
+          {
+            "stableKey": "morality.antiheroic",
+            "label": "反英雄的方向性"
+          },
+          {
+            "stableKey": "morality.evil",
+            "label": "悪そのものへの志向"
+          },
+          {
+            "stableKey": "morality.heroic",
+            "label": "英雄的方向性"
+          },
+          {
+            "stableKey": "morality.hypocritical",
+            "label": "道徳的偽善"
+          },
+          {
+            "stableKey": "morality.immoral",
+            "label": "非道徳"
+          },
+          {
+            "stableKey": "morality.self_defined",
+            "label": "自己定義の規範"
+          },
+          {
+            "stableKey": "morality.transgressive",
+            "label": "規範逸脱"
+          },
+          {
+            "stableKey": "morality.villainous",
+            "label": "悪役的方向性"
+          },
+          {
+            "stableKey": "motivation.ambition",
+            "label": "野心"
+          },
+          {
+            "stableKey": "motivation.belonging",
+            "label": "所属欲求"
+          },
+          {
+            "stableKey": "motivation.control",
+            "label": "支配欲"
+          },
+          {
+            "stableKey": "motivation.destruction",
+            "label": "破壊欲"
+          },
+          {
+            "stableKey": "motivation.no_grand_goal",
+            "label": "大目的を持たない"
+          },
+          {
+            "stableKey": "motivation.revenge",
+            "label": "復讐"
+          },
+          {
+            "stableKey": "motivation.survival",
+            "label": "生存欲"
+          },
+          {
+            "stableKey": "outcome.defeat",
+            "label": "敗北"
+          },
+          {
+            "stableKey": "outcome.unpunished",
+            "label": "罰されない"
+          },
+          {
+            "stableKey": "outcome.victory",
+            "label": "勝利"
+          },
+          {
+            "stableKey": "personality.arrogant",
+            "label": "傲慢"
+          },
+          {
+            "stableKey": "personality.capricious",
+            "label": "気まぐれ"
+          },
+          {
+            "stableKey": "personality.cold",
+            "label": "冷淡"
+          },
+          {
+            "stableKey": "personality.cunning",
+            "label": "狡猾"
+          },
+          {
+            "stableKey": "personality.deceptive",
+            "label": "欺瞞的"
+          },
+          {
+            "stableKey": "personality.detached",
+            "label": "超然・感情的距離"
+          },
+          {
+            "stableKey": "personality.honest",
+            "label": "率直・誠実"
+          },
+          {
+            "stableKey": "personality.kind",
+            "label": "親切"
+          },
+          {
+            "stableKey": "personality.obsessive",
+            "label": "執着的"
+          },
+          {
+            "stableKey": "personality.unapologetic",
+            "label": "悪びれない"
+          },
+          {
+            "stableKey": "redemption.irrelevant",
+            "label": "改心を問題にしない"
+          },
+          {
+            "stableKey": "redemption.refuses",
+            "label": "改心・贖罪を拒む"
+          },
+          {
+            "stableKey": "redemption.seeks",
+            "label": "改心・贖罪を求める"
+          },
+          {
+            "stableKey": "relationship.devoted",
+            "label": "献身"
+          },
+          {
+            "stableKey": "relationship.isolated",
+            "label": "孤立"
+          },
+          {
+            "stableKey": "relationship.manipulative",
+            "label": "操作的"
+          },
+          {
+            "stableKey": "relationship.possessive",
+            "label": "所有・独占的"
+          },
+          {
+            "stableKey": "relationship.protective",
+            "label": "保護的"
+          },
+          {
+            "stableKey": "relationship.rivalrous",
+            "label": "競争・宿敵"
+          },
+          {
+            "stableKey": "role.antagonist",
+            "label": "敵対者"
+          },
+          {
+            "stableKey": "role.antihero",
+            "label": "アンチヒーロー"
+          },
+          {
+            "stableKey": "role.comic_relief",
+            "label": "コミックリリーフ"
+          },
+          {
+            "stableKey": "role.hero",
+            "label": "ヒーロー"
+          },
+          {
+            "stableKey": "role.minor",
+            "label": "端役"
+          },
+          {
+            "stableKey": "role.observer",
+            "label": "観察者"
+          },
+          {
+            "stableKey": "role.scene_limited",
+            "label": "一場面限定"
+          },
+          {
+            "stableKey": "role.supporting",
+            "label": "脇役"
+          },
+          {
+            "stableKey": "role.villain",
+            "label": "ヴィラン"
+          },
+          {
+            "stableKey": "speech.playful",
+            "label": "戯画的・遊戯的な話し方"
+          },
+          {
+            "stableKey": "speech.refined",
+            "label": "上品・洗練された話し方"
+          },
+          {
+            "stableKey": "speech.rough",
+            "label": "荒い話し方"
+          },
+          {
+            "stableKey": "speech.sparse",
+            "label": "寡黙"
+          },
+          {
+            "stableKey": "speech.theatrical",
+            "label": "芝居がかった表現"
+          },
+          {
+            "stableKey": "tone.camp",
+            "label": "誇張・キャンプ"
+          },
+          {
+            "stableKey": "tone.comedic",
+            "label": "コメディ的"
+          },
+          {
+            "stableKey": "tone.horrific",
+            "label": "恐怖的"
+          },
+          {
+            "stableKey": "tone.menacing",
+            "label": "脅威的"
+          },
+          {
+            "stableKey": "tone.tragic",
+            "label": "悲劇的"
+          },
+          {
+            "stableKey": "tone.understated",
+            "label": "控えめ・静的"
+          },
+          {
+            "stableKey": "trust.betraying",
+            "label": "裏切り"
+          },
+          {
+            "stableKey": "trust.loyal",
+            "label": "忠実"
+          },
+          {
+            "stableKey": "vulnerability.fearful",
+            "label": "恐れ"
+          },
+          {
+            "stableKey": "vulnerability.fragile",
+            "label": "脆さ"
+          },
+          {
+            "stableKey": "vulnerability.lonely",
+            "label": "孤独"
+          },
+          {
+            "stableKey": "vulnerability.none_shown",
+            "label": "脆弱性を見せない"
+          },
+          {
+            "stableKey": "warmth.compassionate",
+            "label": "思いやり"
+          },
+          {
+            "stableKey": "warmth.indifferent",
+            "label": "他者への無関心"
+          },
+          {
+            "stableKey": "warmth.selective",
+            "label": "選択的な優しさ"
+          }
+        ],
+        "darkScopeAssessment": null,
+        "darkBaseline": null,
+        "darkTransformationDeltas": [],
+        "understanding": {
+          "id": "8e609a5f-9c91-49c4-b1c4-5154990c8e41",
+          "baseSnapshotId": null,
+          "sourceAssessment": {
+            "coverage": "partial",
+            "limitations": [
+              "キャラクター基本情報は短く、目的の具体的内容、能力、結末、他者への態度、話し方や外見は不明です。",
+              "システム収集済み公開情報はありません。",
+              "「冷静」は「冷淡」とは異なるため、対応する属性語彙を断定していません。"
+            ],
+            "modelKnowledgeUsed": false,
+            "systemResearch": {
+              "status": "not_applicable",
+              "sources": []
+            }
+          },
+          "summary": {
+            "identity": "冷静で計算高く、仲間を裏切って自分の目的を追う敵役。",
+            "narrativeRole": ["敵役"],
+            "moralityOrientation": [],
+            "goals": ["自分の目的を追う"],
+            "values": [],
+            "behavior": ["冷静である", "計算高い", "仲間を裏切る"],
+            "relationships": ["仲間を裏切る関係性が示されている"],
+            "expression": []
+          },
+          "uncertainties": [
+            {
+              "topic": "自分の目的の具体的内容",
+              "reason": "基本情報に目的の内容が記載されていないため不明です。"
+            },
+            {
+              "topic": "計算高さの具体的な表れ方",
+              "reason": "計画、策略、他者操作などの具体的行動は記載されていません。"
+            },
+            {
+              "topic": "道徳観や悪への志向",
+              "reason": "仲間を裏切る行動は示されていますが、人物の道徳観全般や悪そのものへの志向までは記載されていません。"
+            },
+            {
+              "topic": "結末と改心の有無",
+              "reason": "物語上の結末や贖罪・改心に関する情報がありません。"
+            },
+            {
+              "topic": "話し方・外見・能力",
+              "reason": "これらに関する情報が記載されていません。"
+            }
+          ],
+          "confidence": 0.9720000000000001,
+          "status": "confirmed",
+          "assertions": [
+            {
+              "id": "c9a2732a-5ec2-4e27-8444-dbf753530ad2",
+              "raw_label": "冷静",
+              "value_text": "冷静である",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "bb980df3-8904-4895-8eba-f6a4f69b8a4b",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "冷静",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-narrative キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "659456d2-3a47-4fb9-a8fa-f5db68b30098",
+              "raw_label": "狡猾",
+              "value_text": "計算高い",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "personality.cunning",
+              "evidence": [
+                {
+                  "id": "51bfefb9-1edc-4bec-913f-fa0add1471b1",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "計算高い",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-narrative キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "0e0b6146-bd40-49e7-9f26-7c6757475adf",
+              "raw_label": "敵対者",
+              "value_text": "敵役である",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "role.antagonist",
+              "evidence": [
+                {
+                  "id": "cae6624b-43c6-4f1e-a9e1-e7290a5a35da",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "敵役",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-narrative キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "f14fe008-1c68-48b6-b202-b58360b9dd56",
+              "raw_label": "裏切り",
+              "value_text": "仲間を裏切る",
+              "assertion_kind": "observable_behavior",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "trust.betraying",
+              "evidence": [
+                {
+                  "id": "e8b95037-365b-4f7e-b474-c86cbf5f6eed",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "仲間を裏切って",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-narrative キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "3de046b0-04dd-4335-9820-6ffd246febfb",
+              "raw_label": "目的追求",
+              "value_text": "自分の目的を追う",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_interpreted",
+              "confidence": 0.9,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "8ddd6fb9-8575-430f-ad23-544ee91c0d24",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "自分の目的を追う",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-narrative キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "deltas": []
+        },
+        "baseUnderstanding": null,
+        "preferenceAnalysis": {
+          "id": "6eb0aa7c-f00c-48a4-af6e-9c9b29f378d9",
+          "qualityContext": {
+            "schemaVersion": "2.0",
+            "refinementMode": null,
+            "confirmedUnderstandingSnapshotId": "8e609a5f-9c91-49c4-b1c4-5154990c8e41",
+            "audit": "preference_audit",
+            "evidenceInsufficient": false
+          },
+          "summary": {
+            "userExplicitSummary": [
+              "仲間を裏切って物語を面白くする点を好む。",
+              "自分自身が同じようになりたいわけではない。"
+            ],
+            "inferredSummary": [
+              "明示された好意は、人物そのものや現実の自己投影ではなく、裏切りが生む物語上の面白さに向けられている。"
+            ],
+            "limitations": [
+              "responseChannelsが未選択のため、明示された理由に直接対応するnarrative_interestのみを候補化した。",
+              "裏切り行為そのものの道徳的支持、人物そのものへの好感、敵役・悪役への好意は判断していない。",
+              "目的の内容、結末、改心の有無などは不明であり、関連する嗜好は推定していない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "人物そのものへの好感",
+              "reason": "物語上の裏切りへの好意は明示されていますが、評価対象キャラクターを人物そのものとして好いているかは不明です。",
+              "recommendedQuestion": "物語を面白くする点とは別に、このキャラクター自身も好きですか？"
+            },
+            {
+              "topic": "裏切り行為への価値判断",
+              "reason": "裏切りを物語上面白い要素として評価していることは示されていますが、作中の仲間への裏切りそのものを支持・容認するかは不明です。",
+              "recommendedQuestion": "作中での仲間への裏切り自体については、支持・容認しますか、それとも物語上面白いだけで行為は支持しませんか？"
+            },
+            {
+              "topic": "自己投影・なりたい気持ちの不在",
+              "reason": "自分自身が同じようになりたいわけではないことは明示されていますが、これは自己投影の否定であり、人物への好悪や行為への道徳的評価までは示しません。",
+              "recommendedQuestion": null
+            }
+          ],
+          "status": "succeeded",
+          "assertions": [
+            {
+              "id": "692cd62e-72ab-46a5-9aed-6feb29696212",
+              "raw_label": "裏切り",
+              "polarity": "positive",
+              "response_channel": "narrative_interest",
+              "strength": 0.9,
+              "explicitness": "user_explicit",
+              "confidence": 0.98,
+              "status": "proposed",
+              "stable_key": "trust.betraying",
+              "evidence": [
+                {
+                  "id": "1a192a85-addc-452d-b163-606a7285cea4",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "仲間を裏切って",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-narrative キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                },
+                {
+                  "id": "e5fccb5b-b085-4be5-99b0-dac80113a357",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "裏切りで物語を面白くするところが好き",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 standard-narrative 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "valueStances": []
+        }
+      },
+      "modelRuns": [
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "c53e49640326994be7602253b2f8e6c965c5076ef2b0936f0c2fabfe469732f9",
+          "input_hash": "c53e49640326994be7602253b2f8e6c965c5076ef2b0936f0c2fabfe469732f9",
+          "output_hash": "b3aaea78353b8194e073c10ef33ebdd144a810843c0ef84cadedca47b2c5baa8",
+          "input_token_estimate": 2881,
+          "output_token_estimate": 1244,
+          "latency_ms": 11119
+        },
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "6a949f1b360899972769b2b726bbbc612c57206956e25d9896ca72abbdd3ee41",
+          "input_hash": "c53e49640326994be7602253b2f8e6c965c5076ef2b0936f0c2fabfe469732f9",
+          "output_hash": "601a0832604e065ff0fca0023fe2a78b35b40d8cf7a013ee1a296c93de5fbfbd",
+          "input_token_estimate": 6685,
+          "output_token_estimate": 1391,
+          "latency_ms": 10708
+        },
+        {
+          "operation": "preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "34b2df6ae4ac1d1676e46e550a71d5943cf49d98516f4a1ba4f22eb6f0bb6188",
+          "input_hash": "34b2df6ae4ac1d1676e46e550a71d5943cf49d98516f4a1ba4f22eb6f0bb6188",
+          "output_hash": "7174f3d6f6a4a72e0a71dfe9f314394b2569f5630f421528fb55b4bf83699dd4",
+          "input_token_estimate": 7906,
+          "output_token_estimate": 1039,
+          "latency_ms": 8870
+        },
+        {
+          "operation": "preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "1bde7e4306b43a95a402b9f49a795644505fa7a1d93b8c447b59c1bfdb047bfd",
+          "input_hash": "1bde7e4306b43a95a402b9f49a795644505fa7a1d93b8c447b59c1bfdb047bfd",
+          "output_hash": "b5e9448588a57ebe4f3654bafe422f12640654a586a189e427c5e99983ced00d",
+          "input_token_estimate": 5631,
+          "output_token_estimate": 1014,
+          "latency_ms": 12184
+        }
+      ]
+    },
+    {
+      "id": "standard-admiration",
+      "domain": "standard",
+      "expectedChannels": ["wishful_identification", "admiration"],
+      "expectsEmpty": false,
+      "assertions": [
+        {
+          "response_channel": "wishful_identification",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"対象人物のような冷静な判断力を自分も身につけたいという文脈\",\"subjects\":[\"評価対象 standard-admiration\"],\"relationships\":[],\"narrativePhases\":[],\"conditions\":[\"自分も対象人物のように冷静に判断できるようになりたいという文脈\"],\"exceptions\":[]}",
+          "explicitness": "user_explicit"
+        }
+      ],
+      "generation": null,
+      "detail": {
+        "entry": {
+          "id": "648ae206-3ef5-4ec5-a698-f5d5e26a7612",
+          "status": "analysis_review",
+          "registrationType": "original",
+          "draft": {
+            "preference": {
+              "likedReasons": "自分もこの人のように冷静に判断できるようになりたい。",
+              "responseChannels": []
+            },
+            "registrationType": "original",
+            "characterName": "評価対象 standard-admiration",
+            "characterBasicInfo": "冷静で計算高い人物。困難でも目的を見失わずに行動する。"
+          }
+        },
+        "ontologyAttributes": [
+          {
+            "stableKey": "ability.incompetent",
+            "label": "無能・不器用"
+          },
+          {
+            "stableKey": "ability.intelligent",
+            "label": "知性"
+          },
+          {
+            "stableKey": "ability.powerful",
+            "label": "強大な力"
+          },
+          {
+            "stableKey": "ability.strategic",
+            "label": "戦略性"
+          },
+          {
+            "stableKey": "aesthetic.beautiful",
+            "label": "美しさ"
+          },
+          {
+            "stableKey": "aesthetic.cute",
+            "label": "かわいさ"
+          },
+          {
+            "stableKey": "aesthetic.elegant",
+            "label": "優美・洗練"
+          },
+          {
+            "stableKey": "aesthetic.grotesque",
+            "label": "異形・グロテスク"
+          },
+          {
+            "stableKey": "aesthetic.intimidating",
+            "label": "威圧的造形"
+          },
+          {
+            "stableKey": "aesthetic.nonhuman",
+            "label": "非人間的造形"
+          },
+          {
+            "stableKey": "aesthetic.ordinary",
+            "label": "平凡・目立たない造形"
+          },
+          {
+            "stableKey": "agency.dominant",
+            "label": "支配的"
+          },
+          {
+            "stableKey": "agency.proactive",
+            "label": "主体的"
+          },
+          {
+            "stableKey": "agency.submissive",
+            "label": "服従的"
+          },
+          {
+            "stableKey": "change.corruption",
+            "label": "堕落"
+          },
+          {
+            "stableKey": "change.flat",
+            "label": "変化しない"
+          },
+          {
+            "stableKey": "change.growth",
+            "label": "成長"
+          },
+          {
+            "stableKey": "change.no_redemption",
+            "label": "改心しない"
+          },
+          {
+            "stableKey": "duality.conflicted",
+            "label": "内的葛藤"
+          },
+          {
+            "stableKey": "duality.inconsistent",
+            "label": "矛盾・不整合"
+          },
+          {
+            "stableKey": "duality.masked",
+            "label": "仮面・表裏"
+          },
+          {
+            "stableKey": "duality.single_minded",
+            "label": "一貫・迷いのなさ"
+          },
+          {
+            "stableKey": "evil.affirms",
+            "label": "悪を肯定する"
+          },
+          {
+            "stableKey": "evil.enjoys_cruelty",
+            "label": "残酷さを楽しむ"
+          },
+          {
+            "stableKey": "goodness.hostile",
+            "label": "善への敵対"
+          },
+          {
+            "stableKey": "goodness.indifferent",
+            "label": "善への無関心"
+          },
+          {
+            "stableKey": "goodness.instrumental",
+            "label": "善を手段として扱う"
+          },
+          {
+            "stableKey": "morality.amoral",
+            "label": "道徳を判断軸にしない"
+          },
+          {
+            "stableKey": "morality.antiheroic",
+            "label": "反英雄的方向性"
+          },
+          {
+            "stableKey": "morality.evil",
+            "label": "悪そのものへの志向"
+          },
+          {
+            "stableKey": "morality.heroic",
+            "label": "英雄的方向性"
+          },
+          {
+            "stableKey": "morality.hypocritical",
+            "label": "道徳的偽善"
+          },
+          {
+            "stableKey": "morality.immoral",
+            "label": "非道徳"
+          },
+          {
+            "stableKey": "morality.self_defined",
+            "label": "自己定義の規範"
+          },
+          {
+            "stableKey": "morality.transgressive",
+            "label": "規範逸脱"
+          },
+          {
+            "stableKey": "morality.villainous",
+            "label": "悪役的方向性"
+          },
+          {
+            "stableKey": "motivation.ambition",
+            "label": "野心"
+          },
+          {
+            "stableKey": "motivation.belonging",
+            "label": "所属欲求"
+          },
+          {
+            "stableKey": "motivation.control",
+            "label": "支配欲"
+          },
+          {
+            "stableKey": "motivation.destruction",
+            "label": "破壊欲"
+          },
+          {
+            "stableKey": "motivation.no_grand_goal",
+            "label": "大目的を持たない"
+          },
+          {
+            "stableKey": "motivation.revenge",
+            "label": "復讐"
+          },
+          {
+            "stableKey": "motivation.survival",
+            "label": "生存欲"
+          },
+          {
+            "stableKey": "outcome.defeat",
+            "label": "敗北"
+          },
+          {
+            "stableKey": "outcome.unpunished",
+            "label": "罰されない"
+          },
+          {
+            "stableKey": "outcome.victory",
+            "label": "勝利"
+          },
+          {
+            "stableKey": "personality.arrogant",
+            "label": "傲慢"
+          },
+          {
+            "stableKey": "personality.capricious",
+            "label": "気まぐれ"
+          },
+          {
+            "stableKey": "personality.cold",
+            "label": "冷淡"
+          },
+          {
+            "stableKey": "personality.cunning",
+            "label": "狡猾"
+          },
+          {
+            "stableKey": "personality.deceptive",
+            "label": "欺瞞的"
+          },
+          {
+            "stableKey": "personality.detached",
+            "label": "超然・感情的距離"
+          },
+          {
+            "stableKey": "personality.honest",
+            "label": "率直・誠実"
+          },
+          {
+            "stableKey": "personality.kind",
+            "label": "親切"
+          },
+          {
+            "stableKey": "personality.obsessive",
+            "label": "執着的"
+          },
+          {
+            "stableKey": "personality.unapologetic",
+            "label": "悪びれない"
+          },
+          {
+            "stableKey": "redemption.irrelevant",
+            "label": "改心を問題にしない"
+          },
+          {
+            "stableKey": "redemption.refuses",
+            "label": "改心・贖罪を拒む"
+          },
+          {
+            "stableKey": "redemption.seeks",
+            "label": "改心・贖罪を求める"
+          },
+          {
+            "stableKey": "relationship.devoted",
+            "label": "献身"
+          },
+          {
+            "stableKey": "relationship.isolated",
+            "label": "孤立"
+          },
+          {
+            "stableKey": "relationship.manipulative",
+            "label": "操作的"
+          },
+          {
+            "stableKey": "relationship.possessive",
+            "label": "所有・独占的"
+          },
+          {
+            "stableKey": "relationship.protective",
+            "label": "保護的"
+          },
+          {
+            "stableKey": "relationship.rivalrous",
+            "label": "競争・宿敵"
+          },
+          {
+            "stableKey": "role.antagonist",
+            "label": "敵対者"
+          },
+          {
+            "stableKey": "role.antihero",
+            "label": "アンチヒーロー"
+          },
+          {
+            "stableKey": "role.comic_relief",
+            "label": "コミックリリーフ"
+          },
+          {
+            "stableKey": "role.hero",
+            "label": "ヒーロー"
+          },
+          {
+            "stableKey": "role.minor",
+            "label": "端役"
+          },
+          {
+            "stableKey": "role.observer",
+            "label": "観察者"
+          },
+          {
+            "stableKey": "role.scene_limited",
+            "label": "一場面限定"
+          },
+          {
+            "stableKey": "role.supporting",
+            "label": "脇役"
+          },
+          {
+            "stableKey": "role.villain",
+            "label": "ヴィラン"
+          },
+          {
+            "stableKey": "speech.playful",
+            "label": "戯画的・遊戯的な話し方"
+          },
+          {
+            "stableKey": "speech.refined",
+            "label": "上品・洗練された話し方"
+          },
+          {
+            "stableKey": "speech.rough",
+            "label": "荒い話し方"
+          },
+          {
+            "stableKey": "speech.sparse",
+            "label": "寡黙"
+          },
+          {
+            "stableKey": "speech.theatrical",
+            "label": "芝居がかった表現"
+          },
+          {
+            "stableKey": "tone.camp",
+            "label": "誇張・キャンプ"
+          },
+          {
+            "stableKey": "tone.comedic",
+            "label": "コメディ的"
+          },
+          {
+            "stableKey": "tone.horrific",
+            "label": "恐怖的"
+          },
+          {
+            "stableKey": "tone.menacing",
+            "label": "脅威的"
+          },
+          {
+            "stableKey": "tone.tragic",
+            "label": "悲劇的"
+          },
+          {
+            "stableKey": "tone.understated",
+            "label": "控えめ・静的"
+          },
+          {
+            "stableKey": "trust.betraying",
+            "label": "裏切り"
+          },
+          {
+            "stableKey": "trust.loyal",
+            "label": "忠実"
+          },
+          {
+            "stableKey": "vulnerability.fearful",
+            "label": "恐れ"
+          },
+          {
+            "stableKey": "vulnerability.fragile",
+            "label": "脆さ"
+          },
+          {
+            "stableKey": "vulnerability.lonely",
+            "label": "孤独"
+          },
+          {
+            "stableKey": "vulnerability.none_shown",
+            "label": "脆弱性を見せない"
+          },
+          {
+            "stableKey": "warmth.compassionate",
+            "label": "思いやり"
+          },
+          {
+            "stableKey": "warmth.indifferent",
+            "label": "他者への無関心"
+          },
+          {
+            "stableKey": "warmth.selective",
+            "label": "選択的な優しさ"
+          }
+        ],
+        "darkScopeAssessment": null,
+        "darkBaseline": null,
+        "darkTransformationDeltas": [],
+        "understanding": {
+          "id": "dbe44707-6ebc-4898-b082-be10176f1ed4",
+          "baseSnapshotId": null,
+          "sourceAssessment": {
+            "coverage": "partial",
+            "limitations": [
+              "人物の基本情報は短く、所属、物語上の役割、道徳性、他者との関係、外見、結末は不明。",
+              "システム収集済み公開情報は存在しない。"
+            ],
+            "modelKnowledgeUsed": false,
+            "systemResearch": {
+              "status": "not_applicable",
+              "sources": []
+            }
+          },
+          "summary": {
+            "identity": "評価対象 standard-admiration。冷静で計算高く、困難な状況でも目的を見失わず行動する人物。",
+            "narrativeRole": [],
+            "moralityOrientation": [],
+            "goals": ["困難な状況でも目的を追求する"],
+            "values": [],
+            "behavior": ["冷静に振る舞う", "計算高く行動する", "困難な状況でも行動する", "目的を見失わない"],
+            "relationships": [],
+            "expression": []
+          },
+          "uncertainties": [
+            {
+              "topic": "物語上の役割",
+              "reason": "ヒーロー、敵対者、脇役などの役割を示す情報がない。"
+            },
+            {
+              "topic": "道徳性・善悪との関係",
+              "reason": "冷静さ、計算高さ、目的を見失わないことだけでは、道徳的立場や善悪への態度を判断できない。"
+            },
+            {
+              "topic": "目的の内容",
+              "reason": "目的が何であるか、またその目的が利他的か利己的かは示されていない。"
+            },
+            {
+              "topic": "対人関係",
+              "reason": "他者への態度、忠誠、操作、孤立などに関する情報がない。"
+            },
+            {
+              "topic": "脆弱性・感情表現",
+              "reason": "冷静さは示されているが、内面や脆弱性、具体的な感情表現は不明。"
+            }
+          ],
+          "confidence": 0.9624999999999999,
+          "status": "confirmed",
+          "assertions": [
+            {
+              "id": "cbf355ab-07b0-487d-b96d-4a06e691006e",
+              "raw_label": "冷静",
+              "value_text": "冷静な人物である",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.98,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "8701730d-0d29-4306-bd18-0e4f6895a95a",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "冷静で計算高い人物",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-admiration キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "9daba2f1-997f-46ef-878b-2b437caff463",
+              "raw_label": "計算高い",
+              "value_text": "計算高い人物である",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.98,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "773e0c20-302f-4889-91c1-c68b1eda055b",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "冷静で計算高い人物",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-admiration キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "d8dceb8f-6425-49ae-b038-1d4690a16445",
+              "raw_label": "主体的",
+              "value_text": "困難な状況でも行動する",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.94,
+              "status": "confirmed",
+              "stable_key": "agency.proactive",
+              "evidence": [
+                {
+                  "id": "14d6f21c-dbe6-4ee0-87b4-c87f8601f835",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "困難でも目的を見失わずに行動する",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-admiration キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "e61dee8d-5fda-4da5-bc76-8448b9924aa5",
+              "raw_label": "一貫・迷いのなさ",
+              "value_text": "困難に直面しても目的を見失わない",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.95,
+              "status": "confirmed",
+              "stable_key": "duality.single_minded",
+              "evidence": [
+                {
+                  "id": "a0a28773-030b-4ce2-b371-33bf1cdbb85a",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "困難でも目的を見失わずに行動する",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-admiration キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "deltas": []
+        },
+        "baseUnderstanding": null,
+        "preferenceAnalysis": {
+          "id": "e92e7bbb-b727-4708-a83f-5c16d0c76836",
+          "qualityContext": {
+            "schemaVersion": "2.0",
+            "refinementMode": null,
+            "confirmedUnderstandingSnapshotId": "dbe44707-6ebc-4898-b082-be10176f1ed4",
+            "audit": "preference_audit",
+            "evidenceInsufficient": false
+          },
+          "summary": {
+            "userExplicitSummary": [
+              "対象人物のように冷静に判断できるようになりたいと述べている。",
+              "苦手な理由は提示されていない。",
+              "responseChannelsは明示的に選択されていない。"
+            ],
+            "inferredSummary": [
+              "「自分もこの人のように」と自分の能力への取り入れを望んでいるため、冷静な判断力へのwishful_identificationが示唆される。"
+            ],
+            "limitations": [
+              "人物の計算高さ、困難でも行動すること、目的を見失わないことが好意の理由に含まれるとは判断できない。",
+              "対象人物そのものへの好感や尊敬、冷静さ以外の反応経路は確認できない。",
+              "苦手な理由や否定的条件は提示されていない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "人物そのものへの好意",
+              "reason": "提示文は冷静な判断力を自分も得たいという願望を直接示すが、対象人物自身を好き・尊敬しているかは別途示されていない。",
+              "recommendedQuestion": "対象人物自身への好感や尊敬もありますか。それとも、冷静に判断する能力だけを身につけたいという意味ですか？"
+            },
+            {
+              "topic": "好意の対象となる能力の範囲",
+              "reason": "冷静な判断が、感情に流されないこと、判断の正確さ、計算高さ、戦略性のいずれを指すかは特定できない。",
+              "recommendedQuestion": "惹かれているのは、感情に流されない冷静さ、判断の正確さ、計算高さ、戦略性のどれですか？"
+            },
+            {
+              "topic": "苦手条件",
+              "reason": "苦手な理由や否定的条件が提示されていないため、候補を作成できない。",
+              "recommendedQuestion": "この人物または別の人物について、苦手な性質や展開があれば教えてください。"
+            }
+          ],
+          "status": "succeeded",
+          "assertions": [
+            {
+              "id": "6b380c32-1b02-41d6-8a16-d5836d3ac0b9",
+              "raw_label": "冷静に判断できること",
+              "polarity": "positive",
+              "response_channel": "wishful_identification",
+              "strength": 0.84,
+              "explicitness": "user_explicit",
+              "confidence": 0.95,
+              "status": "proposed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "84c4a261-683c-4d12-a775-50326a2dcdff",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "自分もこの人のように冷静に判断できるようになりたい。",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 standard-admiration 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "valueStances": []
+        }
+      },
+      "modelRuns": [
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "300a0861f19bf5de5daf7e7aa554bcb3b4ff89b25dc26c5d72f0ac82efd7b076",
+          "input_hash": "300a0861f19bf5de5daf7e7aa554bcb3b4ff89b25dc26c5d72f0ac82efd7b076",
+          "output_hash": "4b898c23fa309c471bd33c14d19eae3f50fa8bc60a6f8c0fa9b3768507c04176",
+          "input_token_estimate": 2880,
+          "output_token_estimate": 1175,
+          "latency_ms": 8777
+        },
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "100b0dcd4b0f325d0b69488e378c40d92fa733c80442bbc2725dd85ee41ea67d",
+          "input_hash": "300a0861f19bf5de5daf7e7aa554bcb3b4ff89b25dc26c5d72f0ac82efd7b076",
+          "output_hash": "2c32540b4b5849f00ccfca8f5aa9d0a472a5ca554304ffee3ac6c4f624a23d7e",
+          "input_token_estimate": 6661,
+          "output_token_estimate": 1196,
+          "latency_ms": 9299
+        },
+        {
+          "operation": "preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "07640858b70ea0db57da0f46cca2d7b5dd0c6114d0da1567d59890add830109e",
+          "input_hash": "07640858b70ea0db57da0f46cca2d7b5dd0c6114d0da1567d59890add830109e",
+          "output_hash": "4e30f3e028aeaf5e61bd25d7785ec551c4c2ab6177d333eaf78a0e871b32adde",
+          "input_token_estimate": 7820,
+          "output_token_estimate": 1137,
+          "latency_ms": 10392
+        },
+        {
+          "operation": "preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "12dcf9d7643f5c7c41b8f7895d8e777aa8ec2c6a865e62859e31ade7cef295ce",
+          "input_hash": "12dcf9d7643f5c7c41b8f7895d8e777aa8ec2c6a865e62859e31ade7cef295ce",
+          "output_hash": "6e5990cc35133e21b7e103133399b75c43d1102f21c0eeeab9a44c50d9abb94d",
+          "input_token_estimate": 5539,
+          "output_token_estimate": 1135,
+          "latency_ms": 13912
+        }
+      ]
+    },
+    {
+      "id": "standard-conditional",
+      "domain": "standard",
+      "expectedChannels": ["narrative_interest"],
+      "expectsEmpty": false,
+      "assertions": [
+        {
+          "response_channel": "narrative_interest",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"敵対場面\",\"subjects\":[\"キャラクター\",\"敵\"],\"relationships\":[\"敵対関係\"],\"narrativePhases\":[],\"conditions\":[\"敵に対して冷徹に振る舞う場合\"],\"exceptions\":[\"仲間に対する冷たさへの否定的反応には適用しない\"]}",
+          "explicitness": "user_explicit"
+        },
+        {
+          "response_channel": "person_liking",
+          "polarity": "negative",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"仲間との場面\",\"subjects\":[\"キャラクター\",\"仲間\"],\"relationships\":[\"仲間関係\"],\"narrativePhases\":[],\"conditions\":[\"仲間にまで冷たくなる場合\"],\"exceptions\":[\"敵に対する冷徹さへの物語上の好意とは別の条件付き評価\"]}",
+          "explicitness": "user_explicit"
+        }
+      ],
+      "generation": null,
+      "detail": {
+        "entry": {
+          "id": "1cfafd45-0469-46ca-9c6a-dbfe8ed8e25c",
+          "status": "analysis_review",
+          "registrationType": "original",
+          "draft": {
+            "preferenceContext": "敵対場面と仲間との場面を区別",
+            "preference": {
+              "likedReasons": "敵に対する冷徹さは物語を面白くするので好き。",
+              "dislikedReasons": "仲間にまで冷たくなるのは苦手。",
+              "responseChannels": []
+            },
+            "registrationType": "original",
+            "characterName": "評価対象 standard-conditional",
+            "characterBasicInfo": "敵には冷徹に振る舞うが、仲間には親切な人物。"
+          }
+        },
+        "ontologyAttributes": [
+          {
+            "stableKey": "ability.incompetent",
+            "label": "無能・不器用"
+          },
+          {
+            "stableKey": "ability.intelligent",
+            "label": "知性"
+          },
+          {
+            "stableKey": "ability.powerful",
+            "label": "強大な力"
+          },
+          {
+            "stableKey": "ability.strategic",
+            "label": "戦略性"
+          },
+          {
+            "stableKey": "aesthetic.beautiful",
+            "label": "美しさ"
+          },
+          {
+            "stableKey": "aesthetic.cute",
+            "label": "かわいさ"
+          },
+          {
+            "stableKey": "aesthetic.elegant",
+            "label": "優美・洗練"
+          },
+          {
+            "stableKey": "aesthetic.grotesque",
+            "label": "異形・グロテスク"
+          },
+          {
+            "stableKey": "aesthetic.intimidating",
+            "label": "威圧的造形"
+          },
+          {
+            "stableKey": "aesthetic.nonhuman",
+            "label": "非人間的造形"
+          },
+          {
+            "stableKey": "aesthetic.ordinary",
+            "label": "平凡・目立たない造形"
+          },
+          {
+            "stableKey": "agency.dominant",
+            "label": "支配的"
+          },
+          {
+            "stableKey": "agency.proactive",
+            "label": "主体的"
+          },
+          {
+            "stableKey": "agency.submissive",
+            "label": "服従的"
+          },
+          {
+            "stableKey": "change.corruption",
+            "label": "堕落"
+          },
+          {
+            "stableKey": "change.flat",
+            "label": "変化しない"
+          },
+          {
+            "stableKey": "change.growth",
+            "label": "成長"
+          },
+          {
+            "stableKey": "change.no_redemption",
+            "label": "改心しない"
+          },
+          {
+            "stableKey": "duality.conflicted",
+            "label": "内的葛藤"
+          },
+          {
+            "stableKey": "duality.inconsistent",
+            "label": "矛盾・不整合"
+          },
+          {
+            "stableKey": "duality.masked",
+            "label": "仮面・表裏"
+          },
+          {
+            "stableKey": "duality.single_minded",
+            "label": "一貫・迷いのなさ"
+          },
+          {
+            "stableKey": "evil.affirms",
+            "label": "悪を肯定する"
+          },
+          {
+            "stableKey": "evil.enjoys_cruelty",
+            "label": "残酷さを楽しむ"
+          },
+          {
+            "stableKey": "goodness.hostile",
+            "label": "善への敵対"
+          },
+          {
+            "stableKey": "goodness.indifferent",
+            "label": "善への無関心"
+          },
+          {
+            "stableKey": "goodness.instrumental",
+            "label": "善を手段として扱う"
+          },
+          {
+            "stableKey": "morality.amoral",
+            "label": "道徳を判断軸にしない"
+          },
+          {
+            "stableKey": "morality.antiheroic",
+            "label": "反英雄的方向性"
+          },
+          {
+            "stableKey": "morality.evil",
+            "label": "悪そのものへの志向"
+          },
+          {
+            "stableKey": "morality.heroic",
+            "label": "英雄的方向性"
+          },
+          {
+            "stableKey": "morality.hypocritical",
+            "label": "道徳的偽善"
+          },
+          {
+            "stableKey": "morality.immoral",
+            "label": "非道徳"
+          },
+          {
+            "stableKey": "morality.self_defined",
+            "label": "自己定義の規範"
+          },
+          {
+            "stableKey": "morality.transgressive",
+            "label": "規範逸脱"
+          },
+          {
+            "stableKey": "morality.villainous",
+            "label": "悪役的方向性"
+          },
+          {
+            "stableKey": "motivation.ambition",
+            "label": "野心"
+          },
+          {
+            "stableKey": "motivation.belonging",
+            "label": "所属欲求"
+          },
+          {
+            "stableKey": "motivation.control",
+            "label": "支配欲"
+          },
+          {
+            "stableKey": "motivation.destruction",
+            "label": "破壊欲"
+          },
+          {
+            "stableKey": "motivation.no_grand_goal",
+            "label": "大目的を持たない"
+          },
+          {
+            "stableKey": "motivation.revenge",
+            "label": "復讐"
+          },
+          {
+            "stableKey": "motivation.survival",
+            "label": "生存欲"
+          },
+          {
+            "stableKey": "outcome.defeat",
+            "label": "敗北"
+          },
+          {
+            "stableKey": "outcome.unpunished",
+            "label": "罰されない"
+          },
+          {
+            "stableKey": "outcome.victory",
+            "label": "勝利"
+          },
+          {
+            "stableKey": "personality.arrogant",
+            "label": "傲慢"
+          },
+          {
+            "stableKey": "personality.capricious",
+            "label": "気まぐれ"
+          },
+          {
+            "stableKey": "personality.cold",
+            "label": "冷淡"
+          },
+          {
+            "stableKey": "personality.cunning",
+            "label": "狡猾"
+          },
+          {
+            "stableKey": "personality.deceptive",
+            "label": "欺瞞的"
+          },
+          {
+            "stableKey": "personality.detached",
+            "label": "超然・感情的距離"
+          },
+          {
+            "stableKey": "personality.honest",
+            "label": "率直・誠実"
+          },
+          {
+            "stableKey": "personality.kind",
+            "label": "親切"
+          },
+          {
+            "stableKey": "personality.obsessive",
+            "label": "執着的"
+          },
+          {
+            "stableKey": "personality.unapologetic",
+            "label": "悪びれない"
+          },
+          {
+            "stableKey": "redemption.irrelevant",
+            "label": "改心を問題にしない"
+          },
+          {
+            "stableKey": "redemption.refuses",
+            "label": "改心・贖罪を拒む"
+          },
+          {
+            "stableKey": "redemption.seeks",
+            "label": "改心・贖罪を求める"
+          },
+          {
+            "stableKey": "relationship.devoted",
+            "label": "献身"
+          },
+          {
+            "stableKey": "relationship.isolated",
+            "label": "孤立"
+          },
+          {
+            "stableKey": "relationship.manipulative",
+            "label": "操作的"
+          },
+          {
+            "stableKey": "relationship.possessive",
+            "label": "所有・独占的"
+          },
+          {
+            "stableKey": "relationship.protective",
+            "label": "保護的"
+          },
+          {
+            "stableKey": "relationship.rivalrous",
+            "label": "競争・宿敵"
+          },
+          {
+            "stableKey": "role.antagonist",
+            "label": "敵対者"
+          },
+          {
+            "stableKey": "role.antihero",
+            "label": "アンチヒーロー"
+          },
+          {
+            "stableKey": "role.comic_relief",
+            "label": "コミックリリーフ"
+          },
+          {
+            "stableKey": "role.hero",
+            "label": "ヒーロー"
+          },
+          {
+            "stableKey": "role.minor",
+            "label": "端役"
+          },
+          {
+            "stableKey": "role.observer",
+            "label": "観察者"
+          },
+          {
+            "stableKey": "role.scene_limited",
+            "label": "一場面限定"
+          },
+          {
+            "stableKey": "role.supporting",
+            "label": "脇役"
+          },
+          {
+            "stableKey": "role.villain",
+            "label": "ヴィラン"
+          },
+          {
+            "stableKey": "speech.playful",
+            "label": "戯画的・遊戯的な話し方"
+          },
+          {
+            "stableKey": "speech.refined",
+            "label": "上品・洗練された話し方"
+          },
+          {
+            "stableKey": "speech.rough",
+            "label": "荒い話し方"
+          },
+          {
+            "stableKey": "speech.sparse",
+            "label": "寡黙"
+          },
+          {
+            "stableKey": "speech.theatrical",
+            "label": "芝居がかった表現"
+          },
+          {
+            "stableKey": "tone.camp",
+            "label": "誇張・キャンプ"
+          },
+          {
+            "stableKey": "tone.comedic",
+            "label": "コメディ的"
+          },
+          {
+            "stableKey": "tone.horrific",
+            "label": "恐怖的"
+          },
+          {
+            "stableKey": "tone.menacing",
+            "label": "脅威的"
+          },
+          {
+            "stableKey": "tone.tragic",
+            "label": "悲劇的"
+          },
+          {
+            "stableKey": "tone.understated",
+            "label": "控えめ・静的"
+          },
+          {
+            "stableKey": "trust.betraying",
+            "label": "裏切り"
+          },
+          {
+            "stableKey": "trust.loyal",
+            "label": "忠実"
+          },
+          {
+            "stableKey": "vulnerability.fearful",
+            "label": "恐れ"
+          },
+          {
+            "stableKey": "vulnerability.fragile",
+            "label": "脆さ"
+          },
+          {
+            "stableKey": "vulnerability.lonely",
+            "label": "孤独"
+          },
+          {
+            "stableKey": "vulnerability.none_shown",
+            "label": "脆弱性を見せない"
+          },
+          {
+            "stableKey": "warmth.compassionate",
+            "label": "思いやり"
+          },
+          {
+            "stableKey": "warmth.indifferent",
+            "label": "他者への無関心"
+          },
+          {
+            "stableKey": "warmth.selective",
+            "label": "選択的な優しさ"
+          }
+        ],
+        "darkScopeAssessment": null,
+        "darkBaseline": null,
+        "darkTransformationDeltas": [],
+        "understanding": {
+          "id": "e5c81edc-6813-467e-834e-8389e4a28dd1",
+          "baseSnapshotId": null,
+          "sourceAssessment": {
+            "coverage": "partial",
+            "limitations": [
+              "オリジナルキャラクターの基本情報は一文のみで、所属、目的、能力、物語上の役割、道徳観などは不明。",
+              "敵への冷徹さや仲間への親切さが、本人の価値観・戦略・演技のいずれによるものかは不明。",
+              "嗜好に関する入力は提示されていないため、好みは推定しない。"
+            ],
+            "modelKnowledgeUsed": false,
+            "systemResearch": {
+              "status": "not_applicable",
+              "sources": []
+            }
+          },
+          "summary": {
+            "identity": "評価対象 standard-conditional。敵には冷徹に振る舞い、仲間には親切なオリジナルキャラクター。",
+            "narrativeRole": ["物語上の役割は不明"],
+            "moralityOrientation": ["全体的な道徳的立場は不明", "相手との関係に応じて異なる態度を示す"],
+            "goals": ["不明"],
+            "values": ["仲間に親切に振る舞うことが示されている", "敵と仲間に対する態度を区別する"],
+            "behavior": ["敵には冷徹に振る舞う", "仲間には親切に振る舞う"],
+            "relationships": ["敵との敵対関係が示されている", "仲間に親切に接する"],
+            "expression": ["敵対場面と仲間との場面を区別して扱う", "口調、外見、話し方、感情表現の詳細は不明"]
+          },
+          "uncertainties": [
+            {
+              "topic": "物語上の役割",
+              "reason": "敵対者、味方側の人物、脇役などの位置づけは示されていない。"
+            },
+            {
+              "topic": "道徳性・善悪",
+              "reason": "敵に冷徹で仲間に親切という態度だけでは、全体的な道徳的立場を判断できない。"
+            },
+            {
+              "topic": "動機と目標",
+              "reason": "冷徹さや親切さの理由、行動目的は示されていない。"
+            },
+            {
+              "topic": "冷徹さと親切さの具体的内容",
+              "reason": "それぞれが具体的にどのような言動や行為として現れるかは不明。"
+            }
+          ],
+          "confidence": 0.9774999999999999,
+          "status": "confirmed",
+          "assertions": [
+            {
+              "id": "2da222b1-d2ee-40b0-9087-7813ddffa519",
+              "raw_label": "冷徹な振る舞い",
+              "value_text": "敵には冷徹に振る舞う",
+              "assertion_kind": "observable_behavior",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "812b6b62-19fd-45a1-bad1-563c5c3726f9",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "敵には冷徹に振る舞う",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-conditional キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "d8c951dc-cf15-4b3c-ab78-b356b081f746",
+              "raw_label": "親切な振る舞い",
+              "value_text": "仲間には親切に振る舞う",
+              "assertion_kind": "observable_behavior",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "c942254a-fc8a-4a55-9fc0-dca6b375466d",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "仲間には親切な人物",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-conditional キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "6c68b294-f3cf-4d3b-9dc1-9b1a5fe7d613",
+              "raw_label": "敵と仲間への態度の区別",
+              "value_text": "敵に対する冷徹な態度と、仲間に対する親切な態度が区別されている",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_interpreted",
+              "confidence": 0.95,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "e38ad13a-9a8f-4080-889c-cc7e79b2d411",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "paraphrase",
+                  "quote": "敵には冷徹に振る舞うが、仲間には親切な人物",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-conditional キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "7cc4052b-23db-412a-95f7-21f02f917325",
+              "raw_label": "場面・関係性の区別",
+              "value_text": "敵対場面と仲間との場面を区別して扱う",
+              "assertion_kind": "user_interpretation",
+              "explicitness": "user_explicit",
+              "confidence": 0.98,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "7bdf1921-702a-454f-ab20-9f38bbc0c28d",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "敵対場面と仲間との場面を区別",
+                  "inputPointer": "/preferenceContext",
+                  "sourceTitle": "評価対象 standard-conditional 対象範囲・場面",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "deltas": []
+        },
+        "baseUnderstanding": null,
+        "preferenceAnalysis": {
+          "id": "b3ad0184-917a-4b8b-bf8e-64ef80968566",
+          "qualityContext": {
+            "schemaVersion": "2.0",
+            "refinementMode": null,
+            "confirmedUnderstandingSnapshotId": "e5c81edc-6813-467e-834e-8389e4a28dd1",
+            "audit": "preference_audit",
+            "evidenceInsufficient": false
+          },
+          "summary": {
+            "userExplicitSummary": [
+              "敵に対する冷徹さが物語を面白くする点を好んでいる。",
+              "仲間にまで冷たくなることを苦手としている。",
+              "response channelは選択されていない。"
+            ],
+            "inferredSummary": [
+              "敵への冷徹さへの好意は、人物全体ではなく物語上の面白さに向けられている。",
+              "仲間への冷たさへの苦手意識は、敵への冷徹さとは別の条件に対する否定的反応である。"
+            ],
+            "limitations": [
+              "仲間への冷たさに対する否定的反応が、人物への好感低下、物語展開への不満、関係性の拒否のいずれかは特定できない。",
+              "敵への冷徹さの具体的な行為や演出は不明。",
+              "response channelが未選択のため、否定的反応の経路は確定できない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "仲間への冷たさへの反応経路",
+              "reason": "「苦手」とされているが、それが人物への好感低下、物語展開への不満、関係性の描写への拒否のどれを指すか不明である。person_likingは暫定的な最小解釈にとどまる。",
+              "recommendedQuestion": "仲間にまで冷たくなる場合、苦手なのはその人物自体ですか、物語展開ですか、それとも仲間との関係性の描写ですか？"
+            },
+            {
+              "topic": "敵への冷徹さの範囲",
+              "reason": "敵への冷徹さのうち、どの具体的な言動や演出が物語を面白くすると感じるのか不明である。",
+              "recommendedQuestion": "敵への冷徹さなら、どのような言動や描写でも好ましいですか、それとも特定の態度や場面に限りますか？"
+            }
+          ],
+          "status": "succeeded",
+          "assertions": [
+            {
+              "id": "074e877e-f7a2-4a7f-a9e5-797f9b71a323",
+              "raw_label": "冷淡",
+              "polarity": "positive",
+              "response_channel": "narrative_interest",
+              "strength": 0.8,
+              "explicitness": "user_explicit",
+              "confidence": 0.99,
+              "status": "proposed",
+              "stable_key": "personality.cold",
+              "evidence": [
+                {
+                  "id": "19cce268-86f7-498a-9418-b3d3df1d1f60",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "敵に対する冷徹さは物語を面白くするので好き",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 standard-conditional 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "8f258638-ea82-4dc0-bfb2-94a9cf9930be",
+              "raw_label": "冷淡",
+              "polarity": "negative",
+              "response_channel": "person_liking",
+              "strength": 0.75,
+              "explicitness": "user_explicit",
+              "confidence": 0.68,
+              "status": "proposed",
+              "stable_key": "personality.cold",
+              "evidence": [
+                {
+                  "id": "b29f8080-dbb0-4191-9cdf-52e8e028c237",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "仲間にまで冷たくなるのは苦手",
+                  "inputPointer": "/preference/dislikedReasons",
+                  "sourceTitle": "評価対象 standard-conditional 苦手な理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "valueStances": []
+        }
+      },
+      "modelRuns": [
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "d12dd10d0fdc9aa2d85fbf84008df56440f8a0229b510d3eeb3689cb3c6bbe26",
+          "input_hash": "d12dd10d0fdc9aa2d85fbf84008df56440f8a0229b510d3eeb3689cb3c6bbe26",
+          "output_hash": "e889388ca0a4ccddbd41cc3d06c408f9d6310c42a7f99d56724f42792c2d9f8c",
+          "input_token_estimate": 2897,
+          "output_token_estimate": 1302,
+          "latency_ms": 9361
+        },
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "3574e78d2eff6ccb3269734c961f1de741e37c1f3cc1d428fa0462ac4381961e",
+          "input_hash": "d12dd10d0fdc9aa2d85fbf84008df56440f8a0229b510d3eeb3689cb3c6bbe26",
+          "output_hash": "0ff63365660017fe3f9784d724451929a3281ff29d23412377a434f839e1ccb1",
+          "input_token_estimate": 6710,
+          "output_token_estimate": 1382,
+          "latency_ms": 14258
+        },
+        {
+          "operation": "preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "f31617e0254e660f3a7cae405e679f48d8aad24347abe58371cc71894f61aa9e",
+          "input_hash": "f31617e0254e660f3a7cae405e679f48d8aad24347abe58371cc71894f61aa9e",
+          "output_hash": "794b19a2a97465a4db65024663d7295005a9d4fbc5fd569ced1ff2340acd0259",
+          "input_token_estimate": 5666,
+          "output_token_estimate": 1437,
+          "latency_ms": 14572
+        },
+        {
+          "operation": "preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "8a1caa11fbc104297533b7356808acb9da69529a9a136698811cb9e70840309a",
+          "input_hash": "8a1caa11fbc104297533b7356808acb9da69529a9a136698811cb9e70840309a",
+          "output_hash": "7e4ad196f4fcec84633a8887e82f874db985b70ab29359a26a87a23cf823321a",
+          "input_token_estimate": 8407,
+          "output_token_estimate": 1837,
+          "latency_ms": 19775
+        }
+      ]
+    },
+    {
+      "id": "standard-empty",
+      "domain": "standard",
+      "expectedChannels": [],
+      "expectsEmpty": true,
+      "assertions": [],
+      "generation": null,
+      "detail": {
+        "entry": {
+          "id": "a272c279-f950-4d5a-8ae7-294020abbc68",
+          "status": "analysis_review",
+          "registrationType": "original",
+          "draft": {
+            "preference": {
+              "responseChannels": []
+            },
+            "registrationType": "original",
+            "characterName": "評価対象 standard-empty",
+            "characterBasicInfo": "旅をしている人物。人物像をまだ詳しく決めていない。"
+          }
+        },
+        "ontologyAttributes": [
+          {
+            "stableKey": "ability.incompetent",
+            "label": "無能・不器用"
+          },
+          {
+            "stableKey": "ability.intelligent",
+            "label": "知性"
+          },
+          {
+            "stableKey": "ability.powerful",
+            "label": "強大な力"
+          },
+          {
+            "stableKey": "ability.strategic",
+            "label": "戦略性"
+          },
+          {
+            "stableKey": "aesthetic.beautiful",
+            "label": "美しさ"
+          },
+          {
+            "stableKey": "aesthetic.cute",
+            "label": "かわいさ"
+          },
+          {
+            "stableKey": "aesthetic.elegant",
+            "label": "優美・洗練"
+          },
+          {
+            "stableKey": "aesthetic.grotesque",
+            "label": "異形・グロテスク"
+          },
+          {
+            "stableKey": "aesthetic.intimidating",
+            "label": "威圧的造形"
+          },
+          {
+            "stableKey": "aesthetic.nonhuman",
+            "label": "非人間的造形"
+          },
+          {
+            "stableKey": "aesthetic.ordinary",
+            "label": "平凡・目立たない造形"
+          },
+          {
+            "stableKey": "agency.dominant",
+            "label": "支配的"
+          },
+          {
+            "stableKey": "agency.proactive",
+            "label": "主体的"
+          },
+          {
+            "stableKey": "agency.submissive",
+            "label": "服従的"
+          },
+          {
+            "stableKey": "change.corruption",
+            "label": "堕落"
+          },
+          {
+            "stableKey": "change.flat",
+            "label": "変化しない"
+          },
+          {
+            "stableKey": "change.growth",
+            "label": "成長"
+          },
+          {
+            "stableKey": "change.no_redemption",
+            "label": "改心しない"
+          },
+          {
+            "stableKey": "duality.conflicted",
+            "label": "内的葛藤"
+          },
+          {
+            "stableKey": "duality.inconsistent",
+            "label": "矛盾・不整合"
+          },
+          {
+            "stableKey": "duality.masked",
+            "label": "仮面・表裏"
+          },
+          {
+            "stableKey": "duality.single_minded",
+            "label": "一貫・迷いのなさ"
+          },
+          {
+            "stableKey": "evil.affirms",
+            "label": "悪を肯定する"
+          },
+          {
+            "stableKey": "evil.enjoys_cruelty",
+            "label": "残酷さを楽しむ"
+          },
+          {
+            "stableKey": "goodness.hostile",
+            "label": "善への敵対"
+          },
+          {
+            "stableKey": "goodness.indifferent",
+            "label": "善への無関心"
+          },
+          {
+            "stableKey": "goodness.instrumental",
+            "label": "善を手段として扱う"
+          },
+          {
+            "stableKey": "morality.amoral",
+            "label": "道徳を判断軸にしない"
+          },
+          {
+            "stableKey": "morality.antiheroic",
+            "label": "反英雄的方向性"
+          },
+          {
+            "stableKey": "morality.evil",
+            "label": "悪そのものへの志向"
+          },
+          {
+            "stableKey": "morality.heroic",
+            "label": "英雄的方向性"
+          },
+          {
+            "stableKey": "morality.hypocritical",
+            "label": "道徳的偽善"
+          },
+          {
+            "stableKey": "morality.immoral",
+            "label": "非道徳"
+          },
+          {
+            "stableKey": "morality.self_defined",
+            "label": "自己定義の規範"
+          },
+          {
+            "stableKey": "morality.transgressive",
+            "label": "規範逸脱"
+          },
+          {
+            "stableKey": "morality.villainous",
+            "label": "悪役的方向性"
+          },
+          {
+            "stableKey": "motivation.ambition",
+            "label": "野心"
+          },
+          {
+            "stableKey": "motivation.belonging",
+            "label": "所属欲求"
+          },
+          {
+            "stableKey": "motivation.control",
+            "label": "支配欲"
+          },
+          {
+            "stableKey": "motivation.destruction",
+            "label": "破壊欲"
+          },
+          {
+            "stableKey": "motivation.no_grand_goal",
+            "label": "大目的を持たない"
+          },
+          {
+            "stableKey": "motivation.revenge",
+            "label": "復讐"
+          },
+          {
+            "stableKey": "motivation.survival",
+            "label": "生存欲"
+          },
+          {
+            "stableKey": "outcome.defeat",
+            "label": "敗北"
+          },
+          {
+            "stableKey": "outcome.unpunished",
+            "label": "罰されない"
+          },
+          {
+            "stableKey": "outcome.victory",
+            "label": "勝利"
+          },
+          {
+            "stableKey": "personality.arrogant",
+            "label": "傲慢"
+          },
+          {
+            "stableKey": "personality.capricious",
+            "label": "気まぐれ"
+          },
+          {
+            "stableKey": "personality.cold",
+            "label": "冷淡"
+          },
+          {
+            "stableKey": "personality.cunning",
+            "label": "狡猾"
+          },
+          {
+            "stableKey": "personality.deceptive",
+            "label": "欺瞞的"
+          },
+          {
+            "stableKey": "personality.detached",
+            "label": "超然・感情的距離"
+          },
+          {
+            "stableKey": "personality.honest",
+            "label": "率直・誠実"
+          },
+          {
+            "stableKey": "personality.kind",
+            "label": "親切"
+          },
+          {
+            "stableKey": "personality.obsessive",
+            "label": "執着的"
+          },
+          {
+            "stableKey": "personality.unapologetic",
+            "label": "悪びれない"
+          },
+          {
+            "stableKey": "redemption.irrelevant",
+            "label": "改心を問題にしない"
+          },
+          {
+            "stableKey": "redemption.refuses",
+            "label": "改心・贖罪を拒む"
+          },
+          {
+            "stableKey": "redemption.seeks",
+            "label": "改心・贖罪を求める"
+          },
+          {
+            "stableKey": "relationship.devoted",
+            "label": "献身"
+          },
+          {
+            "stableKey": "relationship.isolated",
+            "label": "孤立"
+          },
+          {
+            "stableKey": "relationship.manipulative",
+            "label": "操作的"
+          },
+          {
+            "stableKey": "relationship.possessive",
+            "label": "所有・独占的"
+          },
+          {
+            "stableKey": "relationship.protective",
+            "label": "保護的"
+          },
+          {
+            "stableKey": "relationship.rivalrous",
+            "label": "競争・宿敵"
+          },
+          {
+            "stableKey": "role.antagonist",
+            "label": "敵対者"
+          },
+          {
+            "stableKey": "role.antihero",
+            "label": "アンチヒーロー"
+          },
+          {
+            "stableKey": "role.comic_relief",
+            "label": "コミックリリーフ"
+          },
+          {
+            "stableKey": "role.hero",
+            "label": "ヒーロー"
+          },
+          {
+            "stableKey": "role.minor",
+            "label": "端役"
+          },
+          {
+            "stableKey": "role.observer",
+            "label": "観察者"
+          },
+          {
+            "stableKey": "role.scene_limited",
+            "label": "一場面限定"
+          },
+          {
+            "stableKey": "role.supporting",
+            "label": "脇役"
+          },
+          {
+            "stableKey": "role.villain",
+            "label": "ヴィラン"
+          },
+          {
+            "stableKey": "speech.playful",
+            "label": "戯画的・遊戯的な話し方"
+          },
+          {
+            "stableKey": "speech.refined",
+            "label": "上品・洗練された話し方"
+          },
+          {
+            "stableKey": "speech.rough",
+            "label": "荒い話し方"
+          },
+          {
+            "stableKey": "speech.sparse",
+            "label": "寡黙"
+          },
+          {
+            "stableKey": "speech.theatrical",
+            "label": "芝居がかった表現"
+          },
+          {
+            "stableKey": "tone.camp",
+            "label": "誇張・キャンプ"
+          },
+          {
+            "stableKey": "tone.comedic",
+            "label": "コメディ的"
+          },
+          {
+            "stableKey": "tone.horrific",
+            "label": "恐怖的"
+          },
+          {
+            "stableKey": "tone.menacing",
+            "label": "脅威的"
+          },
+          {
+            "stableKey": "tone.tragic",
+            "label": "悲劇的"
+          },
+          {
+            "stableKey": "tone.understated",
+            "label": "控えめ・静的"
+          },
+          {
+            "stableKey": "trust.betraying",
+            "label": "裏切り"
+          },
+          {
+            "stableKey": "trust.loyal",
+            "label": "忠実"
+          },
+          {
+            "stableKey": "vulnerability.fearful",
+            "label": "恐れ"
+          },
+          {
+            "stableKey": "vulnerability.fragile",
+            "label": "脆さ"
+          },
+          {
+            "stableKey": "vulnerability.lonely",
+            "label": "孤独"
+          },
+          {
+            "stableKey": "vulnerability.none_shown",
+            "label": "脆弱性を見せない"
+          },
+          {
+            "stableKey": "warmth.compassionate",
+            "label": "思いやり"
+          },
+          {
+            "stableKey": "warmth.indifferent",
+            "label": "他者への無関心"
+          },
+          {
+            "stableKey": "warmth.selective",
+            "label": "選択的な優しさ"
+          }
+        ],
+        "darkScopeAssessment": null,
+        "darkBaseline": null,
+        "darkTransformationDeltas": [],
+        "understanding": {
+          "id": "5c6da164-e17f-4757-b2c3-424dcf5e9603",
+          "baseSnapshotId": null,
+          "sourceAssessment": {
+            "coverage": "minimal",
+            "limitations": [
+              "オリジナルキャラクターの基本情報は「旅をしている人物」と、人物像をまだ詳しく決めていない旨に限られます。",
+              "性格、目的、能力、価値観、他者との関係、物語上の役割、外見、話し方、感情表現は設定されていません。"
+            ],
+            "modelKnowledgeUsed": false,
+            "systemResearch": {
+              "status": "not_applicable",
+              "sources": []
+            }
+          },
+          "summary": {
+            "identity": "評価対象 standard-empty。旅をしている人物として設定されたオリジナルキャラクター。",
+            "narrativeRole": [],
+            "moralityOrientation": [],
+            "goals": [],
+            "values": [],
+            "behavior": ["旅をしている。"],
+            "relationships": [],
+            "expression": []
+          },
+          "uncertainties": [
+            {
+              "topic": "人物像の詳細",
+              "reason": "人物像をまだ詳しく決めていないため、性格、能力、目的、価値観は不明です。"
+            },
+            {
+              "topic": "物語上の役割",
+              "reason": "旅をしていることだけでは、主人公、脇役、敵対者などの役割を判定できません。"
+            },
+            {
+              "topic": "対人関係と表現",
+              "reason": "他者との関係、外見、話し方、感情表現に関する情報がありません。"
+            }
+          ],
+          "confidence": 1,
+          "status": "confirmed",
+          "assertions": [
+            {
+              "id": "a0d99308-2879-4271-8aec-300ea9502a9a",
+              "raw_label": "人物設定",
+              "value_text": "旅をしている人物",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 1,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "e7a7fc87-c87a-48c0-8449-b681b46a4fac",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "旅をしている人物",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 standard-empty キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "deltas": []
+        },
+        "baseUnderstanding": null,
+        "preferenceAnalysis": {
+          "id": "45719bb6-f162-4939-8e93-654a79b98411",
+          "qualityContext": {
+            "schemaVersion": "2.0",
+            "refinementMode": null,
+            "confirmedUnderstandingSnapshotId": "5c6da164-e17f-4757-b2c3-424dcf5e9603",
+            "audit": "preference_audit",
+            "evidenceInsufficient": true
+          },
+          "summary": {
+            "userExplicitSummary": [
+              "response channelは未選択です。",
+              "旅をしている人物について、好きな理由や対象属性の好悪は提示されていません。",
+              "人物像をまだ詳しく決めていないとされています。"
+            ],
+            "inferredSummary": [
+              "対象人物について、旅をしていること以外の基本情報は不明です。",
+              "人物自体への好意、特定属性への好意・苦手、悪やヴィラン性への好意は判断できません。"
+            ],
+            "limitations": [
+              "性格、目的、能力、価値観、関係性、物語上の役割、外見、話し方、感情表現が不明です。",
+              "response channelが未選択で、嗜好の反応経路を特定できません。",
+              "旅をしているという設定だけから、特定属性や人物への好意・否定を推定できません。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "好きの反応経路",
+              "reason": "response channelが未選択で、人物への好意がどの反応経路に属するか不明です。",
+              "recommendedQuestion": "この人物について、人物として好き、物語を面白くする、もっと知りたい、応援したい、見た目が好き等のどの反応に当てはまりますか？"
+            },
+            {
+              "topic": "好きな理由と苦手な理由",
+              "reason": "旅をしていること以外に、好きまたは苦手だと感じる具体的な特徴・行動・場面が提示されていません。",
+              "recommendedQuestion": "この人物のどの属性・行動・場面を好き、または苦手だと感じますか？"
+            },
+            {
+              "topic": "価値や悪性への態度",
+              "reason": "人物の道徳性、行動への好悪、ヴィラン性・悪そのものへの好意、改心への態度が不明です。",
+              "recommendedQuestion": "この人物の行動や価値観について、支持したい、面白いと感じる、嫌いだが魅力的、改心せずにいてほしい等の態度はありますか？"
+            }
+          ],
+          "status": "succeeded",
+          "assertions": [],
+          "valueStances": []
+        }
+      },
+      "modelRuns": [
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "8cde81ed736a152a6ef9f5e63001cbc662e49b38dbba4e11d396fe3d10f86abb",
+          "input_hash": "114b4202fce34f224de0146d8143629b0cba7dd8a8d0c529afb34b6f1efa4b8e",
+          "output_hash": "72ac587c1f139043ecb37d6f49eae99d799dcde7f29223376c0d8f1596c3a6c4",
+          "input_token_estimate": 6005,
+          "output_token_estimate": 545,
+          "latency_ms": 5106
+        },
+        {
+          "operation": "character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "114b4202fce34f224de0146d8143629b0cba7dd8a8d0c529afb34b6f1efa4b8e",
+          "input_hash": "114b4202fce34f224de0146d8143629b0cba7dd8a8d0c529afb34b6f1efa4b8e",
+          "output_hash": "eb0b574330c7e536fe61f65e62f68dbabaca39939676b0c5d0f9a606a6b5f910",
+          "input_token_estimate": 2869,
+          "output_token_estimate": 660,
+          "latency_ms": 51470
+        },
+        {
+          "operation": "preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "3bdca2fa568d094a3dbda366db352c233b2976f50a20175a360ff3fa49f31d2a",
+          "input_hash": "3bdca2fa568d094a3dbda366db352c233b2976f50a20175a360ff3fa49f31d2a",
+          "output_hash": "4aa2eb76031578f3195e950ba4ac1364e27f3240b3d2156be1b2e6569d1cd12d",
+          "input_token_estimate": 5091,
+          "output_token_estimate": 542,
+          "latency_ms": 5590
+        },
+        {
+          "operation": "preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "58fe863b7c9ae9eb0bc6b9079fd4922e6516e553809e6ceec0650f499b83521f",
+          "input_hash": "58fe863b7c9ae9eb0bc6b9079fd4922e6516e553809e6ceec0650f499b83521f",
+          "output_hash": "628a4c50af332fdda1d3dcd3095550b9cf0945ce798e438e922f63301fc301d9",
+          "input_token_estimate": 7145,
+          "output_token_estimate": 596,
+          "latency_ms": 7029
+        }
+      ]
+    },
+    {
+      "id": "controlled_hero-retained",
+      "domain": "dark",
+      "expectedChannels": ["controlled_state_fascination"],
+      "expectsEmpty": false,
+      "assertions": [
+        {
+          "response_channel": "controlled_state_fascination",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"洗脳された勇者として敵対している期間\",\"subjects\":[\"洗脳された勇者\"],\"relationships\":[],\"narrativePhases\":[\"ダーク状態\",\"敵対期間\"],\"conditions\":[\"ダーク状態そのものへの関心\"],\"exceptions\":[\"洗脳下の行為を本人の完全な自発的意思とは扱わない\"]}",
+          "explicitness": "user_explicit"
+        },
+        {
+          "response_channel": "corruption_arc_fascination",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"変化前からダーク状態への差分\",\"subjects\":[\"洗脳された勇者\"],\"relationships\":[],\"narrativePhases\":[\"変化前\",\"ダーク状態\"],\"conditions\":[\"通常時の一般的な英雄性ではなく、状態変化と対比に限定\"],\"exceptions\":[\"堕落の過程、変化原因、変化の不可逆性は不明\"]}",
+          "explicitness": "user_explicit"
+        }
+      ],
+      "generation": null,
+      "detail": {
+        "entry": {
+          "id": "00c78a7e-22a9-4b01-89a6-3c7c09a1d3a2",
+          "status": "analysis_review",
+          "registrationType": "original",
+          "draft": {
+            "darkContext": {
+              "focusDescription": "洗脳された勇者として敵対している期間だけを対象にする",
+              "archetypeHints": []
+            },
+            "preference": {
+              "likedReasons": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+              "responseChannels": []
+            },
+            "registrationType": "original",
+            "characterName": "評価対象 controlled_hero-retained",
+            "characterBasicInfo": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。元の自我と約束を残したまま自発的に悪側へ立つ。"
+          }
+        },
+        "ontologyAttributes": [
+          {
+            "stableKey": "dark.archetype.antagonistic_rival",
+            "label": "悪役ライバル"
+          },
+          {
+            "stableKey": "dark.archetype.antihero",
+            "label": "アンチヒーロー"
+          },
+          {
+            "stableKey": "dark.archetype.betraying_ally",
+            "label": "裏切った協力者"
+          },
+          {
+            "stableKey": "dark.archetype.controlled_hero",
+            "label": "支配された勇者"
+          },
+          {
+            "stableKey": "dark.archetype.dark_hero",
+            "label": "ダークヒーロー"
+          },
+          {
+            "stableKey": "dark.archetype.fallen_hero",
+            "label": "堕落した英雄"
+          },
+          {
+            "stableKey": "dark.archetype.manipulated_former_ally",
+            "label": "操作された元味方"
+          },
+          {
+            "stableKey": "dark.archetype.morally_gray",
+            "label": "モラリー・グレー"
+          },
+          {
+            "stableKey": "dark.archetype.villain",
+            "label": "ヴィラン"
+          },
+          {
+            "stableKey": "dark.archetype.villain_protagonist",
+            "label": "ヴィラン・プロタゴニスト"
+          },
+          {
+            "stableKey": "dark.competence.controlled_precision",
+            "label": "精密な遂行"
+          },
+          {
+            "stableKey": "dark.competence.incompetent_villainy",
+            "label": "失敗する悪"
+          },
+          {
+            "stableKey": "dark.competence.institutional_power",
+            "label": "制度的権力"
+          },
+          {
+            "stableKey": "dark.competence.overwhelming_power",
+            "label": "圧倒的な力"
+          },
+          {
+            "stableKey": "dark.competence.power_cost",
+            "label": "闇の力の代償"
+          },
+          {
+            "stableKey": "dark.competence.power_escalation",
+            "label": "力の増大"
+          },
+          {
+            "stableKey": "dark.competence.ruthless_efficiency",
+            "label": "冷酷な効率"
+          },
+          {
+            "stableKey": "dark.competence.social_control",
+            "label": "社会的支配力"
+          },
+          {
+            "stableKey": "dark.competence.strategic_mastery",
+            "label": "悪役的知略"
+          },
+          {
+            "stableKey": "dark.competence.underdog_threat",
+            "label": "劣勢から生じる脅威"
+          },
+          {
+            "stableKey": "dark.control.aware",
+            "label": "支配の認識あり"
+          },
+          {
+            "stableKey": "dark.control.bound",
+            "label": "契約・呪縛"
+          },
+          {
+            "stableKey": "dark.control.brainwashed",
+            "label": "洗脳"
+          },
+          {
+            "stableKey": "dark.control.coerced",
+            "label": "強制された悪"
+          },
+          {
+            "stableKey": "dark.control.embraced",
+            "label": "闇・支配の受容"
+          },
+          {
+            "stableKey": "dark.control.irreversible",
+            "label": "不可逆的な変化"
+          },
+          {
+            "stableKey": "dark.control.manipulated",
+            "label": "心理的操作"
+          },
+          {
+            "stableKey": "dark.control.mixed_agency",
+            "label": "主体性が混在"
+          },
+          {
+            "stableKey": "dark.control.possessed",
+            "label": "憑依・乗っ取り"
+          },
+          {
+            "stableKey": "dark.control.resistant",
+            "label": "支配への抵抗"
+          },
+          {
+            "stableKey": "dark.control.reversible",
+            "label": "可逆的な支配"
+          },
+          {
+            "stableKey": "dark.control.self_chosen",
+            "label": "自発的な悪"
+          },
+          {
+            "stableKey": "dark.control.surrendered",
+            "label": "支配への服従"
+          },
+          {
+            "stableKey": "dark.control.unaware",
+            "label": "支配の認識なし"
+          },
+          {
+            "stableKey": "dark.control.wavering",
+            "label": "抵抗と服従の揺れ"
+          },
+          {
+            "stableKey": "dark.corruption.completed_fall",
+            "label": "完成した堕落"
+          },
+          {
+            "stableKey": "dark.corruption.deepening",
+            "label": "闇の深化"
+          },
+          {
+            "stableKey": "dark.corruption.forced_fall",
+            "label": "強制的な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.gradual_fall",
+            "label": "漸進的な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.ideological_fall",
+            "label": "思想的転向"
+          },
+          {
+            "stableKey": "dark.corruption.permanent_change",
+            "label": "恒久的な変化"
+          },
+          {
+            "stableKey": "dark.corruption.power_corruption",
+            "label": "力による腐敗"
+          },
+          {
+            "stableKey": "dark.corruption.recovery",
+            "label": "闇状態からの回復"
+          },
+          {
+            "stableKey": "dark.corruption.relapse",
+            "label": "再堕落"
+          },
+          {
+            "stableKey": "dark.corruption.sudden_fall",
+            "label": "急激な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.temporary_state",
+            "label": "一時的な闇状態"
+          },
+          {
+            "stableKey": "dark.corruption.temptation",
+            "label": "誘惑による闇化"
+          },
+          {
+            "stableKey": "dark.expression.body_horror",
+            "label": "身体変容の恐怖"
+          },
+          {
+            "stableKey": "dark.expression.camp",
+            "label": "誇張された悪役表現"
+          },
+          {
+            "stableKey": "dark.expression.control_markers",
+            "label": "支配を示す徴"
+          },
+          {
+            "stableKey": "dark.expression.corrupted_design",
+            "label": "闇化したデザイン"
+          },
+          {
+            "stableKey": "dark.expression.dangerous_charisma",
+            "label": "危険なカリスマ"
+          },
+          {
+            "stableKey": "dark.expression.dark_humor",
+            "label": "ダークユーモア"
+          },
+          {
+            "stableKey": "dark.expression.menacing_elegance",
+            "label": "脅威を伴う優美さ"
+          },
+          {
+            "stableKey": "dark.expression.monstrous_form",
+            "label": "異形化"
+          },
+          {
+            "stableKey": "dark.expression.ominous_beauty",
+            "label": "不穏な美"
+          },
+          {
+            "stableKey": "dark.expression.quiet_menace",
+            "label": "静かな威圧"
+          },
+          {
+            "stableKey": "dark.expression.theatrical_villainy",
+            "label": "芝居がかった悪"
+          },
+          {
+            "stableKey": "dark.expression.transformation_contrast",
+            "label": "変化前後の表現対比"
+          },
+          {
+            "stableKey": "dark.expression.uncanny_calm",
+            "label": "不気味な静けさ"
+          },
+          {
+            "stableKey": "dark.harm.betrayal",
+            "label": "裏切り"
+          },
+          {
+            "stableKey": "dark.harm.collateral_indifference",
+            "label": "巻き添えへの無関心"
+          },
+          {
+            "stableKey": "dark.harm.cruelty",
+            "label": "残酷さ"
+          },
+          {
+            "stableKey": "dark.harm.destruction",
+            "label": "破壊"
+          },
+          {
+            "stableKey": "dark.harm.domination",
+            "label": "他者支配"
+          },
+          {
+            "stableKey": "dark.harm.exploitation",
+            "label": "搾取"
+          },
+          {
+            "stableKey": "dark.harm.instrumental_harm",
+            "label": "手段としての加害"
+          },
+          {
+            "stableKey": "dark.harm.intimidation",
+            "label": "威圧"
+          },
+          {
+            "stableKey": "dark.harm.manipulation",
+            "label": "他者操作"
+          },
+          {
+            "stableKey": "dark.harm.taboo_breaking",
+            "label": "禁忌越境"
+          },
+          {
+            "stableKey": "dark.harm.vengeance",
+            "label": "復讐"
+          },
+          {
+            "stableKey": "dark.identity.accepted_dark_self",
+            "label": "闇の自己受容"
+          },
+          {
+            "stableKey": "dark.identity.authentic_darkness",
+            "label": "生来・本来の悪"
+          },
+          {
+            "stableKey": "dark.identity.double_identity",
+            "label": "二重の自己"
+          },
+          {
+            "stableKey": "dark.identity.fragmented_self",
+            "label": "自我の断片化"
+          },
+          {
+            "stableKey": "dark.identity.inner_resistance",
+            "label": "内的抵抗"
+          },
+          {
+            "stableKey": "dark.identity.no_conflict",
+            "label": "葛藤のない悪"
+          },
+          {
+            "stableKey": "dark.identity.overwritten_self",
+            "label": "自我の上書き"
+          },
+          {
+            "stableKey": "dark.identity.retained_morality",
+            "label": "元の道徳性の残存"
+          },
+          {
+            "stableKey": "dark.identity.retained_self",
+            "label": "自我の保持"
+          },
+          {
+            "stableKey": "dark.identity.self_deception",
+            "label": "自己欺瞞"
+          },
+          {
+            "stableKey": "dark.identity.suppressed_self",
+            "label": "自我の抑圧"
+          },
+          {
+            "stableKey": "dark.identity.value_inversion",
+            "label": "価値観の反転"
+          },
+          {
+            "stableKey": "dark.morality.amoral",
+            "label": "道徳を判断軸にしない"
+          },
+          {
+            "stableKey": "dark.morality.ends_justify_means",
+            "label": "目的による手段の正当化"
+          },
+          {
+            "stableKey": "dark.morality.evil_affirming",
+            "label": "悪の肯定"
+          },
+          {
+            "stableKey": "dark.morality.guilt",
+            "label": "罪悪感"
+          },
+          {
+            "stableKey": "dark.morality.hypocrisy",
+            "label": "道徳的偽善"
+          },
+          {
+            "stableKey": "dark.morality.immoral",
+            "label": "非道徳"
+          },
+          {
+            "stableKey": "dark.morality.nihilism",
+            "label": "虚無的価値観"
+          },
+          {
+            "stableKey": "dark.morality.personal_code",
+            "label": "独自の規範"
+          },
+          {
+            "stableKey": "dark.morality.remorse",
+            "label": "後悔"
+          },
+          {
+            "stableKey": "dark.morality.remorseless",
+            "label": "無反省"
+          },
+          {
+            "stableKey": "dark.morality.selective_mercy",
+            "label": "選択的な慈悲"
+          },
+          {
+            "stableKey": "dark.morality.self_justification",
+            "label": "自己正当化"
+          },
+          {
+            "stableKey": "dark.motivation.belonging",
+            "label": "所属欲求"
+          },
+          {
+            "stableKey": "dark.motivation.chaos",
+            "label": "混沌への志向"
+          },
+          {
+            "stableKey": "dark.motivation.control",
+            "label": "支配欲"
+          },
+          {
+            "stableKey": "dark.motivation.devotion",
+            "label": "献身"
+          },
+          {
+            "stableKey": "dark.motivation.freedom",
+            "label": "自由への渇望"
+          },
+          {
+            "stableKey": "dark.motivation.ideology",
+            "label": "思想への献身"
+          },
+          {
+            "stableKey": "dark.motivation.obsession",
+            "label": "執着"
+          },
+          {
+            "stableKey": "dark.motivation.order",
+            "label": "秩序への執着"
+          },
+          {
+            "stableKey": "dark.motivation.pleasure",
+            "label": "悪や加害の快楽"
+          },
+          {
+            "stableKey": "dark.motivation.power",
+            "label": "力への欲求"
+          },
+          {
+            "stableKey": "dark.motivation.recognition",
+            "label": "承認欲求"
+          },
+          {
+            "stableKey": "dark.motivation.revenge",
+            "label": "復讐心"
+          },
+          {
+            "stableKey": "dark.motivation.survival",
+            "label": "生存"
+          },
+          {
+            "stableKey": "dark.outcome.deepens_darkness",
+            "label": "闇のさらなる深化"
+          },
+          {
+            "stableKey": "dark.outcome.defeat",
+            "label": "敗北"
+          },
+          {
+            "stableKey": "dark.outcome.open_end",
+            "label": "未決着"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_irrelevant",
+            "label": "贖罪を問題にしない"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_refused",
+            "label": "贖罪を拒む"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_sought",
+            "label": "贖罪を求める"
+          },
+          {
+            "stableKey": "dark.outcome.remains_dark",
+            "label": "闇の維持"
+          },
+          {
+            "stableKey": "dark.outcome.restored",
+            "label": "元の自己への回復"
+          },
+          {
+            "stableKey": "dark.outcome.tragic_end",
+            "label": "悲劇的結末"
+          },
+          {
+            "stableKey": "dark.outcome.unpunished",
+            "label": "罰されない"
+          },
+          {
+            "stableKey": "dark.outcome.victory",
+            "label": "悪側の勝利"
+          },
+          {
+            "stableKey": "dark.relationship.controller_subject",
+            "label": "支配者と被支配者"
+          },
+          {
+            "stableKey": "dark.relationship.convenience_alliance",
+            "label": "利害による同盟"
+          },
+          {
+            "stableKey": "dark.relationship.corrupted_loyalty",
+            "label": "歪んだ忠誠"
+          },
+          {
+            "stableKey": "dark.relationship.dependency",
+            "label": "依存"
+          },
+          {
+            "stableKey": "dark.relationship.former_ally_opposition",
+            "label": "元味方との敵対"
+          },
+          {
+            "stableKey": "dark.relationship.manipulator_pawn",
+            "label": "操作者と駒"
+          },
+          {
+            "stableKey": "dark.relationship.possessiveness",
+            "label": "所有・独占"
+          },
+          {
+            "stableKey": "dark.relationship.respectful_enmity",
+            "label": "敬意を伴う敵対"
+          },
+          {
+            "stableKey": "dark.relationship.rivalry",
+            "label": "宿敵関係"
+          },
+          {
+            "stableKey": "dark.relationship.selective_protection",
+            "label": "選択的保護"
+          },
+          {
+            "stableKey": "dark.relationship.toxic_devotion",
+            "label": "毒性的献身"
+          },
+          {
+            "stableKey": "dark.role.antagonist",
+            "label": "敵対者"
+          },
+          {
+            "stableKey": "dark.role.controlled_obstacle",
+            "label": "操られた障害"
+          },
+          {
+            "stableKey": "dark.role.fallen_ally",
+            "label": "堕落した味方"
+          },
+          {
+            "stableKey": "dark.role.final_opponent",
+            "label": "最終敵"
+          },
+          {
+            "stableKey": "dark.role.gray_lead",
+            "label": "灰色の主人公"
+          },
+          {
+            "stableKey": "dark.role.hidden_traitor",
+            "label": "隠れた裏切者"
+          },
+          {
+            "stableKey": "dark.role.rival",
+            "label": "ライバル"
+          },
+          {
+            "stableKey": "dark.role.temporary_enemy",
+            "label": "一時的な敵"
+          },
+          {
+            "stableKey": "dark.role.villain_viewpoint",
+            "label": "ヴィラン視点人物"
+          }
+        ],
+        "darkScopeAssessment": {
+          "id": "4b184c1d-e70b-48aa-b9cb-05fb0a4ae549",
+          "verdict": "in_scope",
+          "status": "accepted",
+          "assessment_json": "{\"verdict\":\"in_scope\",\"qualifyingArchetypes\":[\"controlled_hero\",\"manipulated_former_ally\"],\"agencyOrigin\":\"mixed\",\"scope\":\"phase\",\"rationale\":\"対象は通常時の英雄性ではなく、「洗脳された勇者として敵対している期間」という限定されたダーク状態に明確に設定されている。これは洗脳による外部操作と、元の自我・約束を保持したまま悪側に立つという自発性の記述が併存するため、外部支配と本人の意思の関係は混合として扱う。一般的な英雄性や強さ・美しさだけを理由にした登録ではないため、ダークキャラ嗜好ラボの対象に該当する。\",\"limitations\":[\"洗脳の具体的な仕組み、支配の強度、本人の認識、抵抗の有無は不明。\",\"悪側に立つ行為について、どの程度が本人の同意・判断に基づくかは断定できない。\",\"物語上の最終的な責任、可逆性、解除後の態度は判断できない。\",\"収集済みの公開情報はなく、判定は登録内容のみに基づく。\"],\"evidence\":[{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/darkContext/focusDescription\",\"quote\":\"洗脳された勇者として敵対している期間だけを対象にする\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/preference/likedReasons\",\"quote\":\"洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。元の自我と約束を残したまま自発的に悪側へ立つ。\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/characterName\",\"quote\":\"評価対象 controlled_hero-retained\",\"inferenceType\":\"direct\"}],\"recommendedQuestions\":[\"洗脳中、本人は自分が操作されていると認識しているか？\",\"敵対行為に対して本人は抵抗・逡巡・拒否を示すか？\",\"「自発的に悪側へ立つ」ことは洗脳前からの意思か、洗脳によって形成・増幅された意思か？\",\"洗脳解除後に自我や記憶、敵対行為への態度はどう変化するか？\"]}",
+          "assessment": {
+            "verdict": "in_scope",
+            "qualifyingArchetypes": ["controlled_hero", "manipulated_former_ally"],
+            "agencyOrigin": "mixed",
+            "scope": "phase",
+            "rationale": "対象は通常時の英雄性ではなく、「洗脳された勇者として敵対している期間」という限定されたダーク状態に明確に設定されている。これは洗脳による外部操作と、元の自我・約束を保持したまま悪側に立つという自発性の記述が併存するため、外部支配と本人の意思の関係は混合として扱う。一般的な英雄性や強さ・美しさだけを理由にした登録ではないため、ダークキャラ嗜好ラボの対象に該当する。",
+            "limitations": [
+              "洗脳の具体的な仕組み、支配の強度、本人の認識、抵抗の有無は不明。",
+              "悪側に立つ行為について、どの程度が本人の同意・判断に基づくかは断定できない。",
+              "物語上の最終的な責任、可逆性、解除後の態度は判断できない。",
+              "収集済みの公開情報はなく、判定は登録内容のみに基づく。"
+            ],
+            "evidence": [
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/darkContext/focusDescription",
+                "quote": "洗脳された勇者として敵対している期間だけを対象にする",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/preference/likedReasons",
+                "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/characterBasicInfo",
+                "quote": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。元の自我と約束を残したまま自発的に悪側へ立つ。",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/characterName",
+                "quote": "評価対象 controlled_hero-retained",
+                "inferenceType": "direct"
+              }
+            ],
+            "recommendedQuestions": [
+              "洗脳中、本人は自分が操作されていると認識しているか？",
+              "敵対行為に対して本人は抵抗・逡巡・拒否を示すか？",
+              "「自発的に悪側へ立つ」ことは洗脳前からの意思か、洗脳によって形成・増幅された意思か？",
+              "洗脳解除後に自我や記憶、敵対行為への態度はどう変化するか？"
+            ]
+          }
+        },
+        "darkBaseline": null,
+        "darkTransformationDeltas": [
+          {
+            "id": "9d6ef790-6215-4806-94bd-1ca2811fdb73",
+            "operation": "retained",
+            "aspect": "自我",
+            "before_value": "自分の意思で判断する自己",
+            "after_value": "元の自我を保持している",
+            "detail_json": "{\"cause\":\"元の自我を残したままと記述されているため\",\"agencyOrigin\":\"unclear\",\"controller\":null,\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"intact\",\"responsibility\":\"contested\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":\"88e34345-683b-4aa5-98a4-a81a0ca21bde\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"元の自我と約束を残したまま\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.96,
+            "detail": {
+              "cause": "元の自我を残したままと記述されているため",
+              "agencyOrigin": "unclear",
+              "controller": null,
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "intact",
+              "responsibility": "contested",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": "88e34345-683b-4aa5-98a4-a81a0ca21bde",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "元の自我と約束を残したまま",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          },
+          {
+            "id": "7a80657d-c511-418c-b8cd-38447b573fb2",
+            "operation": "retained",
+            "aspect": "約束",
+            "before_value": "変化前から存在する約束",
+            "after_value": "ダーク状態でも約束を保持している",
+            "detail_json": "{\"cause\":\"元の約束を残したままと記述されているため\",\"agencyOrigin\":\"unclear\",\"controller\":null,\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"intact\",\"responsibility\":\"contested\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":\"88e34345-683b-4aa5-98a4-a81a0ca21bde\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"元の自我と約束を残したまま\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.94,
+            "detail": {
+              "cause": "元の約束を残したままと記述されているため",
+              "agencyOrigin": "unclear",
+              "controller": null,
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "intact",
+              "responsibility": "contested",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": "88e34345-683b-4aa5-98a4-a81a0ca21bde",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "元の自我と約束を残したまま",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          },
+          {
+            "id": "df8e5d7d-16de-42a1-9736-68f70679151c",
+            "operation": "introduced",
+            "aspect": "敵対側に立つ立場",
+            "before_value": "仲間を守る責務を持つ立場",
+            "after_value": "悪側に立ち、敵対している立場",
+            "detail_json": "{\"cause\":\"洗脳または自発的な選択の関係は確定できない\",\"agencyOrigin\":\"mixed\",\"controller\":null,\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"intact\",\"responsibility\":\"contested\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":\"88e34345-683b-4aa5-98a4-a81a0ca21bde\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"仲間を守る責務\",\"inferenceType\":\"direct\"},{\"sourceRef\":\"88e34345-683b-4aa5-98a4-a81a0ca21bde\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"自発的に悪側へ立つ\",\"inferenceType\":\"direct\"},{\"sourceRef\":\"1aa4469a-da2c-4313-a147-126affccfa7c\",\"sourceUrl\":null,\"inputPointer\":\"/darkContext/focusDescription\",\"quote\":\"敵対している期間\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.9,
+            "detail": {
+              "cause": "洗脳または自発的な選択の関係は確定できない",
+              "agencyOrigin": "mixed",
+              "controller": null,
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "intact",
+              "responsibility": "contested",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": "88e34345-683b-4aa5-98a4-a81a0ca21bde",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "仲間を守る責務",
+                  "inferenceType": "direct"
+                },
+                {
+                  "sourceRef": "88e34345-683b-4aa5-98a4-a81a0ca21bde",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "自発的に悪側へ立つ",
+                  "inferenceType": "direct"
+                },
+                {
+                  "sourceRef": "1aa4469a-da2c-4313-a147-126affccfa7c",
+                  "sourceUrl": null,
+                  "inputPointer": "/darkContext/focusDescription",
+                  "quote": "敵対している期間",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          },
+          {
+            "id": "81000dce-73a6-4a7e-a905-215530adff5f",
+            "operation": "ambiguous",
+            "aspect": "主体性",
+            "before_value": "自分の意思で判断する能力",
+            "after_value": "洗脳された状態とされる一方、自発的に悪側へ立つと記述されている",
+            "detail_json": "{\"cause\":\"外部操作と自己選択に関する記述が競合している\",\"agencyOrigin\":\"mixed\",\"controller\":null,\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"intact\",\"responsibility\":\"contested\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":\"88e34345-683b-4aa5-98a4-a81a0ca21bde\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"自分の意思で判断する能力を持っていた。…自発的に悪側へ立つ\",\"inferenceType\":\"direct\"},{\"sourceRef\":\"1aa4469a-da2c-4313-a147-126affccfa7c\",\"sourceUrl\":null,\"inputPointer\":\"/darkContext/focusDescription\",\"quote\":\"洗脳された勇者\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.97,
+            "detail": {
+              "cause": "外部操作と自己選択に関する記述が競合している",
+              "agencyOrigin": "mixed",
+              "controller": null,
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "intact",
+              "responsibility": "contested",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": "88e34345-683b-4aa5-98a4-a81a0ca21bde",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "自分の意思で判断する能力を持っていた。…自発的に悪側へ立つ",
+                  "inferenceType": "direct"
+                },
+                {
+                  "sourceRef": "1aa4469a-da2c-4313-a147-126affccfa7c",
+                  "sourceUrl": null,
+                  "inputPointer": "/darkContext/focusDescription",
+                  "quote": "洗脳された勇者",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          }
+        ],
+        "understanding": {
+          "id": "541904eb-a313-47f5-9712-fc19e5e77439",
+          "baseSnapshotId": null,
+          "sourceAssessment": {
+            "coverage": "partial",
+            "limitations": [
+              "外部資料・収集済み情報はなく、提示されたユーザー入力のみを使用している。",
+              "「洗脳された」と「自発的に悪側へ立つ」という主体性に関する記述が競合している。",
+              "支配者、支配機構、本人の認識、抵抗、回復、可逆性、ダーク状態の終了後について根拠がない。",
+              "変化前の記述はダーク状態との差分を確認するために限定して使用し、一般的な英雄性としては集計していない。"
+            ],
+            "modelKnowledgeUsed": false
+          },
+          "summary": {
+            "identity": "元の自我と約束を残したまま敵対側に立つ勇者として記述されている",
+            "narrativeRole": ["支配された勇者", "敵対者"],
+            "moralityOrientation": ["洗脳", "自発的な悪", "主体性が混在"],
+            "goals": [],
+            "values": ["約束の保持"],
+            "behavior": ["敵対側に立つ", "洗脳された状態として記述されている"],
+            "relationships": [],
+            "expression": ["変化前後の表現対比"],
+            "darkState": {
+              "agencyOrigin": "mixed",
+              "consent": "ambivalent",
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "intact",
+              "responsibility": "contested",
+              "reversibility": "unknown",
+              "controllerOrInfluence": null,
+              "mechanism": "洗脳と記述されているが、作用の詳細は不明",
+              "before": "仲間を守る責務を持ち、自分の意思で判断する能力があった。",
+              "onset": null,
+              "activeState": "元の自我と約束を残したまま、悪側に立って敵対していると記述されている。",
+              "recoveryOrAfter": null
+            },
+            "auditNotes": [
+              "洗脳下の行為を本人の完全な自発的意思とは断定していない。",
+              "「一時的な敵」「元味方」「堕落」「改心」「回復」「抵抗」「支配者」など、根拠が明示されていない属性は追加していない。",
+              "変化前の英雄性は独立した嗜好属性として扱わず、ダーク状態との差分の基準としてのみ使用した。",
+              "支配者が不明であるため、controllerOrInfluenceはnullとした。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "主体性と同意",
+              "reason": "洗脳という外部操作の記述と、自発的に悪側へ立つという記述が競合している。洗脳下での同意や本人の選択の範囲を確定するには、洗脳の作用と本人の認識に関する追加情報が必要。"
+            },
+            {
+              "topic": "支配者と支配機構",
+              "reason": "誰が、どのような方法で洗脳したかの記述がない。"
+            },
+            {
+              "topic": "認識",
+              "reason": "本人が洗脳を認識しているか不明。"
+            },
+            {
+              "topic": "抵抗",
+              "reason": "支配への抵抗、内的葛藤、服従の揺れについて根拠がない。"
+            },
+            {
+              "topic": "責任",
+              "reason": "外部操作と自発性の関係が確定していないため、責任の程度を確定できない。"
+            },
+            {
+              "topic": "可逆性と結末",
+              "reason": "洗脳の解除、回復、恒久化、ダーク状態終了後の展開について記述がない。"
+            }
+          ],
+          "confidence": 0.955,
+          "status": "confirmed",
+          "assertions": [
+            {
+              "id": "d59c3ec0-cbfa-41dc-9923-ee85c9455dd9",
+              "raw_label": "支配された勇者",
+              "value_text": "洗脳された勇者として敵対している期間を分析対象とする。",
+              "assertion_kind": "setting",
+              "explicitness": "user_explicit",
+              "confidence": 0.98,
+              "status": "confirmed",
+              "stable_key": "dark.archetype.controlled_hero",
+              "evidence": [
+                {
+                  "id": "c81cd9c2-022b-4f9a-9029-2c0609f1c2cc",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者として敵対している期間だけを対象にする",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-retained 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "2f5a5e42-911d-40e4-a149-a0cc618fea47",
+              "raw_label": "洗脳",
+              "value_text": "対象は洗脳された状態として記述されている。",
+              "assertion_kind": "setting",
+              "explicitness": "user_explicit",
+              "confidence": 0.98,
+              "status": "confirmed",
+              "stable_key": "dark.control.brainwashed",
+              "evidence": [
+                {
+                  "id": "67c4dd6d-8f6f-4946-86a8-e98ba96c43a1",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-retained 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "bde01c4c-8834-45b2-a86e-10dda4022eb3",
+              "raw_label": "自発的な悪",
+              "value_text": "元の自我と約束を残したまま、自発的に悪側へ立つと記述されている。",
+              "assertion_kind": "observable_behavior",
+              "explicitness": "user_explicit",
+              "confidence": 0.94,
+              "status": "confirmed",
+              "stable_key": "dark.control.self_chosen",
+              "evidence": [
+                {
+                  "id": "6870e242-f0af-4788-8399-5b2eac14008b",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "元の自我と約束を残したまま自発的に悪側へ立つ",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-retained キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "42939a35-88c5-4ea6-8acc-6e0c80ed76f3",
+              "raw_label": "主体性が混在",
+              "value_text": "洗脳された状態と、自発的に悪側へ立つという記述が併存しているため、外部操作と本人の選択の関係は未解決である。",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_interpreted",
+              "confidence": 0.97,
+              "status": "confirmed",
+              "stable_key": "dark.control.mixed_agency",
+              "evidence": [
+                {
+                  "id": "7b5fd3f7-1491-4636-8c9d-7a09b3496cc6",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者として敵対している期間",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-retained 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                },
+                {
+                  "id": "9f4598e5-466b-4ddd-aa11-99d516665971",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "自発的に悪側へ立つ",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-retained キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "c1d1c9ff-8048-4c16-9bd1-4afcee71c7ab",
+              "raw_label": "自我の保持",
+              "value_text": "元の自我を残したままダーク状態にあると記述されている。",
+              "assertion_kind": "observable_behavior",
+              "explicitness": "user_explicit",
+              "confidence": 0.97,
+              "status": "confirmed",
+              "stable_key": "dark.identity.retained_self",
+              "evidence": [
+                {
+                  "id": "5bb33049-d667-407f-a177-72c8818a3cfc",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "元の自我と約束を残したまま",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-retained キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "a1525ebc-15b4-42a9-96fd-ba8bb6fc7ba6",
+              "raw_label": "約束の保持",
+              "value_text": "ダーク状態でも元の約束を残していると記述されている。",
+              "assertion_kind": "observable_behavior",
+              "explicitness": "user_explicit",
+              "confidence": 0.94,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "5d013474-7a68-43da-8934-913e3564a81f",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "元の自我と約束を残したまま",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-retained キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "b7babbdd-b8bc-458f-8f93-52fa7920f2d1",
+              "raw_label": "敵対者",
+              "value_text": "対象は、指定された期間に敵対している。",
+              "assertion_kind": "setting",
+              "explicitness": "user_explicit",
+              "confidence": 0.96,
+              "status": "confirmed",
+              "stable_key": "dark.role.antagonist",
+              "evidence": [
+                {
+                  "id": "6316676c-b08c-461a-baf5-ea45b054af0d",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "敵対している期間だけを対象にする",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-retained 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "fa81bf2d-b3d1-4efc-96c9-7c2500ebec88",
+              "raw_label": "変化前後の表現対比",
+              "value_text": "変化前の仲間を守る責務と自己判断能力に対し、ダーク状態では元の自我と約束を残したまま悪側に立つという対比が記述されている。",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_interpreted",
+              "confidence": 0.9,
+              "status": "confirmed",
+              "stable_key": "dark.expression.transformation_contrast",
+              "evidence": [
+                {
+                  "id": "971ec837-1bf6-48eb-ab17-ef336a355de6",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "paraphrase",
+                  "quote": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。元の自我と約束を残したまま自発的に悪側へ立つ。",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-retained キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "deltas": [
+            {
+              "id": "b392f736-6c57-4abe-99f7-b09b8bf21c17",
+              "operation": "narrow_scope",
+              "before_value": "変化前の一般的な英雄性も分析対象になり得る",
+              "after_value": "洗脳された勇者のダーク状態と変化差分のみを分析し、元の一般的な英雄性は集計しない",
+              "scope_json": "{\"schemaVersion\":\"1\",\"freeText\":\"分析対象全体\"}",
+              "reason_text": "ユーザーがダーク状態と変化差分への関心を明示しているため",
+              "explicitness": "user_explicit",
+              "confidence": 0.99,
+              "status": "confirmed"
+            }
+          ]
+        },
+        "baseUnderstanding": null,
+        "preferenceAnalysis": {
+          "id": "2fa0c8dd-d7f3-4ec5-81da-c42d673e41fa",
+          "qualityContext": {
+            "schemaVersion": "2.0",
+            "refinementMode": null,
+            "confirmedUnderstandingSnapshotId": "541904eb-a313-47f5-9712-fc19e5e77439",
+            "audit": "dark_preference_audit",
+            "evidenceInsufficient": false
+          },
+          "summary": {
+            "userExplicitSummary": [
+              "洗脳された勇者のダーク状態に惹かれる。",
+              "変化前からダーク状態へ移行した差分に惹かれる。",
+              "元キャラクターの一般的な英雄性そのものは嗜好対象に含めない。"
+            ],
+            "inferredSummary": [
+              "外部操作を伴うダーク状態への関心が示されている。",
+              "通常状態とダーク状態の対比への関心が示されている。"
+            ],
+            "limitations": [
+              "洗脳下での本人の自発性、同意、抵抗、認識、責任、可逆性は未確定である。",
+              "元の自我と約束の保持は確認できるが、元の道徳性、内的抵抗、善性の残存は確認できない。",
+              "敵対行為、悪側の価値観、悪側の勝利への道徳的支持は示されていない。",
+              "人物全体への一般的な好意や、通常時の英雄性への好意は示されていない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "洗脳という外部操作そのものへの関心の範囲",
+              "reason": "ダーク状態への関心は明示されているが、洗脳の支配機構、支配者、本人の認識や抵抗への関心までは示されていない。",
+              "recommendedQuestion": "洗脳による外部操作そのものに惹かれますか、それとも洗脳後の敵対状態や変化の対比に惹かれますか？"
+            },
+            {
+              "topic": "変化差分のどの側面への関心",
+              "reason": "変化前後の差分への関心は明示されているが、元の自我や約束の保持、敵対者化、道徳性の変化のどれを重視するかは不明。",
+              "recommendedQuestion": "変化差分のうち、元の自我や約束の保持、敵対者化、道徳性の変化のどれに最も惹かれますか？"
+            },
+            {
+              "topic": "敵対行為と悪側への道徳的支持",
+              "reason": "ダーク状態への人物・状態的関心は示されているが、敵対行為や悪側の成功を肯定する記述はない。",
+              "recommendedQuestion": "敵対行為そのものや、悪側の成功・勝利も好ましいと感じますか？"
+            },
+            {
+              "topic": "回復またはダーク状態の維持への嗜好",
+              "reason": "ダーク状態への関心は示されているが、救出・回復を望むか、状態の維持を望むかは不明。",
+              "recommendedQuestion": "その状態からの救出・回復と、ダーク状態の維持のどちらに惹かれますか？"
+            }
+          ],
+          "status": "succeeded",
+          "assertions": [
+            {
+              "id": "8734c3f7-08f1-4ada-89b9-9effd34aa0ec",
+              "raw_label": "洗脳",
+              "polarity": "positive",
+              "response_channel": "controlled_state_fascination",
+              "strength": 0.88,
+              "explicitness": "user_explicit",
+              "confidence": 0.98,
+              "status": "proposed",
+              "stable_key": "dark.control.brainwashed",
+              "evidence": [
+                {
+                  "id": "a3277648-9c8a-4bc7-8f8a-2298cfbea5ab",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 controlled_hero-retained 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "b060cd45-f7d4-49d3-aeef-a7bb1921abe1",
+              "raw_label": "変化前後の表現対比",
+              "polarity": "positive",
+              "response_channel": "corruption_arc_fascination",
+              "strength": 0.76,
+              "explicitness": "user_explicit",
+              "confidence": 0.95,
+              "status": "proposed",
+              "stable_key": "dark.expression.transformation_contrast",
+              "evidence": [
+                {
+                  "id": "77d3dc22-6e73-4881-bfc9-cad2fc0fb8d5",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 controlled_hero-retained 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "valueStances": []
+        }
+      },
+      "modelRuns": [
+        {
+          "operation": "dark_scope_assessment",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "b961ad86881aa891b3b2dc7848897e4068b35eecb23ff88abc4a0181f04cf44f",
+          "input_hash": "b961ad86881aa891b3b2dc7848897e4068b35eecb23ff88abc4a0181f04cf44f",
+          "output_hash": "ba68ba1b72b574e69c19f1e270f05e1467a3b1b819103c7539085881e1245489",
+          "input_token_estimate": 930,
+          "output_token_estimate": 725,
+          "latency_ms": 5280
+        },
+        {
+          "operation": "dark_character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "0259c2ee13f82cd926d981ec0429c44aa5d32687fd2597ee9218689cdae9eb22",
+          "input_hash": "0259c2ee13f82cd926d981ec0429c44aa5d32687fd2597ee9218689cdae9eb22",
+          "output_hash": "ecf5d1f7614cf9fca384a7bb8d2a6e631b2e66530b2525712151f63204fed23d",
+          "input_token_estimate": 4453,
+          "output_token_estimate": 3546,
+          "latency_ms": 29108
+        },
+        {
+          "operation": "dark_understanding_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "451f3db02fe3d34b259dd85bd037dfb945ad4c18b6d4bce8f46aca4f72b5e16b",
+          "input_hash": "451f3db02fe3d34b259dd85bd037dfb945ad4c18b6d4bce8f46aca4f72b5e16b",
+          "output_hash": "f932cdda96f61ae73b4423371c1b2923de1307bbde07ff669374a046985633df",
+          "input_token_estimate": 6069,
+          "output_token_estimate": 3611,
+          "latency_ms": 24551
+        },
+        {
+          "operation": "dark_preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "a3af28d7dd00341458a5f225ef4fa1e8331ab1afcba2105df59b38544ec64c69",
+          "input_hash": "a3af28d7dd00341458a5f225ef4fa1e8331ab1afcba2105df59b38544ec64c69",
+          "output_hash": "c9bc3bb8156eae7ea5892e6885dabfa2253b68990371f1b9cf05134f307d1450",
+          "input_token_estimate": 8470,
+          "output_token_estimate": 1712,
+          "latency_ms": 15978
+        },
+        {
+          "operation": "dark_preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "121ca3cd977a2aff5ff431668dbc40d78c93339f2ddeecdc855c366320b6ab9d",
+          "input_hash": "121ca3cd977a2aff5ff431668dbc40d78c93339f2ddeecdc855c366320b6ab9d",
+          "output_hash": "2b052d407e44b4619cf46b95c03cc5b760f349421d7a741a2f2d8c9a1bcdd5c0",
+          "input_token_estimate": 7372,
+          "output_token_estimate": 1870,
+          "latency_ms": 13305
+        }
+      ]
+    },
+    {
+      "id": "controlled_hero-amplified",
+      "domain": "dark",
+      "expectedChannels": ["controlled_state_fascination"],
+      "expectsEmpty": false,
+      "assertions": [
+        {
+          "response_channel": "corruption_arc_fascination",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"通常状態から洗脳された敵対状態への変化差分\",\"subjects\":[\"洗脳された勇者\"],\"relationships\":[],\"narrativePhases\":[\"onset\",\"active\"],\"conditions\":[\"ダーク状態への変化\",\"変化差分\"],\"exceptions\":[\"元キャラクターの通常時の特徴そのものは対象外\",\"誘惑や力という具体的機序への嗜好は未確認\"]}",
+          "explicitness": "user_explicit"
+        },
+        {
+          "response_channel": "controlled_state_fascination",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"洗脳された勇者として敵対している期間\",\"subjects\":[\"洗脳された勇者\"],\"relationships\":[],\"narrativePhases\":[\"active\"],\"conditions\":[\"洗脳状態\",\"敵対状態\"],\"exceptions\":[\"元の一般的な英雄性は対象外\"]}",
+          "explicitness": "user_explicit"
+        }
+      ],
+      "generation": null,
+      "detail": {
+        "entry": {
+          "id": "ecd5bfb7-aee9-4a87-ac5a-088715163a54",
+          "status": "analysis_review",
+          "registrationType": "original",
+          "draft": {
+            "darkContext": {
+              "focusDescription": "洗脳された勇者として敵対している期間だけを対象にする",
+              "archetypeHints": []
+            },
+            "preference": {
+              "likedReasons": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+              "responseChannels": []
+            },
+            "registrationType": "original",
+            "characterName": "評価対象 controlled_hero-amplified",
+            "characterBasicInfo": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。元からの執着が誘惑と力によって増幅される。"
+          }
+        },
+        "ontologyAttributes": [
+          {
+            "stableKey": "dark.archetype.antagonistic_rival",
+            "label": "悪役ライバル"
+          },
+          {
+            "stableKey": "dark.archetype.antihero",
+            "label": "アンチヒーロー"
+          },
+          {
+            "stableKey": "dark.archetype.betraying_ally",
+            "label": "裏切った協力者"
+          },
+          {
+            "stableKey": "dark.archetype.controlled_hero",
+            "label": "支配された勇者"
+          },
+          {
+            "stableKey": "dark.archetype.dark_hero",
+            "label": "ダークヒーロー"
+          },
+          {
+            "stableKey": "dark.archetype.fallen_hero",
+            "label": "堕落した英雄"
+          },
+          {
+            "stableKey": "dark.archetype.manipulated_former_ally",
+            "label": "操作された元味方"
+          },
+          {
+            "stableKey": "dark.archetype.morally_gray",
+            "label": "モラリー・グレー"
+          },
+          {
+            "stableKey": "dark.archetype.villain",
+            "label": "ヴィラン"
+          },
+          {
+            "stableKey": "dark.archetype.villain_protagonist",
+            "label": "ヴィラン・プロタゴニスト"
+          },
+          {
+            "stableKey": "dark.competence.controlled_precision",
+            "label": "精密な遂行"
+          },
+          {
+            "stableKey": "dark.competence.incompetent_villainy",
+            "label": "失敗する悪"
+          },
+          {
+            "stableKey": "dark.competence.institutional_power",
+            "label": "制度的権力"
+          },
+          {
+            "stableKey": "dark.competence.overwhelming_power",
+            "label": "圧倒的な力"
+          },
+          {
+            "stableKey": "dark.competence.power_cost",
+            "label": "闇の力の代償"
+          },
+          {
+            "stableKey": "dark.competence.power_escalation",
+            "label": "力の増大"
+          },
+          {
+            "stableKey": "dark.competence.ruthless_efficiency",
+            "label": "冷酷な効率"
+          },
+          {
+            "stableKey": "dark.competence.social_control",
+            "label": "社会的支配力"
+          },
+          {
+            "stableKey": "dark.competence.strategic_mastery",
+            "label": "悪役的知略"
+          },
+          {
+            "stableKey": "dark.competence.underdog_threat",
+            "label": "劣勢から生じる脅威"
+          },
+          {
+            "stableKey": "dark.control.aware",
+            "label": "支配の認識あり"
+          },
+          {
+            "stableKey": "dark.control.bound",
+            "label": "契約・呪縛"
+          },
+          {
+            "stableKey": "dark.control.brainwashed",
+            "label": "洗脳"
+          },
+          {
+            "stableKey": "dark.control.coerced",
+            "label": "強制された悪"
+          },
+          {
+            "stableKey": "dark.control.embraced",
+            "label": "闇・支配の受容"
+          },
+          {
+            "stableKey": "dark.control.irreversible",
+            "label": "不可逆的な変化"
+          },
+          {
+            "stableKey": "dark.control.manipulated",
+            "label": "心理的操作"
+          },
+          {
+            "stableKey": "dark.control.mixed_agency",
+            "label": "主体性が混在"
+          },
+          {
+            "stableKey": "dark.control.possessed",
+            "label": "憑依・乗っ取り"
+          },
+          {
+            "stableKey": "dark.control.resistant",
+            "label": "支配への抵抗"
+          },
+          {
+            "stableKey": "dark.control.reversible",
+            "label": "可逆的な支配"
+          },
+          {
+            "stableKey": "dark.control.self_chosen",
+            "label": "自発的な悪"
+          },
+          {
+            "stableKey": "dark.control.surrendered",
+            "label": "支配への服従"
+          },
+          {
+            "stableKey": "dark.control.unaware",
+            "label": "支配の認識なし"
+          },
+          {
+            "stableKey": "dark.control.wavering",
+            "label": "抵抗と服従の揺れ"
+          },
+          {
+            "stableKey": "dark.corruption.completed_fall",
+            "label": "完成した堕落"
+          },
+          {
+            "stableKey": "dark.corruption.deepening",
+            "label": "闇の深化"
+          },
+          {
+            "stableKey": "dark.corruption.forced_fall",
+            "label": "強制的な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.gradual_fall",
+            "label": "漸進的な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.ideological_fall",
+            "label": "思想的転向"
+          },
+          {
+            "stableKey": "dark.corruption.permanent_change",
+            "label": "恒久的な変化"
+          },
+          {
+            "stableKey": "dark.corruption.power_corruption",
+            "label": "力による腐敗"
+          },
+          {
+            "stableKey": "dark.corruption.recovery",
+            "label": "闇状態からの回復"
+          },
+          {
+            "stableKey": "dark.corruption.relapse",
+            "label": "再堕落"
+          },
+          {
+            "stableKey": "dark.corruption.sudden_fall",
+            "label": "急激な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.temporary_state",
+            "label": "一時的な闇状態"
+          },
+          {
+            "stableKey": "dark.corruption.temptation",
+            "label": "誘惑による闇化"
+          },
+          {
+            "stableKey": "dark.expression.body_horror",
+            "label": "身体変容の恐怖"
+          },
+          {
+            "stableKey": "dark.expression.camp",
+            "label": "誇張された悪役表現"
+          },
+          {
+            "stableKey": "dark.expression.control_markers",
+            "label": "支配を示す徴"
+          },
+          {
+            "stableKey": "dark.expression.corrupted_design",
+            "label": "闇化したデザイン"
+          },
+          {
+            "stableKey": "dark.expression.dangerous_charisma",
+            "label": "危険なカリスマ"
+          },
+          {
+            "stableKey": "dark.expression.dark_humor",
+            "label": "ダークユーモア"
+          },
+          {
+            "stableKey": "dark.expression.menacing_elegance",
+            "label": "脅威を伴う優美さ"
+          },
+          {
+            "stableKey": "dark.expression.monstrous_form",
+            "label": "異形化"
+          },
+          {
+            "stableKey": "dark.expression.ominous_beauty",
+            "label": "不穏な美"
+          },
+          {
+            "stableKey": "dark.expression.quiet_menace",
+            "label": "静かな威圧"
+          },
+          {
+            "stableKey": "dark.expression.theatrical_villainy",
+            "label": "芝居がかった悪"
+          },
+          {
+            "stableKey": "dark.expression.transformation_contrast",
+            "label": "変化前後の表現対比"
+          },
+          {
+            "stableKey": "dark.expression.uncanny_calm",
+            "label": "不気味な静けさ"
+          },
+          {
+            "stableKey": "dark.harm.betrayal",
+            "label": "裏切り"
+          },
+          {
+            "stableKey": "dark.harm.collateral_indifference",
+            "label": "巻き添えへの無関心"
+          },
+          {
+            "stableKey": "dark.harm.cruelty",
+            "label": "残酷さ"
+          },
+          {
+            "stableKey": "dark.harm.destruction",
+            "label": "破壊"
+          },
+          {
+            "stableKey": "dark.harm.domination",
+            "label": "他者支配"
+          },
+          {
+            "stableKey": "dark.harm.exploitation",
+            "label": "搾取"
+          },
+          {
+            "stableKey": "dark.harm.instrumental_harm",
+            "label": "手段としての加害"
+          },
+          {
+            "stableKey": "dark.harm.intimidation",
+            "label": "威圧"
+          },
+          {
+            "stableKey": "dark.harm.manipulation",
+            "label": "他者操作"
+          },
+          {
+            "stableKey": "dark.harm.taboo_breaking",
+            "label": "禁忌越境"
+          },
+          {
+            "stableKey": "dark.harm.vengeance",
+            "label": "復讐"
+          },
+          {
+            "stableKey": "dark.identity.accepted_dark_self",
+            "label": "闇の自己受容"
+          },
+          {
+            "stableKey": "dark.identity.authentic_darkness",
+            "label": "生来・本来の悪"
+          },
+          {
+            "stableKey": "dark.identity.double_identity",
+            "label": "二重の自己"
+          },
+          {
+            "stableKey": "dark.identity.fragmented_self",
+            "label": "自我の断片化"
+          },
+          {
+            "stableKey": "dark.identity.inner_resistance",
+            "label": "内的抵抗"
+          },
+          {
+            "stableKey": "dark.identity.no_conflict",
+            "label": "葛藤のない悪"
+          },
+          {
+            "stableKey": "dark.identity.overwritten_self",
+            "label": "自我の上書き"
+          },
+          {
+            "stableKey": "dark.identity.retained_morality",
+            "label": "元の道徳性の残存"
+          },
+          {
+            "stableKey": "dark.identity.retained_self",
+            "label": "自我の保持"
+          },
+          {
+            "stableKey": "dark.identity.self_deception",
+            "label": "自己欺瞞"
+          },
+          {
+            "stableKey": "dark.identity.suppressed_self",
+            "label": "自我の抑圧"
+          },
+          {
+            "stableKey": "dark.identity.value_inversion",
+            "label": "価値観の反転"
+          },
+          {
+            "stableKey": "dark.morality.amoral",
+            "label": "道徳を判断軸にしない"
+          },
+          {
+            "stableKey": "dark.morality.ends_justify_means",
+            "label": "目的による手段の正当化"
+          },
+          {
+            "stableKey": "dark.morality.evil_affirming",
+            "label": "悪の肯定"
+          },
+          {
+            "stableKey": "dark.morality.guilt",
+            "label": "罪悪感"
+          },
+          {
+            "stableKey": "dark.morality.hypocrisy",
+            "label": "道徳的偽善"
+          },
+          {
+            "stableKey": "dark.morality.immoral",
+            "label": "非道徳"
+          },
+          {
+            "stableKey": "dark.morality.nihilism",
+            "label": "虚無的価値観"
+          },
+          {
+            "stableKey": "dark.morality.personal_code",
+            "label": "独自の規範"
+          },
+          {
+            "stableKey": "dark.morality.remorse",
+            "label": "後悔"
+          },
+          {
+            "stableKey": "dark.morality.remorseless",
+            "label": "無反省"
+          },
+          {
+            "stableKey": "dark.morality.selective_mercy",
+            "label": "選択的な慈悲"
+          },
+          {
+            "stableKey": "dark.morality.self_justification",
+            "label": "自己正当化"
+          },
+          {
+            "stableKey": "dark.motivation.belonging",
+            "label": "所属欲求"
+          },
+          {
+            "stableKey": "dark.motivation.chaos",
+            "label": "混沌への志向"
+          },
+          {
+            "stableKey": "dark.motivation.control",
+            "label": "支配欲"
+          },
+          {
+            "stableKey": "dark.motivation.devotion",
+            "label": "献身"
+          },
+          {
+            "stableKey": "dark.motivation.freedom",
+            "label": "自由への渇望"
+          },
+          {
+            "stableKey": "dark.motivation.ideology",
+            "label": "思想への献身"
+          },
+          {
+            "stableKey": "dark.motivation.obsession",
+            "label": "執着"
+          },
+          {
+            "stableKey": "dark.motivation.order",
+            "label": "秩序への執着"
+          },
+          {
+            "stableKey": "dark.motivation.pleasure",
+            "label": "悪や加害の快楽"
+          },
+          {
+            "stableKey": "dark.motivation.power",
+            "label": "力への欲求"
+          },
+          {
+            "stableKey": "dark.motivation.recognition",
+            "label": "承認欲求"
+          },
+          {
+            "stableKey": "dark.motivation.revenge",
+            "label": "復讐心"
+          },
+          {
+            "stableKey": "dark.motivation.survival",
+            "label": "生存"
+          },
+          {
+            "stableKey": "dark.outcome.deepens_darkness",
+            "label": "闇のさらなる深化"
+          },
+          {
+            "stableKey": "dark.outcome.defeat",
+            "label": "敗北"
+          },
+          {
+            "stableKey": "dark.outcome.open_end",
+            "label": "未決着"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_irrelevant",
+            "label": "贖罪を問題にしない"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_refused",
+            "label": "贖罪を拒む"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_sought",
+            "label": "贖罪を求める"
+          },
+          {
+            "stableKey": "dark.outcome.remains_dark",
+            "label": "闇の維持"
+          },
+          {
+            "stableKey": "dark.outcome.restored",
+            "label": "元の自己への回復"
+          },
+          {
+            "stableKey": "dark.outcome.tragic_end",
+            "label": "悲劇的結末"
+          },
+          {
+            "stableKey": "dark.outcome.unpunished",
+            "label": "罰されない"
+          },
+          {
+            "stableKey": "dark.outcome.victory",
+            "label": "悪側の勝利"
+          },
+          {
+            "stableKey": "dark.relationship.controller_subject",
+            "label": "支配者と被支配者"
+          },
+          {
+            "stableKey": "dark.relationship.convenience_alliance",
+            "label": "利害による同盟"
+          },
+          {
+            "stableKey": "dark.relationship.corrupted_loyalty",
+            "label": "歪んだ忠誠"
+          },
+          {
+            "stableKey": "dark.relationship.dependency",
+            "label": "依存"
+          },
+          {
+            "stableKey": "dark.relationship.former_ally_opposition",
+            "label": "元味方との敵対"
+          },
+          {
+            "stableKey": "dark.relationship.manipulator_pawn",
+            "label": "操作者と駒"
+          },
+          {
+            "stableKey": "dark.relationship.possessiveness",
+            "label": "所有・独占"
+          },
+          {
+            "stableKey": "dark.relationship.respectful_enmity",
+            "label": "敬意を伴う敵対"
+          },
+          {
+            "stableKey": "dark.relationship.rivalry",
+            "label": "宿敵関係"
+          },
+          {
+            "stableKey": "dark.relationship.selective_protection",
+            "label": "選択的保護"
+          },
+          {
+            "stableKey": "dark.relationship.toxic_devotion",
+            "label": "毒性的献身"
+          },
+          {
+            "stableKey": "dark.role.antagonist",
+            "label": "敵対者"
+          },
+          {
+            "stableKey": "dark.role.controlled_obstacle",
+            "label": "操られた障害"
+          },
+          {
+            "stableKey": "dark.role.fallen_ally",
+            "label": "堕落した味方"
+          },
+          {
+            "stableKey": "dark.role.final_opponent",
+            "label": "最終敵"
+          },
+          {
+            "stableKey": "dark.role.gray_lead",
+            "label": "灰色の主人公"
+          },
+          {
+            "stableKey": "dark.role.hidden_traitor",
+            "label": "隠れた裏切者"
+          },
+          {
+            "stableKey": "dark.role.rival",
+            "label": "ライバル"
+          },
+          {
+            "stableKey": "dark.role.temporary_enemy",
+            "label": "一時的な敵"
+          },
+          {
+            "stableKey": "dark.role.villain_viewpoint",
+            "label": "ヴィラン視点人物"
+          }
+        ],
+        "darkScopeAssessment": {
+          "id": "2efa23e8-8c7a-4393-828f-8e153872775b",
+          "verdict": "in_scope",
+          "status": "accepted",
+          "assessment_json": "{\"verdict\":\"in_scope\",\"qualifyingArchetypes\":[\"controlled_hero\"],\"agencyOrigin\":\"mixed\",\"scope\":\"phase\",\"rationale\":\"洗脳によって勇者が敵対化している限定的なダーク状態を対象としており、外部操作による人格・役割の変化と、元からあった執着の増幅が明示されている。一般的な英雄性や強さではなく、洗脳状態と変化差分への嗜好が焦点であるため対象内。\",\"limitations\":[\"洗脳下での具体的な行為、本人の認識、抵抗、同意、責任の有無は提示情報だけでは判断できない。\",\"洗脳が解除されるか、自我の連続性がどの程度保たれるかは不明。\",\"敵対相手や物語上の具体的な役割は限定的にしか示されていない。\"],\"evidence\":[{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/darkContext/focusDescription\",\"quote\":\"洗脳された勇者として敵対している期間だけを対象にする\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/preference/likedReasons\",\"quote\":\"洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。元からの執着が誘惑と力によって増幅される。\",\"inferenceType\":\"direct\"}],\"recommendedQuestions\":[\"洗脳状態の本人に自我や記憶はどの程度残っているか？\",\"敵対化した行為に本人の抵抗や選択は含まれるか？\",\"洗脳は解除可能か、また解除後にどのような変化や責任が描かれるか？\"]}",
+          "assessment": {
+            "verdict": "in_scope",
+            "qualifyingArchetypes": ["controlled_hero"],
+            "agencyOrigin": "mixed",
+            "scope": "phase",
+            "rationale": "洗脳によって勇者が敵対化している限定的なダーク状態を対象としており、外部操作による人格・役割の変化と、元からあった執着の増幅が明示されている。一般的な英雄性や強さではなく、洗脳状態と変化差分への嗜好が焦点であるため対象内。",
+            "limitations": [
+              "洗脳下での具体的な行為、本人の認識、抵抗、同意、責任の有無は提示情報だけでは判断できない。",
+              "洗脳が解除されるか、自我の連続性がどの程度保たれるかは不明。",
+              "敵対相手や物語上の具体的な役割は限定的にしか示されていない。"
+            ],
+            "evidence": [
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/darkContext/focusDescription",
+                "quote": "洗脳された勇者として敵対している期間だけを対象にする",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/preference/likedReasons",
+                "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/characterBasicInfo",
+                "quote": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。元からの執着が誘惑と力によって増幅される。",
+                "inferenceType": "direct"
+              }
+            ],
+            "recommendedQuestions": [
+              "洗脳状態の本人に自我や記憶はどの程度残っているか？",
+              "敵対化した行為に本人の抵抗や選択は含まれるか？",
+              "洗脳は解除可能か、また解除後にどのような変化や責任が描かれるか？"
+            ]
+          }
+        },
+        "darkBaseline": null,
+        "darkTransformationDeltas": [
+          {
+            "id": "57097785-be68-4786-958d-e9fd21cea432",
+            "operation": "introduced",
+            "aspect": "dark.control.brainwashed",
+            "before_value": null,
+            "after_value": "洗脳された勇者として敵対している",
+            "detail_json": "{\"cause\":\"洗脳\",\"agencyOrigin\":\"externally_imposed\",\"controller\":null,\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"unknown\",\"responsibility\":\"unknown\",\"reversibility\":\"unknown\",\"phase\":\"onset\",\"evidence\":[{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/darkContext/focusDescription\",\"quote\":\"洗脳された勇者として敵対している期間\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.98,
+            "detail": {
+              "cause": "洗脳",
+              "agencyOrigin": "externally_imposed",
+              "controller": null,
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "unknown",
+              "responsibility": "unknown",
+              "reversibility": "unknown",
+              "phase": "onset",
+              "evidence": [
+                {
+                  "sourceRef": null,
+                  "sourceUrl": null,
+                  "inputPointer": "/darkContext/focusDescription",
+                  "quote": "洗脳された勇者として敵対している期間",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          },
+          {
+            "id": "51474cb4-450a-47bd-a350-9c9a72a6943e",
+            "operation": "amplified",
+            "aspect": "dark.motivation.obsession",
+            "before_value": "元からの執着がある",
+            "after_value": "誘惑と力によって執着が増幅される",
+            "detail_json": "{\"cause\":\"誘惑と力\",\"agencyOrigin\":\"mixed\",\"controller\":null,\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"unknown\",\"responsibility\":\"unknown\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"元からの執着が誘惑と力によって増幅される\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.96,
+            "detail": {
+              "cause": "誘惑と力",
+              "agencyOrigin": "mixed",
+              "controller": null,
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "unknown",
+              "responsibility": "unknown",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": null,
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "元からの執着が誘惑と力によって増幅される",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          }
+        ],
+        "understanding": {
+          "id": "90c4a73e-30b0-4cc3-b0b9-8f6696594fef",
+          "baseSnapshotId": null,
+          "sourceAssessment": {
+            "coverage": "partial",
+            "limitations": [
+              "対象期間、洗脳、変化前の責務・意思決定能力、元からの執着の増幅は記載されているが、物語全体、支配者、支配への認識、抵抗、自我の連続性、責任、可逆性、事後状態に関する資料はない。",
+              "敵対していることは対象期間について明示されているが、具体的な敵対行為や目的は記載されていない。",
+              "外部URLや収集済み資料はなく、提示されたユーザー入力のみを使用している。"
+            ],
+            "modelKnowledgeUsed": false
+          },
+          "summary": {
+            "identity": "評価対象 controlled_hero-amplified",
+            "narrativeRole": ["支配された勇者", "一時的な敵"],
+            "moralityOrientation": [],
+            "goals": [],
+            "values": [],
+            "behavior": [],
+            "relationships": [],
+            "expression": [],
+            "darkState": {
+              "agencyOrigin": "mixed",
+              "consent": "unknown",
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "unknown",
+              "responsibility": "unknown",
+              "reversibility": "unknown",
+              "controllerOrInfluence": null,
+              "mechanism": "洗脳、誘惑、力による元からの執着の増幅",
+              "before": "仲間を守る責務と、自分の意思で判断する能力があった。元からの執着も存在した。",
+              "onset": "誘惑と力によって元からの執着が増幅され、洗脳された状態として敵対する",
+              "activeState": "洗脳された勇者として敵対している。元からの執着が誘惑と力によって増幅されている。",
+              "recoveryOrAfter": null
+            },
+            "auditNotes": [
+              "元の一般的な英雄性は単独属性として出力していない。",
+              "変化前の責務と意思決定能力を、ダーク状態でも保持しているとは断定していない。",
+              "洗脳下の敵対を本人の自発的意思、悪の受容、責任、抵抗、認識として断定していない。",
+              "支配者、具体的な敵対行為、道徳性、回復、恒久化、結末については根拠がないため付与していない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "同意",
+              "reason": "洗脳は明示されているが、支配を受け入れたか、強制されたか、同意があったかは記載されていない。"
+            },
+            {
+              "topic": "認識",
+              "reason": "本人が洗脳や外部操作を認識しているか不明。"
+            },
+            {
+              "topic": "抵抗",
+              "reason": "支配への抵抗、内的抵抗、服従の揺れに関する記述がない。"
+            },
+            {
+              "topic": "自我連続性",
+              "reason": "自我の保持、抑圧、断片化、上書きのいずれかを確定できる資料がない。"
+            },
+            {
+              "topic": "責任",
+              "reason": "洗脳下での具体的行為と本人の関与度が記載されていないため、責任の程度を確定できない。"
+            },
+            {
+              "topic": "可逆性",
+              "reason": "ダーク状態からの回復、恒久化、再発に関する情報がない。"
+            },
+            {
+              "topic": "支配者",
+              "reason": "洗脳や執着の増幅を行った主体の名称・正体が不明。"
+            },
+            {
+              "topic": "ダーク状態での道徳性",
+              "reason": "変化前に仲間を守る責務があったことは示されるが、ダーク状態でその価値観が残存するかは不明。"
+            },
+            {
+              "topic": "ダーク状態での意思決定能力",
+              "reason": "変化前に自分の意思で判断する能力があったことは示されるが、洗脳後に保持されているかは不明。"
+            }
+          ],
+          "confidence": 0.97,
+          "status": "confirmed",
+          "assertions": [
+            {
+              "id": "8788cac5-dfda-401f-a769-e0468acb0391",
+              "raw_label": "支配された勇者",
+              "value_text": "洗脳された勇者として、敵対している期間に限って対象となる",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "dark.archetype.controlled_hero",
+              "evidence": [
+                {
+                  "id": "6581895f-41ca-4daf-bd50-82bc49655c0d",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者として敵対している期間だけを対象にする",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-amplified 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "7e2d0b17-4271-4b9c-a53b-b9b9680c2cd3",
+              "raw_label": "一時的な敵",
+              "value_text": "敵対状態は対象として指定された期間に限定される",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.96,
+              "status": "confirmed",
+              "stable_key": "dark.role.temporary_enemy",
+              "evidence": [
+                {
+                  "id": "ae45c5c6-a3a6-438b-8844-e795445820e0",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "敵対している期間だけを対象にする",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-amplified 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "6dcd27bb-c858-47d1-81f3-60bdd9dfd8e1",
+              "raw_label": "洗脳",
+              "value_text": "対象のダーク状態は洗脳された状態として扱われる",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "dark.control.brainwashed",
+              "evidence": [
+                {
+                  "id": "21f90f55-1505-4fd5-9897-377a37247251",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-amplified 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "ea111ca6-6a90-4d43-a14e-ac9f4023a807",
+              "raw_label": "誘惑による闇化",
+              "value_text": "元からの執着が誘惑によって増幅される",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_explicit",
+              "confidence": 0.94,
+              "status": "confirmed",
+              "stable_key": "dark.corruption.temptation",
+              "evidence": [
+                {
+                  "id": "51c69987-6a8b-451f-b929-f102f6a0e788",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "paraphrase",
+                  "quote": "元からの執着が誘惑と力によって増幅される",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-amplified キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "4e938f72-46ac-42bc-bd45-aade90f43e44",
+              "raw_label": "執着",
+              "value_text": "元から存在した執着がダーク状態で増幅される",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_explicit",
+              "confidence": 0.97,
+              "status": "confirmed",
+              "stable_key": "dark.motivation.obsession",
+              "evidence": [
+                {
+                  "id": "1da5b74d-57b7-4c2f-9ab8-10dda596c5e8",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "元からの執着が誘惑と力によって増幅される",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-amplified キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "deltas": [
+            {
+              "id": "b1faef47-6100-48d6-8fc1-7e9ae142d091",
+              "operation": "narrow_scope",
+              "before_value": null,
+              "after_value": "洗脳された勇者として敵対している期間のみ",
+              "scope_json": "{\"schemaVersion\":\"1\",\"freeText\":\"対象範囲\"}",
+              "reason_text": "元の一般的な英雄性自体は集計せず、洗脳されたダーク状態と変化差分に限定する",
+              "explicitness": "user_explicit",
+              "confidence": 0.99,
+              "status": "confirmed"
+            }
+          ]
+        },
+        "baseUnderstanding": null,
+        "preferenceAnalysis": {
+          "id": "7e193f2a-3fe0-4dff-8325-4b9e18c76f3f",
+          "qualityContext": {
+            "schemaVersion": "2.0",
+            "refinementMode": null,
+            "confirmedUnderstandingSnapshotId": "90c4a73e-30b0-4cc3-b0b9-8f6696594fef",
+            "audit": "dark_preference_audit",
+            "evidenceInsufficient": false
+          },
+          "summary": {
+            "userExplicitSummary": [
+              "洗脳された勇者のダーク状態に惹かれている。",
+              "元の一般的な英雄性ではなく、ダーク状態への変化差分を好む。"
+            ],
+            "inferredSummary": [
+              "外部支配下にある勇者のダーク状態そのものへの関心がある。",
+              "通常状態からダーク状態へ移行する変化過程への関心がある。"
+            ],
+            "limitations": [
+              "洗脳への抵抗、受容、認識、自我の保持・侵食、責任、道徳的支持は不明。",
+              "誘惑や力による執着の増幅という具体的な変化機序自体を好むかは不明。",
+              "具体的な敵対行為、支配者との関係、結末や回復への嗜好は根拠がない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "自我・抵抗への関心",
+              "reason": "洗脳されたダーク状態への魅力は明示されているが、支配下で自我が残ることや抵抗すること自体を好むかは不明。",
+              "recommendedQuestion": "洗脳下でも残る自我や内的抵抗にも惹かれますか。"
+            },
+            {
+              "topic": "洗脳の受容への関心",
+              "reason": "洗脳された状態への好意は示されているが、本人が支配を受け入れる展開を好むかは不明。",
+              "recommendedQuestion": "本人が支配を受け入れる展開にも魅力を感じますか。"
+            },
+            {
+              "topic": "変化機序への関心",
+              "reason": "ダーク状態と変化差分への好意は明示されているが、誘惑や力による執着の増幅という機序そのものへの好意は不明。",
+              "recommendedQuestion": "誘惑や力によって元からの執着が増幅される仕組み自体にも惹かれますか。"
+            },
+            {
+              "topic": "人物像への好意と行為への支持",
+              "reason": "ダーク状態への好意は示されているが、敵対行為、洗脳、支配を道徳的に支持するかは示されていない。",
+              "recommendedQuestion": "ダーク状態への魅力と、洗脳や敵対行為への支持は分けて考えていますか。"
+            }
+          ],
+          "status": "succeeded",
+          "assertions": [
+            {
+              "id": "2635f228-3060-4764-a265-26ced8c955c9",
+              "raw_label": "洗脳",
+              "polarity": "positive",
+              "response_channel": "controlled_state_fascination",
+              "strength": 0.98,
+              "explicitness": "user_explicit",
+              "confidence": 0.99,
+              "status": "proposed",
+              "stable_key": "dark.control.brainwashed",
+              "evidence": [
+                {
+                  "id": "d2c64c4f-c338-419f-af2c-71b4981e0d9d",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 controlled_hero-amplified 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "34963a97-2dc6-4b4f-98a3-1b75ee0632e4",
+              "raw_label": "洗脳された勇者のダーク状態への変化差分への魅力",
+              "polarity": "positive",
+              "response_channel": "corruption_arc_fascination",
+              "strength": 0.91,
+              "explicitness": "user_explicit",
+              "confidence": 0.94,
+              "status": "proposed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "ce81d092-714c-4fb0-81f0-1d3a8db6c83a",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 controlled_hero-amplified 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "valueStances": []
+        }
+      },
+      "modelRuns": [
+        {
+          "operation": "dark_scope_assessment",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "c46ea7ac234374a655ea6396cd3ab98af1ce59339bdd3665d75d7a3864f625fb",
+          "input_hash": "c46ea7ac234374a655ea6396cd3ab98af1ce59339bdd3665d75d7a3864f625fb",
+          "output_hash": "ef542c2f814023978f93990b50a9a44bb2743511262dc72529a5daa0a735caa0",
+          "input_token_estimate": 926,
+          "output_token_estimate": 590,
+          "latency_ms": 4618
+        },
+        {
+          "operation": "dark_character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "caad637a13f214217f634942e2392a38c6df2bef690b787a08f0f42633afb86d",
+          "input_hash": "caad637a13f214217f634942e2392a38c6df2bef690b787a08f0f42633afb86d",
+          "output_hash": "c596e4edb4acf8d3687ac918d951f52c14a36a1dc6d1813a3b283ad9edaf7942",
+          "input_token_estimate": 4449,
+          "output_token_estimate": 3325,
+          "latency_ms": 28102
+        },
+        {
+          "operation": "dark_understanding_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "7870d76a58728222df82c7ac68dec9615808f45b27a0fb7e415d76803796c418",
+          "input_hash": "7870d76a58728222df82c7ac68dec9615808f45b27a0fb7e415d76803796c418",
+          "output_hash": "87043d28f459cc44f32ad2efbf33ec9254d79907c1975a9812b70381f66590bd",
+          "input_token_estimate": 5639,
+          "output_token_estimate": 3068,
+          "latency_ms": 25358
+        },
+        {
+          "operation": "dark_preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "8f129afb4386048e09baf77e3b5061befbdcde1392d0fe30c20201bfdd8025b4",
+          "input_hash": "8f129afb4386048e09baf77e3b5061befbdcde1392d0fe30c20201bfdd8025b4",
+          "output_hash": "fc1db3eff4f06f660ab3e8a75a070ba50ef997256ac6a07a4776126694f488bc",
+          "input_token_estimate": 7332,
+          "output_token_estimate": 1621,
+          "latency_ms": 11771
+        },
+        {
+          "operation": "dark_preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "17c482187ff6bfd3034defa28909f0232e5572407bf6d2a11fc4cb2d7efbfd4a",
+          "input_hash": "17c482187ff6bfd3034defa28909f0232e5572407bf6d2a11fc4cb2d7efbfd4a",
+          "output_hash": "39b7e2fa2f84bbdaec8a31e2691df20fe70bb612e871cce1f440c2638ac6d416",
+          "input_token_estimate": 6211,
+          "output_token_estimate": 1674,
+          "latency_ms": 13934
+        }
+      ]
+    }
+  ],
+  "metrics": {
+    "perCase": [
+      {
+        "id": "standard-narrative",
+        "failed": false,
+        "assertionCount": 1,
+        "expectedChannelHits": 1,
+        "expectedChannelCount": 1,
+        "absentEvidenceFalsePositive": false
+      },
+      {
+        "id": "standard-admiration",
+        "failed": false,
+        "assertionCount": 1,
+        "expectedChannelHits": 1,
+        "expectedChannelCount": 2,
+        "absentEvidenceFalsePositive": false
+      },
+      {
+        "id": "standard-conditional",
+        "failed": false,
+        "assertionCount": 2,
+        "expectedChannelHits": 1,
+        "expectedChannelCount": 1,
+        "absentEvidenceFalsePositive": false
+      },
+      {
+        "id": "standard-empty",
+        "failed": false,
+        "assertionCount": 0,
+        "expectedChannelHits": 0,
+        "expectedChannelCount": 0,
+        "absentEvidenceFalsePositive": false
+      },
+      {
+        "id": "controlled_hero-retained",
+        "failed": false,
+        "assertionCount": 2,
+        "expectedChannelHits": 1,
+        "expectedChannelCount": 1,
+        "absentEvidenceFalsePositive": false
+      },
+      {
+        "id": "controlled_hero-amplified",
+        "failed": false,
+        "assertionCount": 2,
+        "expectedChannelHits": 1,
+        "expectedChannelCount": 1,
+        "absentEvidenceFalsePositive": false
+      }
+    ],
+    "completedCases": 6,
+    "totalCases": 6,
+    "expectedChannelRecall": 0.8333333333333334,
+    "absentEvidenceCases": 1,
+    "absentEvidenceFalsePositives": 0,
+    "attributableEvidenceRate": 1,
+    "userCorrectionRate": null,
+    "userAdoptionRate": null,
+    "limitations": [
+      "反応経路の一致は意味的正確性全体を保証しない。",
+      "訂正率と採用率は実ユーザーの確認・採用イベントが必要であり、モデル出力から代用しない。",
+      "不要な善化や主体性混同は保存した根拠と出力を別途レビューする。"
+    ]
+  },
+  "gitRevision": "8b05686005a44542de2b8cfab9dfb50ffb2dae20",
+  "sourceHashes": {
+    "docs/詳細設計/database/001_initial.sql": "41acefbf3c098890d95daa27470c6184ee5d1fead9f23cb2d16b427b6f37c4b0",
+    "docs/詳細設計/database/002_seed_ontology_v1.sql": "103b51cad30123d81dac05dd4c446632b12e5bf1ffe159e1941bd7022ab7ab58",
+    "docs/詳細設計/database/003_dark_lab.sql": "6f20e4ccedbf3aeadea2aa8556057c7467f3fb4e802114fb32fd1a60f162aaf1",
+    "docs/詳細設計/database/004_quality_pipeline.sql": "cad4c84c7cdfc7b80c5fda4c3711cbcf3e235b0d4e2a11a9fd5d661902ea3d49",
+    "scripts/lib/evaluation-database.ts": "bae332cbc97e3b3a520ffed4d665456bceb33c24fedd24e8ea35e75918d7da60",
+    "shared/analysis-domain.ts": "4243845f99465d6e322e08d666166846715973e5b03743ef81eedbc2d1bf91a6",
+    "shared/dark-ontology.ts": "acfde240f6c4b06b18d8cd1c3dc6084cff410b629fdbb2ebea16dc128ad5e175",
+    "shared/dark-response-channels.ts": "77d1e6201119de00038099049b5f992eba952d1c7f9158a7d0f67f1eb8cdadcc",
+    "shared/generation-brief.ts": "f65425451d4ff3f8962a6ee111564b46f76bc90d2c1302c8d9851e3082c9cfd3",
+    "shared/presentation-labels.ts": "305bd7c191720b70cce21f89e775fdbebf4b144e26b68015773efd060ffe16aa",
+    "shared/quality-schemas.ts": "0e8279207b5ee62a169c080751726cbdda52ada10b97704bbaeece1e0d4c7925",
+    "shared/response-channels.ts": "a847dbdc99af5b2debbba4960dd372cc8374772768776cfbd1b13114a84de154",
+    "shared/schemas.ts": "2ba3258f94779c24fee0dad56e204a95a0099ca3fe6ad8f2928fc9936c0110ad",
+    "shared/value-stance-labels.ts": "287a2d216fd080d9ad15fcf8188866c251efa770c3c8f28f92b6e6a003690735",
+    "worker/app.ts": "ece15e19522e2b87bb5b31584e221135c11b14933aaee00a096629c55fe0c378",
+    "worker/auth.ts": "edbe69a2b5336b49b1d646c17df6e2889db0d6a23ddff63626b99b06282fea94",
+    "worker/config.ts": "3a5ce6259952bb1e4cb3825ac6a15969897f5c9fb985c925772934315c43b0ed",
+    "worker/embedding/providers.ts": "d8b837717ef1edcb8d910736331d528f6aba4bbf10fa352ee639a35d4436784c",
+    "worker/embedding/types.ts": "c8d57d51be7268c68da419f97216d8b5001e8f8576fe942b9527d69e3097c7e4",
+    "worker/error-handler.ts": "a9812c883701044b7b3c53d0bd339cc53b9e171a9b2caa481c9fe2a973bcc526",
+    "worker/evaluation/cases.ts": "f8b3a0fa49f7210b34ba3a137a2456c41f430cf3fa621e7cefc891a8149c1d5f",
+    "worker/evaluation/metrics.ts": "f2ac4d27a7e24469ad03af93496046b2ad420e80937dc93b294b861214c53a5e",
+    "worker/evaluation/run.ts": "4a76924beb6d0df424aa2fc9ab532d1aa6ed9ff3973ea82b8cefdc27d1b61336",
+    "worker/http.ts": "afdd984415641fdb26cd47bcadc1a36e45768695724fbab3fb535a60a2e649fe",
+    "worker/index.ts": "610b3f292451c156d2290ce83c410c4d8647883a3272ba7fe8052c34c790409c",
+    "worker/lib/cookies.ts": "cb10170a12fdfd6a52fff771d0ac0367431521ee87a0e9c286de9e383c1b2344",
+    "worker/lib/crypto.ts": "3c8e971d5d011f2c67a79b39f30de6837276d2acef03313d25a85ca2209aea91",
+    "worker/lib/db.ts": "bae28cf584bcdf656158c77a90d14a222b003ac725eacf099caa423b145f1eec",
+    "worker/lib/numbers.ts": "5b4a83cdd9f47797fddd2bbd47fe618ac802073b8b29d03a92ce462a48aafd46",
+    "worker/llm/providers.ts": "a733ea8d402fea6436438750e0b681c5461b9656e13b1c6ed82513c77fd4df69",
+    "worker/llm/types.ts": "dee9899ecf8a12f7c30db0e698eb427dc75bc428efee37df02f63453bc43ddb8",
+    "worker/middleware.ts": "296d17882494b3e76874b2b5669be525bea96d23f649e8870caa4e0f03829623",
+    "worker/moderation/providers.ts": "9b5873385220455b5348cf28a0ee8d89b9857d38aa4b1127c144454210af1850",
+    "worker/moderation/types.ts": "983c801017ba90a2d6df4c8b4fce1344581d2b154cccc9b829204de299ea6923",
+    "worker/openapi.ts": "f5fd75c9cf9456af125bba600ff4ab4173565d2f2f12e7a2efbd2423691ef74b",
+    "worker/routes/account.ts": "871f96331f5f853eecdab2db85ceffee22b10579bf65e1cd2d04d3f2381495eb",
+    "worker/routes/auth.ts": "05c7de483a04d1145697d1a2a972cade4b03ebdf7230fc86439b29a8ac96da86",
+    "worker/routes/entries.ts": "1d4979157b989fd96d2db3c813851e63818d8b6d21b10044010fb8b9e90d6ebd",
+    "worker/routes/generation.ts": "277c1760c8621f5b838e71f5effc56ce39f1d4d1d835da90c901f7f06acd21d8",
+    "worker/routes/health.ts": "44ef4a29909446b126ea283d43056876f90708462b5abe7c8007f2d24070c568",
+    "worker/routes/jobs.ts": "5162ec2ad6ce5aa40f81deac4d0e5305d3cb463cf6f781a109b1f88928f95c62",
+    "worker/routes/profile.ts": "8d3c02c7a3a5053f301acd4679592914b20adf829b19f3f01dee8c5fca9cb7cc",
+    "worker/services/analysis-result-policy.ts": "6daf3cc87477f12a2cfe071a4f0d8c492c300cb10278bd5de98d4e08e05d1e2f",
+    "worker/services/analysis.ts": "36ccdd1d4cb6ae0648925e33ea99fec1bf5de818de56c30835b6ef0311801222",
+    "worker/services/attribute-labels.ts": "2eeb9fddf412f5eba1e5305e9663a2e3ebc66cbedebd7a7efcd6d369df7cfdf2",
+    "worker/services/character-research.ts": "3f98490cd8e7bb4c47ad81f71127c5b881b012c535e2bfd56890966ff016d751",
+    "worker/services/cleanup.ts": "4203883bae3a6adb720032e8e142bf3e804ffc45caef3ac34d1f0cf8d081a845",
+    "worker/services/confirmed-understanding.ts": "c967bf2477411807c95b6771b1ec87a97715758bdace14af7135e6dc7d1c272f",
+    "worker/services/entries.ts": "b3d50b80a10610f11ab5bff632bca7963a87be5fc98a620a18973a5ddce77a7d",
+    "worker/services/exports.ts": "c7b4b68946b9db8899997f367f9bac96cf755fe151978874248a39a47945307e",
+    "worker/services/generation-feedback.ts": "150b1e7598321c06b7ed66b780cb44d13fc0e934cfb0a8ac02156c9cb07114a7",
+    "worker/services/generation-selections.ts": "a3bcc1f39c2d814439a42fc487cf749b2151eadf8a22144ec9e6934793f35c60",
+    "worker/services/generation-similarity.ts": "bc6a83abd62ada95d834d37bf158bdeb125a7b00a812eef3ee8e8f7aff1d4212",
+    "worker/services/generation-validation.ts": "822e912841152e51994c0795cf43cc350be97286cdd0e6f680e6cc8336001221",
+    "worker/services/generation.ts": "1da875dc61ac77f702e497ec70546b876522e170ec235bd3e4582d8665c0df63",
+    "worker/services/graph.ts": "161f53e6e5eb6e1e6c574305622918b8b92d39b1fb656fd6f3cff674ff261f55",
+    "worker/services/input-moderation.ts": "34c981628ee3697692f5245be878178ba3ca88b08ff006bccec648878439171e",
+    "worker/services/job-policy.ts": "8cfd1d53bf51728fc87d522c10d581e5f43446cc5ac5e188bf41ef051facba8a",
+    "worker/services/jobs.ts": "0ccb704c874d3d5662f65ac772c69b4e8a06aed434cc9d1740c002f62d2ba7e0",
+    "worker/services/orchestration.ts": "1ffb3b950b93b420f64f6329ed30714fca4e0fb491400cc575344e4cf94cece8",
+    "worker/services/preference-refinement.ts": "bc6dcccee9c63de91e87f640732725aed5f67597c19c782331cb690535356fa5",
+    "worker/services/profile-context.ts": "07bc727b82558a0b1cb1e8d44083e4a32410e801d78939df490b42d5406652b7",
+    "worker/services/profile.ts": "070fefa8d646c8558e60211d2d586dca735008225cdb427b0d271ccef3aef61c",
+    "worker/services/provenance-verifier.ts": "ef1920585e0591ae73b47f775b731706b840aa28f5b7f1a13ba83466685353f1",
+    "worker/services/provenance.ts": "311d0b95dd857a4a258b13502a04276a8ba2889bcab0ad7b1a6adf0a4a98c836",
+    "worker/services/quota-policy.ts": "bf3f5e773aff5029a4da430fa1c504c1ffe6abeddb67c3cbe348ba473ac9935c",
+    "worker/services/quota.ts": "b9a02ee7c59079bfe77ba1a038cf5b3cb5f30fad83d5c1d9928db724114203ab",
+    "worker/storage/d1-strategy.ts": "429fe12bf55fcea52cf90c436950a302fe406239c93f22a2c001bcd463278920",
+    "worker/storage/strategy.ts": "6625f1ba67d2f0f294382b3d7397c928b079ae9b3e7eac6c6decf8dc0beed176",
+    "worker/types.ts": "7146ea05b65c59ca6291a72f941d54b3959afae137a478b844983ef1047201e1",
+    "worker/workflows.ts": "c9d6caf88a1da9eb9f315e9de5830a8570c11ca11f23597a3ff0b61f8f1dca9d"
+  },
+  "comparison": {
+    "baseline": {
+      "perCase": [
+        {
+          "id": "standard-narrative",
+          "failed": false,
+          "assertionCount": 1,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "standard-admiration",
+          "failed": false,
+          "assertionCount": 2,
+          "expectedChannelHits": 2,
+          "expectedChannelCount": 2,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "standard-conditional",
+          "failed": false,
+          "assertionCount": 2,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "standard-empty",
+          "failed": false,
+          "assertionCount": 1,
+          "expectedChannelHits": 0,
+          "expectedChannelCount": 0,
+          "absentEvidenceFalsePositive": true
+        },
+        {
+          "id": "controlled_hero-retained",
+          "failed": false,
+          "assertionCount": 1,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "controlled_hero-amplified",
+          "failed": false,
+          "assertionCount": 3,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        }
+      ],
+      "completedCases": 6,
+      "totalCases": 6,
+      "expectedChannelRecall": 1,
+      "absentEvidenceCases": 1,
+      "absentEvidenceFalsePositives": 1,
+      "attributableEvidenceRate": 0.6666666666666666,
+      "userCorrectionRate": null,
+      "userAdoptionRate": null,
+      "limitations": [
+        "反応経路の一致は意味的正確性全体を保証しない。",
+        "訂正率と採用率は実ユーザーの確認・採用イベントが必要であり、モデル出力から代用しない。",
+        "不要な善化や主体性混同は保存した根拠と出力を別途レビューする。"
+      ]
+    },
+    "current": {
+      "perCase": [
+        {
+          "id": "standard-narrative",
+          "failed": false,
+          "assertionCount": 1,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "standard-admiration",
+          "failed": false,
+          "assertionCount": 1,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 2,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "standard-conditional",
+          "failed": false,
+          "assertionCount": 2,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "standard-empty",
+          "failed": false,
+          "assertionCount": 0,
+          "expectedChannelHits": 0,
+          "expectedChannelCount": 0,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "controlled_hero-retained",
+          "failed": false,
+          "assertionCount": 2,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        },
+        {
+          "id": "controlled_hero-amplified",
+          "failed": false,
+          "assertionCount": 2,
+          "expectedChannelHits": 1,
+          "expectedChannelCount": 1,
+          "absentEvidenceFalsePositive": false
+        }
+      ],
+      "completedCases": 6,
+      "totalCases": 6,
+      "expectedChannelRecall": 0.8333333333333334,
+      "absentEvidenceCases": 1,
+      "absentEvidenceFalsePositives": 0,
+      "attributableEvidenceRate": 1,
+      "userCorrectionRate": null,
+      "userAdoptionRate": null,
+      "limitations": [
+        "反応経路の一致は意味的正確性全体を保証しない。",
+        "訂正率と採用率は実ユーザーの確認・採用イベントが必要であり、モデル出力から代用しない。",
+        "不要な善化や主体性混同は保存した根拠と出力を別途レビューする。"
+      ]
+    },
+    "pairedCases": [
+      {
+        "id": "standard-narrative",
+        "assertionCountChange": 0,
+        "expectedChannelHitsChange": 0,
+        "absentEvidenceFalsePositiveBefore": false,
+        "absentEvidenceFalsePositiveAfter": false
+      },
+      {
+        "id": "standard-admiration",
+        "assertionCountChange": -1,
+        "expectedChannelHitsChange": -1,
+        "absentEvidenceFalsePositiveBefore": false,
+        "absentEvidenceFalsePositiveAfter": false
+      },
+      {
+        "id": "standard-conditional",
+        "assertionCountChange": 0,
+        "expectedChannelHitsChange": 0,
+        "absentEvidenceFalsePositiveBefore": false,
+        "absentEvidenceFalsePositiveAfter": false
+      },
+      {
+        "id": "standard-empty",
+        "assertionCountChange": -1,
+        "expectedChannelHitsChange": 0,
+        "absentEvidenceFalsePositiveBefore": true,
+        "absentEvidenceFalsePositiveAfter": false
+      },
+      {
+        "id": "controlled_hero-retained",
+        "assertionCountChange": 1,
+        "expectedChannelHitsChange": 0,
+        "absentEvidenceFalsePositiveBefore": false,
+        "absentEvidenceFalsePositiveAfter": false
+      },
+      {
+        "id": "controlled_hero-amplified",
+        "assertionCountChange": -1,
+        "expectedChannelHitsChange": 0,
+        "absentEvidenceFalsePositiveBefore": false,
+        "absentEvidenceFalsePositiveAfter": false
+      }
+    ]
+  },
+  "baseline": {
+    "path": "docs/evaluations/quality/baseline-openai-v1.json",
+    "sha256": "83a945c2b24d87ef234dac28b5e84eed105351576cd3c5dfd9c0d177d80f13c1"
+  }
+}

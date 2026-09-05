@@ -36,6 +36,11 @@ const store = {
   listGenerations: vi.fn(),
   deleteGeneration: vi.fn(),
   createGenerationRequest: vi.fn(),
+  selectGenerationCandidate: vi.fn(),
+  createGenerationFeedback: vi.fn(),
+  listGenerationFeedback: vi.fn(),
+  reviewGenerationFeedback: vi.fn(),
+  refinePreferenceInput: vi.fn(),
   loadJob: vi.fn(),
   retryGeneration: vi.fn(),
   retryCharacterAnalysis: vi.fn(),
@@ -117,6 +122,60 @@ function draft(domain: AnalysisDomain) {
 
 describe.each(["standard", "dark"] as const)("%s API routes", (domain) => {
   const prefix = apiPrefixForDomain(domain);
+
+  it("routes quality actions with the authenticated owner, domain and explicit review", async () => {
+    store.selectGenerationCandidate.mockResolvedValue({ candidateId: resourceId });
+    expect(
+      (await request(`${prefix}/generation-requests/${resourceId}/selection`, "POST", { candidateId: resourceId }))
+        .status,
+    ).toBe(200);
+    expect(store.selectGenerationCandidate).toHaveBeenCalledWith(ownerId, domain, resourceId, resourceId);
+    store.createGenerationFeedback.mockResolvedValue({ id: resourceId, replayed: false });
+    const feedback = {
+      candidateId: resourceId,
+      outputPointer: "/personality/summary",
+      reason: "物語として面白い",
+      attributeStableKey: "test.attribute",
+      polarity: "positive",
+      responseChannel: domain === "dark" ? "dark_curiosity" : "narrative_interest",
+      scope: "敵対時のみ",
+    };
+    expect((await request(`${prefix}/generation-feedback`, "POST", feedback)).status).toBe(200);
+    expect(store.createGenerationFeedback).toHaveBeenCalledWith(ownerId, domain, feedback, key);
+    expect(store.reviewGenerationFeedback).not.toHaveBeenCalled();
+    store.reviewGenerationFeedback.mockResolvedValue({ status: "confirmed", outboxEventId: "feedback-profile-event" });
+    expect(
+      (await request(`${prefix}/generation-feedback/${resourceId}/review`, "POST", { decision: "confirm" })).status,
+    ).toBe(200);
+    expect(store.reviewGenerationFeedback).toHaveBeenCalledWith(ownerId, domain, resourceId, "confirm");
+    expect(dispatchOutboxEvent).toHaveBeenCalledWith(env, "feedback-profile-event");
+    store.refinePreferenceInput.mockResolvedValue({
+      id: resourceId,
+      replayed: false,
+      outboxEventId: "refinement-event",
+    });
+    expect(
+      (await request(`${prefix}/entries/${resourceId}/preference-input`, "POST", { mode: "hypotheses" })).status,
+    ).toBe(202);
+    expect(store.refinePreferenceInput).toHaveBeenCalledWith(ownerId, domain, resourceId, { mode: "hypotheses" }, key);
+    expect(dispatchOutboxEvent).toHaveBeenCalledWith(env, "refinement-event");
+    const selection = {
+      mode: "selection",
+      hypothesisBatchId: crypto.randomUUID(),
+      selectedHypothesisIds: [crypto.randomUUID()],
+    };
+    expect((await request(`${prefix}/entries/${resourceId}/preference-input`, "POST", selection)).status).toBe(202);
+    expect(store.refinePreferenceInput).toHaveBeenLastCalledWith(ownerId, domain, resourceId, selection, key);
+  });
+  it("rejects incomplete quality input before writing", async () => {
+    expect((await request(`${prefix}/generation-feedback`, "POST", { reason: "不足" })).status).toBe(400);
+    expect(
+      (await request(`${prefix}/entries/${resourceId}/preference-input`, "POST", { mode: "questions", answers: [] }))
+        .status,
+    ).toBe(400);
+    expect(store.createGenerationFeedback).not.toHaveBeenCalled();
+    expect(store.refinePreferenceInput).not.toHaveBeenCalled();
+  });
 
   it("uses the authenticated owner and the mounted domain", async () => {
     store.listEntries.mockResolvedValue([{ id: resourceId }]);

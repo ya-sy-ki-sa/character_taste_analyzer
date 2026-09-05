@@ -26,8 +26,15 @@ import {
   processGeneration,
   retryGeneration,
 } from "../services/generation";
+import {
+  createGenerationFeedback,
+  listGenerationFeedback,
+  reviewGenerationFeedback,
+  selectGenerationCandidate,
+} from "../services/generation-feedback";
 import { loadCurrentGraph } from "../services/graph";
 import { outboxStatement } from "../services/orchestration";
+import { refinePreferenceInput } from "../services/preference-refinement";
 import { ensureCurrentProfileAlgorithm, loadCurrentProfile, loadProjectionFreshness } from "../services/profile";
 import type { Env } from "../types";
 import type { CharacterTasteDataStoreStrategy } from "./strategy";
@@ -35,6 +42,11 @@ import type { CharacterTasteDataStoreStrategy } from "./strategy";
 export function createD1DataStoreStrategy(env: Env): CharacterTasteDataStoreStrategy {
   return {
     id: "d1",
+    selectGenerationCandidate: (...args) => selectGenerationCandidate(env, ...args),
+    createGenerationFeedback: (...args) => createGenerationFeedback(env, ...args),
+    listGenerationFeedback: (...args) => listGenerationFeedback(env, ...args),
+    reviewGenerationFeedback: (...args) => reviewGenerationFeedback(env, ...args),
+    refinePreferenceInput: (...args) => refinePreferenceInput(env, ...args),
     createEntry: (ownerUserId, analysisDomain, draft, idempotencyKey) =>
       createEntry(env, ownerUserId, analysisDomain, draft, idempotencyKey),
     listIdentityCandidates: (ownerUserId, analysisDomain, input) =>

@@ -4,20 +4,35 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const manifestPath = "docs/詳細設計/prompt-contracts.json";
 const sources = {
+  preferenceHypotheses: {
+    file: "worker/services/preference-hypotheses.ts",
+    constant: "HYPOTHESIS_SYSTEM",
+    version: "preference_hypotheses/v2.1.0",
+  },
+  darkAnalysis: {
+    file: "worker/services/analysis.ts",
+    constant: "DARK_SYSTEM_INSTRUCTION",
+    version: "dark_analysis/v2.0.0",
+  },
+  darkGeneration: {
+    file: "worker/services/generation.ts",
+    constant: "DARK_GENERATION_SYSTEM",
+    version: "dark_generation/v2.0.0",
+  },
   analysis: {
     file: "worker/services/analysis.ts",
     constant: "SYSTEM_INSTRUCTION",
-    version: "character_understanding/v1.0.1",
+    version: "character_understanding/v2.0.0",
   },
   generation: {
     file: "worker/services/generation.ts",
     constant: "GENERATION_SYSTEM",
-    version: "character_generation/v1.0.0",
+    version: "character_generation/v2.0.0",
   },
   generationValidation: {
     file: "worker/services/generation.ts",
     constant: "GENERATION_VALIDATION_SYSTEM",
-    version: "generation_validation/v1.0.0",
+    version: "generation_validation/v2.0.0",
   },
 };
 const generated = {};

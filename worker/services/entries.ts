@@ -856,11 +856,33 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
         ).bind(baseSnapshot.id),
       )
     : [];
-  const analysis = await first<{ id: string; summary_json: string; uncertainties_json: string; status: string }>(
+  const analysis = await first<{
+    id: string;
+    summary_json: string;
+    uncertainties_json: string;
+    status: string;
+    quality_context_json: string;
+  }>(
     env.DB.prepare(
-      `SELECT id,summary_json,uncertainties_json,status FROM analysis_runs WHERE owner_user_id=? AND entry_revision_id=? ORDER BY created_at DESC LIMIT 1`,
+      `SELECT id,summary_json,uncertainties_json,status,quality_context_json FROM analysis_runs WHERE owner_user_id=? AND entry_revision_id=? ORDER BY run_generation DESC LIMIT 1`,
     ).bind(ownerUserId, entry.revision_id),
   );
+  const refinement = analysis
+    ? await first<{ id: string; mode: string; context_json: string; hypotheses_json: string | null }>(
+        env.DB.prepare(
+          `SELECT id,mode,context_json,hypotheses_json FROM preference_refinements WHERE owner_user_id=? AND entry_revision_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1`,
+        ).bind(ownerUserId, entry.revision_id),
+      )
+    : null;
+  const hypothesisPreview =
+    refinement?.mode === "hypotheses" && JSON.parse(refinement.context_json).baseAnalysisRunId === analysis?.id
+      ? {
+          id: refinement.id,
+          candidates: refinement.hypotheses_json
+            ? (JSON.parse(refinement.hypotheses_json) as import("../../shared/quality-schemas").PreferenceHypothesis[])
+            : null,
+        }
+      : null;
   const preferences = analysis
     ? await all<{
         id: string;
@@ -1022,6 +1044,8 @@ export async function loadEntryReview(env: Env, ownerUserId: string, analysisDom
     preferenceAnalysis: analysis
       ? {
           id: analysis.id,
+          hypothesisPreview,
+          qualityContext: JSON.parse(analysis.quality_context_json),
           summary: JSON.parse(analysis.summary_json),
           uncertainties: JSON.parse(analysis.uncertainties_json),
           status: analysis.status,
@@ -1145,7 +1169,8 @@ export async function rejectPreferenceAnalysisItem(
        JOIN entry_revisions er ON er.id=ar.entry_revision_id
        JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
        WHERE ar.id=? AND ar.owner_user_id=? AND e.owner_user_id=? AND e.analysis_domain=?
-         AND ar.status='succeeded' AND e.status='analysis_review'`,
+         AND ar.status='succeeded' AND e.status='analysis_review'
+         AND ar.run_generation=(SELECT MAX(latest.run_generation) FROM analysis_runs latest WHERE latest.entry_revision_id=ar.entry_revision_id AND latest.owner_user_id=ar.owner_user_id AND latest.status='succeeded')`,
     ).bind(analysisRunId, ownerUserId, ownerUserId, analysisDomain),
   );
   if (!run) throw new Error("PREFERENCE_REVIEW_NOT_FOUND");
@@ -1222,7 +1247,8 @@ export async function mutatePreferenceReview(
        JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
        JOIN character_representations cr ON cr.id=er.representation_id
        WHERE ar.id=? AND ar.owner_user_id=? AND e.owner_user_id=? AND e.analysis_domain=?
-         AND ar.status='succeeded' AND e.status='analysis_review'`,
+         AND ar.status='succeeded' AND e.status='analysis_review'
+         AND ar.run_generation=(SELECT MAX(latest.run_generation) FROM analysis_runs latest WHERE latest.entry_revision_id=ar.entry_revision_id AND latest.owner_user_id=ar.owner_user_id AND latest.status='succeeded')`,
     ).bind(analysisRunId, ownerUserId, ownerUserId, analysisDomain),
   );
   if (!run) throw new Error("PREFERENCE_REVIEW_NOT_FOUND");

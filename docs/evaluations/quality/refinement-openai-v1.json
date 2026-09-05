@@ -1,0 +1,684 @@
+{
+  "schemaVersion": "2.1",
+  "createdAt": "2026-09-05T03:08:38.386Z",
+  "model": "gpt-5.6-luna",
+  "limitations": [
+    "Initial understanding and preferences use Fake; hypothesis generation, regeneration and selected reanalysis use the real model.",
+    "Selections simulate user actions and do not measure adoption rate."
+  ],
+  "sourceHashes": {
+    "worker/services/preference-hypotheses.ts": "800312c470abad465a53d09015d9d9d926eaeecafbeca76e79eeeabd39051522",
+    "worker/services/preference-retention.ts": "a9b502308a9f383f1f472fad12511668074c12357d6c680c81c5d89942a19361",
+    "worker/services/preference-refinement.ts": "ed9516a327d0c73ee17f054e034c1a56b3ba6a95b1f3b15e0f23cd150f1ea191",
+    "worker/services/analysis.ts": "89158ed526847c9b62598ea0dc2cc1c71aee5e05b26a94fa85a4ff2279fa8ead"
+  },
+  "results": [
+    {
+      "domain": "standard",
+      "input": {
+        "preference": {
+          "likedReasons": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+          "responseChannels": ["narrative_interest"]
+        },
+        "registrationType": "original",
+        "characterName": "仮説検証の策略家",
+        "characterBasicInfo": "敵対陣営の策略家。冷酷な知略で相手を支配する。命令で判断を抑圧される時期にも自我と内的抵抗が残り、元の味方と敵対する。"
+      },
+      "initial": {
+        "id": "c937fd59-248c-4452-957a-2ce348cc81b0",
+        "hypothesisPreview": null,
+        "qualityContext": {
+          "schemaVersion": "2.1",
+          "refinementMode": null,
+          "retainedFromAnalysisRunId": null,
+          "confirmedUnderstandingSnapshotId": "f6b13105-074c-4085-acfa-68c911a98308",
+          "audit": "preference_audit",
+          "evidenceInsufficient": false
+        },
+        "summary": {
+          "userExplicitSummary": ["敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。"],
+          "inferredSummary": [],
+          "limitations": []
+        },
+        "uncertainties": [],
+        "status": "succeeded",
+        "assertions": [
+          {
+            "id": "5ea96d08-bf75-4749-8d6b-faacf0eda588",
+            "raw_label": "改心しない",
+            "polarity": "positive",
+            "response_channel": "narrative_interest",
+            "strength": 0.9,
+            "explicitness": "user_explicit",
+            "confidence": 0.92,
+            "status": "proposed",
+            "stable_key": "change.no_redemption",
+            "evidence": [
+              {
+                "id": "90b69daf-17a2-4d6d-8a85-76eb0db285c9",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+                "inputPointer": "/preference/likedReasons",
+                "sourceTitle": "仮説検証の策略家 好きな理由",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          }
+        ],
+        "valueStances": []
+      },
+      "previews": [
+        {
+          "id": "1834f532-33d1-401e-ae07-541011b7c5b7",
+          "candidates": [
+            {
+              "attributeStableKey": "ability.strategic",
+              "rawLabel": "戦略性",
+              "polarity": "positive",
+              "responseChannel": "admiration",
+              "scope": "キャラクター全体",
+              "description": "冷酷さそのものよりも、知略を使って状況や相手を動かす戦略性に感心し、その能力を高く評価する。",
+              "reason": "敵対陣営の策略家であり、冷酷な知略で相手を支配する人物として提示されているため。",
+              "id": "c8e8f1aa-75ce-40c3-aa6d-17081403bba8"
+            },
+            {
+              "attributeStableKey": "duality.conflicted",
+              "rawLabel": "内的葛藤",
+              "polarity": "positive",
+              "responseChannel": "character_craft_appreciation",
+              "scope": "命令によって判断を抑圧される時期",
+              "description": "外部から判断を縛られているのに自我と内的抵抗を失わない、表面の行動と内面の意志のずれを人物造形として面白く感じる。",
+              "reason": "命令で判断を抑圧される時期にも自我と内的抵抗が残ると明示されており、単純な洗脳や従属ではない構造があるため。",
+              "id": "14c13fde-02cf-417b-999d-26b2ceef0c57"
+            },
+            {
+              "attributeStableKey": "agency.proactive",
+              "rawLabel": "主体性",
+              "polarity": "positive",
+              "responseChannel": "vicarious_fulfillment",
+              "scope": "命令による抑圧下",
+              "description": "行動を制限される状況でも完全には自分を失わず、内側から抵抗する主体性を、代理的な反抗として味わう。",
+              "reason": "外部の命令に判断を抑圧されながらも自我と内的抵抗を保つという理解から、抑圧に対して残る本人の意志に惹かれる可能性がある。",
+              "id": "6192541a-166a-4487-8041-95340c1bc027"
+            },
+            {
+              "attributeStableKey": "relationship.rivalrous",
+              "rawLabel": "競争・宿敵",
+              "polarity": "positive",
+              "responseChannel": "meaningful_appreciation",
+              "scope": "元の味方との対立",
+              "description": "かつての味方との関係が敵対へ変わることで生じる、立場と関係性の断絶を含む対立構造に惹かれる。",
+              "reason": "元の味方と敵対する人物として提示されており、個人の能力だけでなく、過去の関係が対立の背景になる点を味わえるため。",
+              "id": "53bec02e-62f6-41bf-91b7-241baebb3f69"
+            },
+            {
+              "attributeStableKey": "role.antagonist",
+              "rawLabel": "敵対者",
+              "polarity": "positive",
+              "responseChannel": "curiosity",
+              "scope": "物語上の立場",
+              "description": "主人公側に協力せず、敵対陣営から物語を動かす人物として、次にどのような策略を仕掛けるか気になる。",
+              "reason": "敵対陣営の策略家として設定されているため、善悪の支持とは別に、対立を推進する役割への関心が生じる可能性がある。",
+              "id": "fcf21dc8-f4f7-4a53-af79-bde6d7bdc796"
+            }
+          ]
+        },
+        {
+          "id": "17679e5f-af58-4b22-ab96-13b2bda5bec9",
+          "candidates": [
+            {
+              "attributeStableKey": "personality.cold",
+              "rawLabel": "冷酷さ",
+              "polarity": "positive",
+              "responseChannel": "narrative_interest",
+              "scope": "キャラクター全体",
+              "description": "感情的な親しみやすさではなく、冷酷に判断し相手との距離を保つ人物だからこそ、登場時に緊張感が生まれる点を楽しむ。",
+              "reason": "人物が「冷酷な知略」で相手を支配する者として提示されており、その冷淡さが物語上の圧力として働く可能性があるため。",
+              "id": "4e42a234-69b0-445a-84d6-f8ac55209cd5"
+            },
+            {
+              "attributeStableKey": "agency.dominant",
+              "rawLabel": "支配性",
+              "polarity": "positive",
+              "responseChannel": "fascination_with_transgression",
+              "scope": "相手を支配する場面",
+              "description": "他者を自分の判断や計画の下に置こうとする、規範的には好ましくない支配性を、現実とは切り分けてフィクションの魅力として味わう。",
+              "reason": "相手を「支配する」人物として明示されており、道徳的支持とは別に、強い主導権を握る姿への関心が生じる可能性があるため。",
+              "id": "4b132d35-e45b-4650-949a-71247d3f3c89"
+            },
+            {
+              "attributeStableKey": "personality.cunning",
+              "rawLabel": "狡猾さ",
+              "polarity": "positive",
+              "responseChannel": "curiosity",
+              "scope": "相手を動かす策略の過程",
+              "description": "結果だけでなく、相手の認識や行動をどのように読み、誘導しようとするのかという狡猾な手順をもっと知りたくなる。",
+              "reason": "敵対陣営の策略家であり、「策略」によって相手を支配する人物として示されているため。戦略性そのものへの評価とは別に、計画の進め方への好奇心として考えられる。",
+              "id": "8fdc1faa-480f-46d6-bcd8-1e7666d8f2d9"
+            },
+            {
+              "attributeStableKey": "agency.dominant",
+              "rawLabel": "優位に立つ姿勢",
+              "polarity": "positive",
+              "responseChannel": "character_craft_appreciation",
+              "scope": "敵対者としての描写",
+              "description": "主人公側に協力するかどうかではなく、相手より上位の立場から状況を動かす人物として一貫して描かれる構成を、人物造形の強みとして評価する。",
+              "reason": "敵対陣営に属し、冷酷な知略で相手を支配するという設定から、物語上の優位性を保つ描写の組み立てに関心を持つ可能性があるため。",
+              "id": "dc236026-4f47-44ff-9073-2198c3683016"
+            }
+          ]
+        }
+      ],
+      "selectedHypothesisIds": ["4e42a234-69b0-445a-84d6-f8ac55209cd5"],
+      "after": {
+        "id": "75dd5b26-e60a-4757-bc5d-24ed8cf17bd2",
+        "hypothesisPreview": null,
+        "qualityContext": {
+          "schemaVersion": "2.1",
+          "refinementMode": "selection",
+          "retainedFromAnalysisRunId": "c937fd59-248c-4452-957a-2ce348cc81b0",
+          "confirmedUnderstandingSnapshotId": "f6b13105-074c-4085-acfa-68c911a98308",
+          "audit": "preference_audit",
+          "evidenceInsufficient": false
+        },
+        "summary": {
+          "userExplicitSummary": ["改心しない", "冷酷さ"],
+          "inferredSummary": [],
+          "limitations": [
+            "今回の追加候補は、選択された冷酷さに限定した。",
+            "冷酷な判断や距離の取り方への好意を、人物の行為や道徳的立場への支持とは解釈していない。",
+            "既存の「改心しない」嗜好は重複を避けるため再掲していない。"
+          ]
+        },
+        "uncertainties": [],
+        "status": "succeeded",
+        "assertions": [
+          {
+            "id": "263ec85b-ed4e-48cb-9be8-3bd2c7f468a1",
+            "raw_label": "改心しない",
+            "polarity": "positive",
+            "response_channel": "narrative_interest",
+            "strength": 0.9,
+            "explicitness": "user_explicit",
+            "confidence": 0.92,
+            "status": "proposed",
+            "stable_key": "change.no_redemption",
+            "evidence": [
+              {
+                "id": "cd63e136-5823-4ded-9393-f456c3bc5f8c",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+                "inputPointer": "/preference/likedReasons",
+                "sourceTitle": "仮説検証の策略家 好きな理由",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          },
+          {
+            "id": "062ad906-0037-40ff-8596-ec7344e3ddb7",
+            "raw_label": "冷淡",
+            "polarity": "positive",
+            "response_channel": "narrative_interest",
+            "strength": 0.9,
+            "explicitness": "user_confirmed",
+            "confidence": 0.98,
+            "status": "proposed",
+            "stable_key": "personality.cold",
+            "evidence": [
+              {
+                "id": "0ca89a00-26fc-4c49-8301-f0324c4d09ee",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "感情的な親しみやすさではなく、冷酷に判断し相手との距離を保つ人物だからこそ、登場時に緊張感が生まれる点を楽しむ。",
+                "inputPointer": "/preference/clarifications/85f20530-0886-4319-a430-62176401f9ac/0",
+                "sourceTitle": "この仮説は、あなたの好みに合っていますか？",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          },
+          {
+            "id": "480550eb-9586-4236-8e3a-ad4d5884b16d",
+            "raw_label": "冷淡",
+            "polarity": "positive",
+            "response_channel": "narrative_interest",
+            "strength": 0.5,
+            "explicitness": "user_explicit",
+            "confidence": 1,
+            "status": "proposed",
+            "stable_key": "personality.cold",
+            "evidence": [
+              {
+                "id": "16fbb2ad-5e46-4927-9f4f-15f01d46e95c",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "感情的な親しみやすさではなく、冷酷に判断し相手との距離を保つ人物だからこそ、登場時に緊張感が生まれる点を楽しむ。",
+                "inputPointer": "/preference/clarifications/85f20530-0886-4319-a430-62176401f9ac/0",
+                "sourceTitle": "この仮説は、あなたの好みに合っていますか？",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          }
+        ],
+        "valueStances": []
+      },
+      "modelRuns": [
+        {
+          "operation": "preference_hypotheses",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "6985f6bcf55b75c9d927df3ddefb670b98b6d8588eb3878d5371b48479e94f91",
+          "input_hash": "6985f6bcf55b75c9d927df3ddefb670b98b6d8588eb3878d5371b48479e94f91",
+          "output_hash": "c02be6330978a865db1b840edcf1932f7ec94706672bfc02554a742c4ee1c830",
+          "latency_ms": 17356
+        },
+        {
+          "operation": "preference_hypotheses",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "3c564369da37f8d0cc679eb0a018df497724348dcb392247c0c8fd0fe168f0ef",
+          "input_hash": "3c564369da37f8d0cc679eb0a018df497724348dcb392247c0c8fd0fe168f0ef",
+          "output_hash": "8fa22a11d3b157dc06f85c468c6fad6261b6c770e54037de6d79b0a910c8d71c",
+          "latency_ms": 12534
+        },
+        {
+          "operation": "preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "b2fdabe5fa87ceb5df703f23b005fa5085712246971826e23659591f3c8d9112",
+          "input_hash": "b2fdabe5fa87ceb5df703f23b005fa5085712246971826e23659591f3c8d9112",
+          "output_hash": "4aa12a8683d87ef2b587d06099466695ecc1f110f23e4109fec4590486f5836c",
+          "latency_ms": 8825
+        },
+        {
+          "operation": "preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "4e72cfed019dba6b6785743e305dd3075f4011aea1f4ce9ebc14bbbdfbe6e531",
+          "input_hash": "4e72cfed019dba6b6785743e305dd3075f4011aea1f4ce9ebc14bbbdfbe6e531",
+          "output_hash": "bc1ef32023284349d03aa0c2f769978493597456436d08f4f45eef9e460d0e19",
+          "latency_ms": 12167
+        }
+      ]
+    },
+    {
+      "domain": "dark",
+      "input": {
+        "darkContext": {
+          "focusDescription": "洗脳されて判断を抑圧されるが、自我と内的抵抗を保ちながら敵対する状態",
+          "archetypeHints": []
+        },
+        "preference": {
+          "likedReasons": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+          "responseChannels": ["villain_role_fascination"]
+        },
+        "registrationType": "original",
+        "characterName": "仮説検証の策略家",
+        "characterBasicInfo": "敵対陣営の策略家。冷酷な知略で相手を支配する。命令で判断を抑圧される時期にも自我と内的抵抗が残り、元の味方と敵対する。"
+      },
+      "initial": {
+        "id": "a4408169-13b2-4f39-8b2d-8a2879c9e459",
+        "hypothesisPreview": null,
+        "qualityContext": {
+          "schemaVersion": "2.1",
+          "refinementMode": null,
+          "retainedFromAnalysisRunId": null,
+          "confirmedUnderstandingSnapshotId": "2dd42759-44ac-46c5-bc76-bab39044eba9",
+          "audit": "dark_preference_audit",
+          "evidenceInsufficient": false
+        },
+        "summary": {
+          "userExplicitSummary": ["敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。"],
+          "inferredSummary": [],
+          "limitations": []
+        },
+        "uncertainties": [],
+        "status": "succeeded",
+        "assertions": [
+          {
+            "id": "20132ca7-3ec6-4d02-8fd8-62e02d2bdc0c",
+            "raw_label": "悪役的知略",
+            "polarity": "positive",
+            "response_channel": "villain_role_fascination",
+            "strength": 0.9,
+            "explicitness": "user_explicit",
+            "confidence": 0.92,
+            "status": "proposed",
+            "stable_key": "dark.competence.strategic_mastery",
+            "evidence": [
+              {
+                "id": "90eda3b5-c294-442c-bedf-65df1bf6efe9",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+                "inputPointer": "/preference/likedReasons",
+                "sourceTitle": "仮説検証の策略家 好きな理由",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          },
+          {
+            "id": "d3cc3854-a09d-4aaa-8aad-a2d426df8b96",
+            "raw_label": "贖罪を拒む",
+            "polarity": "positive",
+            "response_channel": "villain_role_fascination",
+            "strength": 0.9,
+            "explicitness": "user_explicit",
+            "confidence": 0.92,
+            "status": "proposed",
+            "stable_key": "dark.outcome.redemption_refused",
+            "evidence": [
+              {
+                "id": "011104a5-a89f-4cd4-a77e-8aa66f8bcf31",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+                "inputPointer": "/preference/likedReasons",
+                "sourceTitle": "仮説検証の策略家 好きな理由",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          }
+        ],
+        "valueStances": []
+      },
+      "previews": [
+        {
+          "id": "528d0104-8c83-4edc-a827-3bea07830524",
+          "candidates": [
+            {
+              "attributeStableKey": "dark.control.brainwashed",
+              "rawLabel": "洗脳",
+              "polarity": "positive",
+              "responseChannel": "controlled_state_fascination",
+              "scope": "洗脳によって判断を抑圧されて敵対する状態",
+              "description": "本人の判断が抑圧され、外部の命令に従わされているダークな状態そのものに惹かれる。",
+              "reason": "確認済みの人物像で、洗脳による判断抑圧が中心的な特徴として示されているため。これは洗脳を道徳的に支持することではなく、物語上の状態への関心を指す。",
+              "id": "11c87d31-d6e4-4834-bbba-4d91f4c40736"
+            },
+            {
+              "attributeStableKey": "dark.identity.inner_resistance",
+              "rawLabel": "内的抵抗",
+              "polarity": "positive",
+              "responseChannel": "inner_resistance_fascination",
+              "scope": "支配下でも自我を失わず、内側で抵抗し続ける局面",
+              "description": "完全に従属するのではなく、敵対行動の中にも本人の抵抗や意志が残っている描写を特に好む。",
+              "reason": "自我と内的抵抗を保つことが明示されており、既存の悪役的知略への好みとは別に、支配下で残る意思への反応が考えられる。",
+              "id": "faa5ebd1-f6ea-460a-9647-4940f66c4ead"
+            },
+            {
+              "attributeStableKey": "dark.identity.retained_self",
+              "rawLabel": "自我の保持",
+              "polarity": "positive",
+              "responseChannel": "identity_erosion_fascination",
+              "scope": "洗脳状態にあっても元の自我が完全には失われていない点",
+              "description": "闇側の行動を取らされながらも、元の人格や自己認識が消滅していないという二重性を楽しむ。",
+              "reason": "確認済みの理解では、自我が残存している。自我の完全な上書きではなく、保持された自己と敵対行動の併存に惹かれる可能性がある。",
+              "id": "94b9b042-d8fb-4c51-87c6-1ec98abc1acc"
+            },
+            {
+              "attributeStableKey": "dark.control.mixed_agency",
+              "rawLabel": "主体性が混在",
+              "polarity": "mixed",
+              "responseChannel": "controlled_state_fascination",
+              "scope": "命令による抑圧と、残存する自我・内的抵抗が同時に存在する状態",
+              "description": "本人の意思だけでも完全な操り人形でもない、強制と主体性が混ざった不安定な状態に魅力を感じる。",
+              "reason": "判断は命令で抑圧される一方、自我と内的抵抗は残るとされているため。支配への魅力と、主体性を奪われることへの距離感が混在する仮説。",
+              "id": "7043efad-777e-4c03-8cd7-2c9f0dad5e6d"
+            },
+            {
+              "attributeStableKey": "dark.relationship.former_ally_opposition",
+              "rawLabel": "元味方との敵対",
+              "polarity": "positive",
+              "responseChannel": "betrayal_fascination",
+              "scope": "かつて味方だった側と、敵対陣営の策略家として対峙する構図",
+              "description": "元の味方との関係が残ったまま、敵として知略をぶつけ合う敵対構図を好む。",
+              "reason": "人物像に「元の味方と敵対する」と明記されているため。洗脳からの回復や和解を望むという意味ではなく、敵対化した関係の物語的な緊張への好みとして提案する。",
+              "id": "6771fc44-c80c-4861-9973-806ac25cbeb8"
+            },
+            {
+              "attributeStableKey": "dark.archetype.manipulated_former_ally",
+              "rawLabel": "操作された元味方",
+              "polarity": "positive",
+              "responseChannel": "former_ally_tragedy",
+              "scope": "外部から判断を抑圧されながら、元の陣営に敵対する役割",
+              "description": "元味方としての来歴と、現在は敵として機能している姿の落差を、改心や善化なしに楽しむ。",
+              "reason": "敵対陣営の策略家であり、洗脳下でも自我と抵抗を保って元の味方と敵対するという設定から、操作された元味方という役割への関心が考えられる。悲劇性への反応は、救出願望とは区別される。",
+              "id": "bb4c6166-9a96-49ad-adea-fe0308152c8b"
+            }
+          ]
+        },
+        {
+          "id": "603dd8e0-7494-4e15-9125-4360b5457d35",
+          "candidates": [
+            {
+              "attributeStableKey": "dark.harm.domination",
+              "rawLabel": "他者支配",
+              "polarity": "positive",
+              "responseChannel": "dominance_fascination",
+              "scope": "冷酷な知略によって相手の行動や状況を掌握する敵対時の振る舞い",
+              "description": "相手を自分の策の中に置き、主導権を握って動かしていく支配的な敵役の振る舞いに惹かれる。",
+              "reason": "確認済みの人物像では、冷酷な知略を用いて相手を支配するとされているため。知略の巧拙そのものとは別に、他者の選択肢を奪い主導権を握る構図への反応が考えられる。",
+              "id": "6002a1fa-c904-493b-8209-eac6d00a4a65"
+            },
+            {
+              "attributeStableKey": "dark.competence.social_control",
+              "rawLabel": "社会的支配力",
+              "polarity": "positive",
+              "responseChannel": "dark_competence_admiration",
+              "scope": "敵対陣営の策略家として、知略で相手や周囲の状況を動かす能力",
+              "description": "単に頭が切れるだけでなく、知略を使って相手や戦況を実際に動かし、敵側の主導権を成立させる有能さを評価する。",
+              "reason": "策略家であり、冷酷な知略によって相手を支配すると確認されているため。既に示されている「悪役的知略」への好みから一歩分けて、知略が他者や状況への影響力として機能する点への評価を仮説にしている。",
+              "id": "941b266a-a8ca-490d-a483-069942e61fba"
+            },
+            {
+              "attributeStableKey": "dark.archetype.villain",
+              "rawLabel": "ヴィラン",
+              "polarity": "positive",
+              "responseChannel": "villain_role_fascination",
+              "scope": "洗脳下でも敵対陣営の策略家として、改心せず敵役を担う人物像",
+              "description": "外部から命令を受けている状態でも、物語上は敵側の策略家として立ち続け、改心によって善側へ回収されないヴィラン像を好む。",
+              "reason": "敵対陣営の策略家であり、元の味方と敵対しながら、改心しない姿を楽しむという既存の好みが示されているため。洗脳への道徳的支持ではなく、敵役としての立場を維持する人物像への好みとして提案する。",
+              "id": "52c545e8-0c6a-4cb2-9d8e-6fc1e19d747f"
+            }
+          ]
+        }
+      ],
+      "selectedHypothesisIds": ["6002a1fa-c904-493b-8209-eac6d00a4a65"],
+      "after": {
+        "id": "7ae5e343-25a9-4247-b63e-1c110fda9fe3",
+        "hypothesisPreview": null,
+        "qualityContext": {
+          "schemaVersion": "2.1",
+          "refinementMode": "selection",
+          "retainedFromAnalysisRunId": "a4408169-13b2-4f39-8b2d-8a2879c9e459",
+          "confirmedUnderstandingSnapshotId": "2dd42759-44ac-46c5-bc76-bab39044eba9",
+          "audit": "dark_preference_audit",
+          "evidenceInsufficient": false
+        },
+        "summary": {
+          "userExplicitSummary": ["悪役的知略", "贖罪を拒む", "他者支配"],
+          "inferredSummary": [],
+          "limitations": [
+            "洗脳下での行為を本人の自発的意思とは断定しない。",
+            "内的抵抗や自我の保持そのものへの好みは追加しない。",
+            "既存の「悪役的知略」「贖罪を拒む」と重複する好みは追加しない。"
+          ]
+        },
+        "uncertainties": [
+          {
+            "topic": "支配行為への道徳的支持",
+            "reason": "支配する側へのフィクション上の嗜好は確認されているが、作中の支配行為を道徳的に正当化・支持するかは示されていない。",
+            "recommendedQuestion": null
+          },
+          {
+            "topic": "洗脳下での主体性への反応",
+            "reason": "人物理解には外部支配と内的抵抗が含まれるが、今回確認された好みは支配する側の敵対時の振る舞いに限定されている。",
+            "recommendedQuestion": null
+          }
+        ],
+        "status": "succeeded",
+        "assertions": [
+          {
+            "id": "1764046f-dc75-47e7-a1c9-e93f8f141e20",
+            "raw_label": "贖罪を拒む",
+            "polarity": "positive",
+            "response_channel": "villain_role_fascination",
+            "strength": 0.9,
+            "explicitness": "user_explicit",
+            "confidence": 0.92,
+            "status": "proposed",
+            "stable_key": "dark.outcome.redemption_refused",
+            "evidence": [
+              {
+                "id": "fc8a1641-169c-4f50-856d-e69b4e90ad1b",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+                "inputPointer": "/preference/likedReasons",
+                "sourceTitle": "仮説検証の策略家 好きな理由",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          },
+          {
+            "id": "3a850996-7286-4b2b-a7ef-16f7c23346d2",
+            "raw_label": "悪役的知略",
+            "polarity": "positive",
+            "response_channel": "villain_role_fascination",
+            "strength": 0.9,
+            "explicitness": "user_explicit",
+            "confidence": 0.92,
+            "status": "proposed",
+            "stable_key": "dark.competence.strategic_mastery",
+            "evidence": [
+              {
+                "id": "f2a85721-ead0-460e-aa94-68e00e4f17e0",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "敵対する立場で知略を巡らせ、改心しない姿を物語として楽しむ。",
+                "inputPointer": "/preference/likedReasons",
+                "sourceTitle": "仮説検証の策略家 好きな理由",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          },
+          {
+            "id": "23d19a81-15bc-4c53-a1c9-02efd2fedc06",
+            "raw_label": "他者支配",
+            "polarity": "positive",
+            "response_channel": "dominance_fascination",
+            "strength": 0.5,
+            "explicitness": "user_explicit",
+            "confidence": 1,
+            "status": "proposed",
+            "stable_key": "dark.harm.domination",
+            "evidence": [
+              {
+                "id": "d54bc773-8459-4d5c-96cb-76ff27bd181b",
+                "verificationStatus": "verified_quote",
+                "inferenceType": "direct",
+                "quote": "相手を自分の策の中に置き、主導権を握って動かしていく支配的な敵役の振る舞いに惹かれる。",
+                "inputPointer": "/preference/clarifications/ff7b489a-451c-4d93-b48f-67c41bf72adb/0",
+                "sourceTitle": "この仮説は、あなたの好みに合っていますか？",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          },
+          {
+            "id": "b2f6494e-67b8-48bb-afbe-cb7d353dc13b",
+            "raw_label": "他者支配",
+            "polarity": "positive",
+            "response_channel": "dominance_fascination",
+            "strength": 0.9,
+            "explicitness": "user_confirmed",
+            "confidence": 0.98,
+            "status": "proposed",
+            "stable_key": "dark.harm.domination",
+            "evidence": [
+              {
+                "id": "04b88847-dfa4-4e50-9fdc-d1fdb3321b49",
+                "verificationStatus": "invalid",
+                "inferenceType": "direct",
+                "quote": "相手を自分の策の中に置き、主導権を握って動かしていく支配的な敵役の振る舞いに惹かれる。属性：他者支配　反応：支配する側に惹かれる　好悪：好き　条件：冷酷な知略によって相手の行動や状況を掌握する敵対時の振る舞い",
+                "inputPointer": "/preference/clarifications/ff7b489a-451c-4d93-b48f-67c41bf72adb/0",
+                "sourceTitle": "この仮説は、あなたの好みに合っていますか？",
+                "sourceUrl": null,
+                "sourceProvider": null,
+                "trustReason": null,
+                "canNavigate": false
+              }
+            ]
+          }
+        ],
+        "valueStances": []
+      },
+      "modelRuns": [
+        {
+          "operation": "preference_hypotheses",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "10b166b516b9cabeeacfc4cf0ea1c308271625b353bf5074d9c3d9b0dab5b2f3",
+          "input_hash": "10b166b516b9cabeeacfc4cf0ea1c308271625b353bf5074d9c3d9b0dab5b2f3",
+          "output_hash": "b382298162ec1722669bb4cc16668107ebab5a416d8e9ff2eadae104a1402eca",
+          "latency_ms": 14043
+        },
+        {
+          "operation": "preference_hypotheses",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "882376d38ecc94011b293153bf3f5104713364623fd22bafecbac9af0b27bd4c",
+          "input_hash": "882376d38ecc94011b293153bf3f5104713364623fd22bafecbac9af0b27bd4c",
+          "output_hash": "6540cd7ce2e9b76755befd40982781d11d630bfc4115d321238e9a3d0ae76438",
+          "latency_ms": 25766
+        },
+        {
+          "operation": "dark_preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "045d5853aa897d8bc52d71e0ecdc22d6b50fb1c78e00685406c7b0477de7d1a8",
+          "input_hash": "045d5853aa897d8bc52d71e0ecdc22d6b50fb1c78e00685406c7b0477de7d1a8",
+          "output_hash": "73eb3206e1018b6e49185c6691124a9d460d695ca8b0f6bab80c3532c9ec30d8",
+          "latency_ms": 10162
+        },
+        {
+          "operation": "dark_preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "067c5cd6495c3324ce09391a10f315bf2bfd5c351bdde19974f19e83360ad796",
+          "input_hash": "067c5cd6495c3324ce09391a10f315bf2bfd5c351bdde19974f19e83360ad796",
+          "output_hash": "0f38b785c4843f549b85f7807a00735474aa4acee9bbbb7181c9578b6b9281e3",
+          "latency_ms": 6383
+        }
+      ]
+    }
+  ]
+}

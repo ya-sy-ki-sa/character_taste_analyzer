@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "2.0",
+  "createdAt": "2026-09-05T02:21:47.552Z",
+  "input": "generation-dark-openai-v4.json:controlled_hero-suppressed:candidate1",
+  "textBytes": 12222,
+  "chunks": 3,
+  "cacheEntries": 2,
+  "initial": {
+    "schemaVersion": "2.0",
+    "passed": false,
+    "comparedCount": 1,
+    "embeddingModel": "text-embedding-3-small",
+    "matches": [
+      {
+        "sourceRef": "reference:identical",
+        "name": "灰鐘のイオル",
+        "nameScore": 1,
+        "semanticScore": 0.9999989246187814,
+        "combinationScore": 1,
+        "violated": true
+      }
+    ]
+  },
+  "cached": {
+    "schemaVersion": "2.0",
+    "passed": false,
+    "comparedCount": 1,
+    "embeddingModel": "text-embedding-3-small",
+    "matches": [
+      {
+        "sourceRef": "reference:identical",
+        "name": "灰鐘のイオル",
+        "nameScore": 1,
+        "semanticScore": 0.9999989246187814,
+        "combinationScore": 1,
+        "violated": true
+      }
+    ]
+  },
+  "sourceHashes": {
+    "worker/services/generation-similarity.ts": "6cc5dff777349f23abc96ec8dafe0608bfe791731f8c3f221f2ad0198b6994f0",
+    "worker/services/similarity-embedding.ts": "ac3f798198b85f0b33a9b02b6cbb08598d9490befeec15ff833b83ff93b7f368"
+  }
+}

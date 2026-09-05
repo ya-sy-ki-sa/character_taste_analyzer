@@ -202,7 +202,7 @@ describe("preference review integration", () => {
         id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, revision_number INTEGER NOT NULL
       );
       CREATE TABLE analysis_runs (
-        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, entry_revision_id TEXT NOT NULL, status TEXT NOT NULL
+        id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, entry_revision_id TEXT NOT NULL, status TEXT NOT NULL, run_generation INTEGER NOT NULL DEFAULT 1
       );
       CREATE TABLE preference_assertions (
         id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, analysis_run_id TEXT NOT NULL, status TEXT NOT NULL
@@ -212,7 +212,7 @@ describe("preference review integration", () => {
       );
       INSERT INTO user_character_entries VALUES ('entry','owner',1,'analysis_review','standard');
       INSERT INTO entry_revisions VALUES ('revision','entry',1);
-      INSERT INTO analysis_runs VALUES ('run','owner','revision','succeeded');
+      INSERT INTO analysis_runs VALUES ('run','owner','revision','succeeded',1);
       INSERT INTO preference_assertions VALUES ('preference','owner','run','proposed');
       INSERT INTO value_stance_assertions VALUES ('stance','owner','run','proposed');
     `);

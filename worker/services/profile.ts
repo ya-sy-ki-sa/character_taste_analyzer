@@ -310,7 +310,7 @@ function buildValueStances(rows: ValueStanceRow[]): AggregatedValueStance[] {
 }
 
 async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<AssertionRow[]> {
-  return all<AssertionRow>(
+  const assertions = await all<AssertionRow>(
     env.DB.prepare(`
     SELECT pa.id, e.id AS entry_id, pa.entry_revision_id, pa.character_identity_id, ci.work_id,
            e.analysis_domain,
@@ -332,10 +332,23 @@ async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<
     LEFT JOIN evidence_fragments ef ON ef.owner_type = 'preference_assertion' AND ef.owner_id = pa.id
     WHERE pa.owner_user_id = ? AND pa.status IN ('confirmed', 'corrected')
       AND e.owner_user_id = ? AND e.status = 'active'
+      AND pa.analysis_run_id=(SELECT latest.id FROM analysis_runs latest WHERE latest.entry_revision_id=pa.entry_revision_id AND latest.owner_user_id=pa.owner_user_id AND latest.status='succeeded' ORDER BY latest.run_generation DESC LIMIT 1)
     GROUP BY pa.id
     ORDER BY pa.id
   `).bind(ownerUserId, ownerUserId),
   );
+  const feedback = await all<AssertionRow>(
+    env.DB.prepare(`SELECT f.id,'feedback:' || COALESCE(json_extract(f.preference_json,'$.sourceCandidateId'),f.candidate_id,f.id) AS entry_id, f.id AS entry_revision_id,
+    'feedback:' || COALESCE(json_extract(f.preference_json,'$.sourceCandidateId'),f.candidate_id,f.id) AS character_identity_id,NULL AS work_id,f.analysis_domain,
+    d.id AS attribute_definition_id,d.stable_key,d.label,d.category,d.label AS raw_label,d.label AS normalized_label,
+    json_extract(f.preference_json,'$.polarity') AS polarity,json_extract(f.preference_json,'$.responseChannel') AS response_channel,
+    1.0 AS strength,'user_explicit' AS explicitness,1.0 AS confidence,
+    json_object('schemaVersion','2','entryScope',json_extract(f.preference_json,'$.scope'),'subjects',json('[]'),'relationships',json('[]'),'narrativePhases',json('[]'),'conditions',json('[]'),'exceptions',json('[]')) AS context_json,
+    f.status,1 AS evidence_count,1.0 AS evidence_quality,f.request_hash AS evidence_fingerprint
+    FROM generation_feedback f JOIN attribute_definitions d ON d.id=json_extract(f.preference_json,'$.attributeId')
+    WHERE f.owner_user_id=? AND f.status='confirmed' ORDER BY f.id`).bind(ownerUserId),
+  );
+  return [...assertions, ...feedback];
 }
 
 async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueStanceRow[]> {
@@ -358,6 +371,7 @@ async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueSta
     LEFT JOIN evidence_fragments ef ON ef.owner_type = 'value_stance_assertion' AND ef.owner_id = vs.id
     WHERE vs.owner_user_id = ? AND vs.status IN ('confirmed', 'corrected')
       AND e.owner_user_id = ? AND e.status = 'active'
+      AND ar.id=(SELECT latest.id FROM analysis_runs latest WHERE latest.entry_revision_id=ar.entry_revision_id AND latest.owner_user_id=ar.owner_user_id AND latest.status='succeeded' ORDER BY latest.run_generation DESC LIMIT 1)
     GROUP BY vs.id ORDER BY vs.id
   `).bind(ownerUserId, ownerUserId),
   );

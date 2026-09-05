@@ -3,8 +3,12 @@ import type { z } from "zod";
 export type LlmProviderId = "openai" | "workers_ai" | "replay" | "fake";
 export type LlmOperation =
   | "character_understanding"
+  | "understanding_audit"
   | "customization_delta"
   | "preference_analysis"
+  | "preference_audit"
+  | "preference_hypotheses"
+  | "generation_comparison"
   | "dark_scope_assessment"
   | "dark_baseline_understanding"
   | "dark_character_understanding"

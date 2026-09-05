@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { darkResponseChannelPrompt } from "../../shared/dark-response-channels";
+import type { RefinementContext } from "../../shared/quality-schemas";
 import { responseChannelPrompt } from "../../shared/response-channels";
 import {
   type AnyEntryDraft,
@@ -34,8 +35,16 @@ import { createLlmProvider } from "../llm/providers";
 import { LlmProviderError, type LlmRunMetadata } from "../llm/types";
 import type { CharacterAnalysisWorkflowParams, Env } from "../types";
 import { type CharacterResearch, collectCharacterResearch } from "./character-research";
+import { loadConfirmedUnderstanding, prepareConfirmedReviewSources } from "./confirmed-understanding";
 import { claimJob, finishJobAttempt, isRetryableFailure, type JobClaim } from "./jobs";
 import { outboxStatement } from "./orchestration";
+import { commitHypothesisPreview, generatePreferenceHypotheses } from "./preference-hypotheses";
+import {
+  loadRetainedPreferences,
+  mergeRetainedPreferences,
+  mergeSelectedPreferenceHypotheses,
+  retainPreferenceStatements,
+} from "./preference-retention";
 import {
   loadInputProvenanceSources,
   ProvenanceVerificationError,
@@ -53,6 +62,7 @@ const SYSTEM_INSTRUCTION = `あなたはフィクションのキャラクター�
 ヒーロー、ヴィラン、アンチヒーロー、端役、場面限定、二次創作を同等の対象とする。
 悪、非道徳、残酷、利己性、支配、破壊、善への無関心、改心しないことへの好意を有効な嗜好として保持し、穏当な理由へ置換しない。
 フィクション上の好意から現実の加害意図、人格、病理、診断を推測しない。
+訂正済み理解を原資料より優先し、削除・差し替えされた特徴を復活させない。明示された肯定・否定の両方を条件付き嗜好として保持する。実際の人物にまだ現れていない仮定の苦手条件も、ユーザーが述べた嗜好の根拠として有効であり、人物の事実とは分ける。属性、好悪、反応経路、適用条件を分け、人物への好意を行為への支持にしない。
 各assertionのevidenceは最大3件とし、入力は提示された許可済みJSON Pointerだけを使い、見出しの「登録情報」をPointerへ含めず、原文中に連続して存在する短いquoteを示す。公開情報は提示されたURL、モデル知識はsourceRef="model_knowledge"で示す。提示・検索annotationにないURLを作らない。
 指定されたJSON Schemaだけを返す。`;
 
@@ -77,6 +87,15 @@ type EntryContext = {
   sourceSetId: string | null;
   sourceId: string | null;
   payload: AnyEntryDraft;
+  reviewExclusions?: unknown;
+  preferenceReviewHistory?: unknown;
+  refinement?: {
+    id: string;
+    mode: "questions" | "hypotheses";
+    answers: Array<{ question: string; answer: string }>;
+    context?: RefinementContext;
+  };
+  retainedPreferences?: unknown;
 };
 
 type AttributeRow = {
@@ -85,6 +104,49 @@ type AttributeRow = {
   label: string;
   category: string;
 };
+
+function refinementInstruction(entry: EntryContext): string {
+  if (!entry.refinement) return "根拠不足なら候補0件とし、追加質問をuncertaintiesへ記載する。";
+  if (entry.refinement.mode === "hypotheses")
+    return "ユーザーは仮説の提示を選択した。確認済み理解から異なる反応を想定した最大3件の仮説候補を提示する。必ずinferred、confidence <= 0.35とし、明示的好みとして断定しない。候補の確認後にだけ集計する。";
+  return `次の質問への回答と、ユーザーが決定した仮説だけを追加入力として再分析する。選ばれていない仮説を好みの根拠にしない。選択はユーザーの好みの申告であって人物の事実の証明ではない。好き・苦手を文章の意味で区別し、質問文だけを根拠にしない。既存の好みは別途保持されるので重複を増やさず、追加の好みを返す。既存の好み: ${JSON.stringify(entry.retainedPreferences ?? [])}。許可Pointer: ${JSON.stringify(entry.refinement.answers.map((_, index) => `/preference/clarifications/${entry.refinement?.id}/${index}`))}`;
+}
+function refinedFakePreferences<T extends AnyPreferenceCandidate>(
+  entry: EntryContext,
+  candidate: T,
+  understanding: UnderstandingCandidate,
+): T {
+  if (!entry.refinement) return candidate;
+  if (entry.refinement.context?.selectedHypotheses?.length)
+    return { ...candidate, preferenceAssertions: [], valueStanceAssertions: [] };
+  const hypothesis = entry.refinement.mode === "hypotheses";
+  const answer = entry.refinement.answers[0]?.answer;
+  const channel =
+    entry.payload.preference.responseChannels[0] ??
+    (entry.analysisDomain === "dark" ? "dark_character_liking" : "narrative_interest");
+  return {
+    ...candidate,
+    preferenceAssertions: understanding.assertions.slice(0, 3).map((item) => ({
+      attributeStableKey: item.attributeStableKey,
+      rawLabel: item.rawLabel,
+      polarity: "positive",
+      responseChannel: channel,
+      strength: 0.5,
+      explicitness: "inferred",
+      confidence: hypothesis ? 0.25 : 0.5,
+      context: preferenceContextFor(entry.payload),
+      evidence: answer
+        ? inputEvidence(`/preference/clarifications/${entry.refinement?.id}/0`, answer.slice(0, 500), "inferred")
+        : [],
+    })),
+    summary: {
+      ...candidate.summary,
+      inferredSummary: [
+        hypothesis ? "仮説候補です。自分の好みに合うものだけを確認してください。" : "回答を参考にした候補です。",
+      ],
+    },
+  } as T;
+}
 
 function preferenceContextFor(payload: AnyEntryDraft) {
   return {
@@ -171,8 +233,17 @@ export async function retryCharacterAnalysis(
 
   const stage: CharacterAnalysisWorkflowParams["stage"] =
     job.has_confirmed_understanding === 1 ? "preference" : "understanding";
+  const refinement =
+    stage === "preference"
+      ? await first<{ id: string }>(
+          env.DB.prepare(
+            `SELECT f.id FROM preference_refinements f JOIN entry_revisions er ON er.id=f.entry_revision_id WHERE f.owner_user_id=? AND er.entry_id=? AND er.revision_number=? ORDER BY f.created_at DESC,f.rowid DESC LIMIT 1`,
+          ).bind(ownerUserId, job.target_id, job.input_generation),
+        )
+      : null;
   const entryStatus = stage === "preference" ? "analyzing" : "submitted";
-  const currentStep = stage === "preference" ? "preferenceAnalysis" : "queued";
+  const currentStep =
+    stage === "preference" ? (refinement ? `preferenceAnalysis:${refinement.id}` : "preferenceAnalysis") : "queued";
   const progressCurrent = stage === "preference" ? 8 : 0;
   const now = nowIso();
   const outbox = await outboxStatement(
@@ -187,6 +258,7 @@ export async function retryCharacterAnalysis(
         jobId,
         ownerUserId,
         entryId: job.target_id,
+        ...(refinement ? { refinementId: refinement.id } : {}),
         stage,
         inputGeneration: job.input_generation,
         analysisDomain: job.analysis_domain,
@@ -640,12 +712,14 @@ function fakePreferences(payload: EntryDraft, understanding: UnderstandingCandid
     ? payload.preference.responseChannels
     : ["person_liking" as const];
   const matched = keywordAttributes.filter(([pattern]) => pattern.test(liked)).slice(0, 12);
-  const sources = matched.length
-    ? matched.map(([, stableKey, label]) => ({ stableKey, label }))
-    : understanding.assertions.slice(0, 8).map((item) => ({
-        stableKey: item.attributeStableKey,
-        label: item.rawLabel,
-      }));
+  const sources = !liked
+    ? []
+    : matched.length
+      ? matched.map(([, stableKey, label]) => ({ stableKey, label }))
+      : understanding.assertions.slice(0, 8).map((item) => ({
+          stableKey: item.attributeStableKey,
+          label: item.rawLabel,
+        }));
   const preferenceAssertions: PreferenceCandidate["preferenceAssertions"] = sources
     .flatMap((item, index) =>
       channels.slice(0, 3).map((responseChannel) => ({
@@ -830,8 +904,8 @@ async function persistModelRun(
       metadata.requestedModel,
       metadata.resolvedModel,
       operation,
-      `${operation}/v1.0.1`,
-      "1.0",
+      operation === "preference_hypotheses" ? `${operation}/v2.1.0` : `${operation}/v1.0.1`,
+      operation === "preference_hypotheses" ? "2.1" : "1.0",
       metadata.providerRequestId ?? null,
       inputHash,
       outputHash,
@@ -1141,10 +1215,30 @@ async function understandOne(
       (entry.payload.registrationType === "customized_existing" && stage === "base"),
     fakeFactory: () => fakeUnderstanding(entry.payload, includeCustomization),
   });
+  const auditMessages = [
+    { role: "system" as const, content: SYSTEM_INSTRUCTION },
+    {
+      role: "user" as const,
+      content: `キャラクター理解候補を元資料と照合し、根拠のない断定・カスタム差分の誤りを訂正した完全な候補を返す。事実や出典を追加せず、モデル知識の確信度を上げない。嗜好は分析しない。\n${JSON.stringify({ stage, sourcePayload, research, candidate: result.value, citations: result.metadata.citations ?? [], ontology, allowedInputPointers })}`,
+    },
+  ];
+  const audited = await createLlmProvider(env).generateStructured({
+    operation: "understanding_audit",
+    schemaName: "character_understanding_candidate",
+    schemaVersion: "2.0",
+    schema: understandingCandidateSchema,
+    jsonSchema: z.toJSONSchema(understandingCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
+    messages: auditMessages,
+    maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+    temperature: 0,
+    idempotencyKey: `${entry.entryRevisionId}:${stage}:audit`,
+    safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
+    fakeFactory: () => result.value,
+  });
   const value = {
-    ...result.value,
+    ...audited.value,
     sourceAssessment: {
-      ...result.value.sourceAssessment,
+      ...audited.value.sourceAssessment,
       systemResearch: {
         status: research.status,
         query: research.query,
@@ -1158,7 +1252,20 @@ async function understandOne(
       },
     },
   };
-  return { ...result, value, inputHash, representationId };
+  return {
+    ...audited,
+    metadata: {
+      ...audited.metadata,
+      citations: [...(result.metadata.citations ?? []), ...(audited.metadata.citations ?? [])],
+    },
+    attempts: [
+      ...(result.attempts ?? [{ output: result.value, metadata: result.metadata }]),
+      ...(audited.attempts ?? [{ output: audited.value, metadata: audited.metadata }]),
+    ],
+    value,
+    inputHash,
+    representationId,
+  };
 }
 
 async function assessDarkScope(env: Env, entry: EntryContext, research: CharacterResearch) {
@@ -1253,7 +1360,9 @@ async function auditDarkUnderstanding(
   entry: EntryContext,
   candidate: DarkUnderstandingCandidate,
   ontology: AttributeRow[],
+  research: CharacterResearch,
 ) {
+  const auditSources = await loadInputProvenanceSources(env, entry.sourceSetId);
   const allowedKeys = new Set(ontology.map((item) => item.stable_key));
   const sanitized = {
     ...candidate,
@@ -1267,7 +1376,7 @@ async function auditDarkUnderstanding(
     { role: "system" as const, content: DARK_SYSTEM_INSTRUCTION },
     {
       role: "user" as const,
-      content: `次の候補を監査し、根拠のない断定を削除またはunknownへ下げた完全な改訂候補を返してください。新しい事実やURLを追加してはいけません。役割と道徳性、通常時と闇状態、本人の意思と外部支配、元からの特徴と後付け特徴を混同せず、不要な善化・悲劇化・贖罪・処罰を追加しないでください。\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
+      content: `システム収集資料: ${JSON.stringify(research)}\n次の候補を監査し、根拠のない断定を削除またはunknownへ下げた完全な改訂候補を返してください。新しい事実やURLを追加してはいけません。役割と道徳性、通常時と闇状態、本人の意思と外部支配、元からの特徴と後付け特徴を混同せず、不要な善化・悲劇化・贖罪・処罰を追加しないでください。\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n照合資料: ${JSON.stringify(auditSources)}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
@@ -1299,7 +1408,7 @@ async function analyzeDarkPreferences(
     { role: "system" as const, content: DARK_SYSTEM_INSTRUCTION },
     {
       role: "user" as const,
-      content: `確認済みダーク状態の理解とユーザー入力から、ダーク領域に限定した嗜好候補を抽出してください。元キャラクターの通常的特徴は嗜好へ含めず、対象状態・変化差分への反応だけを扱ってください。「元の正義が残る」は自我・道徳の残存への魅力、「正義が反転した」は価値反転への魅力としてdark.*属性へ対応させます。人物への好意と行為への道徳的支持を分け、不要な善化・悲劇化・贖罪をしないでください。根拠がなければ候補0件を正常結果として返してください。\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(payload.preference)}\n許可Pointer: ${JSON.stringify(
+      content: `確認済みダーク状態の理解とユーザー入力から、ダーク領域に限定した嗜好候補を抽出してください。元キャラクターの通常的特徴は嗜好へ含めず、対象状態・変化差分への反応だけを扱ってください。「元の正義が残る」は自我・道徳の残存への魅力、「正義が反転した」は価値反転への魅力としてdark.*属性へ対応させます。人物への好意と行為への道徳的支持を分け、不要な善化・悲劇化・贖罪をしないでください。根拠がなければ候補0件を正常結果として返してください。\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(payload.preference)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n許可Pointer: ${JSON.stringify(
         entryInputSources(payload)
           .filter((item) => item.pointer.startsWith("/preference/"))
           .map((item) => item.pointer),
@@ -1318,7 +1427,7 @@ async function analyzeDarkPreferences(
     temperature: 0,
     idempotencyKey: `${entry.entryRevisionId}:dark-preference:${runGeneration}`,
     safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-    fakeFactory: () => fakeDarkPreferences(payload, understanding),
+    fakeFactory: () => refinedFakePreferences(entry, fakeDarkPreferences(payload, understanding), understanding),
   });
   return { ...result, inputHash };
 }
@@ -1329,7 +1438,9 @@ async function auditDarkPreferences(
   candidate: DarkPreferenceCandidate,
   ontology: AttributeRow[],
   runGeneration: number,
+  understanding: DarkUnderstandingCandidate,
 ) {
+  const auditSources = await loadInputProvenanceSources(env, entry.sourceSetId);
   const allowedKeys = new Set(ontology.map((item) => item.stable_key));
   const sanitized: DarkPreferenceCandidate = {
     ...candidate,
@@ -1341,7 +1452,7 @@ async function auditDarkPreferences(
     { role: "system" as const, content: DARK_SYSTEM_INSTRUCTION },
     {
       role: "user" as const,
-      content: `次のダーク嗜好候補を独立監査し、完全な改訂結果を返してください。入力根拠のない嗜好推定、通常属性、元キャラクター自体への一般嗜好、不要な善化・悲劇化を削除してください。候補0件は正常です。新しい事実・URL・入力根拠は追加しないでください。\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
+      content: `確認済み理解（原資料より優先）: ${JSON.stringify(understanding)}\n次のダーク嗜好候補を独立監査し、完全な改訂結果を返してください。入力根拠のない嗜好推定、通常属性、元キャラクター自体への一般嗜好、不要な善化・悲劇化を削除してください。候補0件は正常です。新しい事実・URL・入力根拠は追加しないでください。\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n照合資料: ${JSON.stringify(auditSources)}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
@@ -1512,7 +1623,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       completedLlmGroups.push(
         completedLlmGroup("dark_character_understanding", darkInitialResult.inputHash, darkInitialResult),
       );
-      const audited = await auditDarkUnderstanding(env, entry, darkInitialResult.value, ontology);
+      const audited = await auditDarkUnderstanding(env, entry, darkInitialResult.value, ontology, research);
       calls.push(audited);
       completedLlmGroups.push(completedLlmGroup("dark_understanding_audit", audited.inputHash, audited));
     } else if (entry.registrationType === "customized_existing" && entry.baseRepresentationId) {
@@ -1949,62 +2060,126 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
   let claim: JobClaim | undefined;
   const completedLlmGroups: CompletedLlmGroup[] = [];
   try {
-    claim = await claimJob(env, params.jobId, params.ownerUserId, params.inputGeneration, "preferenceAnalysis");
+    const latestRefinement = await first<{ id: string }>(
+      env.DB.prepare(
+        `SELECT f.id FROM preference_refinements f JOIN entry_revisions er ON er.id=f.entry_revision_id JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number WHERE f.owner_user_id=? AND e.id=? AND e.analysis_domain=? ORDER BY f.created_at DESC,f.rowid DESC LIMIT 1`,
+      ).bind(params.ownerUserId, params.entryId, params.analysisDomain),
+    );
+    if ((latestRefinement?.id ?? null) !== (params.refinementId ?? null)) return;
+    claim = await claimJob(
+      env,
+      params.jobId,
+      params.ownerUserId,
+      params.inputGeneration,
+      params.refinementId ? `preferenceAnalysis:${params.refinementId}` : "preferenceAnalysis",
+    );
     if (claim.status === "attempts_exhausted") throw new Error("JOB_STEP_ATTEMPTS_EXHAUSTED");
     if (claim.status !== "claimed") return;
     const entry = await loadEntry(env, params.ownerUserId, params.analysisDomain, params.entryId);
-    const snapshot = await first<{ id: string; summary_json: string }>(
-      env.DB.prepare(
-        `
-      SELECT s.id, s.summary_json FROM character_understanding_snapshots s
-      JOIN character_understanding_runs r ON r.id = s.understanding_run_id
-      WHERE s.owner_user_id = ? AND r.entry_revision_id = ? AND s.status IN ('confirmed','corrected','provisional_accepted')
-      ORDER BY s.created_at DESC LIMIT 1
-    `,
-      ).bind(params.ownerUserId, entry.entryRevisionId),
-    );
-    if (!snapshot) throw new Error("CONFIRMED_UNDERSTANDING_REQUIRED");
-    const ontology = await loadOntology(env, params.analysisDomain);
-    const provenanceSources = await loadInputProvenanceSources(env, entry.sourceSetId);
-    const allowedUrls = new Set(provenanceSources.flatMap((source) => (source.url ? [source.url] : [])));
-    const characterAssertions = await all<{
-      raw_label: string;
-      value_text: string;
-      stable_key: string | null;
+    if (params.refinementId) {
+      const refinement = await first<{
+        id: string;
+        mode: "questions" | "hypotheses";
+        answers_json: string;
+        context_json: string;
+      }>(
+        env.DB.prepare(
+          `SELECT id,mode,answers_json,context_json FROM preference_refinements WHERE id=? AND owner_user_id=? AND entry_revision_id=?`,
+        ).bind(params.refinementId, params.ownerUserId, entry.entryRevisionId),
+      );
+      if (!refinement) throw new Error("PREFERENCE_REVIEW_STATE_CHANGED");
+      entry.refinement = {
+        id: refinement.id,
+        mode: refinement.mode,
+        answers: JSON.parse(refinement.answers_json),
+        context: JSON.parse(refinement.context_json),
+      };
+    }
+    const snapshot = await first<{
+      id: string;
+      summary_json: string;
+      source_assessment_json: string;
+      uncertainties_json: string;
     }>(
       env.DB.prepare(
         `
-      SELECT a.raw_label, a.value_text, d.stable_key FROM character_assertions a
-      LEFT JOIN attribute_definitions d ON d.id = a.attribute_definition_id
-      WHERE a.snapshot_id = ? AND a.status IN ('confirmed','corrected') ORDER BY a.ordinal
+      SELECT s.id, s.summary_json, s.source_assessment_json, s.uncertainties_json FROM character_understanding_snapshots s
+      JOIN character_understanding_runs r ON r.id = s.understanding_run_id
+      WHERE s.owner_user_id = ? AND r.entry_revision_id = ? AND s.representation_id=? AND s.status IN ('confirmed','corrected','provisional_accepted')
+      ORDER BY s.created_at DESC LIMIT 1
     `,
-      ).bind(snapshot.id),
+      ).bind(params.ownerUserId, entry.entryRevisionId, entry.representationId),
     );
+    if (!snapshot) throw new Error("CONFIRMED_UNDERSTANDING_REQUIRED");
+    const ontology = await loadOntology(env, params.analysisDomain);
+    const previousReviews = await all<Record<string, unknown>>(
+      env.DB.prepare(
+        `SELECT pa.polarity,pa.response_channel,pa.context_json,pa.status,rm.raw_label FROM preference_assertions pa JOIN raw_attribute_mentions rm ON rm.id=pa.raw_mention_id WHERE pa.owner_user_id=? AND pa.entry_revision_id=? AND pa.status IN ('rejected','corrected','superseded')`,
+      ).bind(params.ownerUserId, entry.entryRevisionId),
+    );
+
+    entry.preferenceReviewHistory = previousReviews;
+    await prepareConfirmedReviewSources(env, params.ownerUserId, snapshot.id, entry.sourceSetId);
+    const provenanceSources = await loadInputProvenanceSources(env, entry.sourceSetId);
+    const allowedUrls = new Set(provenanceSources.flatMap((source) => (source.url ? [source.url] : [])));
+    const confirmed = await loadConfirmedUnderstanding(env, params.ownerUserId, snapshot.id);
+    entry.reviewExclusions = confirmed.excluded;
+    const characterAssertions = confirmed.rows;
     const parsedSummary = JSON.parse(snapshot.summary_json) as UnderstandingCandidate["summary"] & {
       darkState?: DarkUnderstandingCandidate["darkState"];
       auditNotes?: string[];
     };
     const confirmedSummary = rebuildConfirmedUnderstandingSummary(parsedSummary, characterAssertions);
     const understanding: UnderstandingCandidate = {
-      sourceAssessment: {
-        coverage: "partial",
-        limitations: [],
-        modelKnowledgeUsed: false,
-      },
-      summary: confirmedSummary,
-      assertions: characterAssertions.map((item) => ({
-        attributeStableKey: item.stable_key,
-        rawLabel: item.raw_label,
-        valueText: item.value_text,
-        assertionKind: "source_interpretation",
-        scopeText: entryScopeText(entry.payload),
-        explicitness: "source_interpreted",
-        confidence: 0.8,
-        evidence: [],
-      })),
-      customizationDeltas: [],
-      uncertainties: [],
+      sourceAssessment: JSON.parse(snapshot.source_assessment_json),
+      summary: { ...confirmedSummary, identity: entry.payload.characterName },
+      assertions: confirmed.assertions,
+      customizationDeltas: confirmed.customizationDeltas,
+      uncertainties: JSON.parse(snapshot.uncertainties_json),
     };
+    const retained = await loadRetainedPreferences(
+      env,
+      params.ownerUserId,
+      entry.refinement?.context?.baseAnalysisRunId,
+    );
+    entry.retainedPreferences = retained.preferences;
+    if (entry.refinement?.mode === "hypotheses" && entry.refinement.context?.baseAnalysisRunId) {
+      const preview = await generatePreferenceHypotheses(
+        env,
+        params.ownerUserId,
+        params.analysisDomain,
+        entry.refinement.id,
+        entry.entryRevisionId,
+        entry.payload,
+        understanding,
+        ontology,
+        retained,
+        { previousReviews, understanding: entry.reviewExclusions },
+      );
+      completedLlmGroups.push(completedLlmGroup("preference_hypotheses", preview.inputHash, preview));
+      const metadata = [];
+      for (const attempt of preview.attempts ?? [{ output: preview.value, metadata: preview.metadata }]) {
+        const run = await persistModelRun(
+          env,
+          params.ownerUserId,
+          "preference_hypotheses",
+          preview.inputHash,
+          attempt.output,
+          attempt.metadata,
+          params.analysisDomain,
+        );
+        metadata.push(run.statement);
+      }
+      await commitHypothesisPreview(
+        env,
+        params,
+        claim.attemptId,
+        entry.refinement.context.baseAnalysisRunId,
+        preview.candidates,
+        metadata,
+      );
+      return;
+    }
     const generation = await first<{ next_generation: number }>(
       env.DB.prepare(
         `SELECT COALESCE(MAX(run_generation),0)+1 AS next_generation FROM analysis_runs WHERE owner_user_id=? AND entry_revision_id=?`,
@@ -2016,7 +2191,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       { role: "system" as const, content: SYSTEM_INSTRUCTION },
       {
         role: "user" as const,
-        content: `確認済みキャラクター理解とユーザーの好きな理由を分け、嗜好候補を抽出してください。キャラクターが持つ全属性を自動で好きにしないでください。ヴィラン性や悪そのものへの好意を悲劇性や知性に言い換えないでください。ユーザーが選択したresponse channelは、その定義どおりに優先して使ってください。好きな理由が未入力でも、選択済みresponse channelと確認済み理解を根拠に、最も妥当な候補を少なくとも1件提示し、推測部分はinferredかつ控えめなconfidenceにしてください。未選択のchannelを推測する場合は、好きな理由に十分な根拠があるものだけに限定してください。\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(
+        content: `確認済みキャラクター理解とユーザーの好きな理由を分け、嗜好候補を抽出してください。キャラクターが持つ全属性を自動で好きにしないでください。ヴィラン性や悪そのものへの好意を悲劇性や知性に言い換えないでください。ユーザーが選択したresponse channelは、その定義どおりに優先して使ってください。根拠不足なら候補0件を正常な結果として返し、uncertaintiesに追加で尋ねる具体的な質問を最大3件書いてください。反応経路の選択だけから対象属性への好意を推定しないでください。未選択のchannelを推測する場合は、好きな理由に十分な根拠があるものだけに限定してください。\n以前の好みの訂正・削除（correctedは訂正後の内容を尊重し、rejectedとsupersededは復活させない）: ${JSON.stringify(previousReviews)}\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(
           entryInputSources(entry.payload)
             .filter((source) => source.pointer.startsWith("/preference/"))
             .map((source) => source.pointer),
@@ -2029,7 +2204,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       attempts?: Array<{ output: unknown; metadata: LlmRunMetadata }>;
     };
     let inputHash: string;
-    let preferenceOperation: "preference_analysis" | "dark_preference_audit";
+    let preferenceOperation: "preference_analysis" | "preference_audit" | "dark_preference_audit";
     if (params.analysisDomain === "dark") {
       const persistedDeltas = await all<{
         operation: DarkTransformationDelta["operation"];
@@ -2081,7 +2256,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       };
       const initial = await analyzeDarkPreferences(env, entry, darkUnderstanding, ontology, runGeneration);
       completedLlmGroups.push(completedLlmGroup("dark_preference_analysis", initial.inputHash, initial));
-      const audited = await auditDarkPreferences(env, entry, initial.value, ontology, runGeneration);
+      const audited = await auditDarkPreferences(env, entry, initial.value, ontology, runGeneration, darkUnderstanding);
       completedLlmGroups.push(completedLlmGroup("dark_preference_audit", audited.inputHash, audited));
       result = audited;
       inputHash = audited.inputHash;
@@ -2102,11 +2277,67 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         temperature: 0.1,
         idempotencyKey: `${entry.entryRevisionId}:preference:${runGeneration}`,
         safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-        fakeFactory: () => fakePreferences(standardPayload, understanding),
+        fakeFactory: () =>
+          refinedFakePreferences(entry, fakePreferences(standardPayload, understanding), understanding),
       });
       completedLlmGroups.push(completedLlmGroup("preference_analysis", inputHash, result));
-      preferenceOperation = "preference_analysis";
+      const initial = result.value as PreferenceCandidate;
+      const auditMessages = [
+        { role: "system" as const, content: SYSTEM_INSTRUCTION },
+        {
+          role: "user" as const,
+          content: `嗜好候補を独立監査し完全な改訂結果を返してください。訂正済み理解が優先で、削除済み特徴を原資料から復活させないでください。入力に支持されない推定、好意と道徳的支持の混同、条件や反応経路の拡大を除去します。好きな理由と苦手な理由をそれぞれ照合し、明示的な苦手条件を、人物にその設定がないという理由だけで削除しないでください。肯定・否定が別の条件なら別候補で保持してください。候補0件は正常です。推測をuser_explicitへ格上げせず、根拠やURLを捏造しないでください。\n${JSON.stringify(
+            {
+              candidate: initial,
+              confirmedUnderstanding: understanding,
+              reviewExclusions: entry.reviewExclusions,
+              input: entry.payload,
+              refinement: entry.refinement,
+              refinementInstruction: refinementInstruction(entry),
+              previousReviews,
+              sources: provenanceSources,
+              ontology,
+            },
+          )}`,
+        },
+      ];
+      inputHash = await sha256Hex(JSON.stringify(auditMessages));
+      result = await createLlmProvider(env).generateStructured({
+        operation: "preference_audit",
+        schemaName: "preference_analysis_candidate",
+        schemaVersion: "2.0",
+        schema: preferenceCandidateSchema,
+        jsonSchema: z.toJSONSchema(preferenceCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
+        messages: auditMessages,
+        maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+        temperature: 0,
+        idempotencyKey: `${entry.entryRevisionId}:preference-audit:${runGeneration}`,
+        safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
+        fakeFactory: () => initial,
+      });
+      completedLlmGroups.push(completedLlmGroup("preference_audit", inputHash, result));
+      preferenceOperation = "preference_audit";
     }
+    if (entry.refinement?.mode === "hypotheses") {
+      for (const item of result.value.preferenceAssertions) {
+        item.explicitness = "inferred";
+        item.confidence = Math.min(item.confidence, 0.35);
+      }
+      for (const item of result.value.valueStanceAssertions) {
+        item.explicitness = "inferred";
+        item.confidence = Math.min(item.confidence, 0.35);
+      }
+    }
+    const selected = entry.refinement?.context?.selectedHypotheses ?? [];
+    if (entry.refinement && selected.length)
+      mergeSelectedPreferenceHypotheses(
+        result.value,
+        selected,
+        entry.refinement.id,
+        entryPreferenceContext(entry.payload) ?? null,
+      );
+    if (entry.refinement?.context?.baseAnalysisRunId) mergeRetainedPreferences(result.value, retained);
+    await persistCompletedLlmGroupsOnFailure(env, params.ownerUserId, completedLlmGroups.slice(0, -1));
     const attemptRuns = [];
     for (const attempt of result.attempts ?? [{ output: result.value, metadata: result.metadata }])
       attemptRuns.push(
@@ -2172,6 +2403,24 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         commitStep,
       ),
     );
+    statements.push(
+      env.DB.prepare(`UPDATE analysis_runs SET quality_context_json=? WHERE id=?`).bind(
+        JSON.stringify({
+          schemaVersion: "2.1",
+          refinementMode: selected.length ? "selection" : (entry.refinement?.mode ?? null),
+          retainedFromAnalysisRunId: entry.refinement?.context?.baseAnalysisRunId ?? null,
+          confirmedUnderstandingSnapshotId: snapshot.id,
+          audit: preferenceOperation,
+          evidenceInsufficient:
+            result.value.preferenceAssertions.length === 0 &&
+            result.value.valueStanceAssertions.length === 0 &&
+            retained.preferences.length === 0 &&
+            retained.stances.length === 0,
+        }),
+        runId,
+      ),
+    );
+    statements.push(...(await retainPreferenceStatements(env, params.ownerUserId, runId, retained)));
     const attributeByKey = new Map(ontology.map((item) => [item.stable_key, item]));
     const preferenceIds: string[] = [];
     for (const assertion of result.value.preferenceAssertions) {
@@ -2383,6 +2632,7 @@ export async function activateAnalysisAndRebuild(
       JOIN user_character_entries e ON e.id=er.entry_id AND e.active_revision_number=er.revision_number
       WHERE ar.id=? AND ar.owner_user_id=? AND e.owner_user_id=? AND e.analysis_domain=? AND e.status='analysis_review'
         AND ar.status='succeeded'
+        AND ar.run_generation=(SELECT MAX(latest.run_generation) FROM analysis_runs latest WHERE latest.entry_revision_id=ar.entry_revision_id AND latest.owner_user_id=ar.owner_user_id AND latest.status='succeeded')
     `,
     ).bind(analysisRunId, ownerUserId, ownerUserId, analysisDomain),
   );

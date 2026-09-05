@@ -26,8 +26,8 @@ const actual = new Set(
     .map(({ name }) => name),
 );
 for (const table of expected) if (!actual.has(table)) throw new Error(`Missing table: ${table}`);
-if (files.length !== 3) throw new Error(`Expected 3 migrations, found ${files.length}`);
-if (actual.size !== 49) throw new Error(`Expected 49 application tables, found ${actual.size}`);
+if (files.length !== 5) throw new Error(`Expected 5 migrations, found ${files.length}`);
+if (actual.size !== 53) throw new Error(`Expected 53 application tables, found ${actual.size}`);
 const removedTables = [
   "consents",
   "platform_usage_counters",

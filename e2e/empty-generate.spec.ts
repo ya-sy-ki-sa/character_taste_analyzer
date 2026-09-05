@@ -67,7 +67,9 @@ test("登録・好み分析が0件でもオリジナルキャラクター作成�
       "ヴィラン、非道徳、善への無関心、端役、一場面限定、二次創作も、そのまま有効な「好き」として記録します。",
     ),
   ).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "閉じる" }).click();
+  await expect(page.getByRole("dialog", { name: "キャラクターを登録" })).not.toBeVisible();
 
   await page.goto("/app/generate");
   await expect(page.getByRole("heading", { name: "オリジナルキャラクター作成" })).toBeVisible();

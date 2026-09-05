@@ -4,6 +4,8 @@
 
 詳細な設計と実装上の決定は[詳細設計書](docs/詳細設計/README.md)を参照してください。
 
+根拠付き監査、条件別の生成指定、3案の比較・採用、独創性検査、評価のプロフィールへの反映は[分析・生成の品質改善](docs/品質改善.md)にまとめています。実モデルでの比較結果と追加マイグレーションの導入手順も参照できます。
+
 ## 実装済み
 
 - UUIDアクセスキーによるユーザー作成、有効化、ログイン、セッション更新、private R2への非同期完全JSONエクスポート、全削除。キー紛失時の再発行・復旧は行わない
@@ -126,9 +128,8 @@ Cloudflare Vite pluginがbuild出力へ`.dev.vars`を複製するため、全bui
 P0〜P2の縦断機能を実装済みです。`AUTH-01`は仕様として現状維持し、次はP3または別途判断が必要な後続incrementです。
 
 - R2への大容量資料upload、PDF／画像抽出
-- Embedding Providerを利用した生成類似度検査（保存先は未実装）
 - assertion単位の訂正・却下と履歴比較UI
-- original characterの部分修正revisionとfeedbackの好みの候補化
+- original characterの部分修正revision
 - public visibility/consent、運用console
 - 大規模GraphProjectionのcursor page、IndexedDB cache、neighbor API
 

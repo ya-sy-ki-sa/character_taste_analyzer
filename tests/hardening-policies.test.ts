@@ -400,7 +400,7 @@ describe("generation coverage validator", () => {
         profileSnapshotItemId: "prohibited",
         treatment: "prohibit",
         status: "satisfied",
-        outputPointers: ["/uncertainties"],
+        outputPointers: ["/personality"],
       },
     ],
   } as unknown as GeneratedCharacterCandidate;
@@ -437,7 +437,7 @@ describe("generation coverage validator", () => {
           profileSnapshotItemId: "prohibited",
           treatment: "prohibit",
           status: "violated",
-          outputPointers: ["/uncertainties"],
+          outputPointers: ["/personality"],
         },
       ],
     } as GeneratedCharacterCandidate;

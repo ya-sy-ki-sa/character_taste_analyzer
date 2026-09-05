@@ -735,6 +735,7 @@ export const generationModeSchema = z.enum(["faithful", "balanced", "exploratory
 export const accountExportRequestSchema = z.object({}).strict();
 export const generationRequestInputSchema = z
   .object({
+    profileSnapshotId: z.string().uuid().optional(),
     mode: generationModeSchema.default("balanced"),
     purpose: text(2_000),
     world: optionalText(4_000),

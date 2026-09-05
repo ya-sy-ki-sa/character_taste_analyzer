@@ -1,6 +1,12 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
 import {
+  feedbackReviewSchema,
+  generationFeedbackSchema,
+  generationSelectionSchema,
+  preferenceRefinementSchema,
+} from "../shared/quality-schemas";
+import {
   accountDeletionSchema,
   accountExportRequestSchema,
   activationSchema,
@@ -56,6 +62,37 @@ type RouteDefinition = {
 };
 
 const definitions: RouteDefinition[] = [
+  ...["/api/v1", "/api/v1/dark"].flatMap((base): RouteDefinition[] => [
+    {
+      method: "post",
+      path: `${base}/entries/{id}/preference-input`,
+      summary: "Refine preference analysis with answers or hypotheses",
+      body: preferenceRefinementSchema,
+      params: idParams,
+      status: 202,
+    },
+    {
+      method: "post",
+      path: `${base}/generation-requests/{id}/selection`,
+      summary: "Select a validated candidate",
+      body: generationSelectionSchema,
+      params: idParams,
+    },
+    { method: "get", path: `${base}/generation-feedback`, summary: "List feedback and available attributes" },
+    {
+      method: "post",
+      path: `${base}/generation-feedback`,
+      summary: "Propose a preference from generation feedback",
+      body: generationFeedbackSchema,
+    },
+    {
+      method: "post",
+      path: `${base}/generation-feedback/{id}/review`,
+      summary: "Confirm or reject feedback",
+      body: feedbackReviewSchema,
+      params: idParams,
+    },
+  ]),
   { method: "get", path: "/api/v1/health/live", summary: "Liveness" },
   { method: "get", path: "/api/v1/health/ready", summary: "Readiness" },
   { method: "post", path: "/api/v1/users", summary: "Register user", body: registrationSchema, status: 201 },

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
+import { preferenceRefinementSchema } from "../../shared/quality-schemas";
 import {
   darkEntryReanalysisSchema,
   darkEntrySubmissionSchema,
@@ -13,6 +14,7 @@ import {
 } from "../../shared/schemas";
 import { requireSession } from "../auth";
 import { data, dispatchAfterCommit, requireAllowed, requireIdempotencyKey, validateJson } from "../http";
+import { createModerationProvider } from "../moderation/providers";
 import { moderateEntryDraft } from "../services/input-moderation";
 import { createDataStoreStrategy } from "../storage/strategy";
 import type { AppEnv } from "../types";
@@ -175,5 +177,26 @@ export function createEntriesRoutes(domain: AnalysisDomain) {
     });
   }
 
+  app.post("/entries/:id/preference-input", validateJson(preferenceRefinementSchema), async (context) => {
+    const input = context.req.valid("json");
+    if (input.mode === "questions")
+      await requireAllowed(
+        createModerationProvider(context.env).moderate(
+          input.answers.flatMap((item) => [
+            { field: "質問", text: item.question },
+            { field: "追加回答", text: item.answer },
+          ]),
+        ),
+      );
+    const result = await createDataStoreStrategy(context.env).refinePreferenceInput(
+      requireSession(context).userId,
+      domain,
+      context.req.param("id"),
+      input,
+      requireIdempotencyKey(context.req.header("Idempotency-Key")),
+    );
+    if (!result.replayed && result.outboxEventId) dispatchAfterCommit(context, result.outboxEventId);
+    return context.json(data(result), 202);
+  });
   return app;
 }

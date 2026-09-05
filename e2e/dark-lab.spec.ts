@@ -70,7 +70,7 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
   await form.getByLabel("基本像からどう違うか 必須").fill("価値観が反転し、命令に従って元味方を攻撃する");
   await form.getByLabel("好きな理由", { exact: true }).fill("正義の反転と、支配下でも残る内的抵抗に惹かれる");
   await form.getByRole("checkbox", { name: /支配・洗脳された状態に惹かれる/u }).check();
-  await form.getByRole("button", { name: "同一キャラクター候補を確認" }).click();
+  await form.getByRole("button", { name: "保存して理解抽出を開始" }).click();
   await expect(form).toBeHidden({ timeout: 20_000 });
 
   const darkEntriesResponse = await page.request.get("/api/v1/dark/entries");
@@ -132,6 +132,27 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
   await expect(page.getByRole("heading", { name: "霧綴のエナ" })).toBeVisible({ timeout: 20_000 });
   await page.locator("button.generation-card", { hasText: "霧綴のエナ" }).click();
   await expect(page.getByRole("heading", { name: "ダーク状態・主体性・変化" })).toBeVisible();
+  const characterDialog = page.getByRole("dialog", { name: "霧綴のエナ" });
+  await expect(characterDialog.getByRole("heading", { name: /合格した \d 案を比較/u })).toBeVisible();
+  await characterDialog.getByRole("button", { name: "この案を採用", exact: true }).first().click();
+  await expect(characterDialog.getByRole("button", { name: "採用済み", exact: true })).toBeDisabled();
+  await characterDialog.getByLabel("評価する設定").selectOption("/personality/summary");
+  await characterDialog.getByLabel("関連する属性").selectOption({ index: 1 });
+  await characterDialog.getByLabel("合う理由・合わない理由").fill("敵対する人物の選択として物語を楽しめる");
+  await characterDialog.getByRole("button", { name: "好み候補として保存" }).click();
+  await expect(
+    characterDialog.getByText("評価を候補として保存しました。確認後にプロフィールへ反映されます。"),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 740 });
+  await expect(characterDialog.getByLabel("評価する設定")).toBeVisible();
+  expect(await characterDialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await page.screenshot({ path: "test-results/quality-dark-320.png" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await characterDialog.getByRole("heading", { name: /合格した \d 案を比較/u }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/quality-dark-desktop.png" });
+  await characterDialog.getByRole("button", { name: "閉じる", exact: true }).click();
+  await page.getByRole("button", { name: "確認してプロフィールへ反映", exact: true }).click();
+  await expect(page.getByText("確認した評価をプロフィールへ反映しています。")).toBeVisible();
 
   await page.goto("/app/profile");
   await expect(page.locator(".trait-row")).toHaveCount(0);

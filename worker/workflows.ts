@@ -14,7 +14,7 @@ export class CharacterAnalysisWorkflow extends WorkflowEntrypoint<Env, Character
   async run(event: Readonly<WorkflowEvent<CharacterAnalysisWorkflowParams>>, step: WorkflowStep): Promise<void> {
     await step.do(
       `character-analysis-${event.payload.stage}`,
-      { retries: { limit: 2, delay: "5 seconds" }, timeout: "10 minutes" },
+      { retries: { limit: 2, delay: "5 seconds" }, timeout: "30 minutes" },
       async () => {
         const strategy = createDataStoreStrategy(this.env);
         if (event.payload.stage === "understanding") await strategy.processCharacterAnalysis(event.payload);
@@ -28,7 +28,7 @@ export class GenerationWorkflow extends WorkflowEntrypoint<Env, GenerationWorkfl
   async run(event: Readonly<WorkflowEvent<GenerationWorkflowParams>>, step: WorkflowStep): Promise<void> {
     await step.do(
       "character-generation",
-      { retries: { limit: 2, delay: "5 seconds" }, timeout: "10 minutes" },
+      { retries: { limit: 2, delay: "5 seconds" }, timeout: "90 minutes" },
       async () => createDataStoreStrategy(this.env).processGeneration(event.payload),
     );
   }

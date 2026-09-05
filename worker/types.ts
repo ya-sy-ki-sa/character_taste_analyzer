@@ -12,6 +12,7 @@ export type CharacterAnalysisWorkflowParams = {
   ownerUserId: string;
   entryId: string;
   stage: "understanding" | "preference";
+  refinementId?: string;
   inputGeneration: number;
   analysisDomain: AnalysisDomain;
 };

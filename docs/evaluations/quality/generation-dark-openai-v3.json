@@ -1,0 +1,1320 @@
+{
+  "schemaVersion": "1.0",
+  "fixtureVersion": "quality/v1",
+  "provider": "openai",
+  "model": "gpt-5.6-luna",
+  "createdAt": "2026-09-05T01:59:45.486Z",
+  "results": [
+    {
+      "id": "controlled_hero-suppressed",
+      "domain": "dark",
+      "expectedChannels": ["controlled_state_fascination"],
+      "expectsEmpty": false,
+      "assertions": [
+        {
+          "response_channel": "dark_character_liking",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"洗脳された勇者として敵対しているダーク状態\",\"subjects\":[\"controlled_hero-suppressed\"],\"relationships\":[\"dark.relationship.controller_subject\"],\"narrativePhases\":[\"active\"],\"conditions\":[\"洗脳された勇者として敵対している\",\"元の判断と慈悲が抑圧されている\"],\"exceptions\":[\"元キャラクターの通常時の特徴や一般的英雄性は対象外\"]}",
+          "explicitness": "user_explicit"
+        },
+        {
+          "response_channel": "controlled_state_fascination",
+          "polarity": "positive",
+          "context_json": "{\"schemaVersion\":\"2\",\"entryScope\":\"洗脳された勇者として敵対しているダーク状態\",\"subjects\":[\"controlled_hero-suppressed\"],\"relationships\":[\"dark.relationship.controller_subject\"],\"narrativePhases\":[\"active\"],\"conditions\":[\"agencyOrigin: externally_imposed\",\"mechanism: 支配者の命令による洗脳\",\"元の判断と慈悲が抑圧されている\"],\"exceptions\":[\"通常時の一般的な英雄性は対象外\"]}",
+          "explicitness": "user_explicit"
+        }
+      ],
+      "generation": {
+        "brief": {
+          "brief_json": "{\"schemaVersion\":\"2.0\",\"analysisDomain\":\"dark\",\"briefId\":\"8a4cf774-4fc8-4357-a799-70aaa6b0c7d2\",\"generationRequestId\":\"cfeafe96-34a0-4174-89a5-37994dc621c9\",\"profileSnapshot\":{\"id\":\"94504930-6d88-46af-b3ab-3aa60dc4fabe\",\"generation\":1,\"contentHash\":\"7497b20424bb3f53c59f704aa5933f86d2a74cdb5a0ab6cce45a043e59087fba\",\"ontologyVersion\":\"standard-1.0+dark-1.0\",\"algorithmVersion\":\"profile/v1.2.0-domain-aware\"},\"mode\":\"faithful\",\"purpose\":\"同じ条件で独創的なオリジナルキャラクターを比較する\",\"creativeContext\":{\"world\":null,\"genre\":null,\"role\":null,\"tone\":null,\"targetDetail\":\"detailed\"},\"preferenceSelections\":[{\"profileSnapshotItemId\":\"f700431f-2328-40ff-b9ed-6257aebe6952\",\"stableKey\":\"dark.control.brainwashed\",\"label\":\"洗脳\",\"treatment\":\"required\",\"weight\":1,\"condition\":{\"conditions\":[\"agencyOrigin: externally_imposed\",\"mechanism: 支配者の命令による洗脳\",\"元の判断と慈悲が抑圧されている\"],\"entryScope\":\"洗脳された勇者として敵対しているダーク状態\",\"exceptions\":[\"通常時の一般的な英雄性は対象外\"],\"narrativePhases\":[\"active\"],\"relationships\":[\"dark.relationship.controller_subject\"],\"schemaVersion\":\"2\",\"subjects\":[\"controlled_hero-suppressed\"]},\"responseChannel\":\"controlled_state_fascination\",\"reactionDescription\":\"支配・洗脳された状態に惹かれる：主体性を奪われた変化や振る舞いへの反応\",\"polarity\":{\"positive\":0.9603,\"negative\":0},\"valueStance\":null,\"rationale\":\"嗜好スナップショット世代1でユーザーが選択\",\"overrideText\":null},{\"profileSnapshotItemId\":\"bd9ae1cf-149b-4da8-bdd0-2e1ce7e93da5\",\"stableKey\":\"dark.archetype.controlled_hero\",\"label\":\"支配された勇者\",\"treatment\":\"required\",\"weight\":1,\"condition\":{\"conditions\":[\"洗脳された勇者として敵対している\",\"元の判断と慈悲が抑圧されている\"],\"entryScope\":\"洗脳された勇者として敵対しているダーク状態\",\"exceptions\":[\"元キャラクターの通常時の特徴や一般的英雄性は対象外\"],\"narrativePhases\":[\"active\"],\"relationships\":[\"dark.relationship.controller_subject\"],\"schemaVersion\":\"2\",\"subjects\":[\"controlled_hero-suppressed\"]},\"responseChannel\":\"dark_character_liking\",\"reactionDescription\":\"ダークな人物像として好き：闇の状態を含む人物像そのものへの好意\",\"polarity\":{\"positive\":0.7644,\"negative\":0},\"valueStance\":null,\"rationale\":\"嗜好スナップショット世代1でユーザーが選択\",\"overrideText\":null}],\"valuePolicy\":{\"allowedOrientations\":[],\"requiredStances\":[],\"redemption\":\"not_required\",\"hiddenGoodness\":\"not_required\",\"moralJustification\":\"not_required\",\"punishmentOrDefeat\":\"not_required\"},\"constraints\":{\"required\":[\"f700431f-2328-40ff-b9ed-6257aebe6952\",\"bd9ae1cf-149b-4da8-bdd0-2e1ce7e93da5\"],\"prohibited\":[],\"contentBoundaries\":[],\"freeInstruction\":null},\"nonRequirements\":[\"道徳的に善くする必要はない\",\"hidden goodnessや悲劇的正当化を追加する必要はない\",\"改心、贖罪、敗北、処罰を追加する必要はない\",\"ヒーローや中心人物にする必要はない\",\"全嗜好属性を一人へ詰め込む必要はない\",\"フィクション嗜好を現実の人格へ関連づける必要はない\"],\"similarityPolicy\":{\"avoidNamedCharacters\":[],\"nameThreshold\":0.92,\"semanticThreshold\":0.9,\"combinationThreshold\":0.86},\"provenance\":{\"selectedItemIds\":[\"f700431f-2328-40ff-b9ed-6257aebe6952\",\"bd9ae1cf-149b-4da8-bdd0-2e1ce7e93da5\"],\"userConstraintHash\":\"35a45849474791f273b7e86db054d28d214dea3b9d9b38ff2748ec38a4273f56\",\"compiledAt\":\"2026-09-05T01:58:28.403Z\"}}"
+        },
+        "result": {
+          "id": null,
+          "generationRequestId": "cfeafe96-34a0-4174-89a5-37994dc621c9",
+          "status": "failed",
+          "mode": "faithful",
+          "createdAt": "2026-09-05T01:58:28.401Z",
+          "character": null,
+          "candidates": [],
+          "job": {
+            "status": "failed",
+            "errorCode": "GENERATION_BRIEF_MISMATCH"
+          }
+        },
+        "inspections": []
+      },
+      "detail": {
+        "entry": {
+          "id": "65ca29f2-dcc5-4105-bbea-6467e2780f2d",
+          "status": "analysis_review",
+          "registrationType": "original",
+          "draft": {
+            "darkContext": {
+              "focusDescription": "洗脳された勇者として敵対している期間だけを対象にする",
+              "archetypeHints": []
+            },
+            "preference": {
+              "likedReasons": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+              "responseChannels": []
+            },
+            "registrationType": "original",
+            "characterName": "評価対象 controlled_hero-suppressed",
+            "characterBasicInfo": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。支配者の命令で元の判断と慈悲を抑圧される。"
+          }
+        },
+        "ontologyAttributes": [
+          {
+            "stableKey": "dark.archetype.antagonistic_rival",
+            "label": "悪役ライバル"
+          },
+          {
+            "stableKey": "dark.archetype.antihero",
+            "label": "アンチヒーロー"
+          },
+          {
+            "stableKey": "dark.archetype.betraying_ally",
+            "label": "裏切った協力者"
+          },
+          {
+            "stableKey": "dark.archetype.controlled_hero",
+            "label": "支配された勇者"
+          },
+          {
+            "stableKey": "dark.archetype.dark_hero",
+            "label": "ダークヒーロー"
+          },
+          {
+            "stableKey": "dark.archetype.fallen_hero",
+            "label": "堕落した英雄"
+          },
+          {
+            "stableKey": "dark.archetype.manipulated_former_ally",
+            "label": "操作された元味方"
+          },
+          {
+            "stableKey": "dark.archetype.morally_gray",
+            "label": "モラリー・グレー"
+          },
+          {
+            "stableKey": "dark.archetype.villain",
+            "label": "ヴィラン"
+          },
+          {
+            "stableKey": "dark.archetype.villain_protagonist",
+            "label": "ヴィラン・プロタゴニスト"
+          },
+          {
+            "stableKey": "dark.competence.controlled_precision",
+            "label": "精密な遂行"
+          },
+          {
+            "stableKey": "dark.competence.incompetent_villainy",
+            "label": "失敗する悪"
+          },
+          {
+            "stableKey": "dark.competence.institutional_power",
+            "label": "制度的権力"
+          },
+          {
+            "stableKey": "dark.competence.overwhelming_power",
+            "label": "圧倒的な力"
+          },
+          {
+            "stableKey": "dark.competence.power_cost",
+            "label": "闇の力の代償"
+          },
+          {
+            "stableKey": "dark.competence.power_escalation",
+            "label": "力の増大"
+          },
+          {
+            "stableKey": "dark.competence.ruthless_efficiency",
+            "label": "冷酷な効率"
+          },
+          {
+            "stableKey": "dark.competence.social_control",
+            "label": "社会的支配力"
+          },
+          {
+            "stableKey": "dark.competence.strategic_mastery",
+            "label": "悪役的知略"
+          },
+          {
+            "stableKey": "dark.competence.underdog_threat",
+            "label": "劣勢から生じる脅威"
+          },
+          {
+            "stableKey": "dark.control.aware",
+            "label": "支配の認識あり"
+          },
+          {
+            "stableKey": "dark.control.bound",
+            "label": "契約・呪縛"
+          },
+          {
+            "stableKey": "dark.control.brainwashed",
+            "label": "洗脳"
+          },
+          {
+            "stableKey": "dark.control.coerced",
+            "label": "強制された悪"
+          },
+          {
+            "stableKey": "dark.control.embraced",
+            "label": "闇・支配の受容"
+          },
+          {
+            "stableKey": "dark.control.irreversible",
+            "label": "不可逆的な変化"
+          },
+          {
+            "stableKey": "dark.control.manipulated",
+            "label": "心理的操作"
+          },
+          {
+            "stableKey": "dark.control.mixed_agency",
+            "label": "主体性が混在"
+          },
+          {
+            "stableKey": "dark.control.possessed",
+            "label": "憑依・乗っ取り"
+          },
+          {
+            "stableKey": "dark.control.resistant",
+            "label": "支配への抵抗"
+          },
+          {
+            "stableKey": "dark.control.reversible",
+            "label": "可逆的な支配"
+          },
+          {
+            "stableKey": "dark.control.self_chosen",
+            "label": "自発的な悪"
+          },
+          {
+            "stableKey": "dark.control.surrendered",
+            "label": "支配への服従"
+          },
+          {
+            "stableKey": "dark.control.unaware",
+            "label": "支配の認識なし"
+          },
+          {
+            "stableKey": "dark.control.wavering",
+            "label": "抵抗と服従の揺れ"
+          },
+          {
+            "stableKey": "dark.corruption.completed_fall",
+            "label": "完成した堕落"
+          },
+          {
+            "stableKey": "dark.corruption.deepening",
+            "label": "闇の深化"
+          },
+          {
+            "stableKey": "dark.corruption.forced_fall",
+            "label": "強制的な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.gradual_fall",
+            "label": "漸進的な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.ideological_fall",
+            "label": "思想的転向"
+          },
+          {
+            "stableKey": "dark.corruption.permanent_change",
+            "label": "恒久的な変化"
+          },
+          {
+            "stableKey": "dark.corruption.power_corruption",
+            "label": "力による腐敗"
+          },
+          {
+            "stableKey": "dark.corruption.recovery",
+            "label": "闇状態からの回復"
+          },
+          {
+            "stableKey": "dark.corruption.relapse",
+            "label": "再堕落"
+          },
+          {
+            "stableKey": "dark.corruption.sudden_fall",
+            "label": "急激な堕落"
+          },
+          {
+            "stableKey": "dark.corruption.temporary_state",
+            "label": "一時的な闇状態"
+          },
+          {
+            "stableKey": "dark.corruption.temptation",
+            "label": "誘惑による闇化"
+          },
+          {
+            "stableKey": "dark.expression.body_horror",
+            "label": "身体変容の恐怖"
+          },
+          {
+            "stableKey": "dark.expression.camp",
+            "label": "誇張された悪役表現"
+          },
+          {
+            "stableKey": "dark.expression.control_markers",
+            "label": "支配を示す徴"
+          },
+          {
+            "stableKey": "dark.expression.corrupted_design",
+            "label": "闇化したデザイン"
+          },
+          {
+            "stableKey": "dark.expression.dangerous_charisma",
+            "label": "危険なカリスマ"
+          },
+          {
+            "stableKey": "dark.expression.dark_humor",
+            "label": "ダークユーモア"
+          },
+          {
+            "stableKey": "dark.expression.menacing_elegance",
+            "label": "脅威を伴う優美さ"
+          },
+          {
+            "stableKey": "dark.expression.monstrous_form",
+            "label": "異形化"
+          },
+          {
+            "stableKey": "dark.expression.ominous_beauty",
+            "label": "不穏な美"
+          },
+          {
+            "stableKey": "dark.expression.quiet_menace",
+            "label": "静かな威圧"
+          },
+          {
+            "stableKey": "dark.expression.theatrical_villainy",
+            "label": "芝居がかった悪"
+          },
+          {
+            "stableKey": "dark.expression.transformation_contrast",
+            "label": "変化前後の表現対比"
+          },
+          {
+            "stableKey": "dark.expression.uncanny_calm",
+            "label": "不気味な静けさ"
+          },
+          {
+            "stableKey": "dark.harm.betrayal",
+            "label": "裏切り"
+          },
+          {
+            "stableKey": "dark.harm.collateral_indifference",
+            "label": "巻き添えへの無関心"
+          },
+          {
+            "stableKey": "dark.harm.cruelty",
+            "label": "残酷さ"
+          },
+          {
+            "stableKey": "dark.harm.destruction",
+            "label": "破壊"
+          },
+          {
+            "stableKey": "dark.harm.domination",
+            "label": "他者支配"
+          },
+          {
+            "stableKey": "dark.harm.exploitation",
+            "label": "搾取"
+          },
+          {
+            "stableKey": "dark.harm.instrumental_harm",
+            "label": "手段としての加害"
+          },
+          {
+            "stableKey": "dark.harm.intimidation",
+            "label": "威圧"
+          },
+          {
+            "stableKey": "dark.harm.manipulation",
+            "label": "他者操作"
+          },
+          {
+            "stableKey": "dark.harm.taboo_breaking",
+            "label": "禁忌越境"
+          },
+          {
+            "stableKey": "dark.harm.vengeance",
+            "label": "復讐"
+          },
+          {
+            "stableKey": "dark.identity.accepted_dark_self",
+            "label": "闇の自己受容"
+          },
+          {
+            "stableKey": "dark.identity.authentic_darkness",
+            "label": "生来・本来の悪"
+          },
+          {
+            "stableKey": "dark.identity.double_identity",
+            "label": "二重の自己"
+          },
+          {
+            "stableKey": "dark.identity.fragmented_self",
+            "label": "自我の断片化"
+          },
+          {
+            "stableKey": "dark.identity.inner_resistance",
+            "label": "内的抵抗"
+          },
+          {
+            "stableKey": "dark.identity.no_conflict",
+            "label": "葛藤のない悪"
+          },
+          {
+            "stableKey": "dark.identity.overwritten_self",
+            "label": "自我の上書き"
+          },
+          {
+            "stableKey": "dark.identity.retained_morality",
+            "label": "元の道徳性の残存"
+          },
+          {
+            "stableKey": "dark.identity.retained_self",
+            "label": "自我の保持"
+          },
+          {
+            "stableKey": "dark.identity.self_deception",
+            "label": "自己欺瞞"
+          },
+          {
+            "stableKey": "dark.identity.suppressed_self",
+            "label": "自我の抑圧"
+          },
+          {
+            "stableKey": "dark.identity.value_inversion",
+            "label": "価値観の反転"
+          },
+          {
+            "stableKey": "dark.morality.amoral",
+            "label": "道徳を判断軸にしない"
+          },
+          {
+            "stableKey": "dark.morality.ends_justify_means",
+            "label": "目的による手段の正当化"
+          },
+          {
+            "stableKey": "dark.morality.evil_affirming",
+            "label": "悪の肯定"
+          },
+          {
+            "stableKey": "dark.morality.guilt",
+            "label": "罪悪感"
+          },
+          {
+            "stableKey": "dark.morality.hypocrisy",
+            "label": "道徳的偽善"
+          },
+          {
+            "stableKey": "dark.morality.immoral",
+            "label": "非道徳"
+          },
+          {
+            "stableKey": "dark.morality.nihilism",
+            "label": "虚無的価値観"
+          },
+          {
+            "stableKey": "dark.morality.personal_code",
+            "label": "独自の規範"
+          },
+          {
+            "stableKey": "dark.morality.remorse",
+            "label": "後悔"
+          },
+          {
+            "stableKey": "dark.morality.remorseless",
+            "label": "無反省"
+          },
+          {
+            "stableKey": "dark.morality.selective_mercy",
+            "label": "選択的な慈悲"
+          },
+          {
+            "stableKey": "dark.morality.self_justification",
+            "label": "自己正当化"
+          },
+          {
+            "stableKey": "dark.motivation.belonging",
+            "label": "所属欲求"
+          },
+          {
+            "stableKey": "dark.motivation.chaos",
+            "label": "混沌への志向"
+          },
+          {
+            "stableKey": "dark.motivation.control",
+            "label": "支配欲"
+          },
+          {
+            "stableKey": "dark.motivation.devotion",
+            "label": "献身"
+          },
+          {
+            "stableKey": "dark.motivation.freedom",
+            "label": "自由への渇望"
+          },
+          {
+            "stableKey": "dark.motivation.ideology",
+            "label": "思想への献身"
+          },
+          {
+            "stableKey": "dark.motivation.obsession",
+            "label": "執着"
+          },
+          {
+            "stableKey": "dark.motivation.order",
+            "label": "秩序への執着"
+          },
+          {
+            "stableKey": "dark.motivation.pleasure",
+            "label": "悪や加害の快楽"
+          },
+          {
+            "stableKey": "dark.motivation.power",
+            "label": "力への欲求"
+          },
+          {
+            "stableKey": "dark.motivation.recognition",
+            "label": "承認欲求"
+          },
+          {
+            "stableKey": "dark.motivation.revenge",
+            "label": "復讐心"
+          },
+          {
+            "stableKey": "dark.motivation.survival",
+            "label": "生存"
+          },
+          {
+            "stableKey": "dark.outcome.deepens_darkness",
+            "label": "闇のさらなる深化"
+          },
+          {
+            "stableKey": "dark.outcome.defeat",
+            "label": "敗北"
+          },
+          {
+            "stableKey": "dark.outcome.open_end",
+            "label": "未決着"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_irrelevant",
+            "label": "贖罪を問題にしない"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_refused",
+            "label": "贖罪を拒む"
+          },
+          {
+            "stableKey": "dark.outcome.redemption_sought",
+            "label": "贖罪を求める"
+          },
+          {
+            "stableKey": "dark.outcome.remains_dark",
+            "label": "闇の維持"
+          },
+          {
+            "stableKey": "dark.outcome.restored",
+            "label": "元の自己への回復"
+          },
+          {
+            "stableKey": "dark.outcome.tragic_end",
+            "label": "悲劇的結末"
+          },
+          {
+            "stableKey": "dark.outcome.unpunished",
+            "label": "罰されない"
+          },
+          {
+            "stableKey": "dark.outcome.victory",
+            "label": "悪側の勝利"
+          },
+          {
+            "stableKey": "dark.relationship.controller_subject",
+            "label": "支配者と被支配者"
+          },
+          {
+            "stableKey": "dark.relationship.convenience_alliance",
+            "label": "利害による同盟"
+          },
+          {
+            "stableKey": "dark.relationship.corrupted_loyalty",
+            "label": "歪んだ忠誠"
+          },
+          {
+            "stableKey": "dark.relationship.dependency",
+            "label": "依存"
+          },
+          {
+            "stableKey": "dark.relationship.former_ally_opposition",
+            "label": "元味方との敵対"
+          },
+          {
+            "stableKey": "dark.relationship.manipulator_pawn",
+            "label": "操作者と駒"
+          },
+          {
+            "stableKey": "dark.relationship.possessiveness",
+            "label": "所有・独占"
+          },
+          {
+            "stableKey": "dark.relationship.respectful_enmity",
+            "label": "敬意を伴う敵対"
+          },
+          {
+            "stableKey": "dark.relationship.rivalry",
+            "label": "宿敵関係"
+          },
+          {
+            "stableKey": "dark.relationship.selective_protection",
+            "label": "選択的保護"
+          },
+          {
+            "stableKey": "dark.relationship.toxic_devotion",
+            "label": "毒性的献身"
+          },
+          {
+            "stableKey": "dark.role.antagonist",
+            "label": "敵対者"
+          },
+          {
+            "stableKey": "dark.role.controlled_obstacle",
+            "label": "操られた障害"
+          },
+          {
+            "stableKey": "dark.role.fallen_ally",
+            "label": "堕落した味方"
+          },
+          {
+            "stableKey": "dark.role.final_opponent",
+            "label": "最終敵"
+          },
+          {
+            "stableKey": "dark.role.gray_lead",
+            "label": "灰色の主人公"
+          },
+          {
+            "stableKey": "dark.role.hidden_traitor",
+            "label": "隠れた裏切者"
+          },
+          {
+            "stableKey": "dark.role.rival",
+            "label": "ライバル"
+          },
+          {
+            "stableKey": "dark.role.temporary_enemy",
+            "label": "一時的な敵"
+          },
+          {
+            "stableKey": "dark.role.villain_viewpoint",
+            "label": "ヴィラン視点人物"
+          }
+        ],
+        "darkScopeAssessment": {
+          "id": "112d089b-d302-485c-88f3-567df496522f",
+          "verdict": "in_scope",
+          "status": "accepted",
+          "assessment_json": "{\"verdict\":\"in_scope\",\"qualifyingArchetypes\":[\"controlled_hero\"],\"agencyOrigin\":\"externally_imposed\",\"scope\":\"phase\",\"rationale\":\"対象は、元は自律的に判断し仲間を守る英雄である人物のうち、洗脳によって元の判断力や慈悲を抑圧され、敵対している限定期間である。これは単なる悲劇・強さ・美しさではなく、洗脳による外部操作と敵対化、および変化前後の差分を嗜好の焦点として明示しているため、ダークキャラ嗜好の対象に該当する。洗脳下の行為を本人の自発的意思や道徳的責任とは断定しない。\",\"limitations\":[\"洗脳の具体的な方法、認識状態、抵抗の有無、自我の連続性、解除可能性は不明。\",\"元の英雄性や通常時の人物像は集計対象外であり、敵対化した洗脳期間に限定して判定している。\",\"提示資料は登録情報のみで、外部の作品情報や収集済みURLはない。\"],\"evidence\":[{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/darkContext/focusDescription\",\"quote\":\"洗脳された勇者として敵対している期間だけを対象にする\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/preference/likedReasons\",\"quote\":\"洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。支配者の命令で元の判断と慈悲を抑圧される。\",\"inferenceType\":\"direct\"},{\"sourceRef\":null,\"sourceUrl\":null,\"inputPointer\":\"/characterName\",\"quote\":\"評価対象 controlled_hero-suppressed\",\"inferenceType\":\"direct\"}],\"recommendedQuestions\":[\"洗脳下でも本人に状況認識や抵抗の余地があるか。\",\"敵対行動に対する本人の同意・責任・記憶の扱いはどのように描かれているか。\",\"洗脳解除後に自我や価値観がどの程度回復・変化するか。\"]}",
+          "assessment": {
+            "verdict": "in_scope",
+            "qualifyingArchetypes": ["controlled_hero"],
+            "agencyOrigin": "externally_imposed",
+            "scope": "phase",
+            "rationale": "対象は、元は自律的に判断し仲間を守る英雄である人物のうち、洗脳によって元の判断力や慈悲を抑圧され、敵対している限定期間である。これは単なる悲劇・強さ・美しさではなく、洗脳による外部操作と敵対化、および変化前後の差分を嗜好の焦点として明示しているため、ダークキャラ嗜好の対象に該当する。洗脳下の行為を本人の自発的意思や道徳的責任とは断定しない。",
+            "limitations": [
+              "洗脳の具体的な方法、認識状態、抵抗の有無、自我の連続性、解除可能性は不明。",
+              "元の英雄性や通常時の人物像は集計対象外であり、敵対化した洗脳期間に限定して判定している。",
+              "提示資料は登録情報のみで、外部の作品情報や収集済みURLはない。"
+            ],
+            "evidence": [
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/darkContext/focusDescription",
+                "quote": "洗脳された勇者として敵対している期間だけを対象にする",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/preference/likedReasons",
+                "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/characterBasicInfo",
+                "quote": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。支配者の命令で元の判断と慈悲を抑圧される。",
+                "inferenceType": "direct"
+              },
+              {
+                "sourceRef": null,
+                "sourceUrl": null,
+                "inputPointer": "/characterName",
+                "quote": "評価対象 controlled_hero-suppressed",
+                "inferenceType": "direct"
+              }
+            ],
+            "recommendedQuestions": [
+              "洗脳下でも本人に状況認識や抵抗の余地があるか。",
+              "敵対行動に対する本人の同意・責任・記憶の扱いはどのように描かれているか。",
+              "洗脳解除後に自我や価値観がどの程度回復・変化するか。"
+            ]
+          }
+        },
+        "darkBaseline": null,
+        "darkTransformationDeltas": [
+          {
+            "id": "0937b44a-4691-4cb9-ba44-3e83d34171ee",
+            "operation": "suppressed",
+            "aspect": "自分の意思による判断",
+            "before_value": "自分の意思で判断する能力を持っていた",
+            "after_value": "元の判断が抑圧されている",
+            "detail_json": "{\"cause\":\"支配者の命令による洗脳\",\"agencyOrigin\":\"externally_imposed\",\"controller\":\"支配者\",\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"unknown\",\"responsibility\":\"unknown\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":\"063cb7a5-c708-43fd-af18-9c4be68a14c1\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"自分の意思で判断する能力を持っていた。支配者の命令で元の判断と慈悲を抑圧される\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.99,
+            "detail": {
+              "cause": "支配者の命令による洗脳",
+              "agencyOrigin": "externally_imposed",
+              "controller": "支配者",
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "unknown",
+              "responsibility": "unknown",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": "063cb7a5-c708-43fd-af18-9c4be68a14c1",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "自分の意思で判断する能力を持っていた。支配者の命令で元の判断と慈悲を抑圧される",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          },
+          {
+            "id": "7190ce7d-2f4e-45d8-85c5-2fd341fa7fd6",
+            "operation": "suppressed",
+            "aspect": "慈悲",
+            "before_value": "変化前に慈悲を持っていた",
+            "after_value": "元の慈悲が抑圧されている",
+            "detail_json": "{\"cause\":\"支配者の命令による洗脳\",\"agencyOrigin\":\"externally_imposed\",\"controller\":\"支配者\",\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"unknown\",\"responsibility\":\"unknown\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":\"063cb7a5-c708-43fd-af18-9c4be68a14c1\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"支配者の命令で元の判断と慈悲を抑圧される\",\"inferenceType\":\"direct\"}]}",
+            "confidence": 0.99,
+            "detail": {
+              "cause": "支配者の命令による洗脳",
+              "agencyOrigin": "externally_imposed",
+              "controller": "支配者",
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "unknown",
+              "responsibility": "unknown",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": "063cb7a5-c708-43fd-af18-9c4be68a14c1",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "支配者の命令で元の判断と慈悲を抑圧される",
+                  "inferenceType": "direct"
+                }
+              ]
+            }
+          },
+          {
+            "id": "df06d051-fd5a-491c-b0de-55881eac4517",
+            "operation": "introduced",
+            "aspect": "敵対状態",
+            "before_value": "仲間を守る責務を持っていた",
+            "after_value": "洗脳された勇者として敵対している",
+            "detail_json": "{\"cause\":\"支配者の命令と洗脳\",\"agencyOrigin\":\"externally_imposed\",\"controller\":\"支配者\",\"awareness\":\"unknown\",\"resistance\":\"unknown\",\"identityContinuity\":\"unknown\",\"responsibility\":\"unknown\",\"reversibility\":\"unknown\",\"phase\":\"active\",\"evidence\":[{\"sourceRef\":\"ac33c9cf-806e-4fd2-87e2-761c048a52d4\",\"sourceUrl\":null,\"inputPointer\":\"/darkContext/focusDescription\",\"quote\":\"洗脳された勇者として敵対している期間\",\"inferenceType\":\"direct\"},{\"sourceRef\":\"063cb7a5-c708-43fd-af18-9c4be68a14c1\",\"sourceUrl\":null,\"inputPointer\":\"/characterBasicInfo\",\"quote\":\"仲間を守る責務\",\"inferenceType\":\"paraphrase\"}]}",
+            "confidence": 0.91,
+            "detail": {
+              "cause": "支配者の命令と洗脳",
+              "agencyOrigin": "externally_imposed",
+              "controller": "支配者",
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "unknown",
+              "responsibility": "unknown",
+              "reversibility": "unknown",
+              "phase": "active",
+              "evidence": [
+                {
+                  "sourceRef": "ac33c9cf-806e-4fd2-87e2-761c048a52d4",
+                  "sourceUrl": null,
+                  "inputPointer": "/darkContext/focusDescription",
+                  "quote": "洗脳された勇者として敵対している期間",
+                  "inferenceType": "direct"
+                },
+                {
+                  "sourceRef": "063cb7a5-c708-43fd-af18-9c4be68a14c1",
+                  "sourceUrl": null,
+                  "inputPointer": "/characterBasicInfo",
+                  "quote": "仲間を守る責務",
+                  "inferenceType": "paraphrase"
+                }
+              ]
+            }
+          }
+        ],
+        "understanding": {
+          "id": "18564b3a-e6cb-49f2-ad7d-b67f516e0b39",
+          "baseSnapshotId": null,
+          "sourceAssessment": {
+            "coverage": "partial",
+            "limitations": [
+              "提示情報は登録内容とキャラクター基本情報に限られ、ダーク状態での具体的行動、支配の開始過程、本人の認識、抵抗、責任、可逆性、結末は不明。",
+              "変化前については、仲間を守る責務、自分の意思で判断する能力、慈悲が示されているが、それ以外の英雄性は不明。",
+              "敵対状態は示されているが、それが物語上の一時的な敵や元味方との対立に当たるかは不明。"
+            ],
+            "modelKnowledgeUsed": false
+          },
+          "summary": {
+            "identity": "dark.archetype.controlled_hero（支配された勇者）",
+            "narrativeRole": ["dark.role.antagonist（敵対者）"],
+            "moralityOrientation": [
+              "外部支配下で判断と慈悲を抑圧された状態",
+              "洗脳下の行為について本人の自発的な悪意や道徳性は不明"
+            ],
+            "goals": ["不明。支配者の命令下で敵対していることは示されるが、本人の目標や意図は不明"],
+            "values": [
+              "変化前には仲間を守る責務と慈悲が示されている",
+              "ダーク状態でそれらが残存しているか、別の価値観に置き換わったかは不明"
+            ],
+            "behavior": ["dark.control.brainwashed（洗脳）", "洗脳された勇者として敵対している"],
+            "relationships": ["dark.relationship.controller_subject（支配者と被支配者）"],
+            "expression": ["具体的な外見・演出情報なし"],
+            "darkState": {
+              "agencyOrigin": "externally_imposed",
+              "consent": "unknown",
+              "awareness": "unknown",
+              "resistance": "unknown",
+              "identityContinuity": "unknown",
+              "responsibility": "unknown",
+              "reversibility": "unknown",
+              "controllerOrInfluence": "支配者",
+              "mechanism": "支配者の命令による洗脳と、元の判断・慈悲の抑圧",
+              "before": "仲間を守る責務、自分の意思で判断する能力、慈悲を持っていた",
+              "onset": "支配者の命令によって元の判断と慈悲が抑圧された時点",
+              "activeState": "洗脳された勇者として支配者の命令下で敵対している",
+              "recoveryOrAfter": null
+            },
+            "auditNotes": [
+              "『一時的な敵』は、対象期間が限定されていることだけでは状態の一時性や回復を示さないため削除した。",
+              "『支配への服従』は命令下にあることから本人の服従意思まで導けないため削除した。",
+              "『元の道徳性の残存』は、変化前の慈悲の存在とダーク状態での抑圧までは示されるが、残存の有無は不明なため削除した。",
+              "『主体性が混在』は、ダーク状態で残存する主体性の根拠がないため削除した。",
+              "外部支配下であることだけから責任をreducedとはせず、unknownに修正した。",
+              "元の英雄性、敵対相手が元味方であること、悪意、残酷さ、抵抗、認識、回復、贖罪、処罰、結末は追加していない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "本人の目標・意図",
+              "reason": "支配者の命令下で敵対していることは示されるが、本人が何を望んでいるかは不明。"
+            },
+            {
+              "topic": "認識",
+              "reason": "本人が支配や洗脳を認識しているかの記述がない。"
+            },
+            {
+              "topic": "同意",
+              "reason": "支配者の命令と洗脳は示されるが、支配への同意の有無は不明。"
+            },
+            {
+              "topic": "抵抗",
+              "reason": "外的行動、内的抵抗、抵抗と服従の揺れの記述がない。"
+            },
+            {
+              "topic": "自我連続性",
+              "reason": "判断と慈悲の抑圧は示されるが、自我の保持、断片化、上書きの程度は不明。"
+            },
+            {
+              "topic": "責任",
+              "reason": "外部支配は示されるが、具体的な行為、本人の認識、抵抗の有無が不明なため責任の程度は判定できない。"
+            },
+            {
+              "topic": "可逆性",
+              "reason": "洗脳の解除、回復、恒久化に関する情報がない。"
+            },
+            {
+              "topic": "ダーク状態の終了",
+              "reason": "敵対期間の終了時期や、その後の回復・維持・再発は不明。"
+            }
+          ],
+          "confidence": 0.9866666666666668,
+          "status": "confirmed",
+          "assertions": [
+            {
+              "id": "74f5ba49-346a-477e-a25e-83ff18a4d4e3",
+              "raw_label": "支配された勇者",
+              "value_text": "洗脳された勇者として敵対している期間を分析対象とする",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "dark.archetype.controlled_hero",
+              "evidence": [
+                {
+                  "id": "8c367244-48dc-4bf4-acdf-d33acf86b414",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者として敵対している期間だけを対象にする",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "a0e68c5c-de3d-4ec3-93f9-988d9ea436ca",
+              "raw_label": "敵対者",
+              "value_text": "ダーク状態では敵対者として位置づけられている",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_interpreted",
+              "confidence": 0.97,
+              "status": "confirmed",
+              "stable_key": "dark.role.antagonist",
+              "evidence": [
+                {
+                  "id": "1f178101-f372-4190-b2e1-51f70a658aea",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "paraphrase",
+                  "quote": "敵対している期間",
+                  "inputPointer": "/darkContext/focusDescription",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed 注目するダーク状態",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "a03f20f0-3b92-471f-aee1-59acf7574ce5",
+              "raw_label": "洗脳",
+              "value_text": "支配者の命令により、元の判断と慈悲が抑圧されている",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "dark.control.brainwashed",
+              "evidence": [
+                {
+                  "id": "5f68ef4b-87fc-4f32-802a-2cab734d70ac",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "支配者の命令で元の判断と慈悲を抑圧される",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "62452d6c-add5-4806-8b85-3bae35f6a7c1",
+              "raw_label": "支配者と被支配者",
+              "value_text": "支配者の命令によって対象の判断と慈悲が抑圧される関係",
+              "assertion_kind": "source_interpretation",
+              "explicitness": "source_interpreted",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "dark.relationship.controller_subject",
+              "evidence": [
+                {
+                  "id": "5bd4af2e-9e0b-41bc-b023-8cc450121f03",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "paraphrase",
+                  "quote": "支配者の命令で",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "d51d22cb-ce8b-48ac-b769-a929d0e19343",
+              "raw_label": "自我の抑圧",
+              "value_text": "変化前に持っていた自分の意思による判断能力と慈悲が抑圧されている",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": "dark.identity.suppressed_self",
+              "evidence": [
+                {
+                  "id": "bf5f56c5-5b91-49fc-8f10-65c093319f9d",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "元の判断と慈悲を抑圧される",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "676d90b4-804d-44a0-906a-bf632c7d220a",
+              "raw_label": "変化前の特徴",
+              "value_text": "変化前は仲間を守る責務、自分の意思で判断する能力、慈悲を持っていた",
+              "assertion_kind": "setting",
+              "explicitness": "source_explicit",
+              "confidence": 0.99,
+              "status": "confirmed",
+              "stable_key": null,
+              "evidence": [
+                {
+                  "id": "5308146f-b477-4078-807b-81bea7a466d0",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "変化前は仲間を守る責務と自分の意思で判断する能力を持っていた。支配者の命令で元の判断と慈悲を抑圧される。",
+                  "inputPointer": "/characterBasicInfo",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed キャラクター基本情報",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "deltas": [
+            {
+              "id": "141e5b10-8675-4bfd-9c48-591e2087f03b",
+              "operation": "emphasize",
+              "before_value": null,
+              "after_value": "洗脳・外部支配下の勇者としてのダーク状態",
+              "scope_json": "{\"schemaVersion\":\"1\",\"freeText\":\"分析対象\"}",
+              "reason_text": "洗脳された勇者のダーク状態を重視するため",
+              "explicitness": "user_explicit",
+              "confidence": 1,
+              "status": "confirmed"
+            },
+            {
+              "id": "08e0d01d-f99a-4408-a35d-7d92bd8316b7",
+              "operation": "emphasize",
+              "before_value": null,
+              "after_value": "元の判断と慈悲が抑圧された状態",
+              "scope_json": "{\"schemaVersion\":\"1\",\"freeText\":\"分析対象\"}",
+              "reason_text": "変化差分を重視するため",
+              "explicitness": "user_explicit",
+              "confidence": 1,
+              "status": "confirmed"
+            }
+          ]
+        },
+        "baseUnderstanding": null,
+        "preferenceAnalysis": {
+          "id": "8b30c0ce-f0b7-440c-8e88-46c6ed5d5f75",
+          "qualityContext": {
+            "schemaVersion": "2.0",
+            "refinementMode": null,
+            "confirmedUnderstandingSnapshotId": "18564b3a-e6cb-49f2-ad7d-b67f516e0b39",
+            "audit": "dark_preference_audit",
+            "evidenceInsufficient": false
+          },
+          "summary": {
+            "userExplicitSummary": [
+              "洗脳された勇者のダーク状態に惹かれる。",
+              "ダーク状態への変化差分に惹かれる。",
+              "通常時の一般的な英雄性は嗜好として集計しない。"
+            ],
+            "inferredSummary": [
+              "外部支配によって元の判断と慈悲が抑圧された状態を含む、洗脳された勇者のダークな状態への関心が示されている。",
+              "洗脳状態や人物像への好意は示されているが、支配者の行為、敵対行為、本人の責任や道徳性への支持は示されていない。"
+            ],
+            "limitations": [
+              "洗脳の過程、本人の認識・抵抗・同意、具体的な敵対行為、責任、可逆性、結末への嗜好は不明。",
+              "自我の侵食・上書き、内的抵抗、元の慈悲の残存、価値観の反転、回復そのものへの嗜好は明示されていない。"
+            ]
+          },
+          "uncertainties": [
+            {
+              "topic": "自我の侵食・上書きへの嗜好",
+              "reason": "判断と慈悲の抑圧は確認できるが、自我の消失や上書き自体への魅力かは不明。",
+              "recommendedQuestion": "元の自我が侵食・上書きされること自体に惹かれますか、それとも洗脳された状態や変化前後の対比に惹かれますか？"
+            },
+            {
+              "topic": "元の道徳性の残存・内的抵抗への嗜好",
+              "reason": "変化前に慈悲があったことは示されるが、ダーク状態での残存や抵抗への関心は不明。",
+              "recommendedQuestion": "支配下でも残る正義・慈悲・抵抗に魅力を感じますか？"
+            },
+            {
+              "topic": "敵対行為への道徳的支持",
+              "reason": "ダーク状態への好意は示されるが、敵対行為や支配者の命令を支持するかは不明。",
+              "recommendedQuestion": "人物像への好意とダーク状態での行為への道徳的支持を分けた場合、行為は支持・中立・拒否のどれに近いですか？"
+            }
+          ],
+          "status": "succeeded",
+          "assertions": [
+            {
+              "id": "9a374cc4-2314-4077-865d-adaa7bd9e2bb",
+              "raw_label": "支配された勇者",
+              "polarity": "positive",
+              "response_channel": "dark_character_liking",
+              "strength": 0.84,
+              "explicitness": "user_explicit",
+              "confidence": 0.91,
+              "status": "proposed",
+              "stable_key": "dark.archetype.controlled_hero",
+              "evidence": [
+                {
+                  "id": "a3560618-bdae-4a5f-a7c2-8c5382ce9f14",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。元の一般的な英雄性自体は集計しない",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            },
+            {
+              "id": "d870065e-4c10-43a4-91f2-c145f84d0b71",
+              "raw_label": "洗脳",
+              "polarity": "positive",
+              "response_channel": "controlled_state_fascination",
+              "strength": 0.97,
+              "explicitness": "user_explicit",
+              "confidence": 0.99,
+              "status": "proposed",
+              "stable_key": "dark.control.brainwashed",
+              "evidence": [
+                {
+                  "id": "0d47eeb6-c61a-4234-8498-a0cfa0d624a5",
+                  "verificationStatus": "verified_quote",
+                  "inferenceType": "direct",
+                  "quote": "洗脳された勇者のダーク状態と変化差分に惹かれる。",
+                  "inputPointer": "/preference/likedReasons",
+                  "sourceTitle": "評価対象 controlled_hero-suppressed 好きな理由",
+                  "sourceUrl": null,
+                  "sourceProvider": null,
+                  "trustReason": null,
+                  "canNavigate": false
+                }
+              ]
+            }
+          ],
+          "valueStances": []
+        }
+      },
+      "modelRuns": [
+        {
+          "operation": "dark_scope_assessment",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "3d8ab9a94c6de90906d00bee5687716a26659de5385c01ad816124bf767957a7",
+          "input_hash": "3d8ab9a94c6de90906d00bee5687716a26659de5385c01ad816124bf767957a7",
+          "output_hash": "902402e0099509d39b9f764f50d6288ff42144e3e20eb6b054fd972de21e86d3",
+          "input_token_estimate": 930,
+          "output_token_estimate": 661,
+          "latency_ms": 7969
+        },
+        {
+          "operation": "dark_character_understanding",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "ccde08bdb17e9c1bed6252fb75ada7803b8bf12c7fad310adf7a0940118b5cba",
+          "input_hash": "ccde08bdb17e9c1bed6252fb75ada7803b8bf12c7fad310adf7a0940118b5cba",
+          "output_hash": "01a09ea80dfbf83660c63be3bd9f230b1b8f32c1845a862e0eabf24ad781cb46",
+          "input_token_estimate": 4453,
+          "output_token_estimate": 3788,
+          "latency_ms": 26939
+        },
+        {
+          "operation": "dark_understanding_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "6c01462028e3be1ecfa7d0e400d39e454b147ec8f09bb1b0b477067d82e959b0",
+          "input_hash": "6c01462028e3be1ecfa7d0e400d39e454b147ec8f09bb1b0b477067d82e959b0",
+          "output_hash": "bebf938ef91f58a9d88a4acb112efde606c45209378498b1dcee5a356049cb39",
+          "input_token_estimate": 6295,
+          "output_token_estimate": 3474,
+          "latency_ms": 29541
+        },
+        {
+          "operation": "dark_preference_analysis",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "76721cb10218eb0bb1eb8234b7b29b43b1cf271cfa0c3de96aefaae6ca12fdc3",
+          "input_hash": "76721cb10218eb0bb1eb8234b7b29b43b1cf271cfa0c3de96aefaae6ca12fdc3",
+          "output_hash": "f01f1fdd406a5bde8e6265fa384dbae40215e9e74800e318b3c39d34809be5dc",
+          "input_token_estimate": 7987,
+          "output_token_estimate": 1951,
+          "latency_ms": 17137
+        },
+        {
+          "operation": "dark_preference_audit",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "ffb34dcb1ebf42dd9e71d66f3dadf1a186cdf58a906163de5dbfc127ee073bdf",
+          "input_hash": "ffb34dcb1ebf42dd9e71d66f3dadf1a186cdf58a906163de5dbfc127ee073bdf",
+          "output_hash": "3db1ed0e97ec8154d6d96d73110c69b990fcaa92543499213ae441983fde19a8",
+          "input_token_estimate": 6834,
+          "output_token_estimate": 1678,
+          "latency_ms": 11958
+        },
+        {
+          "operation": "dark_character_generation",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "bf33de7357fb9eeef4c81dbba868c67423bb3d166e98cea5d27a52a73c2a165d",
+          "input_hash": "bf33de7357fb9eeef4c81dbba868c67423bb3d166e98cea5d27a52a73c2a165d",
+          "output_hash": "abece9388598bba7c9b60a4ff883c7a9cc4b1425ba7f7003699da0648c9f74a2",
+          "input_token_estimate": 2846,
+          "output_token_estimate": 4682,
+          "latency_ms": 40427
+        },
+        {
+          "operation": "generation_validation",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "b334e245f68e5b6e6648a0cd5e937e7da2500d7c59d9c26e1348ff665c9c6bd7",
+          "input_hash": "b334e245f68e5b6e6648a0cd5e937e7da2500d7c59d9c26e1348ff665c9c6bd7",
+          "output_hash": "cb9457696c237e601e0ae594b255700d6d36f3cb0c38dbd7d2b310d78842fb6c",
+          "input_token_estimate": 5872,
+          "output_token_estimate": 928,
+          "latency_ms": 10872
+        },
+        {
+          "operation": "generation_repair",
+          "requested_model": "gpt-5.6-luna",
+          "resolved_model": "gpt-5.6-luna",
+          "prompt_hash": "394dc76e7b53b07dcaed15f43a9d2c125dc1048f13374aa150031778c84bbecc",
+          "input_hash": "394dc76e7b53b07dcaed15f43a9d2c125dc1048f13374aa150031778c84bbecc",
+          "output_hash": "7418ae0e86b04e2644d177080a49a4af9c0df56fd84915d20aa9d754716e352f",
+          "input_token_estimate": 7981,
+          "output_token_estimate": 4469,
+          "latency_ms": 25295
+        }
+      ]
+    }
+  ],
+  "metrics": {
+    "perCase": [
+      {
+        "id": "controlled_hero-suppressed",
+        "failed": false,
+        "assertionCount": 2,
+        "expectedChannelHits": 1,
+        "expectedChannelCount": 1,
+        "absentEvidenceFalsePositive": false
+      }
+    ],
+    "completedCases": 1,
+    "totalCases": 1,
+    "expectedChannelRecall": 1,
+    "absentEvidenceCases": 0,
+    "absentEvidenceFalsePositives": 0,
+    "attributableEvidenceRate": 1,
+    "userCorrectionRate": null,
+    "userAdoptionRate": null,
+    "limitations": [
+      "反応経路の一致は意味的正確性全体を保証しない。",
+      "訂正率と採用率は実ユーザーの確認・採用イベントが必要であり、モデル出力から代用しない。",
+      "不要な善化や主体性混同は保存した根拠と出力を別途レビューする。"
+    ]
+  },
+  "gitRevision": "8b05686005a44542de2b8cfab9dfb50ffb2dae20",
+  "sourceHashes": {
+    "docs/詳細設計/database/001_initial.sql": "41acefbf3c098890d95daa27470c6184ee5d1fead9f23cb2d16b427b6f37c4b0",
+    "docs/詳細設計/database/002_seed_ontology_v1.sql": "103b51cad30123d81dac05dd4c446632b12e5bf1ffe159e1941bd7022ab7ab58",
+    "docs/詳細設計/database/003_dark_lab.sql": "6f20e4ccedbf3aeadea2aa8556057c7467f3fb4e802114fb32fd1a60f162aaf1",
+    "docs/詳細設計/database/004_quality_pipeline.sql": "cad4c84c7cdfc7b80c5fda4c3711cbcf3e235b0d4e2a11a9fd5d661902ea3d49",
+    "scripts/lib/evaluation-database.ts": "2e984f5ab4d0133b009f4cd7428769f4ed982b55ccecf6b91b59548106252d96",
+    "shared/analysis-domain.ts": "4243845f99465d6e322e08d666166846715973e5b03743ef81eedbc2d1bf91a6",
+    "shared/dark-ontology.ts": "acfde240f6c4b06b18d8cd1c3dc6084cff410b629fdbb2ebea16dc128ad5e175",
+    "shared/dark-response-channels.ts": "77d1e6201119de00038099049b5f992eba952d1c7f9158a7d0f67f1eb8cdadcc",
+    "shared/generation-brief.ts": "f65425451d4ff3f8962a6ee111564b46f76bc90d2c1302c8d9851e3082c9cfd3",
+    "shared/presentation-labels.ts": "305bd7c191720b70cce21f89e775fdbebf4b144e26b68015773efd060ffe16aa",
+    "shared/quality-schemas.ts": "0e8279207b5ee62a169c080751726cbdda52ada10b97704bbaeece1e0d4c7925",
+    "shared/response-channels.ts": "a847dbdc99af5b2debbba4960dd372cc8374772768776cfbd1b13114a84de154",
+    "shared/schemas.ts": "2ba3258f94779c24fee0dad56e204a95a0099ca3fe6ad8f2928fc9936c0110ad",
+    "shared/value-stance-labels.ts": "287a2d216fd080d9ad15fcf8188866c251efa770c3c8f28f92b6e6a003690735",
+    "worker/app.ts": "ece15e19522e2b87bb5b31584e221135c11b14933aaee00a096629c55fe0c378",
+    "worker/auth.ts": "edbe69a2b5336b49b1d646c17df6e2889db0d6a23ddff63626b99b06282fea94",
+    "worker/config.ts": "3a5ce6259952bb1e4cb3825ac6a15969897f5c9fb985c925772934315c43b0ed",
+    "worker/embedding/providers.ts": "d8b837717ef1edcb8d910736331d528f6aba4bbf10fa352ee639a35d4436784c",
+    "worker/embedding/types.ts": "c8d57d51be7268c68da419f97216d8b5001e8f8576fe942b9527d69e3097c7e4",
+    "worker/error-handler.ts": "0e44ed66c41d2c8439e8cd7e8d04222e827b014244b94f9a95f411673f1d4df8",
+    "worker/evaluation/cases.ts": "f8b3a0fa49f7210b34ba3a137a2456c41f430cf3fa621e7cefc891a8149c1d5f",
+    "worker/evaluation/metrics.ts": "f2ac4d27a7e24469ad03af93496046b2ad420e80937dc93b294b861214c53a5e",
+    "worker/evaluation/run.ts": "3ae5f41269304c3b54ed0bf15d7e9e6a5f44364fa173055f6afc1e30546e60a8",
+    "worker/http.ts": "afdd984415641fdb26cd47bcadc1a36e45768695724fbab3fb535a60a2e649fe",
+    "worker/index.ts": "610b3f292451c156d2290ce83c410c4d8647883a3272ba7fe8052c34c790409c",
+    "worker/lib/cookies.ts": "cb10170a12fdfd6a52fff771d0ac0367431521ee87a0e9c286de9e383c1b2344",
+    "worker/lib/crypto.ts": "3c8e971d5d011f2c67a79b39f30de6837276d2acef03313d25a85ca2209aea91",
+    "worker/lib/db.ts": "bae28cf584bcdf656158c77a90d14a222b003ac725eacf099caa423b145f1eec",
+    "worker/lib/numbers.ts": "5b4a83cdd9f47797fddd2bbd47fe618ac802073b8b29d03a92ce462a48aafd46",
+    "worker/llm/providers.ts": "a733ea8d402fea6436438750e0b681c5461b9656e13b1c6ed82513c77fd4df69",
+    "worker/llm/types.ts": "dee9899ecf8a12f7c30db0e698eb427dc75bc428efee37df02f63453bc43ddb8",
+    "worker/middleware.ts": "296d17882494b3e76874b2b5669be525bea96d23f649e8870caa4e0f03829623",
+    "worker/moderation/providers.ts": "9b5873385220455b5348cf28a0ee8d89b9857d38aa4b1127c144454210af1850",
+    "worker/moderation/types.ts": "983c801017ba90a2d6df4c8b4fce1344581d2b154cccc9b829204de299ea6923",
+    "worker/openapi.ts": "f5fd75c9cf9456af125bba600ff4ab4173565d2f2f12e7a2efbd2423691ef74b",
+    "worker/routes/account.ts": "871f96331f5f853eecdab2db85ceffee22b10579bf65e1cd2d04d3f2381495eb",
+    "worker/routes/auth.ts": "05c7de483a04d1145697d1a2a972cade4b03ebdf7230fc86439b29a8ac96da86",
+    "worker/routes/entries.ts": "1d4979157b989fd96d2db3c813851e63818d8b6d21b10044010fb8b9e90d6ebd",
+    "worker/routes/generation.ts": "277c1760c8621f5b838e71f5effc56ce39f1d4d1d835da90c901f7f06acd21d8",
+    "worker/routes/health.ts": "44ef4a29909446b126ea283d43056876f90708462b5abe7c8007f2d24070c568",
+    "worker/routes/jobs.ts": "5162ec2ad6ce5aa40f81deac4d0e5305d3cb463cf6f781a109b1f88928f95c62",
+    "worker/routes/profile.ts": "8d3c02c7a3a5053f301acd4679592914b20adf829b19f3f01dee8c5fca9cb7cc",
+    "worker/services/analysis-result-policy.ts": "6daf3cc87477f12a2cfe071a4f0d8c492c300cb10278bd5de98d4e08e05d1e2f",
+    "worker/services/analysis.ts": "2e5923bf55c8162808354b59f0c44c2500ab6b3e9d661d1da8613aeca4c50b75",
+    "worker/services/attribute-labels.ts": "2eeb9fddf412f5eba1e5305e9663a2e3ebc66cbedebd7a7efcd6d369df7cfdf2",
+    "worker/services/character-research.ts": "3f98490cd8e7bb4c47ad81f71127c5b881b012c535e2bfd56890966ff016d751",
+    "worker/services/cleanup.ts": "4203883bae3a6adb720032e8e142bf3e804ffc45caef3ac34d1f0cf8d081a845",
+    "worker/services/confirmed-understanding.ts": "701b17ecace0f1cb56e620bfee6e99657225e55307369b0ddc75e21dc3a3fd94",
+    "worker/services/entries.ts": "b3d50b80a10610f11ab5bff632bca7963a87be5fc98a620a18973a5ddce77a7d",
+    "worker/services/exports.ts": "c7b4b68946b9db8899997f367f9bac96cf755fe151978874248a39a47945307e",
+    "worker/services/generation-feedback.ts": "150b1e7598321c06b7ed66b780cb44d13fc0e934cfb0a8ac02156c9cb07114a7",
+    "worker/services/generation-selections.ts": "a3bcc1f39c2d814439a42fc487cf749b2151eadf8a22144ec9e6934793f35c60",
+    "worker/services/generation-similarity.ts": "bc6a83abd62ada95d834d37bf158bdeb125a7b00a812eef3ee8e8f7aff1d4212",
+    "worker/services/generation-validation.ts": "822e912841152e51994c0795cf43cc350be97286cdd0e6f680e6cc8336001221",
+    "worker/services/generation.ts": "d53da367a2f21c9e2906c0de605c06f8b19782efd303a51a2b8431147da29e1d",
+    "worker/services/graph.ts": "161f53e6e5eb6e1e6c574305622918b8b92d39b1fb656fd6f3cff674ff261f55",
+    "worker/services/input-moderation.ts": "34c981628ee3697692f5245be878178ba3ca88b08ff006bccec648878439171e",
+    "worker/services/job-policy.ts": "8cfd1d53bf51728fc87d522c10d581e5f43446cc5ac5e188bf41ef051facba8a",
+    "worker/services/jobs.ts": "0ccb704c874d3d5662f65ac772c69b4e8a06aed434cc9d1740c002f62d2ba7e0",
+    "worker/services/orchestration.ts": "1ffb3b950b93b420f64f6329ed30714fca4e0fb491400cc575344e4cf94cece8",
+    "worker/services/preference-refinement.ts": "9d3ad87a4b82b06717ad1d8315752a89b8b54f559133e99160e2ece206901bb0",
+    "worker/services/profile-context.ts": "07bc727b82558a0b1cb1e8d44083e4a32410e801d78939df490b42d5406652b7",
+    "worker/services/profile.ts": "070fefa8d646c8558e60211d2d586dca735008225cdb427b0d271ccef3aef61c",
+    "worker/services/provenance-verifier.ts": "ef1920585e0591ae73b47f775b731706b840aa28f5b7f1a13ba83466685353f1",
+    "worker/services/provenance.ts": "311d0b95dd857a4a258b13502a04276a8ba2889bcab0ad7b1a6adf0a4a98c836",
+    "worker/services/quota-policy.ts": "bf3f5e773aff5029a4da430fa1c504c1ffe6abeddb67c3cbe348ba473ac9935c",
+    "worker/services/quota.ts": "b9a02ee7c59079bfe77ba1a038cf5b3cb5f30fad83d5c1d9928db724114203ab",
+    "worker/storage/d1-strategy.ts": "429fe12bf55fcea52cf90c436950a302fe406239c93f22a2c001bcd463278920",
+    "worker/storage/strategy.ts": "6625f1ba67d2f0f294382b3d7397c928b079ae9b3e7eac6c6decf8dc0beed176",
+    "worker/types.ts": "7146ea05b65c59ca6291a72f941d54b3959afae137a478b844983ef1047201e1",
+    "worker/workflows.ts": "c9d6caf88a1da9eb9f315e9de5830a8570c11ca11f23597a3ff0b61f8f1dca9d"
+  }
+}

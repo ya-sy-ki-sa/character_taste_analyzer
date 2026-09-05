@@ -31,7 +31,14 @@ import type {
   processGeneration,
   retryGeneration,
 } from "../services/generation";
+import type {
+  createGenerationFeedback,
+  listGenerationFeedback,
+  reviewGenerationFeedback,
+  selectGenerationCandidate,
+} from "../services/generation-feedback";
 import type { loadCurrentGraph } from "../services/graph";
+import type { refinePreferenceInput } from "../services/preference-refinement";
 import type { ensureCurrentProfileAlgorithm, loadCurrentProfile, loadProjectionFreshness } from "../services/profile";
 import type { CharacterAnalysisWorkflowParams, Env, GenerationWorkflowParams } from "../types";
 import { createD1DataStoreStrategy } from "./d1-strategy";
@@ -42,7 +49,14 @@ export type ProfileSnapshotItems = {
 };
 
 /** Domain storage port. Adapters may change without changing HTTP or Workflow orchestration. */
+type BoundService<F> = F extends (env: Env, ...args: infer A) => infer R ? (...args: A) => R : never;
+
 export interface CharacterTasteDataStoreStrategy {
+  selectGenerationCandidate: BoundService<typeof selectGenerationCandidate>;
+  createGenerationFeedback: BoundService<typeof createGenerationFeedback>;
+  listGenerationFeedback: BoundService<typeof listGenerationFeedback>;
+  reviewGenerationFeedback: BoundService<typeof reviewGenerationFeedback>;
+  refinePreferenceInput: BoundService<typeof refinePreferenceInput>;
   readonly id: string;
   createEntry(
     ownerUserId: string,

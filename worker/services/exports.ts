@@ -93,6 +93,10 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     darkScopeAssessments,
     darkBaselineSnapshots,
     darkTransformationDeltas,
+    qualityCandidates,
+    generationFeedback,
+    preferenceRefinements,
+    similarityDocuments,
   ] = await Promise.all([
     rows(
       env,
@@ -175,6 +179,10 @@ async function collectAccountData(env: Env, ownerUserId: string) {
     rows(env, `SELECT * FROM dark_scope_assessments WHERE owner_user_id=?`, ownerUserId),
     rows(env, `SELECT * FROM dark_baseline_snapshots WHERE owner_user_id=?`, ownerUserId),
     rows(env, `SELECT * FROM dark_transformation_deltas WHERE owner_user_id=?`, ownerUserId),
+    rows(env, `SELECT * FROM generation_candidates WHERE owner_user_id=? ORDER BY created_at,id`, ownerUserId),
+    rows(env, `SELECT * FROM generation_feedback WHERE owner_user_id=? ORDER BY created_at,id`, ownerUserId),
+    rows(env, `SELECT * FROM preference_refinements WHERE owner_user_id=? ORDER BY created_at,id`, ownerUserId),
+    rows(env, `SELECT * FROM character_similarity_documents WHERE owner_user_id=? ORDER BY created_at,id`, ownerUserId),
   ]);
   const domainPartition = (analysisDomain: "standard" | "dark") => ({
     entries: entries.filter((row) => row.analysis_domain === analysisDomain),
@@ -209,6 +217,13 @@ async function collectAccountData(env: Env, ownerUserId: string) {
       darkScopeAssessments,
       darkBaselineSnapshots,
       darkTransformationDeltas,
+    },
+    quality: {
+      schemaVersion: "2.0",
+      candidates: qualityCandidates,
+      feedback: generationFeedback,
+      refinements: preferenceRefinements,
+      similarityDocuments,
     },
     preferenceAnalysis: { runs: analysisRuns, assertions: preferenceAssertions, valueStances, evidence },
     profile: {

@@ -73,7 +73,9 @@ export const handleError: ErrorHandler<AppEnv> = (error, context) => {
     GENERATION_DELETE_STATE_CHANGED: [409, "作成履歴の状態が更新されました。画面を再読み込みしてください"],
     EXPORT_STORAGE_UNAVAILABLE: [503, "エクスポート保存先を利用できません"],
   };
-  const mapped = known[message];
+  const mapped =
+    known[message] ??
+    (message.includes("PREFERENCE_REVIEW_STATE_CHANGED") ? known.PREFERENCE_REVIEW_STATE_CHANGED : undefined);
   if (mapped) return context.json({ error: { code: message, message: mapped[1], requestId } }, mapped[0]);
   console.error(JSON.stringify({ requestId, code: message.slice(0, 100) }));
   return context.json({ error: { code: "INTERNAL_ERROR", message: "処理を完了できませんでした", requestId } }, 500);

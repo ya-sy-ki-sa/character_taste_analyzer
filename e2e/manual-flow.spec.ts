@@ -52,7 +52,7 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
     .getByLabel("好きな理由", { exact: true })
     .fill("純粋悪と非道徳を穏当化せず、善への無関心を貫き、改心しないところが好き。");
   await page.getByLabel(/善悪・価値観/u).fill("フィクション上の悪そのものを肯定する。");
-  await page.getByRole("button", { name: "同一キャラクター候補を確認" }).click();
+  await page.getByRole("button", { name: "保存して理解抽出を開始" }).click();
 
   await page.getByRole("button", { name: /黒曜卿UI/u }).click();
   await expect(page.getByRole("button", { name: "この理解を確認して好み分析へ" })).toBeVisible({ timeout: 20_000 });
@@ -233,6 +233,19 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await expect(page.getByLabel("隠れた善性", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /選択した\d+項目から作成/u }).click();
   await expect(page.getByRole("heading", { name: "霧綴のエナ" })).toBeVisible({ timeout: 20_000 });
+  await page.locator("button.generation-card", { hasText: "霧綴のエナ" }).click();
+  const generatedDialog = page.getByRole("dialog", { name: "霧綴のエナ" });
+  await expect(generatedDialog.getByRole("heading", { name: /合格した \d 案を比較/u })).toBeVisible();
+  await generatedDialog.getByRole("button", { name: "この案を採用", exact: true }).first().click();
+  await expect(generatedDialog.getByRole("button", { name: "採用済み", exact: true })).toBeDisabled();
+  await page.setViewportSize({ width: 320, height: 740 });
+  expect(await generatedDialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await generatedDialog.getByRole("heading", { name: /合格した \d 案を比較/u }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/quality-standard-320.png" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({ path: "test-results/quality-standard-desktop.png" });
+  await generatedDialog.getByRole("button", { name: "閉じる", exact: true }).click();
+
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "「霧綴のエナ」の履歴を削除" }).click();
   await expect(page.getByText("作成履歴を削除しました。")).toBeVisible();
@@ -264,7 +277,7 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await reanalysisDialog.getByLabel("苦手な要素・このキャラで好きではない点").fill("再分析時に追加した苦手な要素");
   await reanalysisDialog.getByLabel("善悪・価値観について残したいニュアンス").fill("悪を悪のまま評価する");
   await expect(reanalysisDialog.getByRole("checkbox", { name: /人物として好き/u })).toBeChecked();
-  await reanalysisDialog.getByRole("button", { name: "同一キャラクター候補を確認" }).click();
+  await reanalysisDialog.getByRole("button", { name: "入力を保存して再分析" }).click();
   await expect(
     page.getByText("入力を新しい履歴として保存し、キャラクター理解から再分析を開始しました。"),
   ).toBeVisible();

@@ -63,13 +63,43 @@ export function groupGenerationSnapshotItems(items: GenerationSnapshotItem[]): G
 export function expandSnapshotTreatments(
   groups: GenerationSnapshotItemGroup[],
   treatments: Record<string, SnapshotTreatment>,
+  overrides: Record<string, SnapshotTreatment> = {},
 ): { selectedItemIds: string[]; prohibitedItemIds: string[] } {
   const selectedItemIds: string[] = [];
   const prohibitedItemIds: string[] = [];
   for (const group of groups) {
     const treatment = treatments[group.id] ?? "omit";
-    if (treatment === "include") selectedItemIds.push(...group.itemIds);
-    if (treatment === "prohibit") prohibitedItemIds.push(...group.itemIds);
+    for (const id of group.itemIds) {
+      const selected = overrides[id] ?? treatment;
+      if (selected === "include") selectedItemIds.push(id);
+      if (selected === "prohibit") prohibitedItemIds.push(id);
+    }
   }
   return { selectedItemIds, prohibitedItemIds };
+}
+
+export function snapshotConditionLabel(value: unknown): string {
+  const condition = asRecord(value) ?? {};
+  const fields = [
+    ["entryScope", "対象"],
+    ["scope", "対象"],
+    ["freeText", "対象"],
+    ["subjects", "人物"],
+    ["relationships", "関係"],
+    ["narrativePhases", "時期"],
+    ["conditions", "条件"],
+    ["exceptions", "例外"],
+  ] as const;
+  return fields
+    .flatMap(([key, label]) => {
+      const raw = condition[key];
+      const text =
+        typeof raw === "string"
+          ? raw
+          : Array.isArray(raw)
+            ? raw.filter((item) => typeof item === "string").join("、")
+            : "";
+      return text.trim() ? [`${label}：${text}`] : [];
+    })
+    .join(" ／ ");
 }

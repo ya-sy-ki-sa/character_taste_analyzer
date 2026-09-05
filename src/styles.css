@@ -1542,9 +1542,16 @@
   .entry-actions button.danger-link {
     color: var(--danger);
   }
-  .entry-form {
+  .entry-form,
+  .entry-form-fields {
     display: grid;
     gap: 20px;
+  }
+  .entry-form-fields {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
   .assertion-list {
     display: grid;
@@ -4717,5 +4724,104 @@
       animation: none;
       transform: rotate(38deg);
     }
+  }
+}
+
+.quality-controls {
+  margin-block: 1.5rem;
+  padding-block: 1.25rem;
+  border-block: 1px solid var(--ctl-line);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.quality-option {
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--ctl-line);
+}
+.quality-option dl {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) minmax(0, 4fr);
+  gap: 0.5rem 1rem;
+}
+.quality-option dd {
+  margin: 0;
+}
+.quality-controls .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.quality-controls .form-grid > *,
+.quality-controls select {
+  min-width: 0;
+  max-width: 100%;
+}
+.quality-question {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+  min-width: 0;
+}
+
+.hypothesis-candidates {
+  min-width: 0;
+  margin: 1.5rem 0 0;
+  padding: 1rem;
+  border: 1px solid var(--ctl-control-edge);
+}
+
+.hypothesis-option {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1rem 0;
+  border-top: 1px solid var(--ctl-line);
+  cursor: pointer;
+}
+
+.hypothesis-option > input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+  margin-top: 0.25rem;
+}
+
+.hypothesis-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hypothesis-detail {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--ctl-text-muted);
+}
+
+@media (max-width: 430px) {
+  .hypothesis-candidates {
+    padding: 0.5rem;
+  }
+  .hypothesis-option {
+    gap: 0.5rem;
+  }
+}
+.condition-details {
+  display: block;
+  margin-top: 0.75rem;
+  white-space: normal;
+}
+.condition-details summary {
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+  .quality-option dl {
+    grid-template-columns: 1fr;
+  }
+  .quality-option dt {
+    font-weight: 700;
+  }
+  .quality-controls .button-row > button {
+    width: 100%;
   }
 }

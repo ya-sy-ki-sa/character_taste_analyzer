@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
 import {
   briefCoverageStatusLabel,
@@ -11,12 +11,14 @@ import {
 import { responseChannelLabel } from "../../shared/response-channels";
 import type { AnyGeneratedCharacterCandidate, GenerationRequestInput } from "../../shared/schemas";
 import { api, idempotencyKey } from "../api";
+import { CandidateComparison, GenerationFeedback, type GenerationOption } from "../components/QualityControls";
 import { Card, EmptyState, Modal, Notice, PageHeading, Spinner } from "../components/Ui";
 import {
   expandSnapshotTreatments,
   type GenerationSnapshotItem,
   groupGenerationSnapshotItems,
   type SnapshotTreatment,
+  snapshotConditionLabel,
 } from "../lib/generation-snapshot-items";
 
 type SnapshotResponse = { snapshot: { id: string; generation: number } | null; items: GenerationSnapshotItem[] };
@@ -27,6 +29,7 @@ type GenerationRow = {
   mode: GenerationRequestInput["mode"];
   createdAt: string;
   character: AnyGeneratedCharacterCandidate | null;
+  candidates?: GenerationOption[];
   job: { status: string | null; errorCode: string | null };
 };
 
@@ -49,6 +52,8 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
   const [tone, setTone] = useState("");
   const [instruction, setInstruction] = useState("");
   const [treatments, setTreatments] = useState<Record<string, SnapshotTreatment>>({});
+  const [overrides, setOverrides] = useState<Record<string, SnapshotTreatment>>({});
+  const [selecting, setSelecting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string>();
   const [error, setError] = useState<string>();
@@ -90,13 +95,18 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
     event.preventDefault();
     setSubmitting(true);
     setError(undefined);
-    const { selectedItemIds, prohibitedItemIds } = expandSnapshotTreatments(groupedSnapshotItems, treatments);
+    const { selectedItemIds, prohibitedItemIds } = expandSnapshotTreatments(
+      groupedSnapshotItems,
+      treatments,
+      overrides,
+    );
     try {
       await api(`${apiBase}/generation-requests`, {
         method: "POST",
         idempotencyKey: idempotencyKey(),
         body: JSON.stringify({
           mode,
+          profileSnapshotId: snapshot.data?.snapshot?.id,
           purpose,
           world: world || undefined,
           genre: genre || undefined,
@@ -138,7 +148,29 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
     }
   }
 
-  const selectedCount = Object.values(treatments).filter((item) => item === "include").length;
+  async function selectCandidate(option: GenerationOption) {
+    if (!detail) return;
+    setSelecting(true);
+    setError(undefined);
+    try {
+      await api(`${apiBase}/generation-requests/${detail.generationRequestId}/selection`, {
+        method: "POST",
+        body: JSON.stringify({ candidateId: option.id }),
+      });
+      setDetail({
+        ...detail,
+        character: option.character,
+        candidates: detail.candidates?.map((item) => ({ ...item, selected: item.id === option.id })),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["generated-characters", domain] });
+      setNotice("採用する案を保存しました。");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "採用を保存できませんでした");
+    } finally {
+      setSelecting(false);
+    }
+  }
+  const selectedCount = expandSnapshotTreatments(groupedSnapshotItems, treatments, overrides).selectedItemIds.length;
   return (
     <>
       <PageHeading
@@ -181,15 +213,45 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
                       : ""}
                     {snapshotScopeLabel(item.conditions)}
                   </small>
+                  {item.itemIds.length > 1 && (
+                    <details className="condition-details">
+                      <summary>条件・惹かれ方ごとに調整</summary>
+                      {item.itemIds.map((id) => {
+                        const individual = snapshot.data?.items.find((candidate) => candidate.id === id);
+                        if (!individual) return null;
+                        const condition = individual.payload.condition ?? individual.payload.scope;
+                        const scope = snapshotConditionLabel(condition);
+                        return (
+                          <label className="quality-question" key={id}>
+                            <span>
+                              {responseChannelLabel(String(individual.payload.responseChannel ?? ""))}
+                              {scope ? ` · ${scope}` : ""}
+                            </span>
+                            <select
+                              aria-label={`${individual.label}の条件別の扱い`}
+                              value={overrides[id] ?? treatments[item.id] ?? "omit"}
+                              onChange={(event) =>
+                                setOverrides({ ...overrides, [id]: event.target.value as SnapshotTreatment })
+                              }
+                            >
+                              <option value="include">使う</option>
+                              <option value="prohibit">入れない</option>
+                              <option value="omit">今回は使わない</option>
+                            </select>
+                          </label>
+                        );
+                      })}
+                    </details>
+                  )}
                 </span>
                 <select
                   value={treatments[item.id] ?? "omit"}
-                  onChange={(event) =>
-                    setTreatments((current) => ({
-                      ...current,
-                      [item.id]: event.target.value as SnapshotTreatment,
-                    }))
-                  }
+                  onChange={(event) => {
+                    setTreatments((current) => ({ ...current, [item.id]: event.target.value as SnapshotTreatment }));
+                    setOverrides((current) =>
+                      Object.fromEntries(Object.entries(current).filter(([id]) => !item.itemIds.includes(id))),
+                    );
+                  }}
                 >
                   <option value="include">使う</option>
                   <option value="prohibit">入れない</option>
@@ -310,6 +372,13 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
                     <>
                       <h3>{item.character.identity.name}</h3>
                       <p>{item.character.identity.oneLineConcept}</p>
+                      {Boolean(item.candidates?.length) && (
+                        <small>
+                          {item.candidates?.some((candidate) => candidate.selected)
+                            ? "採用済み"
+                            : `${item.candidates?.length}案 · 採用する案を選択`}
+                        </small>
+                      )}
                       <footer>
                         <span>{new Date(item.createdAt).toLocaleDateString("ja-JP")}</span>
                         <b>設定を見る →</b>
@@ -337,19 +406,60 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
           })}
         </div>
       </section>
-      {detail?.character && <CharacterModal character={detail.character} onClose={() => setDetail(undefined)} />}
+      <GenerationFeedback domain={domain} />
+      {detail?.character && (
+        <CharacterModal
+          character={detail.character}
+          onClose={() => setDetail(undefined)}
+          comparison={
+            detail.candidates?.length ? (
+              <>
+                {error && <Notice tone="danger">{error}</Notice>}
+                <CandidateComparison
+                  options={detail.candidates}
+                  activeId={
+                    detail.candidates.find((item) => item.character.identity.name === detail.character?.identity.name)
+                      ?.id
+                  }
+                  pending={selecting}
+                  onView={(option) => setDetail({ ...detail, character: option.character })}
+                  onSelect={(option) => void selectCandidate(option)}
+                />
+              </>
+            ) : null
+          }
+        >
+          {Boolean(detail.candidates?.length) && (
+            <GenerationFeedback
+              key={detail.character.identity.name}
+              domain={domain}
+              option={detail.candidates?.find(
+                (item) => item.character.identity.name === detail.character?.identity.name,
+              )}
+            />
+          )}
+        </CharacterModal>
+      )}
     </>
   );
 }
 
 function snapshotScopeLabel(conditions: Record<string, unknown>[]): string {
-  const scopes = conditions.flatMap((condition) => (typeof condition.scope === "string" ? [condition.scope] : []));
-  const includesWholeCharacter = conditions.some((condition) => Object.keys(condition).length === 0);
-  const labels = [...(includesWholeCharacter ? ["キャラクター全体"] : []), ...scopes];
-  return labels.length ? `・対象：${labels.join("／")}` : "";
+  const labels = [...new Set(conditions.map(snapshotConditionLabel).filter(Boolean))];
+  return labels.length ? `・${labels.join(" ／ ")}` : "";
 }
 
-function CharacterModal({ character, onClose }: { character: AnyGeneratedCharacterCandidate; onClose(): void }) {
+function CharacterModal({
+  character,
+  onClose,
+  children,
+  comparison,
+}: {
+  character: AnyGeneratedCharacterCandidate;
+  onClose(): void;
+  children?: ReactNode;
+  comparison?: ReactNode;
+}) {
   const sections = [
     ["外見", character.appearance],
     ["性格", character.personality],
@@ -363,6 +473,7 @@ function CharacterModal({ character, onClose }: { character: AnyGeneratedCharact
           <p>{character.identity.oneLineConcept}</p>
           <small>{character.identity.origin}</small>
         </header>
+        {comparison}
         <div className="sheet-grid">
           {sections.map(([title, section], index) => (
             <section className="sheet-section" key={title}>
@@ -438,6 +549,7 @@ function CharacterModal({ character, onClose }: { character: AnyGeneratedCharact
             <p>{character.darkArc.possibleOutcome}</p>
           </section>
         )}
+        {children}
       </article>
     </Modal>
   );
