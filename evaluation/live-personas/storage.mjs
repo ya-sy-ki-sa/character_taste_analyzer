@@ -1,6 +1,14 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+
+export function liveRunRoot(value = process.env.LIVE_RUN_DIR) {
+  if (!value) throw new Error("LIVE_RUN_DIR is required; use a new directory for each measurement");
+  const root = resolve(value);
+  if (existsSync(`${root}/final-artifact-manifest.json`))
+    throw new Error("Finalized live evaluation is read-only; use a new run directory");
+  return root;
+}
 
 export function digest(value) {
   return createHash("sha256")

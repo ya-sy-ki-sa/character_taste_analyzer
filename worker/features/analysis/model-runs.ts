@@ -37,11 +37,14 @@ export async function persistModelRun(
         : metadata.effectiveSettings?.understandingInformationPolicy
           ? `${operation}/${metadata.effectiveSettings.understandingInformationPolicy}`
           : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
-    schemaVersion: isPreference
-      ? PREFERENCE_SCHEMA_VERSION
-      : operation === "preference_hypotheses"
-        ? "2.1"
-        : (metadata.effectiveSettings?.understandingSchemaVersion ?? "1.0"),
+    schemaVersion:
+      typeof metadata.effectiveSettings?.actualSchemaVersion === "string"
+        ? metadata.effectiveSettings.actualSchemaVersion
+        : isPreference
+          ? PREFERENCE_SCHEMA_VERSION
+          : operation === "preference_hypotheses"
+            ? "2.1"
+            : (metadata.effectiveSettings?.understandingSchemaVersion ?? "1.0"),
   });
 }
 

@@ -7,9 +7,11 @@ import type { PreferenceCandidate } from "../shared/contracts/preference";
 import type { UnderstandingCandidate } from "../shared/contracts/understanding";
 import { activateAnalysisAndRebuild } from "../worker/features/analysis/activation";
 import { loadConfirmedUnderstanding } from "../worker/features/analysis/confirmed-understanding";
+import { fakeUnderstandingAudit } from "../worker/features/analysis/deterministic";
 import { processPreferenceAnalysis } from "../worker/features/analysis/preference";
 import * as research from "../worker/features/analysis/research";
 import { loadRetainedPreferences } from "../worker/features/analysis/retention";
+import { fakeGroundedPreferences, fakeGroundedUnderstanding } from "../worker/features/analysis/semantic-fake";
 import { processCharacterAnalysis } from "../worker/features/analysis/understanding";
 import { createEntry } from "../worker/features/entries/create";
 import { mutatePreferenceReview } from "../worker/features/entries/preference-review";
@@ -81,7 +83,7 @@ async function setup(domain: AnalysisDomain, fixture = failures[0], allInvalid =
     providerId: "fake",
     async generateStructured(request) {
       requests.push(request);
-      const value = structuredClone(request.fakeFactory());
+      let value = structuredClone(request.fakeFactory());
       if (
         [
           "customization_delta",
@@ -136,7 +138,9 @@ async function setup(domain: AnalysisDomain, fixture = failures[0], allInvalid =
                   rawLabel: "独立したモデル知識",
                   valueText: "モデル知識の詳細",
                   explicitness: "model_knowledge" as const,
-                  evidence: [{ ...bad, sourceUrl: null, sourceRef: "model_knowledge" }],
+                  evidence: [
+                    { ...bad, sourceUrl: null, sourceRef: "model_knowledge", inferenceType: "inferred" as const },
+                  ],
                 },
               ]),
         ];
@@ -170,6 +174,10 @@ async function setup(domain: AnalysisDomain, fixture = failures[0], allInvalid =
           { ...stance, targetRef: "有効な価値態度", evidence: [input] },
         ];
       }
+      if (request.operation === "understanding_audit")
+        value = fakeGroundedUnderstanding(fakeUnderstandingAudit(value as UnderstandingCandidate)) as typeof value;
+      if (request.operation === "preference_audit")
+        value = fakeGroundedPreferences(value as PreferenceCandidate) as typeof value;
       const metadata: LlmRunMetadata = {
         operation: request.operation,
         provider: "fake",
@@ -222,17 +230,19 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
   it.each(failures)("keeps $caseId reviewable with valid evidence intact and no extra LLM calls", async (fixture) => {
     const { snapshot, detail, requests } = await setup(domain, fixture);
     const bad = snapshot.assertions.find((item) => item.raw_label === "無効な人物属性");
-    expect(bad).toMatchObject({
-      confidence: 0,
-      evidence: [{ verificationStatus: "invalid", sourceUrl: null, canNavigate: false }],
-    });
+    if (domain === "standard") expect(bad).toBeUndefined();
+    else
+      expect(bad).toMatchObject({
+        confidence: 0,
+        evidence: [{ verificationStatus: "invalid", sourceUrl: null, canNavigate: false }],
+      });
     expect(snapshot.assertions.find((item) => item.raw_label === "混在する人物属性")?.confidence).toBeGreaterThan(0);
     expect(reviewDetailSchema.parse(detail).understanding?.citationIssues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           reason: "url_not_allowed",
           sourceUrl: fixture.sourceUrl,
-          targetId: bad?.id,
+          targetId: bad?.id ?? expect.any(String),
           modelRunId: expect.any(String),
         }),
       ]),
@@ -251,9 +261,10 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
       "混在する人物属性",
       "独立したモデル知識",
     ]);
-    expect(confirmed.excluded).toContainEqual(
-      expect.objectContaining({ raw_label: "無効な人物属性", status: "unverified" }),
-    );
+    if (domain === "dark")
+      expect(confirmed.excluded).toContainEqual(
+        expect.objectContaining({ raw_label: "無効な人物属性", status: "unverified" }),
+      );
     expect(confirmed.assertions.find((item) => item.rawLabel === "混在する人物属性")?.evidence).toHaveLength(1);
     const correction = await setup(domain);
     await mutateUnderstandingReview(
@@ -292,26 +303,29 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     const analysis = detail?.preferenceAnalysis;
     if (!analysis) throw new Error("missing preferences");
     expect(analysis.citationIssues).toHaveLength(3);
-    expect(analysis.assertions.find((item) => item.raw_label === "無効な好み")?.confidence).toBe(0);
+    if (domain === "standard") expect(analysis.assertions.some((item) => item.raw_label === "無効な好み")).toBe(false);
+    else expect(analysis.assertions.find((item) => item.raw_label === "無効な好み")?.confidence).toBe(0);
     const invalid = analysis.assertions.find((item) => item.raw_label === "無効な好み");
-    if (!invalid) throw new Error("missing invalid preference");
-    const correction = await mutatePreferenceReview(
-      env,
-      owner,
-      domain,
-      analysis.id,
-      {
-        action: "set_response_channel",
-        targetId: invalid.id,
-        responseChannel: domain === "dark" ? "dark_character_liking" : "admiration",
-      },
-      crypto.randomUUID(),
-    );
-    const corrected = await loadEntryReview(env, owner, domain, params.entryId);
-    expect(corrected?.preferenceAnalysis?.assertions.find((item) => item.id === correction.changedId)).toMatchObject({
-      confidence: 0,
-      evidence: [expect.objectContaining({ verificationStatus: "invalid" })],
-    });
+    if (domain === "dark") {
+      if (!invalid) throw new Error("missing invalid preference");
+      const correction = await mutatePreferenceReview(
+        env,
+        owner,
+        domain,
+        analysis.id,
+        {
+          action: "set_response_channel",
+          targetId: invalid.id,
+          responseChannel: domain === "dark" ? "dark_character_liking" : "admiration",
+        },
+        crypto.randomUUID(),
+      );
+      const corrected = await loadEntryReview(env, owner, domain, params.entryId);
+      expect(corrected?.preferenceAnalysis?.assertions.find((item) => item.id === correction.changedId)).toMatchObject({
+        confidence: 0,
+        evidence: [expect.objectContaining({ verificationStatus: "invalid" })],
+      });
+    }
     const activated = await activateAnalysisAndRebuild(env, owner, domain, analysis.id);
     await processProfileRebuild(env, {
       jobId: activated.profileJobId,
@@ -333,7 +347,11 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
   it("keeps an entirely unverified understanding reviewable and passes no assertions after confirmation", async () => {
     const { env, owner, snapshot } = await setup(domain, failures[0], true);
     expect(snapshot).not.toHaveProperty("confidence");
-    expect(snapshot.evidenceSummary.counts.invalid).toBeGreaterThan(0);
+    if (domain === "dark") expect(snapshot.evidenceSummary.counts.invalid).toBeGreaterThan(0);
+    else {
+      expect(snapshot.assertions).toEqual([]);
+      expect(snapshot.sourceAssessment.limitations.length).toBeGreaterThan(0);
+    }
     expect(snapshot.sourceAssessment.coverage).toBe("none");
     await confirmUnderstanding(env, owner, domain, snapshot.id);
     expect((await loadConfirmedUnderstanding(env, owner, snapshot.id)).assertions).toEqual([]);

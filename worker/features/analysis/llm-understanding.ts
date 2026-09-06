@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { groundedUnderstandingAuditSchema } from "../../../shared/contracts/semantic-audit";
 import { type UnderstandingCandidate, understandingCandidateSchema } from "../../../shared/contracts/understanding";
-import { understandingAuditSchema } from "../../../shared/contracts/understanding-quality";
 import {
   entryBaseCharacterName,
   entryInputSources,
@@ -9,11 +9,18 @@ import {
 } from "../../../shared/entry-input";
 import { hmacHex, sha256Hex } from "../../lib/crypto";
 import { SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
+import {
+  SEMANTIC_AUDIT_INSTRUCTION,
+  SEMANTIC_AUDIT_POLICY,
+  SEMANTIC_AUDIT_SCHEMA_VERSION,
+} from "../../llm/prompts/semantic-audit";
 import { LlmProviderError, type StructuredLlmResult } from "../../llm/types";
 import type { Env } from "../../types";
+import { repairUnderstandingAssessments } from "./audit-repair";
 import { ontologyPrompt } from "./context";
 import { fakeUnderstanding, fakeUnderstandingAudit } from "./deterministic";
 import type { CharacterResearch } from "./research";
+import { fakeGroundedUnderstanding } from "./semantic-fake";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { AttributeRow, EntryContext } from "./types";
 import {
@@ -76,6 +83,7 @@ export async function understandOne(
       effectiveSettings: {
         ...value.effectiveSettings,
         understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
+        semanticAuditPolicy: SEMANTIC_AUDIT_POLICY,
         understandingSchemaVersion: request.schemaVersion,
       },
     });
@@ -119,14 +127,15 @@ export async function understandOne(
   async function audit(candidate: UnderstandingCandidate, suffix: string) {
     return recordCall({
       operation: "understanding_audit",
-      schemaName: "character_understanding_audit",
-      schemaVersion: "1.0",
-      schema: understandingAuditSchema,
-      jsonSchema: z.toJSONSchema(understandingAuditSchema, { target: "draft-7" }) as Record<string, unknown>,
+      schemaName: "character_understanding_grounded_audit",
+      schemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
+      schema: groundedUnderstandingAuditSchema,
+      repairStrategy: repairUnderstandingAssessments,
+      jsonSchema: z.toJSONSchema(groundedUnderstandingAuditSchema, { target: "draft-7" }) as Record<string, unknown>,
       messages: [
         {
           role: "system",
-          content: `${SYSTEM_INSTRUCTION}\n${UNDERSTANDING_COMPLETENESS_INSTRUCTION}\n${UNDERSTANDING_INFORMATION_INSTRUCTION}`,
+          content: `${SYSTEM_INSTRUCTION}\n${UNDERSTANDING_COMPLETENESS_INSTRUCTION}\n${UNDERSTANDING_INFORMATION_INSTRUCTION}\n${SEMANTIC_AUDIT_INSTRUCTION}`,
         },
         {
           role: "user",
@@ -137,7 +146,7 @@ export async function understandOne(
       temperature: 0,
       idempotencyKey: `${entry.entryRevisionId}:${stage}:${suffix}`,
       safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-      fakeFactory: () => fakeUnderstandingAudit(candidate),
+      fakeFactory: () => fakeGroundedUnderstanding(fakeUnderstandingAudit(candidate)),
     });
   }
   let audited = await audit(result.value, "audit");
@@ -209,5 +218,6 @@ export async function understandOne(
     value,
     inputHash,
     representationId,
+    semanticAudit: audited.value,
   };
 }

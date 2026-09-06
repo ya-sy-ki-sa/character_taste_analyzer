@@ -56,3 +56,11 @@ Viteのmanifestと `build-dependencies.json` を使用して、実際の静的�
 [旧指標の固定fixture](../tests/fixtures/legacy-understanding-confidence.json)は初回B15・B05・A04の人物像、出典評価、不明理由、全体値を抜粋したものです。[移行テスト](../tests/understanding-confidence-migration.test.ts)では参照検証用の属性・根拠を別途構成し、旧値の保持、API・Markdownからの全体値除去、未評価表示を確認します。過去の解析全体を再実行するテストではありません。
 
 [根拠集計テスト](../tests/understanding-evidence.test.ts)と[パイプラインテスト](../tests/understanding-evidence-pipeline.test.ts)で、検証状態別の件数、手動修正、カスタム基本像と対象像の分離、S02の固定ケース、エクスポート5.0と旧ファイルの互換性を検証します。固定Providerは保存・伝達・表示の検証に使い、人物理解や引用の意味的な支持範囲の改善効果を実モデルで確認したものとは扱いません。
+
+## 対象・根拠の意味監査
+
+通常版の理解・好み監査は、各候補の対象・所有・否定範囲と各根拠の意味的な支持を内部契約で返します。原文照合と意味判定は独立です。`verified_quote` は原文照合だけを示し、意味的な正しさを保証しません。非支持の引用は採用根拠から除外し、無効な参照をモデル知識へ読み替えません。独立したモデル知識だけが残る人物理解は `model_knowledge`、確信度上限0.45になります。モデル知識から好みを新規に作りません。
+
+監査記録と正規化理由は人物理解の `source_assessment_json`、好み分析の `quality_context_json` 内の `semanticAudit` に保存します。これらの監査記録を後続の好み分析へ再投入しません。手動訂正時に過去の監査を更新せず、新規分析・再分析から適用します。理解監査の参照だけが不正なら、既存の1回の形式修復を監査項目限定の修復に使います。
+
+`semantic-integrity`、`semantic-integrity-pipeline`、`understanding-assessment-repair` のテストは固定応答による契約・判定・保存・集計の検証です。LLMが原文の意味を正しく判定することを証明するテストではありません。実測は固定した重点例・対照例を使い、対象・否定の誤り、意味的支持、明示要素の取りこぼしを根拠付きで確認します。

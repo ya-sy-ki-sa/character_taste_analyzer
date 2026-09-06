@@ -6,6 +6,7 @@ import { type UnderstandingAudit, understandingAuditSchema } from "../shared/con
 import { understandingAspects } from "../shared/understanding-aspects";
 import { fakeUnderstanding } from "../worker/features/analysis/deterministic";
 import { understandOne } from "../worker/features/analysis/llm-understanding";
+import { fakeGroundedUnderstanding } from "../worker/features/analysis/semantic-fake";
 import type { EntryContext } from "../worker/features/analysis/types";
 import {
   assessUnderstandingInformation,
@@ -56,6 +57,7 @@ function setup(
       let value = outputs[requests.length - 1];
       if (value instanceof LlmProviderError) throw value;
       if (request.operation === "understanding_audit" && !("aspectAssessments" in value)) value = concreteAudit(value);
+      if (request.operation === "understanding_audit") value = fakeGroundedUnderstanding(value as UnderstandingAudit);
       const metadata = {
         operation: request.operation,
         provider: "replay" as const,
@@ -180,7 +182,7 @@ describe("sparse character understanding", () => {
       expect(result.value).not.toHaveProperty("aspectAssessments");
       expect(result.attempts).toHaveLength(4);
       expect(result.metadata.effectiveSettings).toMatchObject({
-        understandingInformationPolicy: "understanding-information/v1.0.0",
+        understandingInformationPolicy: "understanding-information/v1.1.0",
       });
     },
   );
@@ -330,15 +332,16 @@ describe("sparse character understanding", () => {
         expect.objectContaining({
           metadata: expect.objectContaining({
             effectiveSettings: {
-              understandingInformationPolicy: "understanding-information/v1.0.0",
+              understandingInformationPolicy: "understanding-information/v1.1.0",
               understandingSchemaVersion: "1.0",
+              semanticAuditPolicy: "semantic-integrity/v1.0.1",
             },
           }),
         }),
       ],
       attemptMetadata: expect.objectContaining({
         effectiveSettings: expect.objectContaining({
-          understandingInformationPolicy: "understanding-information/v1.0.0",
+          understandingInformationPolicy: "understanding-information/v1.1.0",
         }),
       }),
     });

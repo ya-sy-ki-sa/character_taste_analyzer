@@ -1,10 +1,14 @@
 {
+  "semanticIntegrity": {
+    "promptVersion": "semantic-integrity/v1.0.1",
+    "sha256": "58e219e4cc4e99785948c62fa8da16395fd59727ba8925c13325b4d5f7d69e85"
+  },
   "understandingInformation": {
-    "promptVersion": "understanding-information/v1.0.0",
+    "promptVersion": "understanding-information/v1.1.0",
     "sha256": "1d3eb06fbd8f1007b525045b7e230d634db674c7e8204dcd725099c091ac5aa7"
   },
   "preference": {
-    "promptVersion": "preference/v3.1.0",
+    "promptVersion": "preference/v3.2.0",
     "sha256": "d8ffc77d3e2b3bec2f89f1f5b1c185a07f355d273625971d76e36fcecf02027b"
   },
   "citationVerification": {

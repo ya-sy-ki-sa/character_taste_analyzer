@@ -1,8 +1,7 @@
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
-import { readJson } from "../evaluation/live-personas/storage.mjs";
+import { liveRunRoot, readJson } from "../evaluation/live-personas/storage.mjs";
 
-const root = resolve(process.env.LIVE_RUN_DIR ?? ".artifacts/live-evaluation/20260905-personas-01");
+const root = liveRunRoot();
 const dataset = readJson(`${root}/dataset.json`);
 for (;;) {
   const code = await new Promise((done, reject) => {

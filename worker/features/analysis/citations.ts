@@ -31,7 +31,7 @@ export async function citationAwareProvider(provider: LlmProvider, sources: Arra
           ...result,
           metadata: {
             ...result.metadata,
-            promptHash: await sha256Hex(JSON.stringify(messages)),
+            promptHash: result.metadata.promptHash ?? (await sha256Hex(JSON.stringify(messages))),
             citations: [...citations.values()],
           },
         };

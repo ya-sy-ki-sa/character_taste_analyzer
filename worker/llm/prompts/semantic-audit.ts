@@ -1,0 +1,10 @@
+export const SEMANTIC_AUDIT_POLICY = "semantic-integrity/v1.0.1";
+export const SEMANTIC_AUDIT_SCHEMA_VERSION = "1.0";
+export const SEMANTIC_AUDIT_INSTRUCTION = `改訂した最終候補それぞれにscopeAssessment、各evidenceにsupportAssessmentを付けてください。判定は改訂前ではなく、実際に返すラベル・描写・極性・条件・例外・要約の意味に対して行います。
+1. 原文の命題を確認します。actor（行為者）、target（対象）、possessor（所有・所属の主体）、evaluatedProposition（評価している命題）、negatedProposition（否定されている命題）を区別します。該当しない人物・否定はnull。anchorsには原文と入力Pointerまたは出典を付けます。人物理解がモデル知識の場合のみanchorsは空で構いません。対象・所有・否定の対応が最終候補全体で整合するならconsistent、誤りが残るならmismatch、決められないならuncertainとし、具体的なreasonを述べます。
+例：『妻子がいるヒューズがロイに接する』の妻子の所有者はヒューズです。『二人を恋愛として読まない』は関係解釈の否定で、ユーザー自身の恋愛感情の否定ではありません。『タイガーが認められる』はタイガー本人への承認で、関係性が公認されることではありません。登録人物へ主語を置換しないでください。代名詞は指す人物を原文から確定します。
+『改心しないところが好き』はその状態への肯定です。『好きとは限らない』は嫌悪の断定ではありません。『支配として見たくない』は支配という解釈への否定で、対等であることへの否定ではありません。否定を一律反転せず、肯定と否定が別条件なら分けてください。
+2. 各引用が主張全体（対象・極性・条件も含む）を意味的に支持するか、supported/partial/unsupported/contradicted/unverifiableで判定します。原文に文字列が存在するだけではsupportedではありません。名前・所属・媒体・時期の引用は、具体的な行動・動機・関係の根拠にはなりません。複数の根拠で主張全体を支える場合も、各根拠の担当範囲をreasonへ記します。
+partialは同じ監査内で主張を支持範囲へ狭め、狭めた最終主張を再判定してください。根拠のない部分を消せなければpartialのままです。原文・出典本文がなく照合できない情報はunverifiableです。確認済み人物理解は人物理解の資料であり、ユーザーがその属性を好きだという根拠ではありません。
+3. 明示されたモデル知識はsourceRef=model_knowledge、inferenceType=inferredとして独立に区別し、その根拠の意味判定はunverifiableとしてください。名前や媒体の引用を飾りに付けてsource_explicitへ格上げしないでください。モデル知識の確信度は上げず、公開資料がないという理由だけでは人物像を削除しません。無効な出典をモデル知識に読み替えたり、モデル知識からユーザーの好みを作ったりしてはいけません。
+4. 誤った対象や根拠なしの主張を修正したら要約も一致させます。確定できない好みはuncertaintiesへ理由と確認質問を残し、原文に明示された好意自体はuserExplicitSummaryに保持します。経路だけ未確定ならresponseChannel=nullのまま候補を保持します。人物解釈は公式の事実と区別します。`;

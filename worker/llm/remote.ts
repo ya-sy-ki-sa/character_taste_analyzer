@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { sha256Hex } from "../lib/crypto";
 import { parseJson } from "./response";
 import {
@@ -8,6 +9,7 @@ import {
   type LlmRunMetadata,
   type StructuredLlmRequest,
   type StructuredLlmResult,
+  type StructuredRepair,
 } from "./types";
 
 function repairMessages(messages: LlmMessage[], invalid: string, issues: string): LlmMessage[] {
@@ -31,17 +33,34 @@ export abstract class RemoteProvider implements LlmProvider {
 
   async generateStructured<T>(request: StructuredLlmRequest<T>): Promise<StructuredLlmResult<T>> {
     let messages = request.messages;
+    let repair: StructuredRepair | null = null;
     const attempts: Array<{ output: unknown; metadata: LlmRunMetadata }> = [];
     const rootRequestId = request.idempotencyKey;
-    const promptHash = await sha256Hex(JSON.stringify(request.messages));
+
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const suffix = attempt === 0 ? ":attempt-0" : ":repair-1";
+      const promptHash = await sha256Hex(JSON.stringify(messages));
+      const activeRequest = repair ? { ...request, ...repair, fakeFactory: () => ({}) } : request;
+      const schemaHash = await sha256Hex(JSON.stringify(activeRequest.jsonSchema));
       let response: { text: string; metadata: LlmRunMetadata };
       try {
-        response = await this.invoke(request, messages, `${rootRequestId}${suffix}`);
+        response = await this.invoke(activeRequest, messages, `${rootRequestId}${suffix}`);
       } catch (error) {
         if (error instanceof LlmProviderError) {
           if (error.attemptMetadata) {
+            error.attemptMetadata = {
+              ...error.attemptMetadata,
+              rootRequestId,
+              attemptNumber: attempt,
+              promptHash,
+              effectiveSettings: {
+                ...error.attemptMetadata.effectiveSettings,
+                actualSchemaName: activeRequest.schemaName,
+                actualSchemaVersion: activeRequest.schemaVersion,
+                actualSchemaHash: error.attemptMetadata.effectiveSettings?.actualSchemaHash ?? schemaHash,
+                repairKind: attempt === 0 ? null : repair ? "understanding_assessments" : "full_json",
+              },
+            };
             attempts.push({
               output: { errorCode: error.code, safeDetail: error.safeDetail ?? null },
               metadata: { ...error.attemptMetadata, rootRequestId, attemptNumber: attempt, promptHash },
@@ -57,6 +76,13 @@ export abstract class RemoteProvider implements LlmProvider {
         rootRequestId,
         attemptNumber: attempt,
         promptHash,
+        effectiveSettings: {
+          ...response.metadata.effectiveSettings,
+          actualSchemaName: activeRequest.schemaName,
+          actualSchemaVersion: activeRequest.schemaVersion,
+          actualSchemaHash: response.metadata.effectiveSettings?.actualSchemaHash ?? schemaHash,
+          repairKind: attempt === 0 ? null : repair ? "understanding_assessments" : "full_json",
+        },
       };
       let raw: unknown;
       try {
@@ -70,8 +96,15 @@ export abstract class RemoteProvider implements LlmProvider {
         throw error;
       }
       attempts.push({ output: raw, metadata });
-      const parsed = request.schema.safeParse(raw);
-      if (parsed.success) return { value: parsed.data, metadata, attempts };
+      const currentRepair = repair as StructuredRepair | null;
+      const repairParsed: z.ZodSafeParseResult<unknown> | undefined = currentRepair?.schema.safeParse(raw);
+      const parsed: z.ZodSafeParseResult<unknown> =
+        repairParsed && !repairParsed.success
+          ? repairParsed
+          : request.schema.safeParse(
+              currentRepair && repairParsed?.success ? currentRepair.merge(repairParsed.data) : raw,
+            );
+      if (parsed.success) return { value: parsed.data as T, metadata, attempts };
       if (attempt === 1) {
         const error = new LlmProviderError(
           "構造化出力が契約を満たしません",
@@ -86,11 +119,14 @@ export abstract class RemoteProvider implements LlmProvider {
         error.operation = request.operation;
         throw error;
       }
-      messages = repairMessages(
-        messages,
-        response.text,
-        parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n"),
-      );
+      repair = request.repairStrategy?.(raw, parsed.error.issues) ?? null;
+      messages =
+        repair?.messages ??
+        repairMessages(
+          messages,
+          response.text,
+          parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n"),
+        );
     }
     throw new LlmProviderError("構造化出力に失敗しました", "LLM_SCHEMA_INVALID", false);
   }

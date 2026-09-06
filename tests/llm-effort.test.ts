@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { membershipTierSchema } from "../shared/membership";
 import { validateConfig } from "../worker/config";
+import { sha256Hex } from "../worker/lib/crypto";
 import { createLlmProvider } from "../worker/llm/providers";
 import { llmRoutingSnapshotSchema, resolveLlmRoutingSnapshot } from "../worker/llm/routing";
 import type { Env } from "../worker/types";
@@ -48,6 +49,19 @@ function mockOpenAi() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("LLM reasoning effort transport", () => {
+  it("records the transmitted schema hash after adapter conversion on success and failure", async () => {
+    const { fetchMock, bodies } = mockOpenAi();
+    const provider = createLlmProvider(environment());
+    const result = await provider.generateStructured(request);
+    const sentHash = await sha256Hex(JSON.stringify(bodies()[0].text.format.schema));
+    expect(result.metadata.effectiveSettings?.actualSchemaHash).toBe(sentHash);
+    expect(sentHash).not.toBe(await sha256Hex(JSON.stringify(request.jsonSchema)));
+    fetchMock.mockResolvedValue(Response.json({ error: { message: "unavailable" } }, { status: 503 }));
+    await expect(provider.generateStructured(request)).rejects.toMatchObject({
+      attemptMetadata: { effectiveSettings: { actualSchemaHash: sentHash } },
+    });
+    expect(bodies()[1].text.format.schema).toEqual(bodies()[0].text.format.schema);
+  });
   it.each(["none", "minimal", "low", "medium", "high", "xhigh", "max"])(
     "sends explicit OpenAI effort %s and records it",
     async (effort) => {

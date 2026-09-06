@@ -1,4 +1,4 @@
-export const PREFERENCE_PROMPT_VERSION = "v3.1.0";
+export const PREFERENCE_PROMPT_VERSION = "v3.2.0";
 export const PREFERENCE_SCHEMA_VERSION = "3.0";
 
 export const EXPLICIT_PREFERENCE_INSTRUCTION = `好みの対象・理由と反応経路を別々に判断してください。

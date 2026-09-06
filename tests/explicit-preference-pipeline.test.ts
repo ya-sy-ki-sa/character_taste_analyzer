@@ -55,13 +55,16 @@ describe("frozen explicit preferences", () => {
           .length,
       });
       const runs = db.database
-        .prepare("SELECT prompt_version,schema_version FROM model_run_metadata WHERE operation LIKE 'preference_%'")
+        .prepare(
+          "SELECT operation,prompt_version,schema_version FROM model_run_metadata WHERE operation LIKE 'preference_%'",
+        )
         .all();
       expect(runs).toHaveLength(2);
       expect(
         runs.every(
           (item) =>
-            String(item.prompt_version).endsWith(`/${PREFERENCE_PROMPT_VERSION}`) && item.schema_version === "3.0",
+            String(item.prompt_version).endsWith(`/${PREFERENCE_PROMPT_VERSION}`) &&
+            item.schema_version === (item.operation === "preference_audit" ? "1.0" : "3.0"),
         ),
       ).toBe(true);
       if (!fixture.expectedAssertions.length) {

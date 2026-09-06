@@ -19,7 +19,14 @@ export async function correct({
   event,
 }) {
   const plan = readJson(`${root}/correction-plan.json`);
-  const selected = plan.cases.find((c) => c.personaId === persona.id);
+  const selectedIds = process.env.LIVE_CASES?.split(",");
+  const additional = (plan.additionalReanalysisCases ?? []).map((caseId) => ({
+    caseId,
+    personaId: dataset.cases.find((c) => c.id === caseId)?.personaId,
+  }));
+  const selected = [...plan.cases, ...additional].find(
+    (c) => c.personaId === persona.id && (!selectedIds || selectedIds.includes(c.caseId)),
+  );
   if (!selected) throw new Error(`No representative for ${persona.id}`);
   const c = dataset.cases.find((c) => c.id === selected.caseId);
   const folder = `${root}/corrections/${c.id}`;
@@ -47,9 +54,10 @@ export async function correct({
       dataset.cases.some(
         (x) => !["complete", "failed", "held", "submission_failed"].includes(state.cases[x.id]?.status),
       ) ||
-      dataset.personas.some((p) => !readJson(`${root}/exports/${p.id}-baseline.json`, null))
+      dataset.personas.some((p) => !readJson(`${root}/exports/${p.id}-baseline.json`, null)) ||
+      !readJson(`${root}/${plan.baselineManifest ?? "baseline-evidence-manifest.json"}`, null)
     )
-      throw new Error("Preserve all baseline outcomes and four exports before corrections");
+      throw new Error("Freeze the baseline manifest, all outcomes and four exports before corrections");
     if (progress.started) {
       const resumed = await waitStage(page, c, progress, ["understanding_review", "analysis_review", "active"]);
       if (unavailable()) return;
@@ -207,7 +215,9 @@ export async function correct({
             await form
               .getByRole("combobox", { name: "Ontology属性", exact: true })
               .selectOption(action.stableKey ?? "");
-            await form.getByRole("combobox", { name: "反応経路", exact: true }).selectOption(action.responseChannel);
+            await form
+              .getByRole("combobox", { name: "反応経路", exact: true })
+              .selectOption(action.responseChannel ?? "");
             await form.getByRole("combobox", { name: "支持", exact: true }).selectOption(action.polarity);
             const pending = page.waitForResponse(
               (r) => r.url().includes("/preference-analysis-runs/") && r.request().method() === "POST",
@@ -283,7 +293,9 @@ export async function correct({
             await article
               .getByRole("combobox", { name: "Ontology属性", exact: true })
               .selectOption(action.stableKey ?? "");
-          await article.getByRole("combobox", { name: "反応経路", exact: true }).selectOption(action.responseChannel);
+          await article
+            .getByRole("combobox", { name: "反応経路", exact: true })
+            .selectOption(action.responseChannel ?? "");
           await article.getByRole("combobox", { name: "支持", exact: true }).selectOption(action.polarity);
           response = await submit(article.getByRole("button", { name: "修正を保存", exact: true }));
         }
@@ -317,7 +329,7 @@ export async function correct({
     save("final", detail);
     progress.completed = new Date().toISOString();
     checkpoint();
-    await projection(page, "corrected", persona);
+    await projection(page, plan.cases.some((x) => x.caseId === c.id) ? "corrected" : `reanalysis-${c.id}`, persona);
     saveJson(`${folder}/verification.json`, {
       caseId: c.id,
       completedAt: progress.completed,

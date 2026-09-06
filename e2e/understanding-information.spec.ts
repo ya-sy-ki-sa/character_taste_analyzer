@@ -88,6 +88,9 @@ for (const domain of ["standard", "dark"] as const) {
     await expect.poll(async () => (await read()).entry.status, { timeout: 30_000 }).toBe("analysis_review");
     expect((await read()).preferenceAnalysis.assertions.length).toBeGreaterThan(0);
     if (domain === "standard") {
+      const reviewed = await read();
+      // Detailed audits stay in storage/export; the public review contract stays unchanged.
+      expect(reviewed.preferenceAnalysis.qualityContext).not.toHaveProperty("semanticAudit");
       expect((await read()).understanding.informationQuality).toEqual(initial.understanding.informationQuality);
       await expect(
         dialog.getByText("これは解析時点の判定です。確認時の修正内容は、この判定には反映されません。"),

@@ -1,19 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
-import { resolve } from "node:path";
 import { correct } from "./corrections.mjs";
-import { digest, preserveJson, readJson, sameInput, saveJson, selectResumeEntry } from "./storage.mjs";
+import { validateSelection } from "./selection.mjs";
+import { digest, liveRunRoot, preserveJson, readJson, sameInput, saveJson, selectResumeEntry } from "./storage.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export async function run(browser, validateInput) {
   process.umask(0o077);
-  const root = resolve(process.env.LIVE_RUN_DIR ?? ".artifacts/live-evaluation/20260905-personas-01");
+  const root = liveRunRoot();
   const phase = process.env.LIVE_PHASE ?? "pilot";
   const base = "http://localhost:5173";
   const dataset = readJson(`${root}/dataset.json`);
   if (digest(dataset) !== readJson(`${root}/dataset-manifest.json`).sha256)
     throw new Error("Frozen dataset hash mismatch");
+  const selection = readJson(`${root}/selection.json`, null);
+  validateSelection(dataset, readJson(`${root}/dataset-manifest.json`), selection);
   for (const c of dataset.cases) validateInput(c.input);
   const state = readJson(`${root}/progress.json`, { cases: {}, accounts: {} });
   const accounts = readJson(`${root}/accounts.json`, {});
@@ -59,7 +61,7 @@ export async function run(browser, validateInput) {
   async function account(page, p) {
     if (accounts[p.id]?.active) return login(page, p);
     state.accounts[p.id] ??= {
-      username: `live-0905-${p.id.toLowerCase()}-${randomUUID().slice(0, 8)}`,
+      username: `live-${root.split("/").at(-1).slice(0, 8)}-${p.id.toLowerCase()}-${randomUUID().slice(0, 8)}`,
       registrationKey: randomUUID(),
     };
     const a = state.accounts[p.id];
@@ -120,6 +122,7 @@ export async function run(browser, validateInput) {
       .getByRole("button", { name: new RegExp(escaped(c.input.characterName)) })
       .first()
       .click();
+    await page.getByRole("dialog", { name: "解析内容の確認" }).locator(".review-stack").waitFor();
   }
   async function submit(page, c, s) {
     const existing = await reconcile(page, c);
@@ -229,6 +232,22 @@ export async function run(browser, validateInput) {
         s.status = "failed";
         s.error = job?.error_code ?? "ANALYSIS_FAILED";
         checkpoint();
+        if (
+          [
+            "PROVIDER_CONFIGURATION_INVALID",
+            "EXTERNAL_PROVIDER_REJECTED",
+            "EXTERNAL_PROVIDER_UNAVAILABLE",
+            "PROVIDER_CAPACITY_EXHAUSTED",
+          ].includes(s.error)
+        ) {
+          saveJson(`${root}/environment-blocker.json`, {
+            caseId: c.id,
+            error: s.error,
+            job,
+            recordedAt: new Date().toISOString(),
+          });
+          throw new Error(`ENVIRONMENT_BLOCKED ${s.error}`);
+        }
         return null;
       }
       if (Date.now() - changed > 60 * 60_000) {
@@ -251,7 +270,10 @@ export async function run(browser, validateInput) {
     const graph = await api(page, "/profile/graph");
     const folder = `${root}/profiles/${p.id}`;
     mkdirSync(folder, { recursive: true });
-    preserveJson(`${folder}/${label}.json`, { profile: current, graph, capturedAt: new Date().toISOString() });
+    if (!preserveJson(`${folder}/${label}.json`, { profile: current, graph, capturedAt: new Date().toISOString() })) {
+      event("profile_preserved", { personaId: p.id, label });
+      return;
+    }
     await page.goto(`${base}/app/profile`);
     await page.getByRole("heading", { name: "好み分析結果" }).waitFor();
     await page.screenshot({ path: `${folder}/${label}.png`, fullPage: true });
@@ -290,6 +312,7 @@ export async function run(browser, validateInput) {
       checkpoint();
       event("complete", { caseId: c.id });
     } catch (e) {
+      if (String(e.message).startsWith("ENVIRONMENT_BLOCKED")) throw e;
       s.error = String(e.message).slice(0, 2000);
       s.status = /^SUBMISSION_HTTP_/.test(s.error) ? "submission_failed" : "driver_error";
       checkpoint();
@@ -332,6 +355,8 @@ export async function run(browser, validateInput) {
         continue;
       }
       if (phase.startsWith("correction-")) {
+        const selectedIds = process.env.LIVE_CASES?.split(",");
+        if (selectedIds && !dataset.cases.some((c) => c.personaId === p.id && selectedIds.includes(c.id))) continue;
         await correct({
           page,
           persona: p,
@@ -433,14 +458,33 @@ export async function run(browser, validateInput) {
         await exportAccount(page, p, "final");
         continue;
       }
+      if (phase === "verify-subset") {
+        if (!selection) throw new Error("Subset verification requires a frozen selection");
+        const entries = await api(page, "/entries");
+        const expectedCount = dataset.cases.filter((c) => c.personaId === p.id).length;
+        if (entries.entries.length !== expectedCount) throw new Error(`Unexpected subset entry count for ${p.id}`);
+        saveJson(`${root}/final-${p.id}.json`, {
+          verifiedAt: new Date().toISOString(),
+          count: expectedCount,
+          entries: entries.entries,
+        });
+        await projection(page, "subset-final", p);
+        await exportAccount(page, p, "final");
+        continue;
+      }
       if (!["pilot", "baseline"].includes(phase)) throw new Error(`Unsupported phase ${phase}`);
-      const selected = dataset.cases.filter((c) => c.personaId === p.id && (phase !== "pilot" || c.ordinal === 1));
+      const selected = dataset.cases.filter(
+        (c) =>
+          c.personaId === p.id &&
+          (phase !== "pilot" || c.id === dataset.cases.find((item) => item.personaId === p.id)?.id),
+      );
       for (const c of selected) {
         await baseline(page, c, p);
         if (c.ordinal % 5 === 0 && !readJson(`${root}/profiles/${p.id}/${c.ordinal}.json`, null))
           await projection(page, String(c.ordinal), p);
       }
       if (phase === "pilot") await projection(page, "pilot", p);
+      if (selection && phase === "baseline") await projection(page, "subset-final", p);
     } finally {
       await context.close();
     }

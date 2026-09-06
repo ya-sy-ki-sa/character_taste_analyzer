@@ -14,9 +14,11 @@ import { loadEntry, loadOntology } from "./context";
 import { auditDarkUnderstanding, understandDarkBaseline, understandDarkTarget } from "./llm-dark";
 import { understandOne } from "./llm-understanding";
 import { completedLlmGroup, persistModelRun } from "./model-runs";
+import { normalizeUnderstanding } from "./normalize-understanding";
 import * as repository from "./repositories/understanding";
 import { collectCharacterResearch } from "./research";
 import { ensureDarkScope } from "./scope";
+import { verifySemanticAssertion } from "./semantic-integrity";
 import type { CompletedLlmGroup, UnderstandingCall } from "./types";
 import { understandingAssertionStatements } from "./understanding-statements";
 
@@ -205,20 +207,65 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       const modelRun = attemptRuns.at(-1);
       if (!modelRun) throw new Error("MODEL_RUN_MISSING");
       const citationIssues: CitationIssue[] = [];
-      const verifiedAssertions = await Promise.all(
-        call.value.assertions.map(async (assertion) => {
-          const id = crypto.randomUUID();
-          const verified = await verifyAssertionEvidence(
-            assertion,
-            provenanceSources,
-            allowedUrls,
-            citationRegistry,
-            { targetType: "character_assertion", targetId: id, modelRunId: modelRun.id },
-            citationIssues,
+      const semanticResults = call.semanticAudit
+        ? await Promise.all(
+            call.semanticAudit.assertions.map(async (assertion) => {
+              const id = crypto.randomUUID();
+              return {
+                id,
+                ...(await verifySemanticAssertion(
+                  assertion,
+                  provenanceSources,
+                  allowedUrls,
+                  citationRegistry,
+                  { targetType: "character_assertion", targetId: id, modelRunId: modelRun.id },
+                  citationIssues,
+                )),
+              };
+            }),
+          )
+        : null;
+      const verifiedAssertions = semanticResults
+        ? semanticResults.filter((item) => item.keep)
+        : await Promise.all(
+            call.value.assertions.map(async (assertion) => {
+              const id = crypto.randomUUID();
+              return {
+                id,
+                ...(await verifyAssertionEvidence(
+                  assertion,
+                  provenanceSources,
+                  allowedUrls,
+                  citationRegistry,
+                  { targetType: "character_assertion", targetId: id, modelRunId: modelRun.id },
+                  citationIssues,
+                )),
+              };
+            }),
           );
-          return { id, ...verified };
-        }),
-      );
+      if (call.semanticAudit && semanticResults) {
+        const quality = (call.value.sourceAssessment as Record<string, unknown>).informationQuality as
+          | { completionAttempted?: boolean }
+          | undefined;
+        const { informationQuality, ...normalized } = normalizeUnderstanding(
+          call.semanticAudit,
+          semanticResults,
+          quality?.completionAttempted ?? false,
+        );
+        call.value = {
+          ...normalized,
+          sourceAssessment: {
+            ...call.value.sourceAssessment,
+            modelKnowledgeUsed: normalized.assertions.some((item) => item.explicitness === "model_knowledge"),
+            informationQuality,
+            semanticAudit: { original: call.semanticAudit, assertions: semanticResults.map((item) => item.audit) },
+            limitations: [
+              ...call.value.sourceAssessment.limitations,
+              ...semanticResults.flatMap((item) => (item.audit.reason ? [item.audit.reason] : [])),
+            ].slice(-50),
+          },
+        } as typeof call.value;
+      }
       call.value = {
         ...call.value,
         assertions: call.value.assertions.map((assertion, index) => ({
@@ -228,13 +275,21 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         sourceAssessment: {
           ...call.value.sourceAssessment,
           coverage:
-            verifiedAssertions.length &&
-            verifiedAssertions.every(
-              (item) =>
-                item.evidence.length && item.evidence.every((evidence) => evidence.verificationStatus === "invalid"),
-            )
+            (semanticResults?.length &&
+              verifiedAssertions.every((item) =>
+                item.evidence.every((proof) => ["invalid", "model_knowledge"].includes(proof.verificationStatus)),
+              )) ||
+            (verifiedAssertions.length &&
+              verifiedAssertions.every(
+                (item) =>
+                  item.evidence.length && item.evidence.every((evidence) => evidence.verificationStatus === "invalid"),
+              ))
               ? "none"
-              : citationIssues.length && call.value.sourceAssessment.coverage === "sufficient"
+              : (citationIssues.length ||
+                    semanticResults?.some(
+                      (item) => !item.keep || item.audit.evidence.some((proof) => !proof.accepted),
+                    )) &&
+                  call.value.sourceAssessment.coverage === "sufficient"
                 ? "partial"
                 : call.value.sourceAssessment.coverage,
           limitations: [

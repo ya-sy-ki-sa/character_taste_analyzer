@@ -1,3 +1,4 @@
+import { sha256Hex } from "../lib/crypto";
 import type { Env } from "../types";
 import { ADAPTER_VERSION } from "./adapter-version";
 import { RemoteProvider } from "./remote";
@@ -98,6 +99,11 @@ export class OpenAiLlmProvider extends RemoteProvider {
       throw new LlmProviderError("AI Gateway tokenがありません", "PROVIDER_CONFIGURATION_INVALID", false);
     const started = Date.now();
     const serviceTier = openAiServiceTier(this.env);
+    const body = this.requestBody(request, messages, serviceTier);
+    const effectiveSettings = {
+      ...this.effectiveSettings(request, serviceTier),
+      actualSchemaHash: await sha256Hex(JSON.stringify(JSON.parse(body).text.format.schema)),
+    };
     let response: Response;
     try {
       response = await fetch(this.endpoint(), {
@@ -111,7 +117,7 @@ export class OpenAiLlmProvider extends RemoteProvider {
           "cf-aig-skip-cache": "true",
           "cf-aig-request-timeout": String(OPENAI_REQUEST_TIMEOUT_MS),
         },
-        body: this.requestBody(request, messages, serviceTier),
+        body,
         signal: AbortSignal.timeout(OPENAI_REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
@@ -125,7 +131,7 @@ export class OpenAiLlmProvider extends RemoteProvider {
         ...this.modelMetadata(),
         latencyMs: Date.now() - started,
         dataRetentionMode: "no_retention",
-        effectiveSettings: this.effectiveSettings(request, serviceTier),
+        effectiveSettings,
         ignoredParameters: ["temperature"],
       };
       throw providerError;
@@ -168,7 +174,7 @@ export class OpenAiLlmProvider extends RemoteProvider {
         outputTokens: token(normalizedUsage, "output_tokens"),
         latencyMs: Date.now() - started,
         dataRetentionMode: "no_retention",
-        effectiveSettings: this.effectiveSettings(request, serviceTier),
+        effectiveSettings,
         ignoredParameters: ["temperature"],
         providerResponseDiagnostics: diagnostics,
       };
@@ -182,7 +188,7 @@ export class OpenAiLlmProvider extends RemoteProvider {
       outputTokens: token(normalizedUsage, "output_tokens"),
       latencyMs: Date.now() - started,
       dataRetentionMode: "no_retention",
-      effectiveSettings: this.effectiveSettings(request, serviceTier),
+      effectiveSettings,
       ignoredParameters: ["temperature"],
       providerResponseDiagnostics: diagnostics,
     };
@@ -228,7 +234,7 @@ export class OpenAiLlmProvider extends RemoteProvider {
         finishReason: normalized.finishReason,
         dataRetentionMode: "no_retention" as const,
         citations: normalized.citations,
-        effectiveSettings: this.effectiveSettings(request, serviceTier),
+        effectiveSettings,
         ignoredParameters: ["temperature"],
         providerResponseDiagnostics: diagnostics,
       },

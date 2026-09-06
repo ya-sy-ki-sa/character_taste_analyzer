@@ -22,7 +22,16 @@ export type LlmOperation =
   | "schema_repair";
 
 export type LlmMessage = { role: "system" | "user" | "assistant"; content: string };
+export type StructuredRepair = {
+  schemaName: string;
+  schemaVersion: string;
+  schema: z.ZodType<unknown>;
+  jsonSchema: Record<string, unknown>;
+  messages: LlmMessage[];
+  merge(value: unknown): unknown;
+};
 export type StructuredLlmRequest<T> = {
+  repairStrategy?: (raw: unknown, issues: z.core.$ZodIssue[]) => StructuredRepair | null;
   operation: LlmOperation;
   repairOfOperation?: Exclude<LlmOperation, "schema_repair">;
   schemaName: string;

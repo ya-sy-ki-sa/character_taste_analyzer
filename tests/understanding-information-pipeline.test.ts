@@ -43,7 +43,7 @@ describe("understanding information quality storage and continuation", () => {
       .all();
     expect(metadata).toHaveLength(2);
     for (const row of metadata) {
-      expect(row.prompt_version).toContain("understanding-information/v1.0.0");
+      expect(row.prompt_version).toContain("understanding-information/v1.1.0");
       expect(row.schema_version).toBe("1.0");
     }
   });

@@ -1,8 +1,7 @@
-import { resolve } from "node:path";
-import { digest, readJson, saveJson } from "../evaluation/live-personas/storage.mjs";
+import { digest, liveRunRoot, readJson, saveJson } from "../evaluation/live-personas/storage.mjs";
 
 process.umask(0o077);
-const root = resolve(process.env.LIVE_RUN_DIR ?? ".artifacts/live-evaluation/20260905-personas-01");
+const root = liveRunRoot();
 const dataset = readJson(`${root}/dataset.json`);
 const progress = readJson(`${root}/progress.json`);
 const tally = (values) =>

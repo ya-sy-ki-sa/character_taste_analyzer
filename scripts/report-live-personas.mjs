@@ -1,11 +1,15 @@
 import { writeFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { digest, readJson, saveJson } from "../evaluation/live-personas/storage.mjs";
+import { validateSelection } from "../evaluation/live-personas/selection.mjs";
+import { digest, liveRunRoot, readJson, saveJson } from "../evaluation/live-personas/storage.mjs";
 
 process.umask(0o077);
-const root = resolve(process.env.LIVE_RUN_DIR ?? ".artifacts/live-evaluation/20260905-personas-01");
+const root = liveRunRoot();
 const dataset = readJson(`${root}/dataset.json`);
 if (digest(dataset) !== readJson(`${root}/dataset-manifest.json`).sha256) throw new Error("Frozen dataset changed");
+const selection = readJson(`${root}/selection.json`, null);
+validateSelection(dataset, readJson(`${root}/dataset-manifest.json`), selection);
+const caseCount = dataset.cases.length;
+const personaCount = (id) => dataset.cases.filter((c) => c.personaId === id).length;
 const progress = readJson(`${root}/progress.json`);
 const terminal = new Set(["complete", "failed", "held", "submission_failed"]);
 const csv = (rows, keys) =>
@@ -212,15 +216,15 @@ if (
     records.some((c) => !c.codexReviewed) ||
     !secondPass ||
     !profileReview ||
-    !correctionAudit ||
+    (!selection && !correctionAudit) ||
     !readJson(`${root}/report-findings.json`, null) ||
-    corrections.length !== 4 ||
+    (!selection && corrections.length !== 4) ||
     corrections.some((c) => !c.verification) ||
     dataset.personas.some(
       (p) =>
         !readJson(`${root}/exports/${p.id}-baseline.json`, null) ||
         !readJson(`${root}/exports/${p.id}-final.json`, null) ||
-        readJson(`${root}/final-${p.id}.json`, null)?.count !== 15,
+        readJson(`${root}/final-${p.id}.json`, null)?.count !== personaCount(p.id),
     ))
 )
   throw new Error("Final report requires all outcomes, Codex review, second pass and profile review");
@@ -228,6 +232,7 @@ const result = {
   runId: root.split("/").at(-1),
   generatedAt: new Date().toISOString(),
   status: finalRequested ? "complete" : "in_progress",
+  supplementalReview: readJson(`${root}/supplementary-review.json`, null),
   method: "Codexによる合成データ・自動評価。OpenAIの構造化採点補助とCodex再点検。実利用者の満足度を示すものではない。",
   datasetHash: digest(dataset),
   overall,
@@ -379,8 +384,8 @@ write(
   [
     "# 問題一覧",
     "",
-    overall.codexReviewed === 60
-      ? "初回60件はCodex再点検済み。以下は初回の指摘と、別枠の訂正工程の指摘。原因の確定には別の検証が必要。"
+    overall.codexReviewed === caseCount
+      ? `初回${caseCount}件はCodex再点検済み。原因の確定には別の検証が必要。`
       : "Codex再点検が完了していないケースの指摘は暫定。原因の確定には別の検証が必要。",
     "",
     "同一原因候補の集計（同じ出力の要約と候補を段階内で重複加点しない。主張件数は別表示）:",
@@ -405,7 +410,7 @@ write(
       `[実出力・失敗記録](cases/${x.caseId}/${readJson(`${root}/cases/${x.caseId}/preference-before.json`, null) ? "preference-before.json" : "failure-0.json"})`,
       "",
     ]),
-    "## 訂正工程で追加観測した問題（初回30件の指摘と別集計）",
+    `## 訂正工程で追加観測した問題（初回${overall.issues}件の指摘と別集計）`,
     "",
     ...correctionIssues.flatMap((x) => [
       `### ${x.id} ${x.title}`,
@@ -428,11 +433,11 @@ write(
   ].join("\n"),
 );
 const table = [
-  "| 人物 | 完了/15 | 意味評価件数 | 期待要素抽出率 | 根拠支持率 | 指摘数 |",
+  "| 人物 | 完了/予定 | 意味評価件数 | 期待要素抽出率 | 根拠支持率 | 指摘数 |",
   "|---|---:|---:|---:|---:|---:|",
   ...dataset.personas.map((p) => {
     const a = byPersona[p.id];
-    return `| ${p.label} | ${a.complete} | ${a.evaluated} | ${percent(a.recall)} | ${percent(a.supportRate)} | ${a.issues} |`;
+    return `| ${p.label} | ${a.complete}/${a.planned} | ${a.evaluated} | ${percent(a.recall)} | ${percent(a.supportRate)} | ${a.issues} |`;
   }),
 ];
 const narrative = readJson(`${root}/report-findings.json`, {
@@ -440,7 +445,7 @@ const narrative = readJson(`${root}/report-findings.json`, {
   limitations: [],
 });
 const md = [
-  "# 4人×15キャラクター 実API評価",
+  `# ${dataset.personas.length}人・${caseCount}件 実API評価`,
   ``,
   `状態: ${finalRequested ? "完了" : "実施中"} / ${result.generatedAt}`,
   "",
@@ -452,7 +457,7 @@ const md = [
   "",
   `開発環境 http://localhost:5173 / npm run dev / 永続DB / 通常版 / 全員ベーシック。データハッシュ: ${result.datasetHash}`,
   "",
-  `完了 ${overall.complete}/60（初回 ${overall.firstPassComplete}、再試行後 ${overall.completeAfterRetry}）、失敗 ${overall.failed}、保留 ${overall.held}、未確定 ${overall.unresolved}。意味評価 ${overall.evaluated}/60。`,
+  `完了 ${overall.complete}/${caseCount}（初回 ${overall.firstPassComplete}、再試行後 ${overall.completeAfterRetry}）、失敗 ${overall.failed}、保留 ${overall.held}、未確定 ${overall.unresolved}。意味評価 ${overall.evaluated}/${caseCount}。`,
   "",
   ...table,
   "",
@@ -469,9 +474,11 @@ const md = [
   "",
   "## 初回結果と訂正",
   "",
-  "初回は内容を変更せず、次工程へ進む確認操作のみ実施。確認は正しさの承認・満足度とは扱わない。A01の反応経路が初期選択のまま送信された2版は条件外の予備実行として除外し、同一登録の第3版を本測定へ採用した。履歴と実行量は別保存。",
+  "初回は内容を変更せず、次工程へ進む確認操作のみ実施。確認は正しさの承認・満足度とは扱わない。条件外の予備実行がある場合はtest-harness-deviations.jsonへ理由と採用した版を記録する。",
   "",
-  "初回60件と全アカウントのエクスポート保存後に代表例を同じ入力で再解析し、再生成・訂正・集計後を分離して保存した。",
+  selection
+    ? "今回の部分集合評価では手動訂正・追加再生成は対象外。初回結果と再ログイン後のエクスポートを保存した。"
+    : "初回60件と全アカウントのエクスポート保存後に代表例を同じ入力で再解析し、再生成・訂正・集計後を分離して保存した。",
   "",
   ...corrections.map(
     (x) => `- ${x.caseId}: ${x.reason ?? "代表例"} / 最終状態 ${x.verification?.finalStatus ?? "未完了"}`,
@@ -480,7 +487,7 @@ const md = [
   ...(correctionAudit
     ? [
         "",
-        `訂正・追加した好み${correctionAudit.mutatedPreferences}候補は全て保存・集計されたが、そのうち${correctionAudit.insufficientAfterCorrection}候補が証拠0件・insufficient。修正の保存成功と集計品質の回復は区別する。訂正工程の追加指摘${correctionIssues.length}件は初回の${overall.issues}件へ混ぜない。`,
+        `訂正・追加した好み${correctionAudit.mutatedPreferences}候補を照合。根拠あり${correctionAudit.withEvidence ?? "未集計"}、根拠0件${correctionAudit.withoutEvidence ?? "未集計"}、情報不足の分類${correctionAudit.insufficientAfterCorrection}件。修正の保存成功と集計品質は別に評価する。訂正工程の追加指摘${correctionIssues.length}件は初回の${overall.issues}件へ混ぜない。`,
       ]
     : []),
   "",
@@ -499,7 +506,7 @@ const md = [
   "## 閲覧資料",
   "",
   "- [事前調査・入力](research.md)",
-  "- [60件の評価表](evaluation.csv) / [主張単位の採点](claims.csv)",
+  "- [ケース評価表](evaluation.csv) / [主張単位の採点](claims.csv)",
   "- [問題一覧](issues.md)",
   "- [全評価データ](evaluation.json)",
   "- [モデル実行記録](model-runs.csv) / [採点補助の使用量](grading-usage.json)",
@@ -531,7 +538,7 @@ const esc = (s) =>
 const htmlTable = `<table><thead><tr><th>人物</th><th>完了</th><th>意味評価</th><th>抽出率</th><th>根拠支持率</th><th>指摘</th></tr></thead><tbody>${dataset.personas
   .map((p) => {
     const a = byPersona[p.id];
-    return `<tr><th>${esc(p.label)} ${esc(p.name)}</th><td>${a.complete}/15</td><td>${a.evaluated}</td><td>${percent(a.recall)}</td><td>${percent(a.supportRate)}</td><td>${a.issues}</td></tr>`;
+    return `<tr><th>${esc(p.label)} ${esc(p.name)}</th><td>${a.complete}/${a.planned}</td><td>${a.evaluated}</td><td>${percent(a.recall)}</td><td>${percent(a.supportRate)}</td><td>${a.issues}</td></tr>`;
   })
   .join("")}</tbody></table>`;
 const bars = dataset.personas
@@ -543,7 +550,7 @@ const bars = dataset.personas
 const screenshots = dataset.personas
   .map(
     (p) =>
-      `<figure><img loading="lazy" src="profiles/${p.id}/15.png" alt="${p.label} 15件時点のプロフィール"><figcaption>${p.label} 初回15件時点 · <a href="profiles/${p.id}/15.png">全画面を見る</a></figcaption></figure>`,
+      `<figure><img loading="lazy" src="profiles/${p.id}/${selection ? "subset-final" : "15"}.png" alt="${p.label} ${personaCount(p.id)}件時点のプロフィール"><figcaption>${p.label} 初回${personaCount(p.id)}件時点 · <a href="profiles/${p.id}/${selection ? "subset-final" : "15"}.png">全画面を見る</a></figcaption></figure>`,
   )
   .join("");
 const evidenceLinks = (c) =>
@@ -562,11 +569,13 @@ const correctionHtml = corrections
 const detailHtml = records
   .map(
     (c) =>
-      `<details class="case" data-persona="${c.personaId}" data-search="${esc(`${c.caseId} ${c.character} ${c.work}`)}"><summary>${c.caseId} ${esc(c.character)} <small>${c.status} / 抽出 ${percent(c.metrics.recall)} / 支持 ${percent(c.metrics.supportRate)}</small></summary><p>${esc(c.notes ?? c.error ?? "測定待ち")}</p><p>${evidenceLinks(c)}</p><table><thead><tr><th>主張</th><th>段階</th><th>判定</th><th>根拠</th></tr></thead><tbody>${c.claims.map((q) => `<tr><td>${q.id} ${esc(q.text)}</td><td>${q.stage}</td><td>${q.label}</td><td>${esc(q.reason)}<br><small>${esc(q.evidence)}</small></td></tr>`).join("")}</tbody></table></details>`,
+      `<details class="case" data-persona="${c.personaId}" data-search="${esc(`${c.caseId} ${c.character} ${c.work}`)}"><summary>${c.caseId} ${esc(c.character)} <small>${c.status} / 抽出 ${percent(c.metrics.recall)} / 支持 ${percent(c.metrics.supportRate)}</small></summary><p>${esc(c.notes ?? c.error ?? "測定待ち")}</p><p>${evidenceLinks(c)}</p><div class="table-scroll"><table><thead><tr><th>主張</th><th>段階</th><th>判定</th><th>根拠</th></tr></thead><tbody>${c.claims.map((q) => `<tr><td>${q.id} ${esc(q.text)}</td><td>${q.stage}</td><td>${q.label}</td><td>${esc(q.reason)}<br><small>${esc(q.evidence)}</small></td></tr>`).join("")}</tbody></table></div></details>`,
   )
   .join("");
 write(
   "report.html",
-  `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>4人×15キャラクター 実API評価</title><style>body{margin:0;background:#f3f5f7;color:#16222e;font:16px/1.8 system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:40px 24px}h1{font-size:32px;line-height:1.4}h2{margin-top:44px}p{max-width:950px}a{color:#096b85}table{width:100%;border-collapse:collapse;background:white;font-size:14px}th,td{padding:10px;border-bottom:1px solid #dce3e8;text-align:left;vertical-align:top}th{background:#e8eef2}small{color:#506473}section,.case{margin:16px 0}summary{cursor:pointer;background:white;padding:16px;border-radius:8px}.case>p{padding:0 16px}.case td:first-child{width:38%}.metrics{display:flex;gap:16px;flex-wrap:wrap}.metric{background:white;padding:20px 26px;border-radius:10px}.metric b{display:block;font-size:32px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}figure{margin:0}.grid img{height:420px;object-fit:cover;object-position:top}img{width:100%;border:1px solid #dce3e8}input,select{padding:10px;font:inherit}svg{max-width:100%;background:white}.note{background:#e7eff4;padding:20px;border-left:4px solid #156f8a}@media(max-width:700px){main{padding:20px 12px}.grid{grid-template-columns:1fr}table{font-size:12px}th,td{padding:5px}h1{font-size:25px}}@media print{details{display:block}summary{break-after:avoid}.filters{display:none}}</style><main><p>CHARACTER TASTE LAB · LIVE EVALUATION</p><h1>4人×15キャラクター<br>実OpenAI APIによる登録・精度評価</h1><p class="note">${esc(result.method)} 状態: ${finalRequested ? "完了" : "実施中"}。</p>${narrative.paragraphs.map((x) => `<p>${esc(x)}</p>`).join("")}<div class="metrics"><div class="metric"><b>${overall.complete}/60</b>初回解析・集計完了</div><div class="metric"><b>${percent(overall.recall)}</b>期待要素抽出率</div><div class="metric"><b>${percent(overall.supportRate)}</b>好み出力の根拠支持率</div><div class="metric"><b>${overall.evaluated}/60</b>意味評価対象</div></div><h2>人物別の結果</h2>${htmlTable}<p>青: 期待要素抽出率 / 茶: 根拠支持率。両指標の分母は異なる。部分一致・未確認を成功には加算しない。</p><svg viewBox="0 0 560 240" role="img" aria-label="人物別の抽出率と支持率">${bars}</svg><h2>条件・使用量</h2><p>通常版・開発DB・全員ベーシック。モデル ${esc(usage.requestedModels.join(", ") || "集計待ち")}、effort未指定。実行記録 ${usage.recordedAppModelCalls}件、input tokens ${usage.inputTokens ?? "不明"}、output tokens ${usage.outputTokens ?? "不明"}。</p><p>訂正検証のモデル呼出 ${usage.correctionModelCalls}件、条件外予備実行 ${usage.excludedOrOtherCalls}件は初回と別集計。</p><p>${esc(usage.note)}</p><h2>累積プロフィールの評価</h2>${profileHtml}<h2>代表画面</h2><div class="grid">${screenshots}</div><h2>60件の記録・主張単位の採点</h2><div class="filters"><label>人物 <select id="persona"><option value="">全員</option><option>A</option><option>B</option><option>C</option><option>D</option></select></label> <label>検索 <input id="query" placeholder="ケースID・キャラクター・作品"></label></div>${detailHtml}<h2>訂正検証と資料</h2><p>${esc(correctionPlan?.deviation ?? "")}</p>${correctionHtml}<p><a href="correction-results.md">初回・再生成・訂正の比較</a></p><p>${corrections.map((c) => `${c.caseId}: ${esc(c.verification?.finalStatus ?? "未完了")}`).join(" / ") || "初回測定後に実施"}</p><p><a href="report.md">報告書Markdown</a> · <a href="issues.md">問題一覧</a> · <a href="research.md">事前調査</a> · <a href="evaluation.csv">評価CSV</a> · <a href="verification-guide.md">確認手順</a></p><h2>評価の限界</h2>${narrative.limitations.map((x) => `<p>${esc(x)}</p>`).join("")}<p>合成4人の単一実行であり、実利用者の満足度や年代・属性集団の傾向、厳密な再現性は評価しない。確認できない作品の細部は確認不能とする。同じモデル系列による採点補助には誤りの相関があり、Codexの再点検も人による独立評価を代替しない。</p><small>データ SHA-256: ${result.datasetHash}<br>生成 ${result.generatedAt}</small></main><script>function filter(){const p=document.querySelector('#persona').value;const q=document.querySelector('#query').value.toLowerCase();document.querySelectorAll('.case').forEach(c=>{c.hidden=(p&&c.dataset.persona!==p)||!c.dataset.search.toLowerCase().includes(q)})}document.querySelector('#persona').addEventListener('change',filter);document.querySelector('#query').addEventListener('input',filter)</script></html>`,
+  `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${dataset.personas.length}人・${caseCount}件 実API評価</title><style>body{margin:0;background:#f3f5f7;color:#16222e;font:16px/1.8 system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:40px 24px;overflow-wrap:anywhere}h1{font-size:32px;line-height:1.4}h2{margin-top:44px}p{max-width:950px}a{color:#096b85}table{width:100%;border-collapse:collapse;background:white;font-size:14px}th,td{padding:10px;border-bottom:1px solid #dce3e8;text-align:left;vertical-align:top}th{background:#e8eef2}small{color:#506473}section,.case{margin:16px 0}summary{cursor:pointer;background:white;padding:16px;border-radius:8px}.case>p{padding:0 16px}.case td:first-child{width:38%}.table-scroll{overflow-x:auto}.case table{min-width:720px}.metrics{display:flex;gap:16px;flex-wrap:wrap}.metric{background:white;padding:20px 26px;border-radius:10px}.metric b{display:block;font-size:32px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}figure{margin:0}.grid img{height:420px;object-fit:cover;object-position:top}img{width:100%;border:1px solid #dce3e8}input,select{padding:10px;font:inherit;max-width:100%;box-sizing:border-box}svg{max-width:100%;background:white}.note{background:#e7eff4;padding:20px;border-left:4px solid #156f8a}@media(max-width:700px){main{padding:20px 12px}.grid{grid-template-columns:1fr}table{font-size:12px}th,td{padding:5px}h1{font-size:25px}}@media print{details{display:block}summary{break-after:avoid}.filters{display:none}}</style><main><p>CHARACTER TASTE LAB · LIVE EVALUATION</p><h1>${dataset.personas.length}人・${caseCount}件<br>実OpenAI APIによる登録・精度評価</h1><p class="note">${esc(result.method)} 状態: ${finalRequested ? "完了" : "実施中"}。</p>${narrative.paragraphs.map((x) => `<p>${esc(x)}</p>`).join("")}<div class="metrics"><div class="metric"><b>${overall.complete}/${caseCount}</b>初回解析・集計完了</div><div class="metric"><b>${percent(overall.recall)}</b>期待要素抽出率</div><div class="metric"><b>${percent(overall.supportRate)}</b>好み出力の根拠支持率</div><div class="metric"><b>${overall.evaluated}/${caseCount}</b>意味評価対象</div></div><h2>人物別の結果</h2>${htmlTable}<p>青: 期待要素抽出率 / 茶: 根拠支持率。両指標の分母は異なる。部分一致・未確認を成功には加算しない。</p><svg viewBox="0 0 560 240" role="img" aria-label="人物別の抽出率と支持率">${bars}</svg><h2>条件・使用量</h2><p>通常版・開発DB・全員ベーシック。モデル ${esc(usage.requestedModels.join(", ") || "集計待ち")}、effort未指定。実行記録 ${usage.recordedAppModelCalls}件、input tokens ${usage.inputTokens ?? "不明"}、output tokens ${usage.outputTokens ?? "不明"}。</p><p>訂正検証のモデル呼出 ${usage.correctionModelCalls}件、条件外予備実行 ${usage.excludedOrOtherCalls}件は初回と別集計。</p><p>${esc(usage.note)}</p><h2>累積プロフィールの評価</h2>${profileHtml}<h2>代表画面</h2><div class="grid">${screenshots}</div><h2>${caseCount}件の記録・主張単位の採点</h2><div class="filters"><label>人物 <select id="persona"><option value="">全員</option><option>A</option><option>B</option><option>C</option><option>D</option></select></label> <label>検索 <input id="query" placeholder="ケースID・キャラクター・作品"></label></div>${detailHtml}<h2>訂正検証と資料</h2><p>${esc(correctionPlan?.deviation ?? "")}</p>${correctionHtml}<p><a href="correction-results.md">初回・再生成・訂正の比較</a></p><p>${corrections.map((c) => `${c.caseId}: ${esc(c.verification?.finalStatus ?? "未完了")}`).join(" / ") || (selection ? "今回の実API評価では訂正操作は対象外" : "初回測定後に実施")}</p><p><a href="report.md">報告書Markdown</a> · <a href="issues.md">問題一覧</a> · <a href="research.md">事前調査</a> · <a href="evaluation.csv">評価CSV</a> · <a href="verification-guide.md">確認手順</a></p><h2>評価の限界</h2>${narrative.limitations.map((x) => `<p>${esc(x)}</p>`).join("")}<p>合成4人の単一実行であり、実利用者の満足度や年代・属性集団の傾向、厳密な再現性は評価しない。確認できない作品の細部は確認不能とする。同じモデル系列による採点補助には誤りの相関があり、Codexの再点検も人による独立評価を代替しない。</p><small>データ SHA-256: ${result.datasetHash}<br>生成 ${result.generatedAt}</small></main><script>function filter(){const p=document.querySelector('#persona').value;const q=document.querySelector('#query').value.toLowerCase();document.querySelectorAll('.case').forEach(c=>{c.hidden=(p&&c.dataset.persona!==p)||!c.dataset.search.toLowerCase().includes(q)})}document.querySelector('#persona').addEventListener('change',filter);document.querySelector('#query').addEventListener('input',filter)</script></html>`,
 );
-console.log(`Report: ${overall.complete}/60 complete, ${overall.evaluated} graded, ${overall.codexReviewed} reviewed`);
+console.log(
+  `Report: ${overall.complete}/${caseCount} complete, ${overall.evaluated} graded, ${overall.codexReviewed} reviewed`,
+);

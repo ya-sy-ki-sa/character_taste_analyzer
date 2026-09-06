@@ -1,15 +1,14 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import {
   extractClaims,
   gradeSchema,
   gradingInstructions,
   validateGrade,
 } from "../evaluation/live-personas/grading.mjs";
-import { digest, preserveJson, readJson, saveJson } from "../evaluation/live-personas/storage.mjs";
+import { digest, liveRunRoot, preserveJson, readJson, saveJson } from "../evaluation/live-personas/storage.mjs";
 
 process.umask(0o077);
-const root = resolve(process.env.LIVE_RUN_DIR ?? ".artifacts/live-evaluation/20260905-personas-01");
+const root = liveRunRoot();
 const dataset = readJson(`${root}/dataset.json`);
 if (digest(dataset) !== readJson(`${root}/dataset-manifest.json`).sha256) throw new Error("Frozen dataset mismatch");
 const secondPass = process.env.LIVE_GRADING_PASS === "second";

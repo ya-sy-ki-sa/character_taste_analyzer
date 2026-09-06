@@ -52,6 +52,7 @@ export type CompletedLlmGroup = {
 };
 
 export type UnderstandingCall = {
+  semanticAudit?: import("../../../shared/contracts/semantic-audit").GroundedUnderstandingAudit;
   value: UnderstandingCandidate | DarkUnderstandingCandidate;
   metadata: LlmRunMetadata;
   attempts?: Array<{ output: unknown; metadata: LlmRunMetadata }>;

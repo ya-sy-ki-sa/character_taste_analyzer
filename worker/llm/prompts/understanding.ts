@@ -1,5 +1,5 @@
 import { understandingAspectLabels } from "../../../shared/understanding-aspects";
-export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.0.0";
+export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.1.0";
 
 export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `キャラクター像の7項目（${Object.entries(
   understandingAspectLabels,

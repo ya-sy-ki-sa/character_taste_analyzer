@@ -6,6 +6,7 @@ import { type AnyPreferenceCandidate, preferenceCandidateSchema } from "../../sh
 import type { UnderstandingAudit } from "../../shared/contracts/understanding-quality";
 import { activateAnalysisAndRebuild } from "../../worker/features/analysis/activation";
 import { processPreferenceAnalysis } from "../../worker/features/analysis/preference";
+import { fakeGroundedPreferences, fakeGroundedUnderstanding } from "../../worker/features/analysis/semantic-fake";
 import { processCharacterAnalysis } from "../../worker/features/analysis/understanding";
 import { createEntry } from "../../worker/features/entries/create";
 import { loadEntryReview } from "../../worker/features/entries/review";
@@ -34,6 +35,9 @@ export const context = {
 // These are scripted provider outputs: they verify transport/storage, not live-model extraction accuracy.
 export type Fixture = {
   caseId: string;
+  auditOverride?: (
+    value: import("../../shared/contracts/semantic-audit").GroundedPreferenceAudit,
+  ) => import("../../shared/contracts/semantic-audit").GroundedPreferenceAudit;
   understanding?: UnderstandingAudit;
   preference: { likedReasons: string; dislikedReasons?: string; responseChannels: string[] };
   expectedAssertions: Array<{
@@ -141,6 +145,16 @@ export async function setup(
             : scriptedCandidate(fixture);
         value = { ...scripted, ...(domain === "dark" ? { auditNotes: [] } : {}) } as typeof value;
       }
+      if (domain === "standard" && request.operation === "understanding_audit")
+        value = fakeGroundedUnderstanding(value as UnderstandingAudit) as typeof value;
+      if (domain === "standard" && request.operation === "preference_audit")
+        value = fakeGroundedPreferences(
+          value as import("../../shared/contracts/preference").PreferenceCandidate,
+        ) as typeof value;
+      if (domain === "standard" && request.operation === "preference_audit" && fixture.auditOverride)
+        value = fixture.auditOverride(
+          value as import("../../shared/contracts/semantic-audit").GroundedPreferenceAudit,
+        ) as typeof value;
       return {
         value: request.schema.parse(value),
         metadata: {

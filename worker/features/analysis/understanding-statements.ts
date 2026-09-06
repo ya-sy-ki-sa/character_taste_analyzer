@@ -88,7 +88,7 @@ export function understandingAssertionStatements(
           verified.quoteHash,
           verified.excerptText,
           verified.inputPointer,
-          assertion.confidence,
+          verified.verificationStatus === "invalid" ? 0 : assertion.confidence,
           verified.verificationStatus,
           verified.inferenceType,
           now,

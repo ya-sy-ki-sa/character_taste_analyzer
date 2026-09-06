@@ -1,11 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { createServer } from "vite";
 import { cases, personas, rubric, sources } from "../evaluation/live-personas/dataset.mjs";
-import { digest, preserveJson, readJson } from "../evaluation/live-personas/storage.mjs";
+import { selectDataset } from "../evaluation/live-personas/selection.mjs";
+import { digest, liveRunRoot, preserveJson, readJson } from "../evaluation/live-personas/storage.mjs";
 
 process.umask(0o077);
-const root = resolve(process.env.LIVE_RUN_DIR ?? ".artifacts/live-evaluation/20260905-personas-01");
+const root = liveRunRoot();
 const server = await createServer({
   configFile: false,
   cacheDir: "node_modules/.vite-live-fixtures",
@@ -29,7 +29,9 @@ try {
     entrySubmissionSchema.parse(c.input);
     for (const id of c.research.sourceIds) if (!sources[id]) throw new Error(`Unknown source ${id}`);
   }
-  const dataset = { schemaVersion: "persona-live/v1", personas, sources, rubric, cases };
+  const fullDataset = { schemaVersion: "persona-live/v1", personas, sources, rubric, cases };
+  const caseIds = process.env.LIVE_CASES?.split(",");
+  const dataset = caseIds ? selectDataset(fullDataset, caseIds) : fullDataset;
   const hash = digest(dataset);
   const old = readJson(`${root}/dataset.json`, null);
   if (old && digest(old) !== hash) throw new Error("Frozen dataset differs; use a new run directory");
@@ -37,9 +39,17 @@ try {
   preserveJson(`${root}/dataset-manifest.json`, {
     sha256: hash,
     frozenAt: new Date().toISOString(),
-    cases: 60,
+    cases: dataset.cases.length,
     review: "Codex checked source scope, counts, input evidence, media and synthetic timeline before live calls",
   });
+  if (caseIds)
+    preserveJson(`${root}/selection.json`, {
+      schemaVersion: "persona-subset/v1",
+      caseIds,
+      datasetHash: hash,
+      parentDatasetHash: digest(fullDataset),
+      correctionEvaluation: "not_requested",
+    });
   const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8")).vars;
   process.loadEnvFile(".dev.vars");
   const safeKeys = [
@@ -73,7 +83,7 @@ try {
       `## ${p.label} ${p.name}`,
       p.background,
       "",
-      ...cases
+      ...dataset.cases
         .filter((c) => c.personaId === p.id)
         .flatMap((c) => [
           `### ${c.id} ${c.input.characterName} — ${c.input.workTitle}`,
@@ -96,7 +106,7 @@ try {
     ]),
   ];
   writeFileSync(`${root}/research.md`, lines.join("\n"), { mode: 0o600 });
-  console.log(`Frozen ${cases.length} cases: ${hash}`);
+  console.log(`Frozen ${dataset.cases.length} cases: ${hash}`);
 } finally {
   await server.close();
 }

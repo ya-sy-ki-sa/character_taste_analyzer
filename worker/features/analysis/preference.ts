@@ -11,6 +11,7 @@ import {
   type PreferenceCandidate,
   preferenceCandidateSchema,
 } from "../../../shared/contracts/preference";
+import { type GroundedPreferenceAudit, groundedPreferenceAuditSchema } from "../../../shared/contracts/semantic-audit";
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
 import { entryInputSources, entryPreferenceContext, entryScopeText } from "../../../shared/entry-input";
 import { responseChannelPrompt } from "../../../shared/response-channels";
@@ -23,6 +24,11 @@ import {
   PREFERENCE_PROMPT_VERSION,
   PREFERENCE_SCHEMA_VERSION,
 } from "../../llm/prompts/preference";
+import {
+  SEMANTIC_AUDIT_INSTRUCTION,
+  SEMANTIC_AUDIT_POLICY,
+  SEMANTIC_AUDIT_SCHEMA_VERSION,
+} from "../../llm/prompts/semantic-audit";
 import type { LlmRunMetadata } from "../../llm/types";
 import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
 import { loadInputProvenanceSources } from "../../platform/provenance/sources";
@@ -45,6 +51,8 @@ import {
   mergeSelectedPreferenceHypotheses,
   retainPreferenceStatements,
 } from "./retention";
+import { fakeGroundedPreferences } from "./semantic-fake";
+import { verifySemanticAssertion } from "./semantic-integrity";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { CompletedLlmGroup } from "./types";
 import { rebuildConfirmedUnderstandingSummary } from "./understanding-summary";
@@ -122,7 +130,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     };
     const confirmedSummary = rebuildConfirmedUnderstandingSummary(parsedSummary, characterAssertions);
     const understanding: UnderstandingCandidate = {
-      sourceAssessment: (({ informationQuality: _quality, ...assessment }) => assessment)(
+      sourceAssessment: (({ informationQuality: _quality, semanticAudit: _audit, ...assessment }) => assessment)(
         JSON.parse(snapshot.source_assessment_json),
       ),
       summary: { ...confirmedSummary, identity: entry.payload.characterName },
@@ -272,7 +280,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         { role: "system" as const, content: SYSTEM_INSTRUCTION },
         {
           role: "user" as const,
-          content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n嗜好候補を独立監査し完全な改訂結果を返してください。訂正済み理解が優先で、削除済み特徴を原資料から復活させないでください。入力に支持されない推定、好意と道徳的支持の混同、条件や反応経路の拡大を除去します。好きな理由と苦手な理由をそれぞれ照合し、明示的な苦手条件を、人物にその設定がないという理由だけで削除しないでください。肯定・否定が別の条件なら別候補で保持してください。候補0件は正常です。推測をuser_explicitへ格上げせず、根拠やURLを捏造しないでください。\n${JSON.stringify(
+          content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n${SEMANTIC_AUDIT_INSTRUCTION}\n嗜好候補を独立監査し完全な改訂結果を返してください。訂正済み理解が優先で、削除済み特徴を原資料から復活させないでください。入力に支持されない推定、好意と道徳的支持の混同、条件や反応経路の拡大を除去します。好きな理由と苦手な理由をそれぞれ照合し、明示的な苦手条件を、人物にその設定がないという理由だけで削除しないでください。肯定・否定が別の条件なら別候補で保持してください。候補0件は正常です。推測をuser_explicitへ格上げせず、根拠やURLを捏造しないでください。\n${JSON.stringify(
             {
               candidate: initial,
               confirmedUnderstanding: understanding,
@@ -290,17 +298,29 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       inputHash = await sha256Hex(JSON.stringify(auditMessages));
       result = await entry.llm.generateStructured({
         operation: "preference_audit",
-        schemaName: "preference_analysis_candidate",
-        schemaVersion: PREFERENCE_SCHEMA_VERSION,
-        schema: preferenceCandidateSchema,
-        jsonSchema: z.toJSONSchema(preferenceCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
+        schemaName: "preference_grounded_audit",
+        schemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
+        schema: groundedPreferenceAuditSchema,
+        jsonSchema: z.toJSONSchema(groundedPreferenceAuditSchema, { target: "draft-7" }) as Record<string, unknown>,
         messages: auditMessages,
         maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
         temperature: 0,
         idempotencyKey: `${entry.entryRevisionId}:preference-audit:${runGeneration}`,
         safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-        fakeFactory: () => initial,
+        fakeFactory: () => fakeGroundedPreferences(initial),
       });
+      const annotateAudit = (metadata: LlmRunMetadata) => ({
+        ...metadata,
+        effectiveSettings: {
+          ...metadata.effectiveSettings,
+          semanticAuditPolicy: SEMANTIC_AUDIT_POLICY,
+          actualSchemaName: "preference_grounded_audit",
+          actualSchemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
+        },
+      });
+      result.metadata = annotateAudit(result.metadata);
+      if (result.attempts)
+        result.attempts = result.attempts.map((attempt) => ({ ...attempt, metadata: annotateAudit(attempt.metadata) }));
       completedLlmGroups.push(completedLlmGroup("preference_audit", inputHash, result));
       preferenceOperation = "preference_audit";
     }
@@ -348,28 +368,116 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       return Promise.all(
         items.map(async (assertion) => {
           const id = crypto.randomUUID();
+          const target = { targetType, targetId: id, modelRunId };
+          if (params.analysisDomain === "standard" && "scopeAssessment" in assertion) {
+            return {
+              id,
+              ...(await verifySemanticAssertion(
+                assertion as GroundedPreferenceAudit["preferenceAssertions"][number],
+                provenanceSources,
+                allowedUrls,
+                citationRegistry,
+                target,
+                citationIssues,
+              )),
+            };
+          }
+          // Explicitly selected refinement hypotheses and the unchanged dark pipeline use their own provenance policy.
           const verified = await verifyAssertionEvidence(
             assertion,
             provenanceSources,
             allowedUrls,
             citationRegistry,
-            { targetType, targetId: id, modelRunId },
+            target,
             citationIssues,
           );
-          return { id, ...verified };
+          return { id, ...verified, keep: true, explicitness: null, audit: null };
         }),
       );
     }
-    const verifiedPreferences = await verifyCandidates(result.value.preferenceAssertions, "preference_assertion");
-    const verifiedStances = await verifyCandidates(result.value.valueStanceAssertions, "value_stance_assertion");
+    let verifiedPreferences = await verifyCandidates(result.value.preferenceAssertions, "preference_assertion");
+    let verifiedStances = await verifyCandidates(result.value.valueStanceAssertions, "value_stance_assertion");
     // Keep provider outputs unchanged for the run hash.
     result = { ...result, value: structuredClone(result.value) };
-    result.value.preferenceAssertions.forEach((item, index) => {
-      item.confidence = verifiedPreferences[index].confidence;
+    const semanticAudit = [...verifiedPreferences, ...verifiedStances].flatMap((item) =>
+      item.audit ? [item.audit] : [],
+    );
+    const rejected = [
+      ...result.value.preferenceAssertions.flatMap((item, index) =>
+        verifiedPreferences[index].keep
+          ? []
+          : [{ label: item.rawLabel, reason: verifiedPreferences[index].audit?.reason }],
+      ),
+      ...result.value.valueStanceAssertions.flatMap((item, index) =>
+        verifiedStances[index].keep ? [] : [{ label: item.targetRef, reason: verifiedStances[index].audit?.reason }],
+      ),
+    ];
+    result.value.preferenceAssertions = result.value.preferenceAssertions.flatMap((item, index) => {
+      const proof = verifiedPreferences[index];
+      return proof.keep
+        ? [
+            {
+              ...item,
+              confidence: proof.confidence,
+              explicitness: (proof.explicitness ?? item.explicitness) as typeof item.explicitness,
+            },
+          ]
+        : [];
+    }) as typeof result.value.preferenceAssertions;
+    result.value.valueStanceAssertions = result.value.valueStanceAssertions.flatMap((item, index) => {
+      const proof = verifiedStances[index];
+      return proof.keep
+        ? [
+            {
+              ...item,
+              confidence: proof.confidence,
+              explicitness: (proof.explicitness ?? item.explicitness) as typeof item.explicitness,
+            },
+          ]
+        : [];
     });
-    result.value.valueStanceAssertions.forEach((item, index) => {
-      item.confidence = verifiedStances[index].confidence;
-    });
+    verifiedPreferences = verifiedPreferences.filter((item) => item.keep);
+    verifiedStances = verifiedStances.filter((item) => item.keep);
+    if (params.analysisDomain === "standard") {
+      // Strip internal audit fields from the public candidate contract after recording them above.
+      result.value = preferenceCandidateSchema.parse(result.value);
+      if (rejected.length) {
+        result.value.summary = {
+          userExplicitSummary: [
+            ...new Set([
+              ...retained.summary.userExplicitSummary,
+              entry.payload.preference.likedReasons?.slice(0, 1_000) ?? "",
+              ...(entry.payload.preference.dislikedReasons
+                ? [entry.payload.preference.dislikedReasons.slice(0, 1_000)]
+                : []),
+              ...result.value.preferenceAssertions
+                .filter((item) => ["user_explicit", "user_confirmed"].includes(item.explicitness))
+                .map((item) => item.rawLabel),
+            ]),
+          ]
+            .filter(Boolean)
+            .slice(0, 50),
+          inferredSummary: [
+            ...retained.summary.inferredSummary,
+            ...result.value.preferenceAssertions
+              .filter((item) => item.explicitness === "inferred")
+              .map((item) => item.rawLabel),
+          ].slice(0, 50),
+          limitations: [
+            ...result.value.summary.limitations,
+            ...rejected.map((item) => `${item.label}：${item.reason}`),
+          ].slice(-50),
+        };
+        result.value.uncertainties = [
+          ...result.value.uncertainties,
+          ...rejected.map((item) => ({
+            topic: item.label.slice(0, 500),
+            reason: item.reason ?? "対象または意味的な根拠を確認できません。",
+            recommendedQuestion: `「${item.label.slice(0, 200)}」について、誰のどの行動・関係・条件への好みですか？`,
+          })),
+        ].slice(-50);
+      }
+    }
     logCitationIssues(modelRun.id, citationIssues);
     const runId = crypto.randomUUID();
     const now = nowIso();
@@ -408,7 +516,10 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     statements.push(
       repository.updateAnalysisRuns(env.DB, [
         JSON.stringify({
-          schemaVersion: "2.2",
+          schemaVersion: "2.3",
+          ...(params.analysisDomain === "standard"
+            ? { semanticAudit: { policyVersion: SEMANTIC_AUDIT_POLICY, assertions: semanticAudit } }
+            : {}),
           preferencePromptVersion: PREFERENCE_PROMPT_VERSION,
           preferenceAssertionCount: result.value.preferenceAssertions.length + retained.preferences.length,
           valueStanceAssertionCount: result.value.valueStanceAssertions.length + retained.stances.length,
