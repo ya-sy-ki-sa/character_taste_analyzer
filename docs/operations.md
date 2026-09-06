@@ -36,10 +36,12 @@ npm run dev:offline
 
 | 値 | 用途 |
 |---|---|
-| `workers_ai` | stagingまたは明示選択したCloudflare運用 |
-| `openai` | local/productionのOpenAI Responses API。`store:false`とstrict JSON Schemaを使用 |
+| `workers_ai` | staging/productionのフォールバック、または明示選択したCloudflare運用 |
+| `openai` | local/staging/productionのOpenAI Responses API。`store:false`とstrict JSON Schemaを使用 |
 | `replay` | ローカルE2E／CIの再現可能な応答 |
 | `fake` | 単体試験用の決定論的応答 |
+
+local/staging/productionの既定LLMはすべて`gpt-5.6-luna`です。ティア別の上書きは既定で空のため、全ティアで共通モデルを使います。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
 
 OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
 
