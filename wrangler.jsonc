@@ -246,8 +246,8 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "character-taste-lab",
-          "database_id": "5e4c10b5-8d80-4f54-90e4-3624470ce482",
+          "database_name": "character-taste-lab-current-production",
+          "database_id": "32ade71f-7b37-4c71-804f-98c2e141d5ca",
           "migrations_dir": "database/migrations"
         }
       ],
