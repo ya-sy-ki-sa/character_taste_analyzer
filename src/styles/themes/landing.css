@@ -62,10 +62,14 @@
   }
 
   .landing-device-id {
-    padding-left: 22px;
+    min-width: 0;
+    overflow: hidden;
+    padding-inline: 22px;
     color: var(--ctl-text-muted);
     font-size: 0.67rem;
     letter-spacing: 0.12em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .landing-nav-links {

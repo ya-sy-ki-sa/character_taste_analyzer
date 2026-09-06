@@ -187,7 +187,8 @@ for (const domain of ["standard", "dark"] as const) {
     await groupSummaries.nth(1).focus();
     await page.keyboard.press("Enter");
     await expect(section.locator(".value-stance-group[open]")).toHaveCount(2);
-    expect(await groupSummaries.nth(1).evaluate((node) => getComputedStyle(node).outlineWidth)).toBe("2px");
+    await expect(groupSummaries.nth(1)).toBeFocused();
+    await expect(groupSummaries.nth(1)).toHaveCSS("outline-width", "2px");
     const groupedStances = [stances[0], stances[2], stances[5], stances[6], stances[1], stances[3], stances[4]];
     for (const [index, stance] of groupedStances.entries()) {
       const summary = rows.nth(index).locator("summary");
@@ -224,7 +225,7 @@ for (const domain of ["standard", "dark"] as const) {
     await expect(details.nth(0)).not.toHaveAttribute("open");
     await page.keyboard.press("Enter");
     await expect(firstSummary).toBeFocused();
-    expect(await firstSummary.evaluate((node) => getComputedStyle(node).outlineWidth)).toBe("2px");
+    await expect(firstSummary).toHaveCSS("outline-width", "2px");
     await details.nth(4).locator("summary").click();
     await groupSummaries.nth(0).click();
     await expect(rows.first()).not.toBeVisible();
