@@ -370,6 +370,7 @@
 
   .modal > .stack-form,
   .modal > form,
+  .modal > .character-sheet,
   .modal > div:not(.modal-backdrop-dismiss) {
     padding: 22px;
   }

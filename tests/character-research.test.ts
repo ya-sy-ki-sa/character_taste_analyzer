@@ -38,7 +38,7 @@ describe("system-side character research", () => {
     expect(result.query).toContain("架空作品 登場人物A");
     expect(result.sources[0]?.url).toBe("https://ja.wikipedia.org/wiki/example");
     expect(result.sources[0]?.provider).toBe("wikipedia_ja");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("adds only target-matched Wikidata items to the trusted source set", async () => {
@@ -122,6 +122,135 @@ describe("system-side character research", () => {
         }),
       ]),
     );
+  });
+
+  it("resolves Japanese input through trusted Wikidata sitelinks and rejects a mismatched page ID", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get("User-Agent")).toContain(
+        "https://github.com/ya-sy-ki-sa/character_taste_analyzer/issues",
+      );
+      const url = new URL(String(input));
+      if (url.hostname === "ja.wikipedia.org") return Response.json({ query: { pages: [] } });
+      if (url.searchParams.get("action") === "wbsearchentities") {
+        return Response.json({
+          search: [
+            { id: "Q123", label: "登場人物A", description: "架空作品に登場する人物" },
+            { id: "Q999", label: "登場人物A", description: "別作品の同名人物" },
+          ],
+        });
+      }
+      if (url.searchParams.get("action") === "wbgetentities") {
+        expect(url.searchParams.get("ids")).toBe("Q123");
+        return Response.json({ entities: { Q123: { sitelinks: { enwiki: { title: "Character A" } } } } });
+      }
+      expect(url.hostname).toBe("en.wikipedia.org");
+      expect(url.searchParams.get("titles")).toBe("Character A");
+      expect(url.searchParams.has("generator")).toBe(false);
+      return Response.json({
+        query: {
+          pages: [
+            {
+              title: "Character A",
+              fullurl: "https://en.wikipedia.org/wiki/Character_A",
+              extract: "A hero in Fictional Work.",
+              pageprops: { wikibase_item: "Q123" },
+            },
+            {
+              title: "登場人物A",
+              fullurl: "https://en.wikipedia.org/wiki/Wrong",
+              extract: "架空作品",
+              pageprops: { wikibase_item: "Q999" },
+            },
+          ],
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await collectCharacterResearch(env("workers_ai"), existing);
+    expect(result.sources.filter((source) => source.provider === "wikipedia_en")).toEqual([
+      expect.objectContaining({
+        title: "Character A",
+        excerpt: "A hero in Fictional Work.",
+        trustReason: expect.stringContaining("項目IDの一致"),
+      }),
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("searches English input directly and keeps only matching character and work", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (!String(input).startsWith("https://en.wikipedia.org")) return Response.json({});
+        return Response.json({
+          query: {
+            pages: [
+              { title: "Hero", fullurl: "https://en.wikipedia.org/wiki/Hero", extract: "Hero from Example Work." },
+              { title: "Hero", fullurl: "https://en.wikipedia.org/wiki/Other", extract: "Hero from another work." },
+            ],
+          },
+        });
+      }),
+    );
+    const result = await collectCharacterResearch(
+      env("workers_ai"),
+      entryDraftSchema.parse({
+        ...existing,
+        characterName: "Hero",
+        workTitle: "Example Work",
+      }),
+    );
+    expect(result.sources).toEqual([expect.objectContaining({ provider: "wikipedia_en", title: "Hero" })]);
+  });
+
+  it("retains Japanese sources when English Wikipedia fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).startsWith("https://en.wikipedia.org")) return new Response("", { status: 429 });
+        if (String(input).startsWith("https://www.wikidata.org")) return Response.json({});
+        return Response.json({
+          query: {
+            pages: [{ title: "登場人物A", fullurl: "https://ja.wikipedia.org/wiki/A", extract: "架空作品の登場人物" }],
+          },
+        });
+      }),
+    );
+    const result = await collectCharacterResearch(env("workers_ai"), existing);
+    expect(result.status).toBe("collected");
+    expect(result.sources[0]?.provider).toBe("wikipedia_ja");
+    expect(result.limitation).toContain("英語Wikipedia検索がHTTP 429");
+  });
+
+  it("falls back to English search when sitelink lookup fails and reports the limitation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.searchParams.get("action") === "wbgetentities") return Response.json({ error: { code: "maxlag" } });
+        if (url.searchParams.get("action") === "wbsearchentities")
+          return Response.json({ search: [{ id: "Q123", label: "Hero", description: "Example Work character" }] });
+        if (url.hostname === "en.wikipedia.org")
+          return Response.json({
+            query: {
+              pages: [
+                { title: "Hero", fullurl: "https://en.wikipedia.org/wiki/Hero", extract: "Example Work character" },
+              ],
+            },
+          });
+        return Response.json({});
+      }),
+    );
+    const result = await collectCharacterResearch(
+      env("workers_ai"),
+      entryDraftSchema.parse({
+        ...existing,
+        characterName: "Hero",
+        workTitle: "Example Work",
+      }),
+    );
+    expect(result.sources.some((source) => source.provider === "wikipedia_en")).toBe(true);
+    expect(result.limitation).toContain("言語間リンク取得失敗");
   });
 
   it("does not access the network in deterministic test profiles", async () => {

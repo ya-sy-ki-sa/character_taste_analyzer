@@ -4,6 +4,7 @@ import { evidenceQuoteLabel } from "../../lib/analysis-labels";
 
 export const evidenceSourceProviderLabels: Record<string, string> = {
   wikipedia_ja: "日本語Wikipedia",
+  wikipedia_en: "英語Wikipedia",
   wikidata: "Wikidata",
   openai_web_search: "OpenAI Web Search",
 };

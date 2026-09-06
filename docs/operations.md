@@ -111,3 +111,11 @@ DB資産の再配置ではDDL・属性ID・保存データを変更しません�
 レビューAPIの `understanding.confidence` と `baseUnderstanding.confidence` は削除され、`evidenceSummary` が必須になりました。任意の `informationQuality` がない記録は未評価です。dark版の情報量監査は未実装のため未評価になります。
 
 アカウントエクスポート5.0は `understanding.snapshots[].legacy_overall_confidence` に旧値を保存し、`understanding.evidenceSummaries[]` にスナップショットIDと取得時の根拠集計を載せます。解析時点の情報量は既存の `source_assessment_json` 内に保持します。4.0で待機していたジョブを5.0で生成した場合、完了時の管理レコードも5.0になります。作成済みファイルは再生成しません。
+
+## キャラクターの公開情報収集
+
+通常版・dark版とも、日本語Wikipedia・英語Wikipedia・Wikidataを参照する。英語版は、照合済みの日本語記事またはWikidata検索結果の項目IDからenwikiのサイトリンクを取得し、英語記事のWikidata項目IDを再照合する。リンクがない場合は入力された名前と作品名で英語版を検索し、両方が一致する記事だけを採用する。日本語名から対応する項目を特定できない場合、英語記事を取得できないことがある。取得対象は冒頭6文・最大2,500文字で、登場人物一覧の個別節は抽出しない。
+
+Wikimediaへの全リクエストは、共通のUser-Agentにアプリ名と[公開リポジトリのIssues](https://github.com/ya-sy-ki-sa/character_taste_analyzer/issues)を含める。別運営先へ移す場合は、[収集処理](../worker/features/analysis/research.ts)の連絡先も更新する。[Wikimedia User-Agent方針](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy)を参照。
+
+API失敗は取得済みの他出典を残して制約として記録する。Fake／Replayでは外部通信しない。収集追加は次回の分析・再分析から適用され、既存結果を自動更新しない。
