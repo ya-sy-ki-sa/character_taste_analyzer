@@ -47,6 +47,8 @@ OpenAI Responses APIのFlex Processingは`OPENAI_FLEX_ENABLED=true`の場合だ�
 
 画面から入力され、LLMへ渡る自由記述は、保存・ジョブ作成より前にモデレーションします。`MODERATION_PROVIDER=openai`はAI Gateway経由でOpenAI Moderation API（既定モデル`omni-moderation-latest`）を使い、拒否時は該当入力欄とカテゴリを画面へ返して処理を終了します。Providerは専用interfaceの実装で切り替え可能です。外部APIを呼ばないoffline環境だけは`MODERATION_PROVIDER=fake`を明示指定します。
 
+「入力内容の事前チェックを完了できませんでした」が出る場合は、Workersログの`event: moderation_provider_error`を確認します。`requestId`でAPI応答と照合でき、`diagnostics.reason`は`missing_configuration`（`missingBindings`に不足する設定名）、`network_error`（接続失敗）、`timeout`、`http_error`（`status`に外部APIのHTTPステータス）、`invalid_response`（応答形式・件数の不一致）を区別します。入力本文・Secret値・外部APIの応答本文は記録しません。AI Gatewayに該当ログがなくても、設定不足や到達前の失敗などの可能性があるため、Workers側の診断を確認してください。Secret名の登録やreadinessの成功だけでは、Secret値の有効性や外部APIへの接続成功は確認できません。
+
 ローカルの`.dev.vars`例:
 
 ```dotenv

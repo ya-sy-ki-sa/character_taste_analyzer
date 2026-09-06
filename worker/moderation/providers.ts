@@ -23,18 +23,23 @@ export class OpenAiModerationProvider implements ModerationProvider {
   constructor(private readonly env: Env) {}
 
   private endpoint(): string {
-    if (!this.env.AI_GATEWAY_ACCOUNT_ID || !this.env.AI_GATEWAY_GATEWAY_ID || !this.env.AI_GATEWAY_TOKEN)
-      throw new ModerationProviderError("モデレーションのGateway設定が足りません", "MODERATION_CONFIGURATION_INVALID");
-    return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID)}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID)}/openai/moderations`;
+    const missingBindings = (
+      ["OPENAI_API_KEY", "AI_GATEWAY_ACCOUNT_ID", "AI_GATEWAY_GATEWAY_ID", "AI_GATEWAY_TOKEN"] as const
+    ).filter((name) => !this.env[name]?.trim());
+    if (missingBindings.length)
+      throw new ModerationProviderError("モデレーションの設定が足りません", "MODERATION_CONFIGURATION_INVALID", {
+        reason: "missing_configuration",
+        missingBindings,
+      });
+    return `https://gateway.ai.cloudflare.com/v1/${encodeURIComponent(this.env.AI_GATEWAY_ACCOUNT_ID ?? "")}/${encodeURIComponent(this.env.AI_GATEWAY_GATEWAY_ID ?? "")}/openai/moderations`;
   }
 
   async moderate(inputs: ModerationInput[]): Promise<ModerationResult> {
     if (!inputs.length) return { allowed: true, reasons: [] };
-    if (!this.env.OPENAI_API_KEY)
-      throw new ModerationProviderError("モデレーションAPI keyがありません", "MODERATION_CONFIGURATION_INVALID");
+    const endpoint = this.endpoint();
     let response: Response;
     try {
-      response = await fetch(this.endpoint(), {
+      response = await fetch(endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.env.OPENAI_API_KEY}`,
@@ -49,12 +54,26 @@ export class OpenAiModerationProvider implements ModerationProvider {
         }),
         signal: AbortSignal.timeout(30_000),
       });
-    } catch {
-      throw new ModerationProviderError("入力内容の事前チェックに接続できません", "MODERATION_PROVIDER_UNAVAILABLE");
+    } catch (error) {
+      throw new ModerationProviderError("入力内容の事前チェックに接続できません", "MODERATION_PROVIDER_UNAVAILABLE", {
+        reason: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "network_error",
+      });
     }
-    const payload: OpenAiModerationPayload = await response.json<OpenAiModerationPayload>().catch(() => ({}));
-    if (!response.ok || !Array.isArray(payload.results) || payload.results.length !== inputs.length)
-      throw new ModerationProviderError("入力内容の事前チェックを完了できません", "MODERATION_PROVIDER_UNAVAILABLE");
+    if (!response.ok)
+      throw new ModerationProviderError("入力内容の事前チェックを完了できません", "MODERATION_PROVIDER_UNAVAILABLE", {
+        reason: "http_error",
+        status: response.status,
+      });
+    const payload = await response.json<OpenAiModerationPayload | null>().catch(() => null);
+    if (
+      !Array.isArray(payload?.results) ||
+      payload.results.length !== inputs.length ||
+      payload.results.some((result) => !result || typeof result !== "object" || Array.isArray(result))
+    )
+      throw new ModerationProviderError("入力内容の事前チェックを完了できません", "MODERATION_PROVIDER_UNAVAILABLE", {
+        reason: "invalid_response",
+        status: response.status,
+      });
 
     const reasons: ModerationReason[] = [];
     payload.results.forEach((result, index) => {

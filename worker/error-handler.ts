@@ -6,7 +6,15 @@ import type { AppEnv } from "./types";
 
 export const handleError: ErrorHandler<AppEnv> = (error, context) => {
   const requestId = context.get("requestId") || crypto.randomUUID();
-  if (error instanceof ModerationProviderError)
+  if (error instanceof ModerationProviderError) {
+    console.error(
+      JSON.stringify({
+        event: "moderation_provider_error",
+        requestId,
+        code: error.code,
+        diagnostics: error.diagnostics,
+      }),
+    );
     return context.json(
       {
         error: {
@@ -17,6 +25,7 @@ export const handleError: ErrorHandler<AppEnv> = (error, context) => {
       },
       503,
     );
+  }
   if (error instanceof HTTPException) {
     const explicitCodes = new Set(["ORIGIN_REQUIRED", "ORIGIN_DENIED", "REGISTRATION_EXPIRED", "EXPORT_EXPIRED"]);
     const code = explicitCodes.has(error.message)
