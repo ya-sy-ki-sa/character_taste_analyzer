@@ -33,6 +33,7 @@
   .confidence-card {
     display: grid;
     place-items: center;
+    gap: 16px;
     text-align: center;
   }
   .evidence-ring {

@@ -21,7 +21,7 @@
   .selection-row + .selection-row {
     border-top: 1px solid var(--ctl-line);
   }
-  .selection-row > span {
+  .selection-item {
     display: grid;
     min-width: 0;
   }

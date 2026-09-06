@@ -146,6 +146,9 @@ for (const domain of ["standard", "dark"] as const) {
     await expect(page.getByText("表現：衝突しても日向と影山が互いを選び直す特別な関係", { exact: true })).toBeVisible();
     for (const width of [1366, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
+      await page
+        .locator(".confidence-card")
+        .screenshot({ path: `test-results/evidence-health-${domain}-${width}.png` });
       await page.locator(".trait-list").first().scrollIntoViewIfNeeded();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       for (const context of await page.locator(".preference-context").all())
@@ -156,12 +159,24 @@ for (const domain of ["standard", "dark"] as const) {
     await expect(
       page.getByText("ヒューズがロイを肩書きより本人として見て接する旧友らしさ", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(/例外・除外：昔に戻りたいという願望ではない/u)).toBeVisible();
-    for (const width of [1366, 320]) {
+    const descriptions = page.locator(".selection-description");
+    const exception = page.getByText(/例外・除外：昔に戻りたいという願望ではない/u);
+    await expect(exception).toBeHidden();
+    for (const width of [1366, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.locator(".selection-table").scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `test-results/preference-generation-${domain}-${width}.png` });
+      await page.screenshot({ path: `test-results/preference-generation-${domain}-${width}-collapsed.png` });
+      for (const description of await descriptions.all()) await description.locator("summary").click();
+      await expect(exception).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.locator(".selection-table").scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `test-results/preference-generation-${domain}-${width}-expanded.png` });
+      for (const description of await descriptions.all()) {
+        await description.locator("summary").focus();
+        await page.keyboard.press("Enter");
+      }
+      await expect(exception).toBeHidden();
     }
     await page.goto(`${appBase}/entries`);
     await page.getByRole("button", { name: /対象と条件の表示確認/u }).click();

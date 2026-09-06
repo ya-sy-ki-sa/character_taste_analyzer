@@ -84,18 +84,21 @@ export function GenerationConditions({
         </div>
         {groupedSnapshotItems.map((item) => (
           <div className="selection-row" key={item.id}>
-            <span>
+            <div className="selection-item">
               <strong>{item.label}</strong>
               {typeof item.payload.originalLabel === "string" && item.payload.originalLabel !== item.label && (
                 <small>表現：{item.payload.originalLabel}</small>
               )}
-              <small>
-                {snapshotItemTypeLabel(item.type)}
-                {item.responseChannels.length || item.hasUnresolvedResponseChannel
-                  ? `・${[...item.responseChannels.map(responseChannelLabel), ...(item.hasUnresolvedResponseChannel ? [responseChannelLabel(null)] : [])].join("／")}`
-                  : ""}
-                {snapshotScopeLabel(item.conditions)}
-              </small>
+              <details className="condition-details selection-description">
+                <summary>惹かれ方・対象・条件</summary>
+                <small>
+                  {snapshotItemTypeLabel(item.type)}
+                  {item.responseChannels.length || item.hasUnresolvedResponseChannel
+                    ? `・${[...item.responseChannels.map(responseChannelLabel), ...(item.hasUnresolvedResponseChannel ? [responseChannelLabel(null)] : [])].join("／")}`
+                    : ""}
+                  {snapshotScopeLabel(item.conditions)}
+                </small>
+              </details>
               {item.itemIds.length > 1 && (
                 <details className="condition-details">
                   <summary>条件・惹かれ方ごとに調整</summary>
@@ -136,7 +139,7 @@ export function GenerationConditions({
                   })}
                 </details>
               )}
-            </span>
+            </div>
             <select
               value={treatments[item.id] ?? "omit"}
               onChange={(event) => {

@@ -81,14 +81,16 @@
     }
 
     .landing-nav .brand small,
-    .landing-nav-links > a,
+    .landing-nav-links > a:not(.landing-github-link),
     .landing-device-id {
       display: none;
     }
 
     .landing-nav-links {
       grid-column: 2;
-      gap: 0;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
       padding-right: 17px;
     }
 

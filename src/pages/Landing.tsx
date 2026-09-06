@@ -32,6 +32,15 @@ export function Landing({
           <div className="landing-nav-links">
             {dark && <Link to="/">通常観測機へ</Link>}
             <Link to={dark ? "/dark-lab/about-analyzer" : "/about-analyzer"}>分析器の現在地</Link>
+            <a
+              className="landing-github-link"
+              href="https://github.com/ya-sy-ki-sa/character_taste_analyzer"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="GitHub（新しいタブで開く）"
+            >
+              GitHub
+            </a>
             <span className="observatory-ready">観測準備完了</span>
           </div>
         </header>
@@ -340,6 +349,10 @@ function CreateUserModal({ onClose }: { onClose(): void }) {
             現在ベータ版として提供しているため、予告なくサービス内容の変更・中断・終了を行う場合があります。
           </p>
           <ul>
+            <li>
+              <strong>分析・生成には外部AIを利用します。</strong>
+              入力内容は、分析・生成のために外部のAIサービスへ送信されます。
+            </li>
             <li>
               <strong>個人情報や機密情報を入力しないでください。</strong>
               氏名、住所、連絡先、認証情報など、本人や第三者を特定できる情報は入力しないでください。
