@@ -8,12 +8,8 @@ import {
   entryReferenceMaterial,
 } from "../../../shared/entry-input";
 import { hmacHex, sha256Hex } from "../../lib/crypto";
-import { SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
-import {
-  SEMANTIC_AUDIT_INSTRUCTION,
-  SEMANTIC_AUDIT_POLICY,
-  SEMANTIC_AUDIT_SCHEMA_VERSION,
-} from "../../llm/prompts/semantic-audit";
+import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../../llm/prompts/semantic-audit";
+import { UNDERSTANDING_COMPLETION_INSTRUCTION, understandingSystem } from "../../llm/prompts/understanding";
 import { LlmProviderError, type StructuredLlmResult } from "../../llm/types";
 import type { Env } from "../../types";
 import { repairUnderstandingAssessments } from "./audit-repair";
@@ -26,8 +22,6 @@ import type { AttributeRow, EntryContext } from "./types";
 import {
   assessUnderstandingInformation,
   explainUnknownUnderstandingAspects,
-  UNDERSTANDING_COMPLETENESS_INSTRUCTION,
-  UNDERSTANDING_INFORMATION_INSTRUCTION,
   UNDERSTANDING_INFORMATION_POLICY,
   understandingQualityIssues,
 } from "./understanding-quality";
@@ -66,10 +60,10 @@ export async function understandOne(
     .filter((source) => sourcePayloadValues[source.pointer.slice(1)] !== undefined)
     .map((source) => source.pointer);
   const messages = [
-    { role: "system" as const, content: `${SYSTEM_INSTRUCTION}\n${UNDERSTANDING_COMPLETENESS_INSTRUCTION}` },
+    { role: "system" as const, content: understandingSystem("extract") },
     {
       role: "user" as const,
-      content: `次の対象を分析してください。\n対象stage: ${stage}\n分析対象名: ${analysisTargetName}\n登録情報: ${JSON.stringify(sourcePayload)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(allowedInputPointers)}\nシステム収集済み公開情報: ${JSON.stringify(research)}\n既成キャラクターの一般的な基本像は、システム収集済み公開情報と利用可能なモデル知識から構成してください。既成（カスタム）のbase stageではbaseCharacterNameを元キャラクターの名前として基本像を構成し、target stageではcharacterNameをカスタム後の名前として扱ってください。オリジナルキャラクターの一般的な基本像はcharacterBasicInfoから構成してください。referenceMaterialはユーザーが任意提供した補足情報、userCharacterViewはユーザー自身の解釈として、出所を混同しないでください。検索結果が対象と一致しない、情報が競合する、または根拠が弱い場合は断定せずlimitationsまたはuncertaintiesへ記録してください。\n嗜好入力は意図的に含めていません。キャラクターの事実・解釈と、ユーザーが好きな属性を混同しないでください。\n${baseSummary ? `確認前の基本像: ${JSON.stringify(baseSummary.summary)}` : ""}\n利用可能な統制属性:\n${ontologyPrompt(ontology)}`,
+      content: `対象stage: ${stage}\n分析対象名: ${analysisTargetName}\n登録情報: ${JSON.stringify(sourcePayload)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(allowedInputPointers)}\nシステム収集済み公開情報: ${JSON.stringify(research)}\n${baseSummary ? `確認前の基本像: ${JSON.stringify(baseSummary.summary)}` : ""}\n利用可能な統制属性:\n${ontologyPrompt(ontology)}`,
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
@@ -135,11 +129,11 @@ export async function understandOne(
       messages: [
         {
           role: "system",
-          content: `${SYSTEM_INSTRUCTION}\n${UNDERSTANDING_COMPLETENESS_INSTRUCTION}\n${UNDERSTANDING_INFORMATION_INSTRUCTION}\n${SEMANTIC_AUDIT_INSTRUCTION}`,
+          content: understandingSystem("audit"),
         },
         {
           role: "user",
-          content: `キャラクター理解候補を元資料と照合し、根拠のない断定・カスタム差分の誤りを訂正した完全な候補を返す。新しい事実や出典を創作せず、モデル知識の確信度を上げない。候補に含まれるモデル知識は公開資料に記述がないだけでは削除せず、対象との不一致や矛盾、知識自体の不確かさがある場合に修正する。削除で空になる項目には項目別の不明理由を残す。嗜好は分析しない。\n${JSON.stringify({ stage, sourcePayload, research, candidate, citations, ontology, allowedInputPointers })}`,
+          content: `${JSON.stringify({ stage, sourcePayload, research, candidate, citations, ontology, allowedInputPointers })}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -163,7 +157,7 @@ export async function understandOne(
         ...messages,
         {
           role: "user",
-          content: `監査後の人物像に不足があります。元の登録情報を基準に再検討し、完全な候補を返してください。既成キャラクターでは利用可能な公開情報検索とモデル知識を用いて不足を補ってください。オリジナルやカスタム固有の設定は入力資料の範囲を守ってください。根拠が得られなければ項目別の不明理由を残してください。\n不足: ${JSON.stringify([...issues, ...informationQuality.reasons])}\n項目別の情報量判定: ${JSON.stringify(informationQuality.aspects)}\n監査後の候補: ${JSON.stringify(audited.value)}\n取得済み引用: ${JSON.stringify(citations)}`,
+          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n不足: ${JSON.stringify([...issues, ...informationQuality.reasons])}\n項目別の情報量判定: ${JSON.stringify(informationQuality.aspects)}\n監査後の候補: ${JSON.stringify(audited.value)}\n取得済み引用: ${JSON.stringify(citations)}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,

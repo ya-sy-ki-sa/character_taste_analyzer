@@ -30,7 +30,6 @@ export function refinedFakePreferences<T extends AnyPreferenceCandidate>(
   if (!entry.refinement) return candidate;
   if (entry.refinement.context?.selectedHypotheses?.length)
     return { ...candidate, preferenceAssertions: [], valueStanceAssertions: [] };
-  const hypothesis = entry.refinement.mode === "hypotheses";
   const answer = entry.refinement.answers[0]?.answer;
   const channel = entry.payload.preference.responseChannels[0] ?? null;
   return {
@@ -42,7 +41,7 @@ export function refinedFakePreferences<T extends AnyPreferenceCandidate>(
       responseChannel: channel,
       strength: 0.5,
       explicitness: "inferred",
-      confidence: hypothesis ? 0.25 : 0.5,
+      confidence: 0.5,
       context: preferenceContextFor(entry.payload),
       evidence: answer
         ? inputEvidence(`/preference/clarifications/${entry.refinement?.id}/0`, answer.slice(0, 500), "inferred")
@@ -50,9 +49,7 @@ export function refinedFakePreferences<T extends AnyPreferenceCandidate>(
     })),
     summary: {
       ...candidate.summary,
-      inferredSummary: [
-        hypothesis ? "仮説候補です。自分の好みに合うものだけを確認してください。" : "回答を参考にした候補です。",
-      ],
+      inferredSummary: ["回答を参考にした候補です。"],
     },
   } as T;
 }

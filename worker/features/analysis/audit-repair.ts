@@ -2,6 +2,7 @@ import { z } from "zod";
 import { groundedUnderstandingAuditSchema } from "../../../shared/contracts/semantic-audit";
 import { aspectAssessmentsSchema } from "../../../shared/contracts/understanding-quality";
 import { understandingAspects } from "../../../shared/understanding-aspects";
+import { UNDERSTANDING_ASSESSMENT_REPAIR_INSTRUCTION } from "../../llm/prompts/understanding";
 import type { StructuredLlmRequest } from "../../llm/types";
 
 /** Spend the existing repair attempt on assessments, keeping the entire revised body immutable. */
@@ -29,8 +30,7 @@ export const repairUnderstandingAssessments: NonNullable<StructuredLlmRequest<un
     messages: [
       {
         role: "system",
-        content:
-          "固定した人物像についてaspectAssessmentsだけを修復してください。人物像本体の追加・変更は禁止です。summaryIndexesは各項目内、assertionIndexesは属性一覧内の0始まりの番号です。重複や範囲外を返さず、内容のある項目に要約参照、concreteに属性参照が必要です。unknownは空の項目だけとし、属性参照を付けないでください。",
+        content: UNDERSTANDING_ASSESSMENT_REPAIR_INSTRUCTION,
       },
       {
         role: "user",

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { sha256Hex } from "../lib/crypto";
+import { FORMAT_REPAIR_INSTRUCTION } from "./prompts/repair";
 import { parseJson } from "./response";
 import {
   type LlmMessage,
@@ -18,7 +19,7 @@ function repairMessages(messages: LlmMessage[], invalid: string, issues: string)
     { role: "assistant", content: invalid.slice(0, 8_000) },
     {
       role: "user",
-      content: `直前のJSONだけを次の検証エラーに合わせて修正してください。事実を追加しないでください。\n${issues.slice(0, 3_000)}`,
+      content: `${FORMAT_REPAIR_INSTRUCTION}\n${issues.slice(0, 3_000)}`,
     },
   ];
 }

@@ -9,7 +9,7 @@ import { compileBrief } from "../worker/features/generation/brief";
 import { createGenerationRequest } from "../worker/features/generation/request";
 import { loadCurrentGraph } from "../worker/features/profile/graph";
 import { loadProfileSnapshotItems } from "../worker/features/profile/snapshot";
-import { EXPLICIT_PREFERENCE_INSTRUCTION, PREFERENCE_PROMPT_VERSION } from "../worker/llm/prompts/preference";
+import { PREFERENCE_PROMPT_VERSION, preferenceInstruction } from "../worker/llm/prompts/preference";
 import fixtures from "./fixtures/explicit-preferences.json";
 import semanticFixtures from "./fixtures/preference-semantics.json";
 
@@ -47,7 +47,7 @@ describe("frozen explicit preferences", () => {
       expect(calls).toHaveLength(2);
       expect(
         calls.every((item) =>
-          item.messages.some((message) => message.content.includes(EXPLICIT_PREFERENCE_INSTRUCTION)),
+          item.messages.some((message) => message.content.includes(preferenceInstruction("standard"))),
         ),
       ).toBe(true);
       expect(analysis.qualityContext).toMatchObject({

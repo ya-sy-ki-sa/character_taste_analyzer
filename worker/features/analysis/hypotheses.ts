@@ -7,7 +7,7 @@ import { darkResponseChannelCatalog } from "../../../shared/dark-response-channe
 import { responseChannelCatalog } from "../../../shared/response-channels";
 import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { all } from "../../lib/db";
-import { HYPOTHESIS_SYSTEM } from "../../llm/prompts/hypotheses";
+import { hypothesisSystem } from "../../llm/prompts/hypotheses";
 import type { LlmProvider } from "../../llm/types";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import * as repository from "./repositories/hypotheses";
@@ -42,7 +42,7 @@ export async function generatePreferenceHypotheses(
       .max(6),
   });
   const messages = [
-    { role: "system" as const, content: HYPOTHESIS_SYSTEM },
+    { role: "system" as const, content: hypothesisSystem(domain) },
     {
       role: "user" as const,
       content: JSON.stringify({

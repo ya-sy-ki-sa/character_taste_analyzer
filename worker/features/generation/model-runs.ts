@@ -1,5 +1,6 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import { prepareModelRun } from "../../llm/model-runs";
+import { GENERATION_PROMPT_VERSION } from "../../llm/prompts/generation";
 import type { LlmRunMetadata } from "../../llm/types";
 import type { Env } from "../../types";
 
@@ -20,7 +21,7 @@ export async function persistModelRun(
     output,
     metadata,
     analysisDomain,
-    promptVersion: `${operation}/v2.2.0`,
+    promptVersion: `${operation}/${GENERATION_PROMPT_VERSION}`,
     schemaVersion: "1.0",
   });
   await run.statement.run();

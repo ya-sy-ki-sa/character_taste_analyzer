@@ -31,7 +31,9 @@ SQLは各機能の `repositories` に置き、D1PreparedStatementを返します
 
 `worker/platform/outbox/write.ts` はイベント作成、`dispatch.ts` は配送管理です。配送は渡された実行関数を呼び、機能サービスを参照しません。`worker/runtime` がローカル実行・Workflowの接続を担当します。機能やplatformからruntimeへの逆参照は許可しません。`architecture:check` がこれらの境界、循環依存、実装から履歴・テストへの依存を検査します。
 
-LLMのプロンプト、provider実行、出力スキーマ、純粋な結果判定、Fake出力、D1操作を分離します。処理順序、プロンプト本文、モデル割当、再試行の条件は各ユースケースに保持します。
+LLMのプロンプト、provider実行、出力スキーマ、純粋な結果判定、Fake出力、D1操作を分離します。固定指示は `worker/llm/prompts` に集約し、通常版・dark版と処理目的から必要な本文を組み立てます。各ユースケースは処理順序、入力データ、モデル割当、再試行の条件を保持します。外部出典の参照方法は `worker/platform/provenance/registry.ts` が正本です。
+
+`preferenceSystem(domain, stage)`、`hypothesisSystem(domain)`、`understandingSystem(stage)`、`generationValidationSystem(domain)` は、実行時とプロンプトregistryで同じ組み立て関数を使います。版固有の指示は該当版だけに渡し、仮説提案に抽出・監査用の出力指示を混ぜません。補完、追加回答、JSON修復、生成案の比較などの固定指示もregistryのハッシュ・バージョン検査へ含めます。ユーザー入力を含む実メッセージのハッシュはモデル実行記録へ別途保存します。
 
 モデル実行記録のstatement生成は `worker/llm/model-runs.ts` と対応するリポジトリに集約します。分析・生成それぞれのユースケースがプロンプト／スキーマのバージョンを決め、分析では結果と同じbatch、生成では個別の即時保存という境界を保持します。providerの接続・要求構築は `openai.ts` / `workers-ai.ts`、応答解釈は `response.ts`、構造検証と修復は `remote.ts`、経路選択は `providers.ts` が担当します。
 

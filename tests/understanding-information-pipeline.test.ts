@@ -29,6 +29,9 @@ describe("understanding information quality storage and continuation", () => {
         ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
       ),
     ).toHaveLength(4);
+    const auditSystem = t.requests.find((request) => request.operation === "understanding_audit")?.messages[0].content;
+    expect(auditSystem).toContain("aspectAssessments");
+    expect(auditSystem).not.toMatch(/userExplicitSummary|responseChannel/u);
     const preferenceCalls = t.requests.filter((request) => request.operation.startsWith("preference_"));
     expect(preferenceCalls).toHaveLength(2);
     expect(preferenceCalls.every((request) => !JSON.stringify(request.messages).includes('"informationQuality"'))).toBe(
@@ -100,5 +103,8 @@ describe("understanding information quality storage and continuation", () => {
     expect(t.detail.understanding?.informationQuality).toBeUndefined();
     expect(t.requests.filter((request) => request.operation === "dark_understanding_audit")).toHaveLength(1);
     expect(t.requests.some((request) => request.operation === "understanding_audit")).toBe(false);
+    for (const request of t.requests) {
+      expect(request.messages[0].content).not.toMatch(/aspectAssessments|wishful_identification|通常版の反応経路/u);
+    }
   });
 });

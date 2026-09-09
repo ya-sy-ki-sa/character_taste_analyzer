@@ -18,17 +18,8 @@ import { responseChannelPrompt } from "../../../shared/response-channels";
 import { hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
-import { SYSTEM_INSTRUCTION } from "../../llm/prompts/analysis";
-import {
-  EXPLICIT_PREFERENCE_INSTRUCTION,
-  PREFERENCE_PROMPT_VERSION,
-  PREFERENCE_SCHEMA_VERSION,
-} from "../../llm/prompts/preference";
-import {
-  SEMANTIC_AUDIT_INSTRUCTION,
-  SEMANTIC_AUDIT_POLICY,
-  SEMANTIC_AUDIT_SCHEMA_VERSION,
-} from "../../llm/prompts/semantic-audit";
+import { PREFERENCE_PROMPT_VERSION, PREFERENCE_SCHEMA_VERSION, preferenceSystem } from "../../llm/prompts/preference";
+import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../../llm/prompts/semantic-audit";
 import type { LlmRunMetadata } from "../../llm/types";
 import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
 import { loadInputProvenanceSources } from "../../platform/provenance/sources";
@@ -120,7 +111,6 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     const externalSources = [...allowedUrls].map((url) => ({ url, title: url }));
     const citationRegistry = new CitationRegistry();
     await citationRegistry.add(externalSources);
-    entry.llm = await citationAwareProvider(entry.llm, externalSources);
     const confirmed = await loadConfirmedUnderstanding(env, params.ownerUserId, snapshot.id);
     entry.reviewExclusions = confirmed.excluded;
     const characterAssertions = confirmed.rows;
@@ -144,7 +134,8 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       entry.refinement?.context?.baseAnalysisRunId,
     );
     entry.retainedPreferences = retained.preferences;
-    if (entry.refinement?.mode === "hypotheses" && entry.refinement.context?.baseAnalysisRunId) {
+    if (entry.refinement?.mode === "hypotheses") {
+      if (!entry.refinement.context?.baseAnalysisRunId) throw new Error("HYPOTHESIS_BASE_ANALYSIS_REQUIRED");
       const preview = await generatePreferenceHypotheses(
         env,
         entry.llm,
@@ -182,16 +173,18 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       );
       return;
     }
+    // Hypotheses have no evidence fields; only extraction/audit needs the citation ledger instructions.
+    entry.llm = await citationAwareProvider(entry.llm, externalSources);
     const generation = await first<{ next_generation: number }>(
       repository.selectAnalysisRuns(env.DB, [params.ownerUserId, entry.entryRevisionId]),
     );
     if (!generation) throw new Error("ANALYSIS_GENERATION_UNAVAILABLE");
     const runGeneration = generation.next_generation;
     const messages = [
-      { role: "system" as const, content: SYSTEM_INSTRUCTION },
+      { role: "system" as const, content: preferenceSystem("standard", "extract") },
       {
         role: "user" as const,
-        content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n確認済みキャラクター理解とユーザーの好きな理由を分け、嗜好候補を抽出してください。キャラクターが持つ全属性を自動で好きにしないでください。ヴィラン性や悪そのものへの好意を悲劇性や知性に言い換えないでください。ユーザーが選択したresponse channelは、その定義どおりに優先して使ってください。根拠不足なら候補0件を正常な結果として返し、uncertaintiesに追加で尋ねる具体的な質問を最大3件書いてください。反応経路の選択だけから対象属性への好意を推定しないでください。未選択のchannelを推測する場合は、好きな理由に十分な根拠があるものだけに限定してください。\n以前の好みの訂正・削除（correctedは訂正後の内容を尊重し、rejectedとsupersededは復活させない）: ${JSON.stringify(previousReviews)}\n理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\n以前の好みの確認記録（correctedを尊重しrejected/supersededを復活させない）: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え（復活させない）: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(
+        content: `理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\n以前の好みの確認記録: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(
           entryInputSources(entry.payload)
             .filter((source) => source.pointer.startsWith("/preference/"))
             .map((source) => source.pointer),
@@ -277,22 +270,20 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       completedLlmGroups.push(completedLlmGroup("preference_analysis", inputHash, result));
       const initial = result.value as PreferenceCandidate;
       const auditMessages = [
-        { role: "system" as const, content: SYSTEM_INSTRUCTION },
+        { role: "system" as const, content: preferenceSystem("standard", "audit") },
         {
           role: "user" as const,
-          content: `${EXPLICIT_PREFERENCE_INSTRUCTION}\n${SEMANTIC_AUDIT_INSTRUCTION}\n嗜好候補を独立監査し完全な改訂結果を返してください。訂正済み理解が優先で、削除済み特徴を原資料から復活させないでください。入力に支持されない推定、好意と道徳的支持の混同、条件や反応経路の拡大を除去します。好きな理由と苦手な理由をそれぞれ照合し、明示的な苦手条件を、人物にその設定がないという理由だけで削除しないでください。肯定・否定が別の条件なら別候補で保持してください。候補0件は正常です。推測をuser_explicitへ格上げせず、根拠やURLを捏造しないでください。\n${JSON.stringify(
-            {
-              candidate: initial,
-              confirmedUnderstanding: understanding,
-              reviewExclusions: entry.reviewExclusions,
-              input: entry.payload,
-              refinement: entry.refinement,
-              refinementInstruction: refinementInstruction(entry),
-              previousReviews,
-              sources: provenanceSources,
-              ontology,
-            },
-          )}`,
+          content: `${JSON.stringify({
+            candidate: initial,
+            confirmedUnderstanding: understanding,
+            reviewExclusions: entry.reviewExclusions,
+            input: entry.payload,
+            refinement: entry.refinement,
+            refinementInstruction: refinementInstruction(entry),
+            previousReviews,
+            sources: provenanceSources,
+            ontology,
+          })}`,
         },
       ];
       inputHash = await sha256Hex(JSON.stringify(auditMessages));
@@ -323,16 +314,6 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         result.attempts = result.attempts.map((attempt) => ({ ...attempt, metadata: annotateAudit(attempt.metadata) }));
       completedLlmGroups.push(completedLlmGroup("preference_audit", inputHash, result));
       preferenceOperation = "preference_audit";
-    }
-    if (entry.refinement?.mode === "hypotheses") {
-      for (const item of result.value.preferenceAssertions) {
-        item.explicitness = "inferred";
-        item.confidence = Math.min(item.confidence, 0.35);
-      }
-      for (const item of result.value.valueStanceAssertions) {
-        item.explicitness = "inferred";
-        item.confidence = Math.min(item.confidence, 0.35);
-      }
     }
     const selected = entry.refinement?.context?.selectedHypotheses ?? [];
     if (entry.refinement && selected.length)

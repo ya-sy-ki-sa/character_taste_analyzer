@@ -1,6 +1,7 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import { first } from "../../lib/db";
 import { prepareModelRun } from "../../llm/model-runs";
+import { ANALYSIS_PROMPT_VERSION } from "../../llm/prompts/analysis";
 import { HYPOTHESIS_PROMPT_VERSION } from "../../llm/prompts/hypotheses";
 import { PREFERENCE_PROMPT_VERSION, PREFERENCE_SCHEMA_VERSION } from "../../llm/prompts/preference";
 import { LlmProviderError, type LlmRunMetadata } from "../../llm/types";
@@ -37,7 +38,7 @@ export async function persistModelRun(
         ? `${operation}/${HYPOTHESIS_PROMPT_VERSION}`
         : metadata.effectiveSettings?.understandingInformationPolicy
           ? `${operation}/${metadata.effectiveSettings.understandingInformationPolicy}`
-          : `${operation}/${metadata.effectiveSettings?.citationPolicyVersion ? "v1.1.0" : "v1.0.1"}`,
+          : `${operation}/${ANALYSIS_PROMPT_VERSION}`,
     schemaVersion:
       typeof metadata.effectiveSettings?.actualSchemaVersion === "string"
         ? metadata.effectiveSettings.actualSchemaVersion
