@@ -4,7 +4,16 @@ import { loadCurrentGraph } from "../worker/features/profile/graph";
 import { context, type Fixture, rebuild, setup } from "./support/preference-pipeline";
 
 // Cover named roles/ownership, nullable roles, and positive/negative polarity once each.
-const scopes = [
+const scopes: Array<{
+  id: string;
+  input: string;
+  label: string;
+  actor: string | null;
+  target: string | null;
+  possessor: string | null;
+  negative: string | null;
+  polarity: string;
+}> = [
   {
     id: "C12",
     input: "妻子がいるヒューズがロイに遠慮なく接するところが好き。",
@@ -96,6 +105,42 @@ describe("scripted proposition audits through persistence and aggregation", () =
         .filter((call) => call.operation.startsWith("preference_"))
         .every((call) => !JSON.stringify(call.messages).includes('"semanticAudit"')),
     ).toBe(true);
+  });
+  it("persists jointly supporting quotes and aggregates the accepted preference", async () => {
+    const item = fixture({
+      ...scopes[1],
+      id: "joint-evidence",
+      input: "銀髪が好き。ただし冷淡な人物に限る。",
+      label: "銀髪",
+      negative: null,
+    });
+    item.expectedAssertions[0].context = { ...context, conditions: ["冷淡な人物に限る"] };
+    item.auditOverride = (value) => {
+      const assertion = value.preferenceAssertions[0];
+      const ref = assertion.evidence[0];
+      assertion.evidence = ["銀髪が好き。", "ただし冷淡な人物に限る。"].map((quote) => ({
+        ...ref,
+        quote,
+        supportAssessment: { verdict: "partial", reason: "対象または条件を支持" },
+      }));
+      assertion.evidenceSetAssessment = {
+        verdict: "supported",
+        reason: "対象と条件を合わせて支持",
+        evidenceIndexes: [0, 1],
+      };
+      return value;
+    };
+    const t = await setup("standard", item);
+    expect(t.analysis.assertions).toHaveLength(1);
+    const quality = t.analysis.qualityContext as {
+      semanticAudit: { assertions: Array<{ evidenceSetAssessment: unknown; evidence: Array<{ accepted: boolean }> }> };
+    };
+    const audit = quality.semanticAudit.assertions[0];
+    expect(audit.evidenceSetAssessment).toMatchObject({ verdict: "supported", evidenceIndexes: [0, 1] });
+    expect(audit.evidence.map((ref) => ref.accepted)).toEqual([true, true]);
+    const profile = await rebuild(t, "standard");
+    expect(profile?.dimensions).toHaveLength(1);
+    expect(profile?.dimensions[0].condition.conditions).toEqual(["冷淡な人物に限る"]);
   });
   it.each(["mismatch", "uncertain"] as const)(
     "excludes a %s candidate while retaining explicit input and questions",

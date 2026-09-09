@@ -66,7 +66,7 @@ describe("frozen explicit preferences", () => {
         runs.every(
           (item) =>
             String(item.prompt_version).endsWith(`/${PREFERENCE_PROMPT_VERSION}`) &&
-            item.schema_version === (item.operation === "preference_audit" ? "1.0" : "3.0"),
+            item.schema_version === (item.operation === "preference_audit" ? "1.1" : "3.0"),
         ),
       ).toBe(true);
       if (!fixture.expectedAssertions.length) {

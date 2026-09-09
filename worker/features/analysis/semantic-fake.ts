@@ -2,6 +2,7 @@ import type { EvidenceReference } from "../../../shared/contracts/evidence";
 import type { PreferenceCandidate } from "../../../shared/contracts/preference";
 import type {
   AuditedEvidence,
+  EvidenceSetAssessment,
   GroundedPreferenceAudit,
   GroundedUnderstandingAudit,
   ScopedProposition,
@@ -14,8 +15,13 @@ export function fakeSemanticFields(assertion: {
   rawLabel?: string;
   targetRef?: string;
   valueText?: string;
-}): { scopeAssessment: ScopedProposition; evidence: AuditedEvidence[] } {
+}): {
+  scopeAssessment: ScopedProposition;
+  evidence: AuditedEvidence[];
+  evidenceSetAssessment: EvidenceSetAssessment | null;
+} {
   return {
+    evidenceSetAssessment: null,
     scopeAssessment: {
       verdict: "consistent",
       reason: "Offline fixtureで定義した命題対応。",

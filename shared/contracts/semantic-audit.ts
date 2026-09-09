@@ -18,7 +18,12 @@ export const scopedPropositionSchema = z.object({
   anchors: z.array(evidenceReferenceSchema).max(3),
 });
 export const auditedEvidenceSchema = evidenceReferenceSchema.safeExtend({ supportAssessment: semanticSupportSchema });
+export const evidenceSetAssessmentSchema = semanticSupportSchema.extend({
+  evidenceIndexes: z.array(z.number().int().min(0).max(2)).max(3),
+});
 const auditFields = {
+  // Require a decision in generated output while accepting historical/replay audits.
+  evidenceSetAssessment: evidenceSetAssessmentSchema.nullable().default(null),
   scopeAssessment: scopedPropositionSchema,
   evidence: z.array(auditedEvidenceSchema).max(3),
 };
@@ -37,3 +42,5 @@ export type GroundedUnderstandingAudit = z.infer<typeof groundedUnderstandingAud
 export type GroundedPreferenceAudit = z.infer<typeof groundedPreferenceAuditSchema>;
 export type ScopedProposition = z.infer<typeof scopedPropositionSchema>;
 export type AuditedEvidence = z.infer<typeof auditedEvidenceSchema>;
+
+export type EvidenceSetAssessment = z.infer<typeof evidenceSetAssessmentSchema>;

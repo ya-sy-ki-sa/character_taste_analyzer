@@ -13,7 +13,7 @@ import {
   explainUnknownUnderstandingAspects,
   understandingQualityIssues,
 } from "../worker/features/analysis/understanding-quality";
-import { SEMANTIC_AUDIT_POLICY } from "../worker/llm/prompts/semantic-audit";
+import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../worker/llm/prompts/semantic-audit";
 import { UNDERSTANDING_INFORMATION_POLICY } from "../worker/llm/prompts/understanding";
 import { type LlmProvider, LlmProviderError, type StructuredLlmRequest } from "../worker/llm/types";
 import type { Env } from "../worker/types";
@@ -332,7 +332,7 @@ describe("sparse character understanding", () => {
           metadata: expect.objectContaining({
             effectiveSettings: {
               understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
-              understandingSchemaVersion: "1.0",
+              understandingSchemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
               semanticAuditPolicy: SEMANTIC_AUDIT_POLICY,
             },
           }),

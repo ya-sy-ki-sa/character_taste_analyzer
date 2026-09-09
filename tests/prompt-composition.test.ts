@@ -4,6 +4,7 @@ import {
   darkGeneratedCharacterCandidateSchema,
   generatedCharacterCandidateSchema,
 } from "../shared/contracts/generation";
+import { groundedUnderstandingAuditSchema } from "../shared/contracts/semantic-audit";
 import {
   DARK_BASELINE_SYSTEM,
   DARK_UNDERSTANDING_AUDIT_SYSTEM,
@@ -19,6 +20,11 @@ import { preferenceSystem } from "../worker/llm/prompts/preference";
 import { understandingSystem } from "../worker/llm/prompts/understanding";
 
 describe("prompt composition boundaries", () => {
+  it("requires an evidence-set decision in generated audits while accepting historical omissions", () => {
+    const assertion = groundedUnderstandingAuditSchema.shape.assertions.element;
+    expect(z.toJSONSchema(assertion, { target: "draft-7" }).required).toContain("evidenceSetAssessment");
+    expect(assertion.shape.evidenceSetAssessment.parse(undefined)).toBeNull();
+  });
   it.each(["standard", "dark"] as const)("%s receives only its attribute and channel policy", (domain) => {
     for (const text of [
       preferenceSystem(domain, "extract"),

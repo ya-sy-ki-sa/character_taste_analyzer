@@ -39,7 +39,7 @@ const sources: ProvenanceSource[] = [
     url: null,
   },
 ];
-const assertion = (evidence = [input]) => ({
+const assertion = (evidence = [input]): Parameters<typeof verifySemanticAssertion>[0] => ({
   confidence: 0.94,
   explicitness: "user_explicit",
   ...fakeSemanticFields({ evidence }),
@@ -66,6 +66,47 @@ describe("semantic and physical evidence normalization", () => {
       const result = await verify(item);
       expect(result).toMatchObject({ keep: false, confidence: 0, evidence: [] });
       expect(result.audit.evidence[0].verification.verificationStatus).toBe("verified_quote");
+    },
+  );
+  it("accepts jointly sufficient partial quotes without upgrading an inferred link", async () => {
+    const item = assertion([
+      { ...input, quote: "銀髪が好き。" },
+      { ...input, quote: "ただし冷淡な人物に限る。", inferenceType: "inferred" },
+    ]);
+    item.evidence.forEach((ref) => {
+      ref.supportAssessment.verdict = "partial";
+    });
+    item.evidenceSetAssessment = { verdict: "supported", reason: "対象と条件を合わせて支持", evidenceIndexes: [0, 1] };
+    const result = await verify(item, false, [{ ...sources[0], text: "銀髪が好き。ただし冷淡な人物に限る。" }]);
+    expect(result).toMatchObject({ keep: true, explicitness: "inferred" });
+    expect(result.evidence).toHaveLength(2);
+    expect(result.audit.evidence.every((ref) => ref.accepted)).toBe(true);
+    expect(result.audit.evidenceSetAssessment).toEqual(item.evidenceSetAssessment);
+  });
+  it.each(["duplicate", "out-of-range", "empty", "invalid-quote", "contradicted", "non-user", "incomplete"] as const)(
+    "rejects a defective evidence set: %s",
+    async (fault) => {
+      const item = assertion([
+        { ...input, quote: "銀髪が好き。" },
+        { ...input, quote: "冷淡な人物に限る。" },
+      ]);
+      item.evidence[1].supportAssessment.verdict = "partial";
+      item.evidenceSetAssessment = {
+        verdict: fault === "incomplete" ? "partial" : "supported",
+        reason: "集合の判定",
+        evidenceIndexes:
+          fault === "duplicate" ? [0, 0] : fault === "out-of-range" ? [0, 2] : fault === "empty" ? [] : [0, 1],
+      };
+      if (fault === "invalid-quote") item.evidence[1].quote = "原文にない条件";
+      if (fault === "contradicted") item.evidence[1].supportAssessment.verdict = "contradicted";
+      const provenance: ProvenanceSource[] = [
+        {
+          ...sources[0],
+          text: "銀髪が好き。冷淡な人物に限る。",
+          origin: fault === "non-user" ? "source" : "user_input",
+        },
+      ];
+      expect(await verify(item, false, provenance)).toMatchObject({ keep: false, confidence: 0 });
     },
   );
   it.each(["mismatch", "uncertain"] as const)("holds an unresolved scope: %s", async (verdict) => {
@@ -107,6 +148,11 @@ describe("semantic and physical evidence normalization", () => {
     });
     expect(result.audit.evidence[0].reference.inferenceType).toBe("paraphrase");
     expect(result.audit.after.normalizedModelEvidenceIndexes).toEqual([0]);
+  });
+  it("does not bypass an unsupported evidence set using model knowledge", async () => {
+    const item = assertion([input, model]);
+    item.evidenceSetAssessment = { verdict: "partial", reason: "主張全体には不足", evidenceIndexes: [0] };
+    expect(await verify(item, true)).toMatchObject({ keep: false, confidence: 0 });
   });
   it("does not relabel an unavailable source as model knowledge", async () => {
     const item = assertion([{ ...invalid, sourceRef: "missing-source", inferenceType: "inferred" }]);
