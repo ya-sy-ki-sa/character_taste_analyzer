@@ -83,7 +83,6 @@ for (const domain of ["standard", "dark"] as const) {
     await repeatSubmit();
     expect(keys).toHaveLength(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: `test-results/entry-submission-${domain}.png` });
 
     saving.release();
     await expect(registration.locator(".notice-danger")).toBeVisible();

@@ -30,7 +30,11 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }, ...crossBrowserProjects],
+  projects: [
+    { name: "api-integration", testMatch: "**/api/**/*.spec.ts" },
+    { name: "chromium", testIgnore: "**/api/**", use: { ...devices["Desktop Chrome"] } },
+    ...crossBrowserProjects,
+  ],
   webServer: {
     command: "node scripts/start-e2e-server.mjs",
     url: "http://localhost:41737/api/v1/health/live",

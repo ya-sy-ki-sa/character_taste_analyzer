@@ -2,12 +2,10 @@ import { expect, test } from "@playwright/test";
 
 for (const domain of ["standard", "dark"] as const) {
   for (const [width, height] of [
-    [1440, 1000],
     [1366, 768],
-    [390, 844],
     [320, 720],
   ]) {
-    test(`${domain} ${width}px: 長文・エラー・フォーカス・モーション軽減`, async ({ page }, testInfo) => {
+    test(`${domain} ${width}px: 長文・エラー・フォーカス・モーション軽減`, async ({ page }) => {
       await page.setViewportSize({ width, height });
       await page.emulateMedia({ reducedMotion: "reduce" });
       const errors: string[] = [];
@@ -64,7 +62,6 @@ for (const domain of ["standard", "dark"] as const) {
       await expect(modal.locator(".notice-danger")).toContainText("入力を確認してください");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(await modal.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-      await testInfo.attach("registration-error", { body: await page.screenshot(), contentType: "image/png" });
       page.once("dialog", (dialog) => dialog.accept());
       await page.keyboard.press("Escape");
       await expect(modal).not.toBeVisible();

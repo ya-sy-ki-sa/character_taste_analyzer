@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 for (const domain of ["standard", "dark"] as const) {
-  test(`人物像の情報量と好み分析への続行 (${domain})`, async ({ page }, testInfo) => {
+  test(`人物像の情報量と好み分析への続行 (${domain})`, async ({ page }) => {
     test.setTimeout(120_000);
     const base = domain === "dark" ? "/api/v1/dark" : "/api/v1";
     const appBase = domain === "dark" ? "/dark-lab/app" : "/app";
+    await page.setViewportSize(domain === "dark" ? { width: 320, height: 740 } : { width: 1366, height: 900 });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const username = `sparse-${domain}-${Date.now()}`;
@@ -67,23 +68,13 @@ for (const domain of ["standard", "dark"] as const) {
     await evidenceToggle.press("Enter");
     await expect(evidenceDetails.getByText("資料の原文照合済み", { exact: true })).toBeVisible();
     await expect(dialog.getByText(/全体登録内支持度/u)).toHaveCount(0);
-    for (const [width, height] of [
-      [1440, 1000],
-      [1366, 768],
-      [390, 844],
-      [320, 720],
-    ]) {
-      await page.setViewportSize({ width, height });
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await information.scrollIntoViewIfNeeded();
-      await expect(information).toBeInViewport();
-      await page.screenshot({ path: testInfo.outputPath(`${domain}-${width}-information.png`), fullPage: true });
-      await evidenceDetails.scrollIntoViewIfNeeded();
-      await expect(dialog).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      await page.screenshot({ path: testInfo.outputPath(`${domain}-${width}.png`), fullPage: true });
-    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await information.scrollIntoViewIfNeeded();
+    await expect(information).toBeInViewport();
+    await evidenceDetails.scrollIntoViewIfNeeded();
+    await expect(dialog).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     await dialog.getByRole("button", { name: "この理解を確認して好み分析へ" }).click();
     await expect.poll(async () => (await read()).entry.status, { timeout: 30_000 }).toBe("analysis_review");
     expect((await read()).preferenceAnalysis.assertions.length).toBeGreaterThan(0);

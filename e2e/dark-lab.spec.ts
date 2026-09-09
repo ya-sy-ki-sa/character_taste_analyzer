@@ -146,10 +146,8 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
   await page.setViewportSize({ width: 320, height: 740 });
   await expect(characterDialog.getByLabel("評価する設定")).toBeVisible();
   expect(await characterDialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await page.screenshot({ path: "test-results/quality-dark-320.png" });
   await page.setViewportSize({ width: 1280, height: 900 });
   await characterDialog.getByRole("heading", { name: /合格した \d 案を比較/u }).scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "test-results/quality-dark-desktop.png" });
   await characterDialog.getByRole("button", { name: "閉じる", exact: true }).click();
   await page.getByRole("button", { name: "確認してプロフィールへ反映", exact: true }).click();
   await expect(page.getByText("確認した評価をプロフィールへ反映しています。")).toBeVisible();

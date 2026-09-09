@@ -2,7 +2,11 @@ import { afterEach, expect, vi } from "vitest";
 import type { AnalysisDomain } from "../../shared/analysis-domain";
 import { anyEntryDraftSchema } from "../../shared/contracts/entries";
 import { reviewDetailSchema } from "../../shared/contracts/entry-review";
-import { type AnyPreferenceCandidate, preferenceCandidateSchema } from "../../shared/contracts/preference";
+import {
+  type AnyPreferenceCandidate,
+  darkPreferenceCandidateSchema,
+  preferenceCandidateSchema,
+} from "../../shared/contracts/preference";
 import type { UnderstandingAudit } from "../../shared/contracts/understanding-quality";
 import { activateAnalysisAndRebuild } from "../../worker/features/analysis/activation";
 import { processPreferenceAnalysis } from "../../worker/features/analysis/preference";
@@ -54,11 +58,13 @@ export type Fixture = {
   generatedCandidate?: AnyPreferenceCandidate;
   uncertainties?: AnyPreferenceCandidate["uncertainties"];
 };
-export function scriptedCandidate(fixture: Fixture): AnyPreferenceCandidate {
+export function scriptedCandidate(fixture: Fixture, domain: AnalysisDomain = "standard"): AnyPreferenceCandidate {
   const evidence = (pointer: string, quote: string) => [
     { sourceRef: `input:${pointer}`, sourceUrl: null, inputPointer: pointer, quote, inferenceType: "direct" as const },
   ];
-  return preferenceCandidateSchema.parse({
+  const schema = domain === "dark" ? darkPreferenceCandidateSchema : preferenceCandidateSchema;
+  return schema.parse({
+    ...(domain === "dark" ? { auditNotes: [] } : {}),
     summary: { userExplicitSummary: [fixture.preference.likedReasons], inferredSummary: [], limitations: [] },
     preferenceAssertions: fixture.expectedAssertions.map((item) => ({
       attributeStableKey: item.attributeStableKey ?? null,
@@ -142,7 +148,7 @@ export async function setup(
         const scripted =
           request.operation.endsWith("_analysis") && fixture.generatedCandidate
             ? fixture.generatedCandidate
-            : scriptedCandidate(fixture);
+            : scriptedCandidate(fixture, domain);
         value = { ...scripted, ...(domain === "dark" ? { auditNotes: [] } : {}) } as typeof value;
       }
       if (domain === "standard" && request.operation === "understanding_audit")

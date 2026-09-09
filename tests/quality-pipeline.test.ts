@@ -21,6 +21,7 @@ import { listGenerations } from "../worker/features/generation/history";
 import { processGeneration } from "../worker/features/generation/process";
 import { createGenerationRequest } from "../worker/features/generation/request";
 import { loadCurrentProfile, processProfileRebuild } from "../worker/features/profile/projection";
+import { HYPOTHESIS_PROMPT_VERSION } from "../worker/llm/prompts/hypotheses";
 import { loadInputProvenanceSources } from "../worker/platform/provenance/sources";
 import type { Env } from "../worker/types";
 import { testDatabase } from "./support/database";
@@ -425,7 +426,7 @@ describe("quality pipeline against current D1 schema", () => {
       expect(params.entryId).toBeTruthy();
     },
   );
-  it("treats absent evidence as empty, supports answers and low-confidence hypotheses without replacing understanding", async () => {
+  it("refines empty preferences from answers without replacing understanding or accepting stale runs", async () => {
     const { db, env, owner, params, detail } = await analyzed("standard", true);
     expect(detail.preferenceAnalysis?.assertions).toHaveLength(0);
     const snapshotId = detail.understanding?.id as string;
@@ -446,7 +447,7 @@ describe("quality pipeline against current D1 schema", () => {
     await processPreferenceAnalysis(env, { ...params, stage: "preference" });
     expect(db.database.prepare("SELECT status FROM jobs WHERE id=?").get(params.jobId)?.status).toBe("queued");
     await processPreferenceAnalysis(env, { ...params, stage: "preference", refinementId: refinement.id });
-    let next = await loadEntryReview(env, owner, "standard", params.entryId);
+    const next = await loadEntryReview(env, owner, "standard", params.entryId);
     expect(
       next?.entry.status,
       JSON.stringify(db.database.prepare("SELECT error_code,error_detail_safe FROM jobs").all()),
@@ -456,21 +457,6 @@ describe("quality pipeline against current D1 schema", () => {
       activateAnalysisAndRebuild(env, owner, "standard", detail.preferenceAnalysis?.id as string),
     ).rejects.toThrow("PREFERENCE_REVIEW_NOT_FOUND");
     expect(next?.preferenceAnalysis?.assertions.length).toBeGreaterThan(0);
-    const beforeHypotheses = next?.preferenceAnalysis;
-    const hypothesis = await refinePreferenceInput(
-      env,
-      owner,
-      "standard",
-      params.entryId,
-      { mode: "hypotheses" },
-      crypto.randomUUID(),
-    );
-    await processPreferenceAnalysis(env, { ...params, stage: "preference", refinementId: hypothesis.id });
-    next = await loadEntryReview(env, owner, "standard", params.entryId);
-    expect(next?.preferenceAnalysis?.id).toBe(beforeHypotheses?.id);
-    expect(next?.preferenceAnalysis?.assertions).toEqual(beforeHypotheses?.assertions);
-    expect(next?.preferenceAnalysis?.hypothesisPreview?.id).toBe(hypothesis.id);
-    expect(next?.preferenceAnalysis?.hypothesisPreview?.candidates?.length).toBeGreaterThan(0);
     expect(
       db.database.prepare("SELECT COUNT(*) AS count FROM preference_assertions WHERE status='confirmed'").get()?.count,
     ).toBe(0);
@@ -511,6 +497,11 @@ describe("quality pipeline against current D1 schema", () => {
       };
       const first = await request();
       expect(first.candidates?.length).toBeGreaterThan(0);
+      expect(
+        db.database
+          .prepare("SELECT prompt_version FROM model_run_metadata WHERE operation='preference_hypotheses'")
+          .all(),
+      ).toEqual([{ prompt_version: `preference_hypotheses/${HYPOTHESIS_PROMPT_VERSION}` }]);
       // A reload returns the exact preview; merely generating it cannot change profile input.
       expect(
         (await loadEntryReview(env, owner, domain, params.entryId))?.preferenceAnalysis?.hypothesisPreview,

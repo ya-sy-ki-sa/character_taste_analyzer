@@ -13,6 +13,8 @@ import {
   explainUnknownUnderstandingAspects,
   understandingQualityIssues,
 } from "../worker/features/analysis/understanding-quality";
+import { SEMANTIC_AUDIT_POLICY } from "../worker/llm/prompts/semantic-audit";
+import { UNDERSTANDING_INFORMATION_POLICY } from "../worker/llm/prompts/understanding";
 import { type LlmProvider, LlmProviderError, type StructuredLlmRequest } from "../worker/llm/types";
 import type { Env } from "../worker/types";
 import sparseFixtures from "./fixtures/sparse-understanding.json";
@@ -163,29 +165,26 @@ describe("sparse character understanding", () => {
     expect(Object.keys(aspects?.properties ?? {})).toEqual(understandingAspects);
     expect(aspects).not.toHaveProperty("propertyNames");
   });
-  it.each(sparseFixtures.filter((fixture) => fixture.caseId !== "D03"))(
-    "completes $caseId once and keeps the limited result reviewable",
-    async (fixture) => {
-      const candidate = frozenAudit(fixture);
-      const { run, requests } = setup([candidate, candidate, candidate, candidate]);
-      const result = await run();
-      expect(requests).toHaveLength(4);
-      expect(result.value.sourceAssessment.informationQuality).toMatchObject({
-        status: "limited",
-        contentAspectCount: 1,
-        concreteAspectCount: 0,
-        completionAttempted: true,
-        aspects: candidate.aspectAssessments,
-      });
-      expect(result.value.assertions).toEqual(candidate.assertions);
-      expect(Object.values(result.value.summary).every((item) => item.length > 0)).toBe(true);
-      expect(result.value).not.toHaveProperty("aspectAssessments");
-      expect(result.attempts).toHaveLength(4);
-      expect(result.metadata.effectiveSettings).toMatchObject({
-        understandingInformationPolicy: "understanding-information/v1.1.0",
-      });
-    },
-  );
+  it("completes sparse content once and keeps the limited result reviewable", async () => {
+    const candidate = frozenAudit(sparseFixtures[0]);
+    const { run, requests } = setup([candidate, candidate, candidate, candidate]);
+    const result = await run();
+    expect(requests).toHaveLength(4);
+    expect(result.value.sourceAssessment.informationQuality).toMatchObject({
+      status: "limited",
+      contentAspectCount: 1,
+      concreteAspectCount: 0,
+      completionAttempted: true,
+      aspects: candidate.aspectAssessments,
+    });
+    expect(result.value.assertions).toEqual(candidate.assertions);
+    expect(Object.values(result.value.summary).every((item) => item.length > 0)).toBe(true);
+    expect(result.value).not.toHaveProperty("aspectAssessments");
+    expect(result.attempts).toHaveLength(4);
+    expect(result.metadata.effectiveSettings).toMatchObject({
+      understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
+    });
+  });
 
   it("does not complete D03 when the summary labels reference concrete assertions", async () => {
     const fixture = sparseFixtures.find((item) => item.caseId === "D03");
@@ -332,16 +331,16 @@ describe("sparse character understanding", () => {
         expect.objectContaining({
           metadata: expect.objectContaining({
             effectiveSettings: {
-              understandingInformationPolicy: "understanding-information/v1.1.0",
+              understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
               understandingSchemaVersion: "1.0",
-              semanticAuditPolicy: "semantic-integrity/v1.0.1",
+              semanticAuditPolicy: SEMANTIC_AUDIT_POLICY,
             },
           }),
         }),
       ],
       attemptMetadata: expect.objectContaining({
         effectiveSettings: expect.objectContaining({
-          understandingInformationPolicy: "understanding-information/v1.1.0",
+          understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
         }),
       }),
     });

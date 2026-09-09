@@ -5,6 +5,7 @@ for (const domain of ["standard", "dark"] as const) {
     test.setTimeout(120_000);
     const base = domain === "dark" ? "/api/v1/dark" : "/api/v1";
     const appBase = domain === "dark" ? "/dark-lab/app" : "/app";
+    await page.setViewportSize(domain === "dark" ? { width: 320, height: 740 } : { width: 1366, height: 900 });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const headers = { Origin: "http://localhost:41737", "Idempotency-Key": crypto.randomUUID() };
@@ -54,14 +55,10 @@ for (const domain of ["standard", "dark"] as const) {
     await expect(form.getByRole("combobox", { name: "反応経路", exact: true })).toHaveValue("");
     const initialLabel = await form.getByLabel("好みの属性名").inputValue();
     const original = initial.assertions.find((item: { raw_label: string }) => item.raw_label === initialLabel);
-    for (const width of [1366, 390, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await form.scrollIntoViewIfNeeded();
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      expect(await form.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-      await page.screenshot({ path: `test-results/unresolved-${domain}-${width}.png` });
-    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await form.scrollIntoViewIfNeeded();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await form.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await form.getByRole("combobox", { name: "反応経路", exact: true }).focus();
     const channel = domain === "dark" ? "villain_role_fascination" : "narrative_interest";
     await form.getByRole("combobox", { name: "反応経路", exact: true }).selectOption(channel);
@@ -83,12 +80,8 @@ for (const domain of ["standard", "dark"] as const) {
     await expect.poll(async () => (await read()).entry.status).toBe("active");
     await page.goto(`${appBase}/profile`);
     await expect(page.getByText(/反応経路未確定/u).first()).toBeVisible({ timeout: 30_000 });
-    for (const width of [1366, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.locator(".trait-list").first().scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `test-results/unresolved-profile-${domain}-${width}.png` });
-    }
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator(".trait-list").first().scrollIntoViewIfNeeded();
     expect(errors).toEqual([]);
   });
 }

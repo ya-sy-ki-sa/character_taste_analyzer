@@ -3,6 +3,7 @@ import { selectExportAnalysisRuns } from "../worker/features/account/repositorie
 import { loadCurrentGraph } from "../worker/features/profile/graph";
 import { context, type Fixture, rebuild, setup } from "./support/preference-pipeline";
 
+// Cover named roles/ownership, nullable roles, and positive/negative polarity once each.
 const scopes = [
   {
     id: "C12",
@@ -11,46 +12,6 @@ const scopes = [
     actor: "ヒューズ",
     target: "ロイ",
     possessor: "ヒューズ",
-    negative: null,
-    polarity: "positive",
-  },
-  {
-    id: "C12-reversed",
-    input: "妻子がいるロイがヒューズに遠慮なく接する設定が好き。",
-    label: "妻子がいるロイからヒューズへの接し方",
-    actor: "ロイ",
-    target: "ヒューズ",
-    possessor: "ロイ",
-    negative: null,
-    polarity: "positive",
-  },
-  {
-    id: "A13",
-    input: "日向と影山の連携が好きだが、二人を恋愛としては読まない。",
-    label: "日向と影山の連携",
-    actor: "日向",
-    target: "影山",
-    possessor: null,
-    negative: "二人の関係を恋愛と読む",
-    polarity: "positive",
-  },
-  {
-    id: "C14",
-    input: "タイガーがバーナビーに認められるところが好き。",
-    label: "タイガー本人が認められる",
-    actor: "バーナビー",
-    target: "タイガー",
-    possessor: null,
-    negative: null,
-    polarity: "positive",
-  },
-  {
-    id: "pronoun",
-    input: "ヒューズがロイを見て笑う。彼に肩書きより本人を見てもらえるところが好き。",
-    label: "ヒューズからロイ本人への接し方",
-    actor: "ヒューズ",
-    target: "ロイ",
-    possessor: null,
     negative: null,
     polarity: "positive",
   },

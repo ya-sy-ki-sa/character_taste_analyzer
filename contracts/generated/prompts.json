@@ -1,23 +1,23 @@
 {
   "semanticIntegrity": {
-    "promptVersion": "semantic-integrity/v1.0.1",
-    "sha256": "58e219e4cc4e99785948c62fa8da16395fd59727ba8925c13325b4d5f7d69e85"
+    "promptVersion": "semantic-integrity/v1.0.2",
+    "sha256": "5d6e51cdbba292f7ea749c0b2202ace0978392b22f6a2f3d0de60e79d9a37537"
   },
   "understandingInformation": {
-    "promptVersion": "understanding-information/v1.1.0",
-    "sha256": "1d3eb06fbd8f1007b525045b7e230d634db674c7e8204dcd725099c091ac5aa7"
+    "promptVersion": "understanding-information/v1.1.1",
+    "sha256": "71806e8aac7a29284a05994c30f768889e97661984cbf5e238d2699a89596247"
   },
   "preference": {
-    "promptVersion": "preference/v3.2.0",
-    "sha256": "d8ffc77d3e2b3bec2f89f1f5b1c185a07f355d273625971d76e36fcecf02027b"
+    "promptVersion": "preference/v3.3.1",
+    "sha256": "bbe540b3069f661de810ac38bac3449eb80339617206eb52a1fa4b3d66125182"
   },
   "citationVerification": {
     "promptVersion": "external-id/v1.0.0",
     "sha256": "7a053e3e2f527e7e777a2cc83a48eba3c777d6680184592d0449a2b4652ab4ec"
   },
   "preferenceHypotheses": {
-    "promptVersion": "preference_hypotheses/v2.1.0",
-    "sha256": "20f0e16749ab1cd35f5c31e27fad38ddb2f034c4a5bd99ba6db15ca787abea8e"
+    "promptVersion": "preference_hypotheses/v2.2.1",
+    "sha256": "9964218b69c0a31ee5beb4ad6316454194eaf19c1428865ec01a8bdbf40af106"
   },
   "darkAnalysis": {
     "promptVersion": "dark_analysis/v2.0.0",

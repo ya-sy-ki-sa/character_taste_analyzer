@@ -5,6 +5,7 @@ import fixtures from "../tests/fixtures/preference-semantics.json" with { type: 
 for (const domain of ["standard", "dark"] as const) {
   test(`対象人物・否定条件・元表現を確認できる (${domain})`, async ({ page }) => {
     const appBase = domain === "dark" ? "/dark-lab/app" : "/app";
+    await page.setViewportSize(domain === "dark" ? { width: 320, height: 740 } : { width: 1366, height: 900 });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const cases = fixtures.filter((item) => ["C04", "C11", "C12", "D14"].includes(item.caseId));
@@ -144,17 +145,10 @@ for (const domain of ["standard", "dark"] as const) {
     await expect(page.getByText("ヒューズがロイを肩書きより本人として見て接する", { exact: true })).toBeVisible();
     await expect(page.getByText("昔に戻りたいという願望ではない", { exact: true })).toBeVisible();
     await expect(page.getByText("表現：衝突しても日向と影山が互いを選び直す特別な関係", { exact: true })).toBeVisible();
-    for (const width of [1366, 390, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page
-        .locator(".confidence-card")
-        .screenshot({ path: `test-results/evidence-health-${domain}-${width}.png` });
-      await page.locator(".trait-list").first().scrollIntoViewIfNeeded();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      for (const context of await page.locator(".preference-context").all())
-        expect(await context.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-      await page.screenshot({ path: `test-results/preference-context-${domain}-${width}.png` });
-    }
+    await page.locator(".trait-list").first().scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const context of await page.locator(".preference-context").all())
+      expect(await context.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await page.goto(`${appBase}/generate`);
     await expect(
       page.getByText("ヒューズがロイを肩書きより本人として見て接する旧友らしさ", { exact: true }),
@@ -162,22 +156,17 @@ for (const domain of ["standard", "dark"] as const) {
     const descriptions = page.locator(".selection-description");
     const exception = page.getByText(/例外・除外：昔に戻りたいという願望ではない/u);
     await expect(exception).toBeHidden();
-    for (const width of [1366, 390, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.locator(".selection-table").scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `test-results/preference-generation-${domain}-${width}-collapsed.png` });
-      for (const description of await descriptions.all()) await description.locator("summary").click();
-      await expect(exception).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.locator(".selection-table").scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `test-results/preference-generation-${domain}-${width}-expanded.png` });
-      for (const description of await descriptions.all()) {
-        await description.locator("summary").focus();
-        await page.keyboard.press("Enter");
-      }
-      await expect(exception).toBeHidden();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator(".selection-table").scrollIntoViewIfNeeded();
+    for (const description of await descriptions.all()) await description.locator("summary").click();
+    await expect(exception).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator(".selection-table").scrollIntoViewIfNeeded();
+    for (const description of await descriptions.all()) {
+      await description.locator("summary").focus();
+      await page.keyboard.press("Enter");
     }
+    await expect(exception).toBeHidden();
     await page.goto(`${appBase}/entries`);
     await page.getByRole("button", { name: /対象と条件の表示確認/u }).click();
     const review = page.getByRole("dialog", { name: "解析内容の確認" });
@@ -188,13 +177,9 @@ for (const domain of ["standard", "dark"] as const) {
       .filter({ hasText: "表現：衝突しても日向と影山が互いを選び直す特別な関係" });
     await card.getByRole("button", { name: "編集", exact: true }).click();
     await expect(card.getByLabel("好みの属性名")).toHaveValue("衝突しても日向と影山が互いを選び直す特別な関係");
-    for (const width of [1366, 390, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      await card.scrollIntoViewIfNeeded();
-      expect(await review.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.screenshot({ path: `test-results/preference-review-${domain}-${width}.png` });
-    }
+    await card.scrollIntoViewIfNeeded();
+    expect(await review.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
   });
 }

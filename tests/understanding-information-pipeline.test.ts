@@ -3,6 +3,7 @@ import { reviewDetailSchema } from "../shared/contracts/entry-review";
 import { selectExportUnderstandingSnapshots } from "../worker/features/account/repositories/exports";
 import { loadEntryReview } from "../worker/features/entries/review";
 import { mutateUnderstandingReview } from "../worker/features/entries/understanding-review";
+import { UNDERSTANDING_INFORMATION_POLICY } from "../worker/llm/prompts/understanding";
 import explicitFixtures from "./fixtures/explicit-preferences.json";
 import sparseFixtures from "./fixtures/sparse-understanding.json";
 import { rebuild, setup } from "./support/preference-pipeline";
@@ -43,7 +44,7 @@ describe("understanding information quality storage and continuation", () => {
       .all();
     expect(metadata).toHaveLength(2);
     for (const row of metadata) {
-      expect(row.prompt_version).toContain("understanding-information/v1.1.0");
+      expect(row.prompt_version).toContain(UNDERSTANDING_INFORMATION_POLICY);
       expect(row.schema_version).toBe("1.0");
     }
   });

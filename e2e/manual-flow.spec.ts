@@ -243,9 +243,7 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await page.setViewportSize({ width: 320, height: 740 });
   expect(await generatedDialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await generatedDialog.getByRole("heading", { name: /合格した \d 案を比較/u }).scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "test-results/quality-standard-320.png" });
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.screenshot({ path: "test-results/quality-standard-desktop.png" });
   await generatedDialog.getByRole("button", { name: "閉じる", exact: true }).click();
 
   page.once("dialog", (dialog) => dialog.accept());

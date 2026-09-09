@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 for (const domain of ["standard", "dark"] as const) {
   test(`質問文と仮説の作成・再作成・選択で既存の好みを保持する (${domain})`, async ({ page }) => {
     test.setTimeout(120_000);
+    await page.setViewportSize(domain === "dark" ? { width: 320, height: 740 } : { width: 1366, height: 900 });
     const base = domain === "dark" ? "/api/v1/dark" : "/api/v1";
     const appBase = domain === "dark" ? "/dark-lab/app" : "/app";
     const errors: string[] = [];
@@ -67,15 +68,10 @@ for (const domain of ["standard", "dark"] as const) {
     await expect(candidates.getByRole("checkbox").first()).not.toBeChecked();
     await expect(candidates.getByRole("button", { name: "決定", exact: true })).toBeDisabled();
     expect((await read()).preferenceAnalysis.assertions).toEqual(initial.assertions);
-    await page.setViewportSize({ width: 1366, height: 900 });
-    await candidates.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `test-results/refinement-${domain}-desktop.png` });
-    await page.setViewportSize({ width: 320, height: 740 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await candidates.scrollIntoViewIfNeeded();
     expect(await candidates.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: `test-results/refinement-${domain}-320.png` });
     await candidates.getByRole("checkbox").first().check();
     await candidates.getByRole("button", { name: "決定", exact: true }).click();
     await expect.poll(async () => (await read()).preferenceAnalysis.id, { timeout: 30_000 }).not.toBe(initial.id);

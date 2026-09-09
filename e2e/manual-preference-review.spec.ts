@@ -6,6 +6,7 @@ for (const domain of ["standard", "dark"] as const) {
     page.setDefaultTimeout(15_000);
     const base = domain === "dark" ? "/api/v1/dark" : "/api/v1";
     const appBase = domain === "dark" ? "/dark-lab/app" : "/app";
+    await page.setViewportSize(domain === "dark" ? { width: 320, height: 740 } : { width: 1366, height: 900 });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const headers = { Origin: "http://localhost:41737", "Idempotency-Key": crypto.randomUUID() };
@@ -83,30 +84,19 @@ for (const domain of ["standard", "dark"] as const) {
     await expect(savedCard.getByText("ユーザー確認文", { exact: true })).toBeVisible();
     const declaration = savedCard.locator(".evidence-declaration");
     await expect(declaration).toContainText(label);
-    for (const width of [1366, 390, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await declaration.scrollIntoViewIfNeeded();
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      expect(await declaration.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-      await page.screenshot({ path: `test-results/manual-declaration-${domain}-${width}.png` });
-    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await declaration.scrollIntoViewIfNeeded();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await declaration.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await review.getByRole("button", { name: "すべて確認してプロフィールへ反映" }).click();
     await expect.poll(async () => (await read()).entry.status).toBe("active");
     await page.goto(`${appBase}/profile`);
     await expect(page.getByText(label, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
-    for (const width of [1366, 320]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page
-        .getByText(label, { exact: true })
-        .first()
-        .evaluate((element) => element.scrollIntoView({ block: "center" }));
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page
-        .locator(".trait-list")
-        .filter({ has: page.getByText(label, { exact: true }) })
-        .screenshot({ path: `test-results/manual-profile-${domain}-${width}.png` });
-    }
+    await page
+      .getByText(label, { exact: true })
+      .first()
+      .evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
   });
 }

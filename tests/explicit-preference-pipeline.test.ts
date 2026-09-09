@@ -16,7 +16,9 @@ import semanticFixtures from "./fixtures/preference-semantics.json";
 import { context, type Fixture, rebuild, scriptedCandidate, setup } from "./support/preference-pipeline";
 
 describe("frozen explicit preferences", () => {
-  it.each(fixtures)(
+  // Unresolved preferences + value stance, known channel, and empty output cover distinct storage paths.
+  // Other wording examples remain available for evaluation; scripted responses cannot judge their semantics.
+  it.each(fixtures.filter((item) => ["B05", "A12", "B03"].includes(item.caseId)))(
     "preserves $caseId content, quotes and qualifications through the existing two calls",
     async (fixture) => {
       const result = await setup("standard", fixture);
@@ -251,7 +253,8 @@ describe.each(["standard", "dark"] as const)("unresolved reaction in %s", (domai
 
 // Expected outputs below are authored semantic examples, not evidence of live-model accuracy.
 describe.each(["standard", "dark"] as const)("semantic scope transport in %s", (domain) => {
-  it.each(semanticFixtures)(
+  // Opposite polarities, revised summary, dictionary mapping, and mixed known/unresolved channels.
+  it.each(semanticFixtures.filter((item) => ["C11", "C12", "C04", "D09"].includes(item.caseId)))(
     "retains $caseId polarity, people and exceptions from audit to generation",
     async (frozen) => {
       const fixture: Fixture = {
