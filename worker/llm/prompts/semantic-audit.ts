@@ -1,8 +1,8 @@
-export const SEMANTIC_AUDIT_POLICY = "semantic-integrity/v1.2.0";
+export const SEMANTIC_AUDIT_POLICY = "semantic-integrity/v1.3.0";
 export const SEMANTIC_AUDIT_SCHEMA_VERSION = "1.1";
 const SEMANTIC_AUDIT_COMMON = `改訂した最終候補それぞれにscopeAssessmentとevidenceSetAssessment、各evidenceにsupportAssessmentを付けてください。判定は改訂前ではなく、実際に返すラベル・描写・極性・条件・例外・要約の意味に対して行います。
 1. 原文の命題を確認します。actor（行為者）、target（対象）、possessor（所有・所属の主体）、evaluatedProposition（評価している命題）、negatedProposition（否定されている命題）を区別します。該当しない人物・否定はnull。anchorsには原文と入力Pointerまたは出典を付けます。対象・所有・否定の対応が最終候補全体で整合するならconsistent、誤りが残るならmismatch、決められないならuncertainとし、具体的なreasonを述べます。
-例：『妻子がいる人物Aが人物Bに接する』の妻子の所有者は人物Aです。『二人を恋愛として読まない』は関係解釈の否定で、ユーザー自身の恋愛感情の否定ではありません。『人物Aが認められる』は人物A本人への承認で、関係性が公認されることではありません。登録人物へ主語を置換しないでください。代名詞は指す人物を原文から確定します。
+例：『妻子がいる人物Aが人物Bに接する』の妻子の所有者は人物Aです。『二人を恋愛として読まない』は関係解釈の否定で、ユーザー自身の恋愛感情の否定ではありません。『人物Aが認められる』は人物A本人への承認で、関係性が公認されることではありません。登録人物へ主語を置換しないでください。代名詞は原文から解決できる範囲で扱い、未指定の行為者・相手は補いません。ユーザーの経験や反応をキャラクターの行動・状態へ移さず、anchorsがその主体も支持するか確認してください。
 
 2. 各引用が主張全体（対象・極性・条件も含む）を意味的に支持するか、supported/partial/unsupported/contradicted/unverifiableで判定します。原文に文字列が存在するだけではsupportedではありません。名前・所属・媒体・時期の引用は、具体的な行動・動機・関係の根拠にはなりません。複数の根拠で主張全体を支える場合、個々の引用はpartialのまま担当範囲をreasonへ記します。
 3. evidenceSetAssessmentでは根拠の集合が最終主張全体を支持するかを同じ5段階で判定し、reasonに各根拠の結びつきと全体を支持できる理由または不足を記します。evidenceIndexesには採用に必要な根拠の0始まりのインデックスを重複なく指定します。supportedとするには1〜3件の有効な根拠が必要で、個別判定がsupported/partialの根拠だけを使います。引用を並べただけでなく、対象・極性・条件・例外のすべてを組み合わせて支持することを確認します。単独で全体を支持する場合もその1件を指定します。根拠の集合でも不足するなら、同じ監査内で主張を支持範囲へ狭めて再判定し、消せない不足が残るならpartialのままにします。照合可能な根拠がなくモデル知識のみの場合はevidenceSetAssessment=nullにします。原文・出典本文がなく照合できない情報はunverifiableです。
@@ -13,6 +13,6 @@ export const UNDERSTANDING_SEMANTIC_AUDIT_INSTRUCTION = `${SEMANTIC_AUDIT_COMMON
 モデル知識の確信度は上げず、公開資料がないという理由だけでは人物像を削除しません。無効な出典をモデル知識へ読み替えてはいけません。確定できない人物描写は修正・除去し、summaryとuncertaintiesも一致させてください。嗜好は分析しません。`;
 
 export const PREFERENCE_SEMANTIC_AUDIT_INSTRUCTION = `${SEMANTIC_AUDIT_COMMON}
-『改心しないところが好き』はその状態への肯定です。『好きとは限らない』は嫌悪の断定ではありません。『支配として見たくない』は支配という解釈への否定で、対等であることへの否定ではありません。否定を一律反転せず、肯定と否定が別条件なら分けてください。
+evaluatedPropositionとnegatedPropositionでは、対象への好悪とユーザーの反応の有無を区別します。反応の否定だけをnegative属性の支持にせず、対象・極性がどの命題から支持されるかを判定してください。
 確認済み人物理解は人物理解の資料であり、ユーザーがその属性を好きだという根拠ではありません。evidenceSetAssessmentに採用する根拠はすべてユーザー入力でなければなりません。モデル知識からユーザーの好みを作らず、無効な出典をモデル知識へ読み替えてはいけません。
 確定できない好みはuncertaintiesへ理由と確認質問を残し、原文に明示された好意自体はsummary.userExplicitSummaryに保持します。経路だけ未確定ならresponseChannel=nullのまま候補を保持します。`;

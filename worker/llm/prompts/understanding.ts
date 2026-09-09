@@ -1,7 +1,7 @@
 import { understandingAspectLabels } from "../../../shared/understanding-aspects";
 import { SYSTEM_INSTRUCTION } from "./analysis";
 import { UNDERSTANDING_SEMANTIC_AUDIT_INSTRUCTION } from "./semantic-audit";
-export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.3.0";
+export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.4.0";
 
 export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `キャラクター像の7項目（${Object.entries(
   understandingAspectLabels,

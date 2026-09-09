@@ -344,7 +344,7 @@ export async function run(browser, validateInput) {
     preserveJson(`${root}/exports/${p.id}-${label}.json`, await download.json());
     event("export_saved", { personaId: p.id, label });
   }
-  for (const p of dataset.personas) {
+  for (const p of dataset.personas.filter((p) => dataset.cases.some((c) => c.personaId === p.id))) {
     const context = await browser.newContext({ baseURL: base, viewport: { width: 1440, height: 1000 } });
     const page = await context.newPage();
     page.setDefaultTimeout(30_000);
