@@ -233,7 +233,7 @@ test("ログイン後に3方式の登録画面と主要画面を操作できる"
   await expect(page.getByRole("heading", { name: "オリジナルキャラクター作成" })).toBeVisible();
   await expect(page.getByLabel("改心・贖罪", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("隠れた善性", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: /選択した\d+項目から作成/u }).click();
+  await page.getByRole("button", { name: /選択した\d+項目（\d+小項目）から作成/u }).click();
   await expect(page.getByRole("heading", { name: "霧綴のエナ" })).toBeVisible({ timeout: 20_000 });
   await page.locator("button.generation-card", { hasText: "霧綴のエナ" }).click();
   const generatedDialog = page.getByRole("dialog", { name: "霧綴のエナ" });

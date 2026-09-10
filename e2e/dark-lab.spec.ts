@@ -127,8 +127,10 @@ test("堕落前ベースラインを通常属性へ混ぜず、専用差分か�
   await expect(page.getByText(/確認済み 1人／1作品/u).first()).toBeVisible();
 
   await page.goto("/dark-lab/app/generate");
-  await expect(page.getByRole("button", { name: /選択した\d+項目から作成/u })).toBeEnabled({ timeout: 20_000 });
-  await page.getByRole("button", { name: /選択した\d+項目から作成/u }).click();
+  await expect(page.getByRole("button", { name: /選択した\d+項目（\d+小項目）から作成/u })).toBeEnabled({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: /選択した\d+項目（\d+小項目）から作成/u }).click();
   await expect(page.getByRole("heading", { name: "霧綴のエナ" })).toBeVisible({ timeout: 20_000 });
   await page.locator("button.generation-card", { hasText: "霧綴のエナ" }).click();
   await expect(page.getByRole("heading", { name: "ダーク状態・主体性・変化" })).toBeVisible();

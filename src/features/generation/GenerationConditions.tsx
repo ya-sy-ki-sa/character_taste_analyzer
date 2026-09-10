@@ -41,6 +41,7 @@ export function GenerationConditions({
   groupedSnapshotItems,
   submit,
   selectedCount,
+  selectedGroupCount,
 }: Pick<
   ReturnType<typeof useGeneration>,
   | "mode"
@@ -66,6 +67,7 @@ export function GenerationConditions({
   | "groupedSnapshotItems"
   | "submit"
   | "selectedCount"
+  | "selectedGroupCount"
 >) {
   if (!snapshot.data?.snapshot) return null;
   return (
@@ -228,7 +230,7 @@ export function GenerationConditions({
           className="button button-primary button-generate"
           disabled={submitting || selectedCount === 0}
         >
-          {submitting ? "生成条件を保存中…" : `✦ 選択した${selectedCount}項目から作成`}
+          {submitting ? "生成条件を保存中…" : `✦ 選択した${selectedGroupCount}項目（${selectedCount}小項目）から作成`}
         </button>
       </Card>
     </form>

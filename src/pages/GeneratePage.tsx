@@ -41,6 +41,7 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
     removeHistory,
     selectCandidate,
     selectedCount,
+    selectedGroupCount,
   } = useGeneration({ domain });
   return (
     <>
@@ -84,6 +85,7 @@ export function GeneratePage({ domain }: { domain: AnalysisDomain }) {
           groupedSnapshotItems={groupedSnapshotItems}
           submit={submit}
           selectedCount={selectedCount}
+          selectedGroupCount={selectedGroupCount}
         />
       )}
       <section className="section-block">

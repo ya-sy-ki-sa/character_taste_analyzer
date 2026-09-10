@@ -133,7 +133,13 @@ export function useGeneration({ domain }: { domain: AnalysisDomain }) {
       setSelecting(false);
     }
   }
-  const selectedCount = expandSnapshotTreatments(groupedSnapshotItems, treatments, overrides).selectedItemIds.length;
+  const selectedItemIds = new Set(
+    expandSnapshotTreatments(groupedSnapshotItems, treatments, overrides).selectedItemIds,
+  );
+  const selectedCount = selectedItemIds.size;
+  const selectedGroupCount = groupedSnapshotItems.filter((group) =>
+    group.itemIds.some((id) => selectedItemIds.has(id)),
+  ).length;
 
   return {
     mode,
@@ -168,5 +174,6 @@ export function useGeneration({ domain }: { domain: AnalysisDomain }) {
     removeHistory,
     selectCandidate,
     selectedCount,
+    selectedGroupCount,
   };
 }
