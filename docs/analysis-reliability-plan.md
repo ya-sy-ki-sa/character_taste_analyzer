@@ -100,3 +100,5 @@ default切り分け記録 `.artifacts/live-evaluation/20260912-user-a-default-di
 保存済みA15出力と出典のコピーを使うoffline replayでは、本文の復号だけで引用2件がinvalidからverified_quoteへ変わり、人物像の主張1件が不採用から採用へ変わった。もう1件は意味監査の条件で不採用のまま、誤字のある引用1件もinvalidのまま。既存DB・過去の評価成果物は更新していない。詳細は `.artifacts/analysis-scope-repair/entity-replay.json`。
 
 Worker実行環境でのHTML解析・復号・引用位置、通常版／dark版の本文非送信、照応指示の単一組込み、入力予算、範囲を狭めたinferredの自己類似の保存・集計を関連テストで確認する。固定応答テストはLLMが正しく範囲を狭める精度を保証しない。今回の改修後の実LLM登録評価は未実施であり、A06・A13等の意味品質は再評価が必要。長い外部出典IDの誤写、PDF非対応は今回の修正範囲外である。
+
+追加修正の最終検証は`npm run verify`で成功した。単体テスト722件（58ファイル）、契約テスト、型検査、生成物整合、アーキテクチャ、ライセンス、ビルド、secret scan、bundle budget、専用E2E32件が通過した。既存lint警告21件は残る。WebKitは`libgtk-4.so.1`不足により既存設定で対象外。ログは `.artifacts/analysis-scope-repair/verify.log`。
