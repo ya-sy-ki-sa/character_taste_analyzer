@@ -18,9 +18,37 @@ import {
 } from "../worker/llm/prompts/generation";
 import { hypothesisSystem } from "../worker/llm/prompts/hypotheses";
 import { preferenceSystem } from "../worker/llm/prompts/preference";
+import { REFERENCE_SCOPE_INSTRUCTION } from "../worker/llm/prompts/reference-scope";
+import { promptRegistry } from "../worker/llm/prompts/registry";
 import { understandingSystem } from "../worker/llm/prompts/understanding";
 
 describe("prompt composition boundaries", () => {
+  it("keeps extraction and audit within the pre-repair input budget", () => {
+    for (const [key, chars, bytes] of [
+      ["preference", 9990, 23260],
+      ["preferenceAudit", 12594, 28900],
+      ["darkPreference", 7425, 17941],
+      ["darkPreferenceAudit", 7706, 18678],
+      ["semanticIntegrity", 2322, 4902],
+      ["understandingSemanticIntegrity", 2025, 4177],
+      ["understandingInformation", 4934, 10192],
+    ] as const) {
+      const { text } = promptRegistry[key];
+      expect(text.length).toBeLessThanOrEqual(chars);
+      expect(new TextEncoder().encode(text).byteLength).toBeLessThanOrEqual(bytes);
+    }
+  });
+  it("composes one shared reference policy in every applicable extraction and audit", () => {
+    for (const text of [
+      understandingSystem("audit"),
+      ...(["standard", "dark"] as const).flatMap((domain) =>
+        (["extract", "audit"] as const).map((stage) => preferenceSystem(domain, stage)),
+      ),
+    ]) {
+      expect(text.split(REFERENCE_SCOPE_INSTRUCTION)).toHaveLength(2);
+      expect(text).not.toContain("未指定の行為者・相手を補わず");
+    }
+  });
   it("shares the complete response catalog between standard extraction and audit, with one copy per system", () => {
     for (const stage of ["extract", "audit"] as const) {
       const text = preferenceSystem("standard", stage);

@@ -21,7 +21,7 @@ import { PREFERENCE_PROMPT_VERSION, PREFERENCE_SCHEMA_VERSION, preferenceSystem 
 import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../../llm/prompts/semantic-audit";
 import type { LlmRunMetadata } from "../../llm/types";
 import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
-import { loadInputProvenanceSources } from "../../platform/provenance/sources";
+import { loadInputProvenanceSources, provenanceForPrompt } from "../../platform/provenance/sources";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import { claimJob, type JobClaim } from "../jobs/execution";
 import { handleAnalysisAttemptFailure } from "./attempt-failure";
@@ -280,7 +280,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
             refinement: entry.refinement,
             refinementInstruction: refinementInstruction(entry),
             previousReviews,
-            sources: provenanceSources,
+            sources: provenanceForPrompt(provenanceSources),
             ontology,
           })}`,
         },
@@ -444,7 +444,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
               .map((item) => item.rawLabel),
           ].slice(0, 50),
           limitations: [
-            ...result.value.summary.limitations,
+            ...retained.summary.limitations,
             ...rejected.map((item) => `${item.label}：${item.reason}`),
           ].slice(-50),
         };
@@ -453,7 +453,8 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
           ...rejected.map((item) => ({
             topic: item.label.slice(0, 500),
             reason: item.reason ?? "対象または意味的な根拠を確認できません。",
-            recommendedQuestion: `「${item.label.slice(0, 200)}」について、誰のどの行動・関係・条件への好みですか？`,
+            // A failed audit does not identify a missing user answer.
+            recommendedQuestion: null,
           })),
         ].slice(-50);
       }

@@ -60,8 +60,8 @@ export const responseChannelCatalog = [
   },
   {
     value: "root_for",
-    label: "成功・勝利を応援したい",
-    description: "善悪にかかわらず、望む結果を得てほしい",
+    label: "応援したい",
+    description: "善悪にかかわらず、応援したい・うまくいってほしい",
     tier: "popular",
     category: "popular",
   },

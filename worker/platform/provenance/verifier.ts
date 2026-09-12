@@ -85,7 +85,7 @@ export async function verifyEvidenceReference(
       : external
         ? sources.find((item) => item.url && canonicalSourceUrl(item.url) === matchedCanonicalUrl)
         : undefined;
-  if (external && !source) return invalidExternal("source_unavailable");
+  if (external && !source?.text.trim()) return invalidExternal("source_unavailable");
   if (!source && evidence.sourceRef?.startsWith("input:")) {
     const pointer = canonicalEntryInputPointer(evidence.sourceRef.slice("input:".length));
     source = sources.find((item) => canonicalEntryInputPointer(item.inputPointer) === pointer);

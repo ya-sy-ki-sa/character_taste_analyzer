@@ -3,6 +3,7 @@ import type { DarkBaselineUnderstanding } from "../../../shared/contracts/dark-u
 import { nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
+import { createDocumentLoader } from "../../platform/provenance/document";
 import { CITATION_POLICY_VERSION } from "../../platform/provenance/registry";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import { claimJob, type JobClaim } from "../jobs/execution";
@@ -51,8 +52,9 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
     if (params.analysisDomain === "dark" && (await ensureDarkScope(env, params, entry, research, claim)) === "waiting")
       return;
 
+    const loadDocument = createDocumentLoader(env.LLM_PROVIDER === "openai");
     const normalizeAudit: NormalizeUnderstandingAudit = async (audit, citations, completionAttempted) => {
-      const provenance = await prepareUnderstandingProvenance(env, entry, research, citations);
+      const provenance = await prepareUnderstandingProvenance(env, entry, research, citations, loadDocument);
       const issues: CitationIssue[] = [];
       const proofs = await Promise.all(
         audit.assertions.map((assertion) =>
@@ -72,10 +74,12 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         sourceAssessment: {
           ...normalized.sourceAssessment,
           limitations: [
-            ...normalized.sourceAssessment.limitations,
-            ...proofs.flatMap((proof, index) =>
-              proof.keep ? [] : [`${audit.assertions[index].rawLabel}: ${proof.audit.reason}`],
-            ),
+            ...new Set([
+              ...normalized.sourceAssessment.limitations,
+              ...proofs.flatMap((proof, index) =>
+                proof.keep ? [] : [`${audit.assertions[index].rawLabel}: ${proof.audit.reason}`],
+              ),
+            ]),
           ].slice(-50),
         },
       };
@@ -153,6 +157,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         ...(darkBaselineResult ? [darkBaselineResult] : []),
         ...(darkInitialResult ? [darkInitialResult] : []),
       ].flatMap((call) => call.metadata.citations ?? []),
+      loadDocument,
     );
     const { sources: provenanceSources, allowedUrls, registry: citationRegistry } = provenance;
 

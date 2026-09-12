@@ -30,13 +30,22 @@ export function selectSources(
     .bind(...bindings);
 }
 
-export function updateSources(
+export function updateSourceDocument(
   db: D1Database,
-  bindings: readonly [updatedCitationJson: unknown, now: unknown, source_id: unknown, ownerUserId: unknown],
+  bindings: readonly [
+    citation: unknown,
+    text: unknown,
+    bytes: unknown,
+    hash: unknown,
+    tokens: unknown,
+    now: unknown,
+    sourceId: unknown,
+    ownerId: unknown,
+  ],
 ): D1PreparedStatement {
   return db
-    .prepare(`UPDATE sources SET citation_json=?,updated_at=?
-               WHERE id=? AND owner_user_id=?`)
+    .prepare(`UPDATE sources SET citation_json=?,text_content=?,byte_size=?,content_hash=?,token_estimate=?,updated_at=?
+    WHERE id=? AND owner_user_id=?`)
     .bind(...bindings);
 }
 

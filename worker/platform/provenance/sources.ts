@@ -1,6 +1,7 @@
 import { nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import type { Env } from "../../types";
+import type { DocumentLoader } from "./document";
 import * as repository from "./repositories/sources";
 import { canonicalSourceUrl } from "./urls";
 import type { ProvenanceSource } from "./verifier";
@@ -9,6 +10,11 @@ export {
   ProvenanceVerificationError,
   verifyEvidenceReference,
 } from "./verifier";
+
+/** Keep fetched external bodies out of model context without changing verification sources. */
+export function provenanceForPrompt(sources: ProvenanceSource[]): ProvenanceSource[] {
+  return sources.map((source) => (source.url && source.origin === "source" ? { ...source, text: "" } : source));
+}
 
 export async function loadInputProvenanceSources(env: Env, sourceSetId: string | null): Promise<ProvenanceSource[]> {
   if (!sourceSetId) return [];
@@ -24,7 +30,13 @@ export async function loadInputProvenanceSources(env: Env, sourceSetId: string |
     const citation = JSON.parse(source.citation_json) as Record<string, unknown>;
     return {
       sourceId: source.id,
-      text: source.text_content,
+      text:
+        source.source_type !== "user_text" &&
+        (citation.textAvailable === false ||
+          (citation.textAvailable !== true &&
+            (source.text_content === citation.title || source.text_content === citation.url)))
+          ? ""
+          : source.text_content,
       inputPointer: typeof locator.pointer === "string" ? locator.pointer : null,
       url: typeof citation.url === "string" ? citation.url : null,
       origin: source.source_type === "user_text" ? ("user_input" as const) : ("source" as const),
@@ -43,6 +55,7 @@ export async function prepareExternalProvenanceSources(
     provider?: string;
     trustReason?: string;
   }>,
+  loadDocument?: DocumentLoader,
 ): Promise<{ sources: ProvenanceSource[]; statements: D1PreparedStatement[] }> {
   const result: ProvenanceSource[] = [];
   const prepared: D1PreparedStatement[] = [];
@@ -61,49 +74,65 @@ export async function prepareExternalProvenanceSources(
       text_content: string;
       citation_json: string;
     }>(repository.selectSources(env.DB, [ownerUserId, source.url]));
-    if (existing) {
-      if (source.provider || source.trustReason) {
-        const citation = JSON.parse(existing.citation_json) as Record<string, unknown>;
-        const updatedCitation = {
-          ...citation,
-          ...(source.provider ? { provider: source.provider } : {}),
-          ...(source.trustReason ? { trustReason: source.trustReason } : {}),
-        };
-        if (JSON.stringify(updatedCitation) !== JSON.stringify(citation)) {
-          prepared.push(
-            repository.updateSources(env.DB, [JSON.stringify(updatedCitation), now, existing.source_id, ownerUserId]),
-          );
+    const citation = existing ? (JSON.parse(existing.citation_json) as Record<string, unknown>) : {};
+    const existingText =
+      existing &&
+      citation.textAvailable !== false &&
+      (citation.textAvailable === true ||
+        (existing.text_content !== citation.title && existing.text_content !== citation.url))
+        ? existing.text_content
+        : "";
+    const document = existingText
+      ? // Preserve stored quote offsets in documents already used by earlier registrations.
+        {
+          text: existingText,
+          status: typeof citation.documentStatus === "string" ? citation.documentStatus : "stored_excerpt",
         }
+      : await loadDocument?.(source.url);
+    const excerpt = source.excerpt?.trim() ?? "";
+    const text = document?.text || (excerpt.length > existingText.length ? excerpt : existingText);
+    const storedText = text || source.title || source.url;
+    const updatedCitation = {
+      ...citation,
+      url: source.url,
+      title: source.title,
+      provider: source.provider ?? citation.provider ?? null,
+      trustReason: source.trustReason ?? citation.trustReason ?? null,
+      documentStatus: document?.status ?? "not_fetched",
+      textAvailable: Boolean(text),
+    };
+    if (existing) {
+      if (storedText !== existing.text_content || JSON.stringify(updatedCitation) !== JSON.stringify(citation)) {
+        prepared.push(
+          repository.updateSourceDocument(env.DB, [
+            JSON.stringify(updatedCitation),
+            storedText,
+            new TextEncoder().encode(storedText).byteLength,
+            await sha256Hex(storedText),
+            Math.ceil(storedText.length / 3),
+            now,
+            existing.source_id,
+            ownerUserId,
+          ]),
+        );
       }
       if (sourceSetId) prepared.push(repository.insertSourceSetItems(env.DB, [sourceSetId, existing.source_id]));
-      result.push({
-        sourceId: existing.source_id,
-        text: existing.text_content,
-        inputPointer: null,
-        url: source.url,
-        origin: "source",
-      });
+      result.push({ sourceId: existing.source_id, text, inputPointer: null, url: source.url, origin: "source" });
       continue;
     }
     const documentId = crypto.randomUUID();
-    const text = source.excerpt?.trim() || source.title;
-    const hash = await sha256Hex(text);
+    const hash = await sha256Hex(storedText);
     prepared.push(
       repository.insertSources(env.DB, [
         documentId,
         ownerUserId,
         source.title,
-        JSON.stringify({
-          url: source.url,
-          title: source.title,
-          provider: source.provider ?? null,
-          trustReason: source.trustReason ?? null,
-        }),
-        new TextEncoder().encode(text).byteLength,
+        JSON.stringify(updatedCitation),
+        new TextEncoder().encode(storedText).byteLength,
         hash,
         JSON.stringify({ type: "url", url: source.url }),
-        text,
-        Math.ceil(text.length / 3),
+        storedText,
+        Math.ceil(storedText.length / 3),
         now,
         now,
       ]),

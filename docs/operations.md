@@ -14,7 +14,7 @@ npm run db:migrate:local
 npm run dev
 ```
 
-`http://localhost:5173`を開きます。リポジトリ内のローカル標準設定は`.dev.vars`のOpenAI／Cloudflare AI Gateway設定を使い、LLMは`gpt-5.6-luna`、Embeddingは`text-embedding-3-small`です。秘密値はbuild成果物から除外されます。
+`http://localhost:5173`を開きます。リポジトリ内のローカル標準設定は`.dev.vars`のOpenAI／Cloudflare AI Gateway設定を使い、LLMは`gpt-5.6-luna`（effort未指定でモデルの既定値）、Embeddingは`text-embedding-3-small`です。秘密値はbuild成果物から除外されます。
 
 AI quotaを使わず全導線を確認する場合は次を使います。
 
@@ -41,7 +41,7 @@ npm run dev:offline
 | `replay` | ローカルE2E／CIの再現可能な応答 |
 | `fake` | 単体試験用の決定論的応答 |
 
-local/staging/productionの既定LLMはすべて`gpt-5.6-luna`です。ティア別の上書きは既定で空のため、全ティアで共通モデルを使います。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
+local/staging/productionの既定LLMはすべて`gpt-5.6-luna`、推論量は`LLM_REASONING_EFFORT`を空欄にしてモデルの既定値を使います。ティア別の上書きは既定で空のため、全ティアで共通モデルを使います。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
 
 OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
 

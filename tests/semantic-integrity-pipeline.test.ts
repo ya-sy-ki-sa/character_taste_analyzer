@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { selectExportAnalysisRuns } from "../worker/features/account/repositories/exports";
 import { loadCurrentGraph } from "../worker/features/profile/graph";
-import { context, type Fixture, rebuild, setup } from "./support/preference-pipeline";
+import { context, type Fixture, rebuild, scriptedCandidate, setup } from "./support/preference-pipeline";
 
 // Cover named roles/ownership, nullable roles, and positive/negative polarity once each.
 const scopes: Array<{
@@ -79,6 +79,63 @@ function fixture(row: (typeof scopes)[number]): Fixture {
   };
 }
 describe("scripted proposition audits through persistence and aggregation", () => {
+  it.each([
+    {
+      shared: "低身長",
+      character: "子どもの頃は低身長を工夫で補う姿が好き。",
+      user: "自分も背が低いから励まされる。",
+      motivation: "低身長を補う工夫",
+    },
+    {
+      shared: "失敗経験",
+      character: "子どもの頃は失敗しても再挑戦する姿が好き。",
+      user: "自分も失敗が多いから励まされる。",
+      motivation: "失敗後の再挑戦",
+    },
+  ])("persists narrowed inferred $shared separately from motivation", async (row) => {
+    const input = row.character + row.user;
+    const item: Fixture = {
+      caseId: `narrow-${row.shared}`,
+      preference: { likedReasons: input, responseChannels: [] },
+      expectedAssertions: [
+        { rawLabel: row.shared, quote: input, responseChannel: "actual_similarity", conditions: ["子どもの頃"] },
+        { rawLabel: row.motivation, quote: input, responseChannel: "motivation", conditions: ["子どもの頃"] },
+      ],
+      auditOverride(value) {
+        const assertion = value.preferenceAssertions[0];
+        assertion.explicitness = "inferred";
+        assertion.confidence = 0.7;
+        assertion.evidence = [row.character, row.user].map((quote) => ({
+          ...assertion.evidence[0],
+          quote,
+          inferenceType: "inferred",
+          supportAssessment: { verdict: "partial", reason: "人物側とユーザー側の共通部分を共同で支持" },
+        }));
+        assertion.evidenceSetAssessment = {
+          verdict: "supported",
+          evidenceIndexes: [0, 1],
+          reason: "共通部分への主観的な自己照合を支持",
+        };
+        assertion.scopeAssessment.evaluatedProposition = row.shared;
+        return value;
+      },
+    };
+    // The provider supplies the narrowing; this tests server acceptance and storage, not model accuracy.
+    item.generatedCandidate = scriptedCandidate(item);
+    item.generatedCandidate.preferenceAssertions[0].rawLabel = row.motivation;
+    const t = await setup("standard", item);
+    expect(t.analysis.assertions).toHaveLength(2);
+    expect(t.analysis.assertions.find((a) => a.response_channel === "actual_similarity")).toMatchObject({
+      raw_label: row.shared,
+      explicitness: "inferred",
+      context: { conditions: ["子どもの頃"] },
+    });
+    expect(t.analysis.assertions.find((a) => a.response_channel === "motivation")?.raw_label).toBe(row.motivation);
+    const profile = await rebuild(t, "standard");
+    expect(profile?.dimensions).toHaveLength(2);
+    for (const dimension of profile?.dimensions ?? [])
+      expect(dimension.condition).toMatchObject({ conditions: ["子どもの頃"] });
+  });
   it.each(scopes)("preserves $id subject, ownership and negation without extra calls", async (row) => {
     const t = await setup("standard", fixture(row));
     expect(t.analysis.assertions[0]).toMatchObject({
@@ -148,12 +205,15 @@ describe("scripted proposition audits through persistence and aggregation", () =
       const item = fixture(scopes[0]);
       item.auditOverride = (value) => {
         value.preferenceAssertions[0].scopeAssessment.verdict = verdict;
+        value.summary.limitations = ["old unverified channel interpretation"];
         return value;
       };
       const t = await setup("standard", item);
       expect(t.analysis.assertions).toEqual([]);
       expect(t.analysis.summary.userExplicitSummary).toContain(item.preference.likedReasons);
       expect(t.analysis.uncertainties.length).toBeGreaterThan(0);
+      expect(t.analysis.uncertainties.at(-1)?.recommendedQuestion).toBeNull();
+      expect(t.analysis.summary.limitations).not.toContain("old unverified channel interpretation");
       expect((await rebuild(t, "standard"))?.dimensions).toEqual([]);
     },
   );

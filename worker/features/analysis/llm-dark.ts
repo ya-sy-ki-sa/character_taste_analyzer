@@ -18,7 +18,7 @@ import {
   DARK_UNDERSTANDING_SYSTEM,
 } from "../../llm/prompts/dark";
 import { PREFERENCE_SCHEMA_VERSION, preferenceSystem } from "../../llm/prompts/preference";
-import { loadInputProvenanceSources } from "../../platform/provenance/sources";
+import { loadInputProvenanceSources, provenanceForPrompt } from "../../platform/provenance/sources";
 import type { Env } from "../../types";
 import { ontologyPrompt } from "./context";
 import {
@@ -141,7 +141,7 @@ export async function auditDarkUnderstanding(
     { role: "system" as const, content: DARK_UNDERSTANDING_AUDIT_SYSTEM },
     {
       role: "user" as const,
-      content: `システム収集資料: ${JSON.stringify(research)}\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n照合資料: ${JSON.stringify(auditSources)}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
+      content: `システム収集資料: ${JSON.stringify(research)}\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n照合資料: ${JSON.stringify(provenanceForPrompt(auditSources))}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
@@ -217,7 +217,7 @@ export async function auditDarkPreferences(
     { role: "system" as const, content: preferenceSystem("dark", "audit") },
     {
       role: "user" as const,
-      content: `確認済み理解: ${JSON.stringify(understanding)}\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n照合資料: ${JSON.stringify(auditSources)}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
+      content: `確認済み理解: ${JSON.stringify(understanding)}\n元の登録情報: ${JSON.stringify(entry.payload)}\n以前の好みの確認記録: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n照合資料: ${JSON.stringify(provenanceForPrompt(auditSources))}\n候補: ${JSON.stringify(sanitized)}\n許可Ontology: ${JSON.stringify([...allowedKeys])}`,
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));

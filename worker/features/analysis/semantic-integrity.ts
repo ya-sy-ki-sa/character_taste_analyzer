@@ -109,13 +109,27 @@ export async function verifySemanticAssertion(
     }
   }
   const accepted = new Set([...supportedIndexes, ...modelIndexes]);
-  const reason = !scopeConsistent
-    ? `対象・否定範囲を確認できません：${assertion.scopeAssessment.reason}`
-    : !keep
-      ? "主張全体を支持する有効な根拠を確認できません。"
-      : explicitness !== assertion.explicitness
-        ? `検証後の根拠に合わせて出所を${explicitness}へ変更しました。`
-        : null;
+  const reasonCode = keep
+    ? "accepted"
+    : assertion.scopeAssessment.verdict !== "consistent"
+      ? "scope_unresolved"
+      : !scopeConsistent
+        ? "anchor_unavailable"
+        : verified.evidence.some((proof) => proof.verificationStatus === "invalid")
+          ? "evidence_unavailable"
+          : "support_insufficient";
+  const reason =
+    reasonCode === "anchor_unavailable"
+      ? "対象の照合に必要な原文を確認できません。"
+      : reasonCode === "evidence_unavailable"
+        ? "根拠の出典本文または引用を確認できません。"
+        : !scopeConsistent
+          ? `対象・否定範囲を確認できません：${assertion.scopeAssessment.reason}`
+          : !keep
+            ? "主張全体を支持する有効な根拠を確認できません。"
+            : explicitness !== assertion.explicitness
+              ? `検証後の根拠に合わせて出所を${explicitness}へ変更しました。`
+              : null;
   return {
     keep,
     explicitness,
@@ -137,6 +151,7 @@ export async function verifySemanticAssertion(
       })),
       keep,
       reason,
+      reasonCode,
       before: { confidence: assertion.confidence, explicitness: assertion.explicitness },
       after: {
         confidence,
