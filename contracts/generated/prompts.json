@@ -1,110 +1,110 @@
 {
   "semanticIntegrity": {
-    "promptVersion": "semantic-integrity/v1.3.0",
-    "sha256": "e23b5340749bc84f3113773c8c6fcb52e5f04ed7e80e37572a6823302fd7c703"
+    "promptVersion": "semantic-integrity/v1.4.0",
+    "sha256": "aa5d5a2da536c7cf7ef510eb045949e9253ddd55d8a3832168004a29b2c0cdca"
   },
   "understandingSemanticIntegrity": {
-    "promptVersion": "semantic-integrity/v1.3.0",
-    "sha256": "f90f8024d2ec98f0f35d1f258f96e829351bfd0ea1275fad63c7ac87c8c821ef"
+    "promptVersion": "semantic-integrity/v1.4.0",
+    "sha256": "605f5bb5cfb9567adc4a29adae00b66313c938567d2315c99f9460926ab4046e"
   },
   "understandingInformation": {
-    "promptVersion": "understanding-information/v1.4.0",
-    "sha256": "0532268d00232447b0e47e5e654b251eb682000535dfca03552e0f392e7ca09e"
+    "promptVersion": "understanding-information/v1.5.0",
+    "sha256": "c4a5f250c2e671e4a9fb0f707c57b8aba8fc2f65ca514b5a605795868a57943e"
   },
   "understandingCompletion": {
-    "promptVersion": "understanding-information/v1.4.0",
-    "sha256": "e1dba758436830246fc2c3fc9a96f41171b142bcce0b92fca4f3b0d274e2fd8d"
+    "promptVersion": "understanding-information/v1.5.0",
+    "sha256": "0be4772a6b9cdc5b18e0c87fec237f70da6246371b19eb3bd426e3dc2c145ad2"
   },
   "understandingAssessmentRepair": {
-    "promptVersion": "understanding-information/v1.4.0",
-    "sha256": "5ee6b90bb421f40a629bab3def90254e86ee5b7692920c9dd9dd09be5a2e9384"
+    "promptVersion": "understanding-information/v1.5.0",
+    "sha256": "8ba96777d5c73fe550325a69ad73d7cf01372e6bd495f0cf6bdb5b354071b917"
   },
   "preference": {
-    "promptVersion": "preference/v3.7.0",
-    "sha256": "43bd6019c53216659c3d981a60cf23f9d44638a36a3ead5a5bd48ba3d61322d6"
+    "promptVersion": "preference/v3.8.0",
+    "sha256": "b1c7fd0678fa0a9bb62f615e81986c2c32e8216aca0588a1f583cdb088cb18b1"
   },
   "preferenceAudit": {
-    "promptVersion": "preference_audit/v3.7.0",
-    "sha256": "b88382c6d85e1c384dbe248d33934fc4f6a35595017bf8be90215ad77025a84f"
+    "promptVersion": "preference_audit/v3.8.0",
+    "sha256": "8d287263dd19b2146cb75e0f719ed9d86e8824460b92d570b9520443b02c5c22"
   },
   "darkPreference": {
-    "promptVersion": "dark_preference/v3.7.0",
-    "sha256": "80bebbc66b74a63a32eb4c50ad51e2d6619886ccbd2e42237e557f0f98b87a25"
+    "promptVersion": "dark_preference/v3.8.0",
+    "sha256": "a92034a34c9fdeb0935a09b5489adafae7b93bc443af90508acdbf9b3a223245"
   },
   "darkPreferenceAudit": {
-    "promptVersion": "dark_preference_audit/v3.7.0",
-    "sha256": "3e6415d2ab5d5a747d36e0ddf578e2e49f120a8154649d889067fa5906d040ff"
+    "promptVersion": "dark_preference_audit/v3.8.0",
+    "sha256": "6394561f9ca60116400fb001561360a369e91d7a9a624ff52a99bd460a9c5eba"
   },
   "preferenceRefinement": {
-    "promptVersion": "preference_refinement/v3.7.0",
-    "sha256": "1b15e5fbc22a2678ae1e46feff86aa6c112e6add56e82190db3b991bdf08cdad"
+    "promptVersion": "preference_refinement/v3.8.0",
+    "sha256": "c08910b5602245396a203734368b29ab2079c455e046b8728088fb73ec93deab"
   },
   "citationVerification": {
-    "promptVersion": "external-id/v1.0.0",
-    "sha256": "7a053e3e2f527e7e777a2cc83a48eba3c777d6680184592d0449a2b4652ab4ec"
+    "promptVersion": "external-id/v1.1.0",
+    "sha256": "283e2b03fed64d06390f86b07f5fb2ce00d317b307b09c4077bce863cb607ba1"
   },
   "preferenceHypotheses": {
-    "promptVersion": "preference_hypotheses/v2.4.0",
-    "sha256": "c6f30d1acd45722e61cb36ff0687b2c6dff328f8a694cc2538a5d437ffa0a9cd"
+    "promptVersion": "preference_hypotheses/v2.5.0",
+    "sha256": "7253f4f392ed8806c85e3cf8939db80a0c2209352954c24facef095b55967f49"
   },
   "darkPreferenceHypotheses": {
-    "promptVersion": "preference_hypotheses/v2.4.0",
-    "sha256": "d94a2d752fec64a2344c609268135ae9f2e5b0876f0b824d4458204626e9523c"
+    "promptVersion": "preference_hypotheses/v2.5.0",
+    "sha256": "5c64efe74762b825413873b2a94fda59fdbb8a5c6f3225fcc97aa0d02d8a01ba"
   },
   "darkAnalysis": {
-    "promptVersion": "dark_analysis/v2.2.0",
-    "sha256": "d0381b9103bf7277b888a42241636f481a41a7130f01996db15111f90888d274"
+    "promptVersion": "dark_analysis/v2.3.0",
+    "sha256": "54ae020ecbbeb00886bd4b7f07691d30ca4ab85532eba2fa59db708ed8321c02"
   },
   "darkScope": {
-    "promptVersion": "dark_scope_assessment/v2.2.0",
-    "sha256": "10ce8180d954e564ad88be0424747cb7af5973cac26a7fc4d3c2971e5e3d5ba9"
+    "promptVersion": "dark_scope_assessment/v2.3.0",
+    "sha256": "9c99b57d110eedc7ba3575555a6be03d87b5d231a5ab3be1eb85b83df5511395"
   },
   "darkBaseline": {
-    "promptVersion": "dark_baseline_understanding/v2.2.0",
-    "sha256": "f5624f991a22d0aef40e8eb2a5c29f0c3f1a3f9a55798c08e254281ba9e822b9"
+    "promptVersion": "dark_baseline_understanding/v2.3.0",
+    "sha256": "d53ba285cd2b434580dc16ca33ba4ee9f1b112ac1ee1496c43159c6c93402ca1"
   },
   "darkUnderstanding": {
-    "promptVersion": "dark_character_understanding/v2.2.0",
-    "sha256": "bd632cd59e55a4a570a03951435b747725dcee7d2245e5c099c99b9d69f71d12"
+    "promptVersion": "dark_character_understanding/v2.3.0",
+    "sha256": "4df9f9f00bc86965a18f857432262f1b3b1b1d1d77901cbda1b07b41ddde344a"
   },
   "darkUnderstandingAudit": {
-    "promptVersion": "dark_understanding_audit/v2.2.0",
-    "sha256": "d243addab3ea774166dd81b526b99995515da588fe838a035b4489daa45b3908"
+    "promptVersion": "dark_understanding_audit/v2.3.0",
+    "sha256": "5259a653df79659c59812e69722cd887a370cc9831e58df7db7d805058239a6c"
   },
   "analysis": {
-    "promptVersion": "character_understanding/v2.2.0",
-    "sha256": "5b14798ccc5feac9cf5c22820f56aa199d3eb3c7e6d5da066f8bf7b40cca742b"
+    "promptVersion": "character_understanding/v2.3.0",
+    "sha256": "40b16b37b0a049d3777b45dea0e09f48cf1c952006952a759be0a558ca254188"
   },
   "generation": {
-    "promptVersion": "character_generation/v2.4.0",
-    "sha256": "3e5e126303094eaba5c8650a638e76a5911013fbd5d591fbb777f57b6106dd41"
+    "promptVersion": "character_generation/v2.5.0",
+    "sha256": "293678e3d0d106fa0dfa3990d7ae46ebdf1401d6a6c7e5a181cd064d405bf9f2"
   },
   "darkGeneration": {
-    "promptVersion": "dark_generation/v2.4.0",
-    "sha256": "458ab3487c568d9963a0303fd7ac12bcc05d1cddd94f86009ef92137fb1f5107"
+    "promptVersion": "dark_generation/v2.5.0",
+    "sha256": "4fe8d7ab2aa9bc09370f5cd31d1c7ee242425d3d022274f2309d27ae6b01b53e"
   },
   "generationValidation": {
-    "promptVersion": "generation_validation/v2.4.0",
-    "sha256": "b8e034ecf52ac94ebe496ef0974d6fa9c937b5f2c1002f8d39e771c5622716b7"
+    "promptVersion": "generation_validation/v2.5.0",
+    "sha256": "3c7ae02a068a2b747b9e605d58e132bd56e245defeb93f4a04488392f968d0eb"
   },
   "darkGenerationValidation": {
-    "promptVersion": "generation_validation/v2.4.0",
-    "sha256": "4f85b1f5cf9ffa305fa5d66eb4ae1045cfcce22d7a1226a5763384dcf66d3862"
+    "promptVersion": "generation_validation/v2.5.0",
+    "sha256": "e8b822a3d05542dec454dc3e22f1bfe226a0871ce1b8299611ee2e9d3e27adea"
   },
   "generationVariants": {
-    "promptVersion": "generation_variants/v2.4.0",
-    "sha256": "a70b620779c0e289ef03ec390f2b144f91da39dd16064384b0e40b5575c5539a"
+    "promptVersion": "generation_variants/v2.5.0",
+    "sha256": "e1ae260e86cec5245d7bca1af03590b97748ce77e9b09413b62f34953f218c39"
   },
   "generationRepair": {
-    "promptVersion": "generation_repair/v2.4.0",
-    "sha256": "c4b7445cd2483e98aaef53e0a4ac2dbbc06b67d4f38c670f29ac26d6e870fae2"
+    "promptVersion": "generation_repair/v2.5.0",
+    "sha256": "0b1e1d961249493b708307ed1e6519e3a2e1cb4c4dd68ff1cfc34afb05cd217e"
   },
   "generationComparison": {
-    "promptVersion": "generation_comparison/v2.4.0",
-    "sha256": "a419e0ec95dd84a702d9487cf7c5b4868ba7976f96f22d76d8116e5aed7aae60"
+    "promptVersion": "generation_comparison/v2.5.0",
+    "sha256": "e406588c320443485580db4df098c2d5bc44f428aa030b7daf57090033e7a342"
   },
   "formatRepair": {
-    "promptVersion": "format_repair/v1.0.0",
-    "sha256": "2bebb44916888367488d145d4305f6c357e71ff914988e2540f3021f0e952a11"
+    "promptVersion": "format_repair/v1.1.0",
+    "sha256": "44aa9d0290b6fc9dbc3368eda4bd52a4c50473f9054e817d39381d5352b0fb90"
   }
 }

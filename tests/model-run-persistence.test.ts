@@ -91,7 +91,7 @@ describe("model run commit boundaries", () => {
     expect(current.database.prepare("SELECT * FROM model_run_metadata WHERE id=?").get(id)).toMatchObject({
       analysis_domain: "dark",
       operation: "generation_repair",
-      prompt_version: "generation_repair/v2.4.0",
+      prompt_version: "generation_repair/v2.5.0",
       schema_version: "1.0",
     });
   });

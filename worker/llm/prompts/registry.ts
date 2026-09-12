@@ -113,5 +113,5 @@ export const promptRegistry = {
     promptVersion: `generation_comparison/${GENERATION_PROMPT_VERSION}`,
     text: GENERATION_COMPARISON_SYSTEM,
   },
-  formatRepair: { promptVersion: "format_repair/v1.0.0", text: FORMAT_REPAIR_INSTRUCTION },
+  formatRepair: { promptVersion: "format_repair/v1.1.0", text: FORMAT_REPAIR_INSTRUCTION },
 } as const;

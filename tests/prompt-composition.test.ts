@@ -34,9 +34,9 @@ describe("prompt composition boundaries", () => {
       expect(text).toContain("作品固有の固有名詞");
       if (domain === "dark") {
         expect(text).toContain("一般的特徴を捨象");
-        expect(text).not.toMatch(/通常版の|wishful_identification|単独の属性として扱います/u);
+        expect(text).not.toMatch(/通常版の|wishful_identification|単独の属性として扱う/u);
       } else {
-        expect(text).toContain("単独の属性として扱います");
+        expect(text).toContain("単独の属性として扱う");
         expect(text).not.toMatch(/一般的特徴を捨象|ダーク領域に限定|専用反応経路/u);
       }
     }

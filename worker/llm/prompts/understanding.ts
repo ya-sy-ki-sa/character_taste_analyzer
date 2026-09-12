@@ -1,33 +1,87 @@
 import { understandingAspectLabels } from "../../../shared/understanding-aspects";
 import { SYSTEM_INSTRUCTION } from "./analysis";
 import { UNDERSTANDING_SEMANTIC_AUDIT_INSTRUCTION } from "./semantic-audit";
-export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.4.0";
+export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.5.0";
 
-export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `キャラクター像の7項目（${Object.entries(
-  understandingAspectLabels,
-)
-  .map(([key, label]) => `${key}: ${label}`)
-  .join("、")}）をそれぞれ検討してください。
-各項目には根拠のある人物像を具体的な文章で記述し、対応するassertionsにも根拠と出所を残してください。名前・作品名だけでは人物像は完成していません。
-公開資料にないという理由だけで、利用可能なモデル知識を一律に削除しないでください。モデル知識はexplicitnessとsourceRefをmodel_knowledgeとし、確信度を上げずに扱ってください。
-本当に不明な項目はsummaryを空配列にし、uncertaintiesにtopicをその項目の英語キー、reasonを具体的な不明理由として記録してください。「不明」や「確認できません」などの代替文はsummaryに入れないでください。
-全項目を埋めるために設定を創作したり、ユーザーの嗜好を人物の事実へ転用したりしないでください。`;
+export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `[TASK:UNDERSTANDING_COVERAGE]
+キャラクター像の7項目をそれぞれ検討する。
+[ASPECTS]
+${Object.entries(understandingAspectLabels)
+  .map(([key, label]) => `- ${key}: ${label}`)
+  .join("\n")}
+[OUTPUT_RULES:UNDERSTANDING]
+- 各項目に根拠のある人物像を具体的な文章で記述し、対応するassertionsに根拠・出所を保持する。名前・作品名だけを人物像の完成とみなさない。
+- 利用可能なモデル知識はexplicitness=model_knowledge、sourceRef=model_knowledgeとし、確信度を上げない。公開資料にないという理由だけで一律削除しない。
+- 本当に不明な項目 → summaryの該当項目を空配列、uncertainties.topicを項目の英語キー、reasonを具体的な不明理由とする。
+- 「不明」「確認できません」等の代替文をsummaryに入れない。
+- 項目を埋めるための設定創作、ユーザー嗜好の人物事実への転用を禁止する。`;
 
-export const UNDERSTANDING_INFORMATION_INSTRUCTION = `改訂後の人物像について、aspectAssessmentsで7項目すべての情報量を独立に監査してください。
-kindはconcrete（具体的な人物描写）、label_only（分類名だけ）、attribution_only（出所・解釈についての注記だけ）、unknown（内容が空）です。項目ごとにreasonを具体的に述べ、改訂後の同じ項目のsummary配列へのsummaryIndexesと、改訂後のassertions配列へのassertionIndexesを0始まりの番号で返してください。
-concreteには、その人物が何をする、何を目指す、何を重視する、誰とどう関わる、どう表現するかが分かる描写と、対応するassertionが必要です。分類名の要約でも参照先assertionに具体的な描写があればconcreteにできます。単なる名前・作品・媒体・時期の同定は人物描写に数えません。
-「ヒーロー」「主人公」という役割名だけはlabel_only。「友達以上と読むのはユーザーの解釈であり公式設定ではない」という出所の注記だけはattribution_onlyです。ユーザー解釈でも「人物Aが人物Bの肩書きより本人を見て遠慮なく接する」のように具体的な関係を描写していれば、出所を区別してconcreteにできます。
-複数項目への同じ注記の分散や、分類名の言い換えで具体性を増やさないでください。モデル知識は出所を保持し、公開資料にないという理由だけで削除しないでください。これは引用の正しさや事実の確実性の採点ではありません。
-内容のある項目が1つ以下、またはconcreteが2項目未満なら補完対象になりますが、項目数を満たすための創作は禁止です。設定の少ない端役・創作人物・場面限定の対象は情報不足のままで構いません。対象の媒体・時期と、オリジナル・カスタムの入力範囲を守り、好みを人物の設定へ転用しないでください。`;
+export const UNDERSTANDING_INFORMATION_INSTRUCTION = `[TASK:INFORMATION_AUDIT]
+改訂後の人物像の7項目すべてについて、情報量を独立監査する。
+[DEFINITIONS:INFORMATION_KIND]
+- concrete := 具体的な人物描写と対応するassertionがある。行動・目的・重視するもの・関わり方・表現等が分かること。
+- label_only := 分類名だけ。
+- attribution_only := 出所・解釈の注記だけ。
+- unknown := 内容が空。
+[OUTPUT_CONTRACT:INFORMATION_AUDIT]
+- aspectAssessmentsに全7項目を返す。
+- reason := 項目ごとの具体的な判定理由。
+- summaryIndexes := 改訂後の同じ項目のsummary配列への0始まりの参照番号。
+- assertionIndexes := 改訂後のassertions配列への0始まりの参照番号。
+[DECISION_RULES:INFORMATION_AUDIT]
+- 要約が分類名でも、参照先assertionに具体的描写があればconcreteを許容する。
+- 名前・作品・媒体・時期の同定だけを人物描写に数えない。
+- ユーザー解釈にも具体的な人物描写があれば、出所を区別してconcreteを許容する。
+- 同じ注記の複数項目への分散や分類名の言い換えで具体性を増やさない。
+- モデル知識の出所を保持する。公開資料にないという理由だけで削除しない。
+- 情報量と引用の正しさ・事実の確実性を独立に扱う。
+- 内容のある項目が1つ以下、またはconcreteが2項目未満 → 補完対象。項目数を満たすための創作は禁止。
+- 設定の少ない端役・創作人物・場面限定の対象は情報不足を許容する。
+- 媒体・時期、オリジナル・カスタムの入力範囲を保持する。好みを人物設定へ転用しない。
+[BOUNDARY_EXAMPLES:INFORMATION_AUDIT]
+- 「ヒーロー」「主人公」のみ → label_only。
+- 「友達以上と読むのはユーザーの解釈であり公式設定ではない」のみ → attribution_only。
+- ユーザー解釈として「人物Aが人物Bの肩書きより本人を見て遠慮なく接する」→ 対応するassertionとともにconcreteを許容。`;
 
-export const UNDERSTANDING_SOURCE_INSTRUCTION = `既成キャラクターの一般的な基本像は、システム収集済み公開情報と利用可能なモデル知識から構成してください。既成（カスタム）のbase stageではbaseCharacterNameを元キャラクターの名前として基本像を構成し、target stageではcharacterNameをカスタム後の名前として扱ってください。オリジナルキャラクターの一般的な基本像はcharacterBasicInfoから構成してください。referenceMaterialはユーザーが任意提供した補足情報、userCharacterViewはユーザー自身の解釈として、出所を混同しないでください。検索結果が対象と一致しない、情報が競合する、または根拠が弱い場合は断定せずlimitationsまたはuncertaintiesへ記録してください。
-嗜好入力は意図的に含めていません。キャラクターの事実・解釈と、ユーザーが好きな属性を混同しないでください。`;
+export const UNDERSTANDING_SOURCE_INSTRUCTION = `[INPUT_MAPPING:UNDERSTANDING]
+- 既成の一般的な基本像 := システム収集済み公開情報＋利用可能なモデル知識。
+- 既成（カスタム）のbase stage := baseCharacterNameを元キャラクター名として基本像を構成。
+- 既成（カスタム）のtarget stage := characterNameをカスタム後の名前として扱う。
+- オリジナルの一般的な基本像 := characterBasicInfo。
+- referenceMaterial := ユーザーが任意提供した補足情報。
+- userCharacterView := ユーザー自身の解釈。
+[UNRESOLVED:UNDERSTANDING_SOURCE]
+- 検索結果が対象と不一致／情報競合／根拠が弱い → 断定せずlimitationsまたはuncertaintiesに記録。
+[INVARIANTS:UNDERSTANDING_SOURCE]
+- 出所を混同しない。
+- 嗜好入力は意図的に含まれていない。人物の事実・解釈とユーザーが好きな属性を混同しない。`;
 
-export const UNDERSTANDING_AUDIT_INSTRUCTION = `キャラクター理解候補を元資料と照合し、根拠のない断定・カスタム差分の誤りを訂正した完全な候補を返す。新しい事実や出典を創作せず、モデル知識の確信度を上げない。候補に含まれるモデル知識は公開資料に記述がないだけでは削除せず、対象との不一致や矛盾、知識自体の不確かさがある場合に修正する。削除で空になる項目には項目別の不明理由を残す。嗜好は分析しない。`;
+export const UNDERSTANDING_AUDIT_INSTRUCTION = `[TASK:UNDERSTANDING_AUDIT]
+- 理解候補を元資料と照合し、根拠のない断定・カスタム差分の誤りを訂正する。
+- 完全な改訂候補を返す。嗜好は分析しない。
+[INVARIANTS:UNDERSTANDING_AUDIT]
+- 新しい事実・出典を創作しない。モデル知識の確信度を上げない。
+- 候補内のモデル知識は、公開資料にないという理由だけで削除しない。対象との不一致・矛盾・知識自体の不確かさがある場合に修正する。
+- 削除で空になった項目には項目別の不明理由を残す。`;
 
-export const UNDERSTANDING_COMPLETION_INSTRUCTION = `監査後の人物像に不足があります。元の登録情報を基準に再検討し、完全な候補を返してください。既成キャラクターでは利用可能な公開情報検索とモデル知識を用いて不足を補ってください。オリジナルやカスタム固有の設定は入力資料の範囲を守ってください。根拠が得られなければ項目別の不明理由を残してください。`;
+export const UNDERSTANDING_COMPLETION_INSTRUCTION = `[TASK:UNDERSTANDING_COMPLETION]
+入力: 監査後の不足した人物像と元の登録情報。
+処理:
+1. 元の登録情報を基準に不足項目を再検討する。
+2. 既成キャラクターは利用可能な公開情報検索とモデル知識で補完する。
+3. オリジナル・カスタム固有の設定は入力資料の範囲を保持する。
+4. 根拠を取得できない項目には項目別の不明理由を残す。
+出力: 指定Schemaに適合する完全な候補。`;
 
-export const UNDERSTANDING_ASSESSMENT_REPAIR_INSTRUCTION = `固定した人物像についてaspectAssessmentsだけを修復してください。人物像本体の追加・変更は禁止です。summaryIndexesは各項目内、assertionIndexesは属性一覧内の0始まりの番号です。重複や範囲外を返さず、内容のある項目に要約参照、concreteに属性参照が必要です。unknownは空の項目だけとし、属性参照を付けないでください。`;
+export const UNDERSTANDING_ASSESSMENT_REPAIR_INSTRUCTION = `[TASK:UNDERSTANDING_ASSESSMENT_REPAIR]
+入力: 固定した人物像と修復対象のaspectAssessments。
+変更可能範囲: aspectAssessmentsのみ。人物像本体の追加・変更は禁止。
+[REFERENCE_RULES]
+- summaryIndexesは各項目内、assertionIndexesは属性一覧内の0始まりの番号。
+- 重複・範囲外の参照は禁止。
+- 内容のある項目には要約参照、concreteには属性参照を必要とする。
+- unknownは空の項目だけに使用し、属性参照を付けない。
+出力: 指定Schemaに適合する修復結果のみ。`;
 
 export function understandingSystem(stage: "extract" | "audit"): string {
   return [

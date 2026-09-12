@@ -35,6 +35,8 @@ LLMのプロンプト、provider実行、出力スキーマ、純粋な結果判
 
 `preferenceSystem(domain, stage)`、`hypothesisSystem(domain)`、`understandingSystem(stage)`、`generationValidationSystem(domain)` は、実行時とプロンプトregistryで同じ組み立て関数を使います。版固有の指示は該当版だけに渡し、仮説提案に抽出・監査用の出力指示を混ぜません。補完、追加回答、JSON修復、生成案の比較などの固定指示もregistryのハッシュ・バージョン検査へ含めます。ユーザー入力を含む実メッセージのハッシュはモデル実行記録へ別途保存します。
 
+プロンプトはシステム間の処理仕様として記述します。入力契約、用語の定義、判断手順、優先順位、不変条件、出力への対応、判断不能時の扱いを処理に必要な範囲で分けます。専門用語は作業定義を添え、記号論・意味論等の概念を具体的な判定規則へ対応づけます。境界事例は保持し、構造・型の正本は出力Schemaに置きます。[プロンプト記述方針](prompt-specification.md)に適用範囲と変更時の確認事項をまとめています。
+
 モデル実行記録のstatement生成は `worker/llm/model-runs.ts` と対応するリポジトリに集約します。分析・生成それぞれのユースケースがプロンプト／スキーマのバージョンを決め、分析では結果と同じbatch、生成では個別の即時保存という境界を保持します。providerの接続・要求構築は `openai.ts` / `workers-ai.ts`、応答解釈は `response.ts`、構造検証と修復は `remote.ts`、経路選択は `providers.ts` が担当します。
 
 登録と再分析の人物表現・入力資料の構築は `entries/input-preparation.ts` に集約し、ID生成は呼び出し元が担当します。分析結果の属性・根拠のstatement構築は `analysis/*-statements.ts`、失敗時の記録と状態更新は `analysis/attempt-failure.ts` に分けます。人物理解レビューは `entries/understanding-mutations.ts` が操作別のstatementを準備し、ユースケースが一括保存します。

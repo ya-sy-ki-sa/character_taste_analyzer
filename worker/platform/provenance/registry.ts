@@ -1,8 +1,14 @@
 import { sha256Hex } from "../../lib/crypto";
 import { canonicalSourceUrl } from "./urls";
 
-export const CITATION_POLICY_VERSION = "external-id/v1.0.0";
-export const CITATION_INSTRUCTION = `外部出典は出典台帳のsourceRefをそのまま使い、sourceUrlはnullにする。台帳のURLを再入力・修復したりIDを創作しない。今回のWeb検索で初めて取得した出典だけは検索注釈のURLをそのまま使ってよい。監査では台帳のIDへ対応付け、不明な対応は元の参照を残し不確実性を明示する。照合不能な根拠を別資料やモデル知識に置き換えてはいけない。`;
+export const CITATION_POLICY_VERSION = "external-id/v1.1.0";
+export const CITATION_INSTRUCTION = `[REFERENCE_RULES:EXTERNAL_CITATION]
+- 出典台帳にある外部出典 → sourceRefは台帳の値をそのまま使用し、sourceUrl=null。
+- 台帳のURLの再入力・修復、IDの創作を禁止する。
+- 今回のWeb検索で初めて取得した出典のみ → 検索注釈のURLをそのまま使用可能。
+- 監査時 → 台帳のIDへ対応付ける。
+- 対応が不明 → 元の参照を保持し、不確実性を明示する。
+- 照合不能な根拠を別資料・モデル知識へ置き換えない。`;
 
 export class CitationRegistry {
   private readonly sources = new Map<string, { sourceRef: string; url: string; title: string }>();
