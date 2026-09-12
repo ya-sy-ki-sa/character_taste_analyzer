@@ -1,15 +1,123 @@
 import { describe, expect, it } from "vitest";
 import { reviewDetailSchema } from "../shared/contracts/entry-review";
+import { responseChannelPrompt } from "../shared/response-channels";
 import { selectExportUnderstandingSnapshots } from "../worker/features/account/repositories/exports";
 import { loadEntryReview } from "../worker/features/entries/review";
 import { mutateUnderstandingReview } from "../worker/features/entries/understanding-review";
-import { UNDERSTANDING_INFORMATION_POLICY } from "../worker/llm/prompts/understanding";
+import { sha256Hex } from "../worker/lib/crypto";
+import {
+  UNDERSTANDING_COMPLETION_INSTRUCTION,
+  UNDERSTANDING_INFORMATION_POLICY,
+} from "../worker/llm/prompts/understanding";
 import explicitFixtures from "./fixtures/explicit-preferences.json";
 import sparseFixtures from "./fixtures/sparse-understanding.json";
 import { rebuild, setup } from "./support/preference-pipeline";
 import { frozenAudit } from "./support/understanding-audit";
 
 describe("understanding information quality storage and continuation", () => {
+  it.each([true, false])(
+    "completes after grounding removes apparently sufficient content (recovers=%s)",
+    async (recovers) => {
+      const fixture = sparseFixtures.find((item) => item.caseId === "D03");
+      if (!fixture) throw new Error("D03 fixture missing");
+      const candidate = frozenAudit(fixture);
+      const originalValues = candidate.assertions.map((item) => item.valueText);
+      const t = await setup("standard", {
+        ...explicitFixtures[0],
+        understanding: candidate,
+        understandingAuditOverride(value, auditNumber) {
+          if (auditNumber === 1 || !recovers)
+            for (const assertion of value.assertions) {
+              assertion.scopeAssessment.verdict = "uncertain";
+              assertion.scopeAssessment.reason = "対象範囲を確認できない人物描写";
+            }
+          return value;
+        },
+      });
+      const calls = t.requests.filter((request) =>
+        ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
+      );
+      expect(calls).toHaveLength(4);
+      expect(new Set(calls.map((request) => request.idempotencyKey)).size).toBe(4);
+      const completion = calls[2].messages.find((item) =>
+        item.content.startsWith(UNDERSTANDING_COMPLETION_INSTRUCTION),
+      )?.content;
+      expect(completion).toContain("根拠検証・正規化後の候補");
+      expect(completion).toContain('"assertions":[]');
+      expect(completion).toContain("対象範囲を確認できない人物描写");
+      for (const value of originalValues) expect(completion).not.toContain(value);
+      const quality = t.detail.understanding?.informationQuality;
+      expect(quality).toMatchObject({
+        completionAttempted: true,
+        status: recovers ? "not_flagged" : "limited",
+        concreteAspectCount: recovers ? 6 : 0,
+      });
+      expect(t.detail.understanding?.assertions).toHaveLength(recovers ? candidate.assertions.length : 0);
+      expect(t.analysis.assertions.length).toBeGreaterThan(0);
+      const rows = t.db.database
+        .prepare(
+          "SELECT operation,output_hash FROM model_run_metadata WHERE operation IN ('customization_delta','character_understanding','understanding_audit')",
+        )
+        .all();
+      expect(rows).toHaveLength(4);
+      expect(rows.every((row) => typeof row.output_hash === "string" && row.output_hash.length === 64)).toBe(true);
+      const snapshot = t.db.database
+        .prepare(
+          "SELECT s.source_assessment_json, m.output_hash FROM character_understanding_snapshots s JOIN model_run_metadata m ON m.id=s.model_run_metadata_id",
+        )
+        .get();
+      const rawAudit = JSON.parse(String(snapshot?.source_assessment_json)).semanticAudit.original;
+      expect(rawAudit.assertions).toHaveLength(candidate.assertions.length);
+      expect(snapshot?.output_hash).toBe(await sha256Hex(JSON.stringify(rawAudit)));
+    },
+  );
+
+  it("does not add completion calls when grounded content is sufficient", async () => {
+    const fixture = sparseFixtures.find((item) => item.caseId === "D03");
+    if (!fixture) throw new Error("D03 fixture missing");
+    const t = await setup("standard", { ...explicitFixtures[0], understanding: frozenAudit(fixture) });
+    expect(
+      t.requests.filter((request) =>
+        ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
+      ),
+    ).toHaveLength(2);
+    expect(t.detail.understanding?.informationQuality).toMatchObject({
+      status: "not_flagged",
+      completionAttempted: false,
+      concreteAspectCount: 6,
+    });
+  });
+
+  it("completes when quotes fail verification even though the model marks them supported", async () => {
+    const fixture = sparseFixtures.find((item) => item.caseId === "D03");
+    if (!fixture) throw new Error("D03 fixture missing");
+    const t = await setup("standard", {
+      ...explicitFixtures[0],
+      understanding: frozenAudit(fixture),
+      understandingAuditOverride(value) {
+        for (const assertion of value.assertions) {
+          const ref = {
+            sourceRef: "user_input",
+            sourceUrl: null,
+            inputPointer: "/preference/likedReasons",
+            quote: "入力原文に存在しない人物描写",
+            inferenceType: "direct" as const,
+          };
+          assertion.scopeAssessment.anchors = [ref];
+          assertion.evidence = [{ ...ref, supportAssessment: { verdict: "supported", reason: "固定した誤判定" } }];
+        }
+        return value;
+      },
+    });
+    expect(t.requests.filter((request) => request.operation === "understanding_audit")).toHaveLength(2);
+    expect(t.detail.understanding?.assertions).toHaveLength(0);
+    expect(t.detail.understanding?.informationQuality).toMatchObject({
+      status: "limited",
+      completionAttempted: true,
+      concreteAspectCount: 0,
+    });
+  });
+
   it("preserves sparse quality through confirmation, export and profile without losing explicit preferences", async () => {
     const t = await setup("standard", { ...explicitFixtures[0], understanding: frozenAudit(sparseFixtures[0]) });
     const quality = t.detail.understanding?.informationQuality;
@@ -34,6 +142,15 @@ describe("understanding information quality storage and continuation", () => {
     expect(auditSystem).not.toMatch(/userExplicitSummary|responseChannel/u);
     const preferenceCalls = t.requests.filter((request) => request.operation.startsWith("preference_"));
     expect(preferenceCalls).toHaveLength(2);
+    for (const call of preferenceCalls) {
+      expect(call.messages[0].content).toContain(responseChannelPrompt());
+      expect(
+        call.messages
+          .map((item) => item.content)
+          .join("\n")
+          .split(responseChannelPrompt()),
+      ).toHaveLength(2);
+    }
     expect(preferenceCalls.every((request) => !JSON.stringify(request.messages).includes('"informationQuality"'))).toBe(
       true,
     );

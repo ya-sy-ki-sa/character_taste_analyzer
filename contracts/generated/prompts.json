@@ -1,42 +1,42 @@
 {
   "semanticIntegrity": {
-    "promptVersion": "semantic-integrity/v1.4.0",
-    "sha256": "aa5d5a2da536c7cf7ef510eb045949e9253ddd55d8a3832168004a29b2c0cdca"
+    "promptVersion": "semantic-integrity/v1.5.0",
+    "sha256": "d04606cf5df987cfbf39b52feff096ada1da0b82b71466c18e74bc04cfe24087"
   },
   "understandingSemanticIntegrity": {
-    "promptVersion": "semantic-integrity/v1.4.0",
+    "promptVersion": "semantic-integrity/v1.5.0",
     "sha256": "605f5bb5cfb9567adc4a29adae00b66313c938567d2315c99f9460926ab4046e"
   },
   "understandingInformation": {
-    "promptVersion": "understanding-information/v1.5.0",
+    "promptVersion": "understanding-information/v1.6.0",
     "sha256": "c4a5f250c2e671e4a9fb0f707c57b8aba8fc2f65ca514b5a605795868a57943e"
   },
   "understandingCompletion": {
-    "promptVersion": "understanding-information/v1.5.0",
-    "sha256": "0be4772a6b9cdc5b18e0c87fec237f70da6246371b19eb3bd426e3dc2c145ad2"
+    "promptVersion": "understanding-information/v1.6.0",
+    "sha256": "417e371e0e905f9f9ce0cb3024421e0243c015b63057d9d906f8564e984834b9"
   },
   "understandingAssessmentRepair": {
-    "promptVersion": "understanding-information/v1.5.0",
+    "promptVersion": "understanding-information/v1.6.0",
     "sha256": "8ba96777d5c73fe550325a69ad73d7cf01372e6bd495f0cf6bdb5b354071b917"
   },
   "preference": {
-    "promptVersion": "preference/v3.8.0",
-    "sha256": "b1c7fd0678fa0a9bb62f615e81986c2c32e8216aca0588a1f583cdb088cb18b1"
+    "promptVersion": "preference/v3.9.0",
+    "sha256": "d454c1be8be2172d059d6400d44658d55d0734b555c8e852054588f7094d9ad4"
   },
   "preferenceAudit": {
-    "promptVersion": "preference_audit/v3.8.0",
-    "sha256": "8d287263dd19b2146cb75e0f719ed9d86e8824460b92d570b9520443b02c5c22"
+    "promptVersion": "preference_audit/v3.9.0",
+    "sha256": "4aa3e9e054a23a7b8c25524b283c094887ff6502aa295730a5574262e96c6dfc"
   },
   "darkPreference": {
-    "promptVersion": "dark_preference/v3.8.0",
-    "sha256": "a92034a34c9fdeb0935a09b5489adafae7b93bc443af90508acdbf9b3a223245"
+    "promptVersion": "dark_preference/v3.9.0",
+    "sha256": "777c22f0cf7798b19c26f18f77498229b2f081839745e6f757198607b3bb2bd7"
   },
   "darkPreferenceAudit": {
-    "promptVersion": "dark_preference_audit/v3.8.0",
-    "sha256": "6394561f9ca60116400fb001561360a369e91d7a9a624ff52a99bd460a9c5eba"
+    "promptVersion": "dark_preference_audit/v3.9.0",
+    "sha256": "65ef5148db0dc29b3f81dc2709d0247a6ce5918479ed2674ee71d50d8c70c8d6"
   },
   "preferenceRefinement": {
-    "promptVersion": "preference_refinement/v3.8.0",
+    "promptVersion": "preference_refinement/v3.9.0",
     "sha256": "c08910b5602245396a203734368b29ab2079c455e046b8728088fb73ec93deab"
   },
   "citationVerification": {

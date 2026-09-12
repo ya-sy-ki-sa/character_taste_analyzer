@@ -7,7 +7,7 @@ import { understandingAspects } from "../shared/understanding-aspects";
 import { fakeUnderstanding } from "../worker/features/analysis/deterministic";
 import { understandOne } from "../worker/features/analysis/llm-understanding";
 import { fakeGroundedUnderstanding } from "../worker/features/analysis/semantic-fake";
-import type { EntryContext } from "../worker/features/analysis/types";
+import type { EntryContext, NormalizeUnderstandingAudit } from "../worker/features/analysis/types";
 import {
   assessUnderstandingInformation,
   explainUnknownUnderstandingAspects,
@@ -50,6 +50,7 @@ function setup(
   outputs: Array<UnderstandingCandidate | UnderstandingAudit | LlmProviderError>,
   draft = payload,
   stage: "base" | "target" = "target",
+  normalizationOverride?: NormalizeUnderstandingAudit,
 ) {
   const requests: StructuredLlmRequest<unknown>[] = [];
   const llm: LlmProvider = {
@@ -81,7 +82,16 @@ function setup(
     entryRevisionId: "revision",
     ownerUserId: "owner",
   } as EntryContext;
-  return { requests, run: () => understandOne(env, entry, "representation", stage, [], research) };
+  // Isolate call/coverage orchestration here; pipeline tests run the real provenance normalization.
+  const normalizeAudit: NormalizeUnderstandingAudit = async (audit, _citations, completionAttempted) => ({
+    ...explainUnknownUnderstandingAspects(audit),
+    informationQuality: assessUnderstandingInformation(audit, completionAttempted),
+  });
+  return {
+    requests,
+    run: () =>
+      understandOne(env, entry, "representation", stage, [], research, normalizationOverride ?? normalizeAudit),
+  };
 }
 
 describe("character understanding completeness", () => {
@@ -154,6 +164,31 @@ describe("character understanding completeness", () => {
     const { run } = setup([known(), error]);
     await expect(run()).rejects.toMatchObject({ code: error.code, attempts: [expect.any(Object)] });
   });
+
+  it.each([false, true])(
+    "preserves completed calls and retryability when provenance fails (after completion=%s)",
+    async (afterCompletion) => {
+      const candidate = afterCompletion ? frozenAudit(sparseFixtures[0]) : known();
+      const { run, requests } = setup(
+        [candidate, candidate, candidate, candidate],
+        payload,
+        "target",
+        async (audit, _citations, attempted) => {
+          if (!afterCompletion || attempted) throw new Error("D1_ERROR: provenance unavailable");
+          return {
+            ...explainUnknownUnderstandingAspects(audit),
+            informationQuality: assessUnderstandingInformation(audit, attempted),
+          };
+        },
+      );
+      await expect(run()).rejects.toMatchObject({
+        code: "D1_ERROR: provenance unavailable",
+        retryable: true,
+        attempts: Array.from({ length: afterCompletion ? 4 : 2 }, () => expect.any(Object)),
+      });
+      expect(requests).toHaveLength(afterCompletion ? 4 : 2);
+    },
+  );
 });
 
 describe("sparse character understanding", () => {

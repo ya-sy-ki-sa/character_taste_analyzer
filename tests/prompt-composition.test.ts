@@ -5,6 +5,7 @@ import {
   generatedCharacterCandidateSchema,
 } from "../shared/contracts/generation";
 import { groundedUnderstandingAuditSchema } from "../shared/contracts/semantic-audit";
+import { responseChannelCatalog, responseChannelPrompt } from "../shared/response-channels";
 import {
   DARK_BASELINE_SYSTEM,
   DARK_UNDERSTANDING_AUDIT_SYSTEM,
@@ -20,6 +21,15 @@ import { preferenceSystem } from "../worker/llm/prompts/preference";
 import { understandingSystem } from "../worker/llm/prompts/understanding";
 
 describe("prompt composition boundaries", () => {
+  it("shares the complete response catalog between standard extraction and audit, with one copy per system", () => {
+    for (const stage of ["extract", "audit"] as const) {
+      const text = preferenceSystem("standard", stage);
+      expect(text.split(responseChannelPrompt())).toHaveLength(2);
+      for (const channel of responseChannelCatalog)
+        expect(text).toContain(`${channel.value}: ${channel.label} — ${channel.description}`);
+      expect(preferenceSystem("dark", stage)).not.toContain(responseChannelPrompt());
+    }
+  });
   it("requires an evidence-set decision in generated audits while accepting historical omissions", () => {
     const assertion = groundedUnderstandingAuditSchema.shape.assertions.element;
     expect(z.toJSONSchema(assertion, { target: "draft-7" }).required).toContain("evidenceSetAssessment");

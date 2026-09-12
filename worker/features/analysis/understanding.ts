@@ -3,8 +3,7 @@ import type { DarkBaselineUnderstanding } from "../../../shared/contracts/dark-u
 import { nowIso, sha256Hex } from "../../lib/crypto";
 import { first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
-import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
-import { loadInputProvenanceSources, prepareExternalProvenanceSources } from "../../platform/provenance/sources";
+import { CITATION_POLICY_VERSION } from "../../platform/provenance/registry";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import { claimJob, type JobClaim } from "../jobs/execution";
 import { handleAnalysisAttemptFailure } from "./attempt-failure";
@@ -19,7 +18,8 @@ import * as repository from "./repositories/understanding";
 import { collectCharacterResearch } from "./research";
 import { ensureDarkScope } from "./scope";
 import { verifySemanticAssertion } from "./semantic-integrity";
-import type { CompletedLlmGroup, UnderstandingCall } from "./types";
+import type { CompletedLlmGroup, NormalizeUnderstandingAudit, UnderstandingCall } from "./types";
+import { prepareUnderstandingProvenance } from "./understanding-provenance";
 import { understandingAssertionStatements } from "./understanding-statements";
 
 export async function processCharacterAnalysis(env: Env, params: CharacterAnalysisWorkflowParams): Promise<void> {
@@ -51,6 +51,36 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
     if (params.analysisDomain === "dark" && (await ensureDarkScope(env, params, entry, research, claim)) === "waiting")
       return;
 
+    const normalizeAudit: NormalizeUnderstandingAudit = async (audit, citations, completionAttempted) => {
+      const provenance = await prepareUnderstandingProvenance(env, entry, research, citations);
+      const issues: CitationIssue[] = [];
+      const proofs = await Promise.all(
+        audit.assertions.map((assertion) =>
+          verifySemanticAssertion(
+            assertion,
+            provenance.sources,
+            provenance.allowedUrls,
+            provenance.registry,
+            { targetType: "character_assertion", targetId: crypto.randomUUID(), modelRunId: "completion-preview" },
+            issues,
+          ),
+        ),
+      );
+      const normalized = normalizeUnderstanding(audit, proofs, completionAttempted);
+      return {
+        ...normalized,
+        sourceAssessment: {
+          ...normalized.sourceAssessment,
+          limitations: [
+            ...normalized.sourceAssessment.limitations,
+            ...proofs.flatMap((proof, index) =>
+              proof.keep ? [] : [`${audit.assertions[index].rawLabel}: ${proof.audit.reason}`],
+            ),
+          ].slice(-50),
+        },
+      };
+    };
+
     const calls: UnderstandingCall[] = [];
     let darkBaselineResult: Awaited<ReturnType<typeof understandDarkBaseline>> | null = null;
     let darkInitialResult: Awaited<ReturnType<typeof understandDarkTarget>> | null = null;
@@ -71,14 +101,39 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       calls.push(audited);
       completedLlmGroups.push(completedLlmGroup("dark_understanding_audit", audited.inputHash, audited));
     } else if (entry.registrationType === "customized_existing" && entry.baseRepresentationId) {
-      const base = await understandOne(env, entry, entry.baseRepresentationId, "base", ontology, research);
+      const base = await understandOne(
+        env,
+        entry,
+        entry.baseRepresentationId,
+        "base",
+        ontology,
+        research,
+        normalizeAudit,
+      );
       calls.push(base);
       completedLlmGroups.push(completedLlmGroup("character_understanding", base.inputHash, base));
-      const target = await understandOne(env, entry, entry.representationId, "target", ontology, research, base.value);
+      const target = await understandOne(
+        env,
+        entry,
+        entry.representationId,
+        "target",
+        ontology,
+        research,
+        normalizeAudit,
+        base.value,
+      );
       calls.push(target);
       completedLlmGroups.push(completedLlmGroup("customization_delta", target.inputHash, target));
     } else {
-      const target = await understandOne(env, entry, entry.representationId, "target", ontology, research);
+      const target = await understandOne(
+        env,
+        entry,
+        entry.representationId,
+        "target",
+        ontology,
+        research,
+        normalizeAudit,
+      );
       calls.push(target);
       completedLlmGroups.push(
         completedLlmGroup(
@@ -89,34 +144,17 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       );
     }
 
-    const externalSources = [
-      ...research.sources,
-      ...[
+    const provenance = await prepareUnderstandingProvenance(
+      env,
+      entry,
+      research,
+      [
         ...calls,
         ...(darkBaselineResult ? [darkBaselineResult] : []),
         ...(darkInitialResult ? [darkInitialResult] : []),
-      ]
-        .flatMap((call) => call.metadata.citations ?? [])
-        .map((item) => ({
-          ...item,
-          excerpt: undefined,
-          provider: "openai_web_search",
-          trustReason: "OpenAI Web Searchの参照元または引用注釈として応答に含まれたURL",
-        })),
-    ];
-    const externalProvenance = await prepareExternalProvenanceSources(
-      env,
-      params.ownerUserId,
-      entry.sourceSetId,
-      externalSources,
+      ].flatMap((call) => call.metadata.citations ?? []),
     );
-    const provenanceSources = [
-      ...(await loadInputProvenanceSources(env, entry.sourceSetId)),
-      ...externalProvenance.sources,
-    ];
-    const allowedUrls = new Set(externalSources.map((source) => source.url));
-    const citationRegistry = new CitationRegistry();
-    await citationRegistry.add(externalSources);
+    const { sources: provenanceSources, allowedUrls, registry: citationRegistry } = provenance;
 
     const attributeByKey = new Map(ontology.map((item) => [item.stable_key, item]));
     const commitStep = `commit-understanding:${claim.attemptId}`;
@@ -132,7 +170,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         params.inputGeneration,
         claim.attemptId,
       ]),
-      ...externalProvenance.statements,
+      ...provenance.statements,
     ];
     if (darkInitialResult) {
       for (const attempt of darkInitialResult.attempts ?? [

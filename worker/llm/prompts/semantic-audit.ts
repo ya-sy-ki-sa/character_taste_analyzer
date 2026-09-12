@@ -1,4 +1,4 @@
-export const SEMANTIC_AUDIT_POLICY = "semantic-integrity/v1.4.0";
+export const SEMANTIC_AUDIT_POLICY = "semantic-integrity/v1.5.0";
 export const SEMANTIC_AUDIT_SCHEMA_VERSION = "1.1";
 const SEMANTIC_AUDIT_COMMON = `[TASK:SEMANTIC_AUDIT]
 改訂後に実際に返す最終候補のラベル・描写・極性・条件・例外・要約を監査する。改訂前の候補を判定対象にしない。
@@ -50,6 +50,7 @@ export const UNDERSTANDING_SEMANTIC_AUDIT_INSTRUCTION = `${SEMANTIC_AUDIT_COMMON
 
 export const PREFERENCE_SEMANTIC_AUDIT_INSTRUCTION = `${SEMANTIC_AUDIT_COMMON}
 [AUDIT_SCOPE:PREFERENCE]
+- 候補一覧だけでなくユーザー原文の評価・反応を照合し、根拠がある未抽出の対象・反応も改訂結果へ含める。候補が存在するだけで採用せず、存在しないだけで無視しない。
 - evaluatedPropositionとnegatedPropositionで、対象への好悪とユーザーの反応の有無を分離する。
 - 反応の否定だけをnegative属性の支持にしない。対象・極性を支持する命題を確認する。
 - 確認済み人物理解は、ユーザーがその属性を好きだという根拠にしない。
@@ -57,4 +58,6 @@ export const PREFERENCE_SEMANTIC_AUDIT_INSTRUCTION = `${SEMANTIC_AUDIT_COMMON}
 - モデル知識から好みを作らない。無効な出典をモデル知識へ読み替えない。
 [UNRESOLVED:PREFERENCE_AUDIT]
 - 確定不能な好み → uncertaintiesに理由と確認質問。原文に明示された好意自体はsummary.userExplicitSummaryに保持。
-- 反応経路のみ未確定 → responseChannel=nullで候補を保持。`;
+- 評価対象・極性・条件の支持と反応経路の支持を分けて検討する。
+- 対象・極性・条件は支持され、反応経路のみ未確定 → 同じ監査内でresponseChannel=nullへ改訂し、改訂後の命題にscopeAssessment・各supportAssessment・evidenceSetAssessmentを付け直す。反応だけの不確実性で対象への好意まで除外しない。
+- 改訂後も対象・極性・条件が支持されない場合はpartial等を維持する。根拠集合を無条件にsupportedへ変更しない。`;

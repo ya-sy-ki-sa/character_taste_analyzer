@@ -59,3 +59,9 @@ export type UnderstandingCall = {
   inputHash: string;
   representationId: string;
 };
+
+export type NormalizeUnderstandingAudit = (
+  audit: import("../../../shared/contracts/semantic-audit").GroundedUnderstandingAudit,
+  citations: NonNullable<LlmRunMetadata["citations"]>,
+  completionAttempted: boolean,
+) => Promise<ReturnType<typeof import("./normalize-understanding").normalizeUnderstanding>>;

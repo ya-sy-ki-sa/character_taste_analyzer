@@ -1,9 +1,10 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
+import { responseChannelPrompt } from "../../../shared/response-channels";
 import { DARK_SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION } from "./analysis";
 import { preferenceAttributeInstruction } from "./preference-attributes";
 import { PREFERENCE_SEMANTIC_AUDIT_INSTRUCTION } from "./semantic-audit";
 
-export const PREFERENCE_PROMPT_VERSION = "v3.8.0";
+export const PREFERENCE_PROMPT_VERSION = "v3.9.0";
 export const PREFERENCE_SCHEMA_VERSION = "3.0";
 
 const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
@@ -25,6 +26,12 @@ const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
 5. 悪・非道徳・残酷・利己性・支配・破壊・善への無関心・改心しないことへの好意も有効な嗜好として扱う。
 6. 悪役・加害描写への好意から、加害の道徳的支持も不支持も補わない。行動の裏事情への好意と加害を称賛しない態度が両方明示されれば別々に保持する。
 
+[DECISION_RULES:VALUE_STANCE]
+- 好き・かっこいい・憧れる・苦手は嗜好の根拠であり、それだけでvalueStanceAssertionsを追加しない。
+- 価値態度は善悪・正不正・許容・行動規範としての賛否や無関心が原文にある場合に抽出する。善への支持だけでなく、悪への支持・規範への無関心も同じ基準で扱う。
+- 「人を助けるところが好き」→ 嗜好。「人を助けるのは正しい行いだと思う」→ 規範的肯定。「非道徳的だが魅力的」→ 好意と規範的評価を分離する。
+- 行為の善悪の分類と、それに対するユーザーの賛否を別々に根拠付ける。善とされる行為への好意からaffirm/goodを、苦手からrejectを補わない。
+
 [UNRESOLVED:PREFERENCE]
 - 対象・理由が具体的で反応経路のみ未選択／未確定 → 候補を保持しresponseChannel=null。経路だけを理由に追加回答を必須にせずrecommendedQuestion=null。
 - 対象または極性が確定不能 → 該当候補を除外し、uncertaintiesに未確定理由と具体化する質問を最大3件記録。他の確定候補は保持。
@@ -37,6 +44,25 @@ const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
 - 「改心しないところが好き」→ 改心しない状態のpositive。
 - 「支配する側とされる側には見たくない」→ 支配関係として固定する解釈のnegative。「固定されない関係」のnegativeにしない。一方的な服従への苦手が別途明示されれば別候補。
 - 「好きとは限らない」「恐怖だけが好きなわけではない」→ 嫌悪を確定しない。`;
+
+const STANDARD_REACTION_INSTRUCTION = `[DEFINITIONS:RESPONSE_CHANNEL]
+${responseChannelPrompt()}
+
+[DECISION_RULES:STANDARD_REACTION]
+- 許可値の意味は上記の日本語定義に従う。英語名や「かっこいい」等の語だけで分類しない。
+- aesthetic_likingは外見・衣装・色・造形への評価。行動・生き方のかっこよさには割り当てない。
+- character_craft_appreciationは設定・脚本・描写の組み立てへの評価。主体性・努力・能力への好意だけには割り当てない。
+- admirationは能力・生き方・姿勢への高い評価。「憧れる」だけではwishful_identificationを追加しない。
+- wishful_identificationは、その人物の特定の行動・性質を自分も身につけたいという願望を含む。人物全体になりたいという宣言は不要。願望の主体はユーザー、参照対象は人物の行動・性質として分離する。
+- actual_similarityはユーザーによる主観的な自己照合。人物の特徴と自分の経験・境遇を好みの理由として結び付ける「自分も…だから」等も根拠になり得る。人物に同じ心理があるという事実を認定しない。
+- 自己経験の併記だけ、または照合先が不明なら自己類似を確定しない。文脈的な解釈にはinferredと適用範囲を保持し、人物全体への類似に拡張しない。
+- 「真似したいわけではない」「似ているとは思わない」という反応の否定を優先する。元の対象への好意は別に判定する。
+
+[BOUNDARY_EXAMPLES:STANDARD_REACTION]
+- 「怖くても助ける姿に憧れる」→ admiration。「自分も怖くても助けられるようになりたい」→ wishful_identification。
+- 「失敗しても再挑戦する姿が好き。自分も失敗が多いから励まされる」→ 主観的な自己照合とmotivationを検討する。ユーザーの失敗経験を人物の具体的な経歴へ移さない。
+- 「再挑戦する姿が好き。自分も部活をしているが似ているとは思わない」→ 自己類似を追加しない。
+- 「衣装の配色が好き。台詞の反復で成長を描く脚本が巧い」→ 外見評価と作劇評価をそれぞれ保持する。`;
 
 const PREFERENCE_CONTEXT_INSTRUCTION = `[PROCEDURE:CONTEXT]
 1. 原文から人物の性質・行動、ユーザーの経験、ユーザーの反応を分離する。人物の事実とユーザーの解釈・仮定も区別する。
@@ -110,7 +136,6 @@ export function preferenceInstruction(domain: AnalysisDomain): string {
 - 辞書外のダーク属性は一般化したrawLabelとattributeStableKey=nullで保持する。`
       : `[DOMAIN:STANDARD_PREFERENCE]
 - 通常版の反応経路のみ使用する。
-- admiration（明示された憧れ）とwishful_identification（その人物のようになりたい）を区別する。
 - 身体特徴・服装・装身具への好みも単独属性として抽出する。
 - 「銀髪が好き。ただし冷淡な人物に限る」→ rawLabel=銀髪、polarity=positive、context.conditions=冷淡な人物に限る。冷淡さへの好意を自動追加しない。`;
   return `${preferenceAttributeInstruction(domain)}\n${PREFERENCE_COMMON_INSTRUCTION}\n${PREFERENCE_CONTEXT_INSTRUCTION}\n${PREFERENCE_STRUCTURE_INSTRUCTION}\n${PREFERENCE_SCORING_INSTRUCTION}\n${domainInstruction}`;
@@ -136,6 +161,7 @@ export function preferenceSystem(domain: AnalysisDomain, stage: "extract" | "aud
   return [
     domain === "dark" ? DARK_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION,
     preferenceInstruction(domain),
+    ...(domain === "standard" ? [STANDARD_REACTION_INSTRUCTION] : []),
     task,
     ...(domain === "standard" && stage === "audit" ? [PREFERENCE_SEMANTIC_AUDIT_INSTRUCTION] : []),
   ].join("\n");

@@ -14,7 +14,6 @@ import {
 import { type GroundedPreferenceAudit, groundedPreferenceAuditSchema } from "../../../shared/contracts/semantic-audit";
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
 import { entryInputSources, entryPreferenceContext, entryScopeText } from "../../../shared/entry-input";
-import { responseChannelPrompt } from "../../../shared/response-channels";
 import { hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
@@ -188,7 +187,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
           entryInputSources(entry.payload)
             .filter((source) => source.pointer.startsWith("/preference/"))
             .map((source) => source.pointer),
-        )}\nresponse channel定義:\n${responseChannelPrompt()}\n統制属性:\n${ontologyPrompt(ontology)}`,
+        )}\n統制属性:\n${ontologyPrompt(ontology)}`,
       },
     ];
     let result: {

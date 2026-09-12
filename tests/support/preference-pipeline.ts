@@ -43,6 +43,10 @@ export type Fixture = {
     value: import("../../shared/contracts/semantic-audit").GroundedPreferenceAudit,
   ) => import("../../shared/contracts/semantic-audit").GroundedPreferenceAudit;
   understanding?: UnderstandingAudit;
+  understandingAuditOverride?: (
+    value: import("../../shared/contracts/semantic-audit").GroundedUnderstandingAudit,
+    auditNumber: number,
+  ) => import("../../shared/contracts/semantic-audit").GroundedUnderstandingAudit;
   preference: { likedReasons: string; dislikedReasons?: string; responseChannels: string[] };
   expectedAssertions: Array<{
     rawLabel: string;
@@ -153,6 +157,11 @@ export async function setup(
       }
       if (domain === "standard" && request.operation === "understanding_audit")
         value = fakeGroundedUnderstanding(value as UnderstandingAudit) as typeof value;
+      if (domain === "standard" && request.operation === "understanding_audit" && fixture.understandingAuditOverride)
+        value = fixture.understandingAuditOverride(
+          value as import("../../shared/contracts/semantic-audit").GroundedUnderstandingAudit,
+          requests.filter((item) => item.operation === "understanding_audit").length,
+        ) as typeof value;
       if (domain === "standard" && request.operation === "preference_audit")
         value = fakeGroundedPreferences(
           value as import("../../shared/contracts/preference").PreferenceCandidate,

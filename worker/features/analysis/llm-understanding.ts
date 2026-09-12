@@ -12,19 +12,16 @@ import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../../llm/
 import { UNDERSTANDING_COMPLETION_INSTRUCTION, understandingSystem } from "../../llm/prompts/understanding";
 import { LlmProviderError, type StructuredLlmResult } from "../../llm/types";
 import type { Env } from "../../types";
+import { isRetryableFailure } from "../jobs/policy";
 import { repairUnderstandingAssessments } from "./audit-repair";
 import { ontologyPrompt } from "./context";
 import { fakeUnderstanding, fakeUnderstandingAudit } from "./deterministic";
+import { analysisErrorCode, safeAnalysisErrorDetail } from "./failures";
 import type { CharacterResearch } from "./research";
 import { fakeGroundedUnderstanding } from "./semantic-fake";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
-import type { AttributeRow, EntryContext } from "./types";
-import {
-  assessUnderstandingInformation,
-  explainUnknownUnderstandingAspects,
-  UNDERSTANDING_INFORMATION_POLICY,
-  understandingQualityIssues,
-} from "./understanding-quality";
+import type { AttributeRow, EntryContext, NormalizeUnderstandingAudit } from "./types";
+import { UNDERSTANDING_INFORMATION_POLICY, understandingQualityIssues } from "./understanding-quality";
 
 export async function understandOne(
   env: Env,
@@ -33,6 +30,7 @@ export async function understandOne(
   stage: "base" | "target",
   ontology: AttributeRow[],
   research: CharacterResearch,
+  normalizeAudit: NormalizeUnderstandingAudit,
   baseSummary?: UnderstandingCandidate,
 ) {
   const includeCustomization = stage === "target";
@@ -143,10 +141,26 @@ export async function understandOne(
       fakeFactory: () => fakeGroundedUnderstanding(fakeUnderstandingAudit(candidate)),
     });
   }
+  async function normalize(audit: Parameters<NormalizeUnderstandingAudit>[0], completionAttempted: boolean) {
+    try {
+      return await normalizeAudit(audit, citations, completionAttempted);
+    } catch (cause) {
+      // Provenance reads can fail after successful LLM calls. Keep their records for the failure commit.
+      const error = new LlmProviderError(
+        "キャラクター像の根拠検証に失敗しました",
+        analysisErrorCode(cause),
+        isRetryableFailure(cause),
+        safeAnalysisErrorDetail(cause),
+      );
+      error.operation = "understanding_audit";
+      error.attempts = [...attempts];
+      throw error;
+    }
+  }
   let audited = await audit(result.value, "audit");
   let issues = understandingQualityIssues(audited.value);
-  let informationQuality = assessUnderstandingInformation(audited.value, false);
-  if (issues.length || informationQuality.status === "limited") {
+  let normalized = await normalize(audited.value, false);
+  if (issues.length || normalized.informationQuality.status === "limited") {
     const repaired = await recordCall({
       operation: includeCustomization ? "customization_delta" : "character_understanding",
       schemaName: "character_understanding_candidate",
@@ -157,7 +171,7 @@ export async function understandOne(
         ...messages,
         {
           role: "user",
-          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n不足: ${JSON.stringify([...issues, ...informationQuality.reasons])}\n項目別の情報量判定: ${JSON.stringify(informationQuality.aspects)}\n監査後の候補: ${JSON.stringify(audited.value)}\n取得済み引用: ${JSON.stringify(citations)}`,
+          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n不足: ${JSON.stringify([...issues, ...normalized.informationQuality.reasons])}\n項目別の情報量判定: ${JSON.stringify(normalized.informationQuality.aspects)}\n根拠検証・正規化後の候補: ${JSON.stringify(normalized)}\n取得済み引用: ${JSON.stringify(citations)}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -171,7 +185,7 @@ export async function understandOne(
     });
     audited = await audit(repaired.value, "complete:audit");
     issues = understandingQualityIssues(audited.value);
-    informationQuality = assessUnderstandingInformation(audited.value, true);
+    normalized = await normalize(audited.value, true);
   }
   if (issues.length) {
     const error = new LlmProviderError(
@@ -185,10 +199,10 @@ export async function understandOne(
     throw error;
   }
   const value = {
-    ...explainUnknownUnderstandingAspects(understandingCandidateSchema.parse(audited.value)),
+    ...understandingCandidateSchema.parse(normalized),
     sourceAssessment: {
-      ...audited.value.sourceAssessment,
-      informationQuality,
+      ...normalized.sourceAssessment,
+      informationQuality: normalized.informationQuality,
       systemResearch: {
         status: research.status,
         query: research.query,

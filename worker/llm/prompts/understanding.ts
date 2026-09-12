@@ -1,7 +1,7 @@
 import { understandingAspectLabels } from "../../../shared/understanding-aspects";
 import { SYSTEM_INSTRUCTION } from "./analysis";
 import { UNDERSTANDING_SEMANTIC_AUDIT_INSTRUCTION } from "./semantic-audit";
-export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.5.0";
+export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v1.6.0";
 
 export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `[TASK:UNDERSTANDING_COVERAGE]
 キャラクター像の7項目をそれぞれ検討する。
@@ -65,12 +65,13 @@ export const UNDERSTANDING_AUDIT_INSTRUCTION = `[TASK:UNDERSTANDING_AUDIT]
 - 削除で空になった項目には項目別の不明理由を残す。`;
 
 export const UNDERSTANDING_COMPLETION_INSTRUCTION = `[TASK:UNDERSTANDING_COMPLETION]
-入力: 監査後の不足した人物像と元の登録情報。
+入力: 根拠検証・正規化後の不足した人物像、不足・除外理由、元の登録情報。
 処理:
 1. 元の登録情報を基準に不足項目を再検討する。
 2. 既成キャラクターは利用可能な公開情報検索とモデル知識で補完する。
 3. オリジナル・カスタム固有の設定は入力資料の範囲を保持する。
 4. 根拠を取得できない項目には項目別の不明理由を残す。
+5. 除外された断定をそのまま復活させない。除外理由を解消する根拠を得るか、支持される対象範囲へ修正する。反復して項目数を埋めるための創作は禁止。
 出力: 指定Schemaに適合する完全な候補。`;
 
 export const UNDERSTANDING_ASSESSMENT_REPAIR_INSTRUCTION = `[TASK:UNDERSTANDING_ASSESSMENT_REPAIR]
