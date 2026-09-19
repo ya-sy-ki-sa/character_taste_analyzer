@@ -8,5 +8,13 @@ backups/
 .dev.vars
 .env*
 !.dev.vars.example
+!.env.example
 *.log
 .artifacts/
+
+# External Cloudflare skills are installed locally and are not committed.
+/.agents/skills/cloudflare/
+/.agents/skills/turnstile-spin/
+/.agents/skills/workers-best-practices/
+/.agents/skills/wrangler/
+/.agents/skills/typesafe-ai/

@@ -7,6 +7,7 @@
 | [導入・運用](operations.md) | ローカル、環境設定、プロバイダー、DB、配置手順 |
 | [構成](architecture.md) | 正本、機能分割、依存方向、API、CSS |
 | [分析仕様](analysis.md) | 登録、理解、レビュー、集計、生成の不変条件 |
+| [LLM利用処理とプロンプト一覧](llm-usage.md) | 本番・評価用のLLM処理、プロンプト、出力契約、共通修復 |
 | [品質評価](quality.md) | 検証コマンド、環境、評価形式、バンドル検査 |
 | [Codex開発ハーネス](codex-harness.md) | GPT-6 Astraのプロジェクト設定、作業指示、対話運用と導入確認 |
 | [属性語彙一覧](generated/ontology.md) | 型付きカタログから生成した通常版・dark版辞書 |
