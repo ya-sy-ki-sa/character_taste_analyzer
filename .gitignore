@@ -12,6 +12,8 @@ backups/
 *.log
 .artifacts/
 
+.codex/config.toml
+
 # External Cloudflare skills are installed locally and are not committed.
 /.agents/skills/cloudflare/
 /.agents/skills/turnstile-spin/
