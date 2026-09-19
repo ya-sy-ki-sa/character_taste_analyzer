@@ -1,4 +1,5 @@
 [shell_environment_policy.set]
 CLOUDFLARE_ACCOUNT_ID = ""
-CLOUDFLARE_API_TOKEN = ""
 CLOUDFLARE_AI_GATEWAY_ID = ""
+
+# CLOUDFLARE_API_TOKEN は ~/.codex/.env で定義すること
