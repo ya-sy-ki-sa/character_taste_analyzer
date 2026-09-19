@@ -63,5 +63,42 @@ class CompactJevTests(unittest.TestCase):
                 self.assertEqual(route_model.compact_jev(response)["reason"], "invalid_response")
 
 
+class RoutingTests(unittest.TestCase):
+    def test_legacy_weekly_quota_fields_are_rejected(self):
+        for field, value in (("weekly_remaining_pct", 1), ("quota_observed_at", "2026-09-19T00:00:00Z")):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                route_model.validate_state({"task_summary": "test", field: value})
+
+    def test_astra_uses_local_sol_and_jev_evidence_without_quota_fields(self):
+        state = {
+            "task_summary": "Unresolved architectural work",
+            "unresolved": True,
+            "sol_failures": 1,
+            "sol_evidence": "Sol attempt could not resolve the cross-module decision.",
+            "architectural_decision": True,
+            "subsystems_involved": 2,
+        }
+        assessment = {
+            "version": 1,
+            "status": "ok",
+            "scores": {"mechanical": 0.5, "ambiguity": 1, "reasoning_depth": 2.5, "architectural_scope": 2},
+            "confidence": {key: 0.9 for key in route_model.SCORES},
+            "noul": {"tight_coupling": 0.5, "bounded_worker_ready": 0.5},
+        }
+
+        result = route_model.decide(route_model.validate_state(state), assessment)
+
+        self.assertEqual(result["action"], "route")
+        self.assertEqual(result["tier"], "astra")
+        self.assertEqual(result["reason"], "local_evidence_and_jev")
+        self.assertTrue(result["astra_gate_passed"])
+        self.assertNotIn("quota_status", result)
+
+    def test_offline_routing_never_returns_hold(self):
+        result = route_model.decide({"task_summary": "test"}, route_model.fallback("network_error"))
+        self.assertEqual(result["action"], "route")
+        self.assertNotIn("hold", result["action"])
+
+
 if __name__ == "__main__":
     unittest.main()

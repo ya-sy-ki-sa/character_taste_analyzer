@@ -14,7 +14,7 @@ Never put secrets in arguments, JSON state, source or a committed .env file.
 USAGE: python3 route-model.py --state state.json    (or --state - for stdin)
        python3 route-model.py --offline --state state.json
        python3 route-model.py --example
-Exit 0 = route (including safe fallback), 3 = quota hold, 2 = invalid input.
+Exit 0 = route (including safe fallback), 2 = invalid input.
 No model execution, automatic switch, OpenAI API key or OpenAI API billing is involved. Jev uses Cloudflare billing.
 The Codex caller dispatches only when action=route and must verify host support.
 
@@ -24,22 +24,19 @@ STATE: task_summary is required (<=4000 chars). Optional facts:
  cheaper_failures, sol_failures, subsystems_involved: integers 0..1000;
  sol_evidence: sanitized observed failed Sol attempt summary (<=2000 chars);
  current_tier: luna|terra|sol|astra; checkpoint: initial|explored|failed|escalate|bounded;
- weekly_remaining_pct: 0..100; quota_observed_at: ISO 8601 with timezone.
-Quota must be <=15 minutes old to unlock Astra (otherwise treated as unknown).
 Facts are supplied by the trusted caller for the NEXT package, never by Jev.
 This is a policy gate, not an authorization boundary against a malicious caller.
 Unknown fields are rejected to avoid accidentally sending logs/files/secrets.
-Only allowlisted task facts go to Cloudflare/TypeSafe; local quota is never sent.
+Only allowlisted task facts go to Cloudflare/TypeSafe.
 
 POLICY: fixed defaults, not measured model prices or guaranteed quota savings.
-<=10% fresh quota: hold. <=20% or unknown/stale quota: no Astra. All successful
-Astra decisions require local Sol evidence AND strong Jev evidence. Defaults
-are deliberately conservative; evaluate routes/outcomes before tuning them.
+All successful Astra decisions require local Sol evidence AND strong Jev
+evidence. Defaults are deliberately conservative; evaluate routes/outcomes
+before tuning them.
 No retries. REST errors remain visible in assessment_status/reason. HTTPS
 only, no redirects, bounded inputs/responses. --offline skips all networking.
 """
 import argparse
-from datetime import datetime, timezone
 import json
 import math
 import os
@@ -113,7 +110,7 @@ def numeric(x, maximum):
 
 
 def validate_state(s):
-    allowed = set(BOOLS + COUNTS) | {"task_summary", "sol_evidence", "current_tier", "checkpoint", "weekly_remaining_pct", "quota_observed_at"}
+    allowed = set(BOOLS + COUNTS) | {"task_summary", "sol_evidence", "current_tier", "checkpoint"}
     if not isinstance(s, dict) or set(s) - allowed:
         raise ValueError("State must be an object containing only documented fields")
     if not isinstance(s.get("task_summary"), str) or not s["task_summary"].strip() or len(s["task_summary"]) > 4000:
@@ -130,23 +127,7 @@ def validate_state(s):
         raise ValueError("Unknown current_tier")
     if "checkpoint" in s and s["checkpoint"] not in ("initial", "explored", "failed", "escalate", "bounded"):
         raise ValueError("Unknown checkpoint")
-    if "weekly_remaining_pct" in s and not numeric(s["weekly_remaining_pct"], 100):
-        raise ValueError("weekly_remaining_pct must be 0..100")
-    if "quota_observed_at" in s:
-        if not isinstance(s["quota_observed_at"], str):
-            raise ValueError("quota_observed_at must be a timestamp")
-        stamp = datetime.fromisoformat(s["quota_observed_at"].replace("Z", "+00:00"))
-        if stamp.tzinfo is None:
-            raise ValueError("quota_observed_at requires a timezone")
     return s
-
-
-def fresh_quota(s):
-    if "weekly_remaining_pct" not in s or "quota_observed_at" not in s:
-        return None
-    stamp = datetime.fromisoformat(s["quota_observed_at"].replace("Z", "+00:00"))
-    age = (datetime.now(timezone.utc) - stamp).total_seconds()
-    return s["weekly_remaining_pct"] if 0 <= age <= 900 else None
 
 
 def floor_tier(s):
@@ -199,8 +180,7 @@ def assess(s):
         if gateway and not re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", gateway):
             return fallback("configuration_error")
         url = "https://api.cloudflare.com/client/v4/accounts/" + account + "/ai/run"
-        public = {k: v for k, v in s.items() if k not in ("weekly_remaining_pct", "quota_observed_at")}
-        body = json.dumps({"model": "typesafe/jev", "input": {"state": public, "questions": QUESTIONS}},
+        body = json.dumps({"model": "typesafe/jev", "input": {"state": s, "questions": QUESTIONS}},
                           ensure_ascii=False, allow_nan=False).encode("utf-8")
         # Allow question overhead in addition to the 16 KiB input state limit.
         if len(body) > 32768:
@@ -229,11 +209,8 @@ def assess(s):
 
 
 def decide(s, a):
-    quota = fresh_quota(s)
-    base = {"version": 1, "quota_status": "fresh" if quota is not None else "unknown_or_stale",
-            "assessment_status": a["status"], "assessment_reason": a.get("reason"), "astra_gate_passed": False}
-    if quota is not None and quota <= 10:
-        return {**base, "action": "hold", "tier": None, "model": None, "reasoning_effort": None, "reason": "weekly_reserve"}
+    base = {"version": 1, "assessment_status": a["status"],
+            "assessment_reason": a.get("reason"), "astra_gate_passed": False}
     tier, reason = floor_tier(s), "safe_fallback"
     if obvious_luna(s):
         tier, reason = "luna", "deterministic_mechanical"
@@ -244,8 +221,8 @@ def decide(s, a):
                       and (s.get("architectural_decision") is True or s.get("tight_coupling") is True))
         jev_gate = (min(confidence.values()) >= 0.80 and score["reasoning_depth"] >= 2.5
                     and (score["architectural_scope"] >= 2 or noul["tight_coupling"] >= 0.90))
-        if local_gate and jev_gate and quota is not None and quota > 20:
-            tier, reason = "astra", "local_evidence_and_jev_and_quota"
+        if local_gate and jev_gate:
+            tier, reason = "astra", "local_evidence_and_jev"
             base["astra_gate_passed"] = True
         elif tier == "sol" or score["reasoning_depth"] >= 2 or score["architectural_scope"] >= 2:
             tier, reason = "sol", "reasoning_or_evidence_floor"
@@ -283,12 +260,11 @@ def main():
         if len(raw) > LIMIT:
             raise ValueError("State exceeds 16 KiB")
         s = validate_state(json.loads(raw))
-        quota = fresh_quota(s)
-        skip = args.offline or obvious_luna(s) or (quota is not None and quota <= 10)
+        skip = args.offline or obvious_luna(s)
         a = {"version": 1, "status": "skipped", "reason": "offline_or_deterministic"} if skip else assess(s)
         result = decide(s, a)
         print(json.dumps(result, separators=(",", ":"), allow_nan=False))
-        return 3 if result["action"] == "hold" else 0
+        return 0
     except (ValueError, TypeError, OSError, OverflowError) as exc:
         # Do not echo raw input, paths or environment values in diagnostics.
         print(json.dumps({"version": 1, "action": "error", "reason": "invalid_input", "error_type": type(exc).__name__}))
