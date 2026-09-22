@@ -26,11 +26,11 @@ npm run dev:offline
 
 現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`database/migrations`です。
 
-改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当と明示的な `effort`（モデル既定値はnull）が必要で、生成要求には `profileSnapshotId` が必須です。
+改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当を保存し、`effort` はティア設定で指定した値または `null`（モデル既定値）になります。生成要求には `profileSnapshotId` が必須です。
 
 ## Jevの意味判定
 
-通常実行では `JEV_PROVIDER=typesafe`、`JEV_MODEL=jev-1.13.0` と `TYPESAFE_API_KEY` を設定します。JevはTypeSafe APIへ直接接続し、OpenAI/Workers AIのGateway設定やLLMのメンバーシップ割当とは独立しています。APIキーはサーバーSecretのみで管理します。設定不足はreadinessの既存configurationチェックで検出します。
+通常実行では `JEV_PROVIDER=typesafe`、`JEV_MODEL=typesafe/jev`、Wranglerの `AI` binding、`AI_GATEWAY_GATEWAY_ID` を設定します。JevはCloudflareのThird-party modelとして、Workerの `env.AI.run("typesafe/jev", { state, questions }, { gateway: { id: AI_GATEWAY_GATEWAY_ID } })` から呼び出します。Jev専用のTypeSafe APIキー、Custom Provider、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN` は不要です。Cloudflare側のモデルプロバイダ認証とUnified Billingを利用します。設定不足はreadinessの既存configurationチェックで検出します。
 
 `offline`は `JEV_PROVIDER=replay`、単体試験のEnvは `fake` を明示します。両方とも判断箇所から供給する固定fixtureを使用し、欠落fixtureを推定成功に変えません。Replay/Fakeの通過は意味理解の精度を示しません。
 
@@ -40,7 +40,7 @@ Jev設定はデプロイ設定であり、既存のLLM割当JSONには追加し�
 
 ## AI Provider
 
-メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` にティア別の `{ provider, model }` と任意の `effort` を設定できます。初期値 `{}` は全ティアで共通モデルと推論量を継承します。共通の推論量は `LLM_REASONING_EFFORT`、fallback先は `LLM_FALLBACK_REASONING_EFFORT` で指定し、空欄ではモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定は独立したJev設定、Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ実装](../worker/features/account/membership.ts) と [LLMルーティング](../worker/llm/routing.ts)を参照してください。
+メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` にティア別の `{ provider, model, effort }` を設定します。初期値 `{}` は全ティアで共通モデルを使い、推論量はモデルの既定値です。ティア設定の `effort` を省略した場合も、選択したモデルの既定値を使います。フォールバック先も個別の推論量は持たず、フォールバックモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定は独立したJev設定、Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ実装](../worker/features/account/membership.ts) と [LLMルーティング](../worker/llm/routing.ts)を参照してください。
 
 `LLM_PROVIDER`で次を明示選択します。
 
@@ -51,7 +51,7 @@ Jev設定はデプロイ設定であり、既存のLLM割当JSONには追加し�
 | `replay` | ローカルE2E／CIの再現可能な応答 |
 | `fake` | 単体試験用の決定論的応答 |
 
-local/staging/productionの既定LLMはすべて`gpt-5.6-luna`、推論量は`LLM_REASONING_EFFORT`を空欄にしてモデルの既定値を使います。ティア別の上書きは既定で空のため、全ティアで共通モデルを使います。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
+local/staging/productionの既定LLMはすべて`gpt-5.6-luna`、推論量はモデルの既定値です。ティア別の上書きは`LLM_TIER_ROUTES_JSON`で指定します。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`で、推論量はモデルの既定値です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
 
 OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
 

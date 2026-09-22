@@ -48,7 +48,7 @@ function setup(tier: MembershipTier = "basic") {
     APP_ORIGIN: "https://lab.example",
     AUTH_PEPPER: "membership-test-only",
     JEV_PROVIDER: "fake",
-    JEV_MODEL: "jev-1.13.0",
+    JEV_MODEL: "typesafe/jev",
     LLM_PROVIDER: "fake",
     LLM_MODEL: "common-original",
     LLM_TIER_ROUTES_JSON: JSON.stringify(
@@ -182,7 +182,6 @@ describe("membership persistence and authentication", () => {
 describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
   it.each(membershipTierSchema.options)("pins %s across analysis, review, hypotheses and generation", async (tier) => {
     const { db, env, owner } = setup(tier);
-    env.LLM_REASONING_EFFORT = "low";
     env.LLM_TIER_ROUTES_JSON = JSON.stringify(
       Object.fromEntries(
         membershipTierSchema.options.map((item) => [
@@ -208,7 +207,6 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     };
     // The actual dispatcher uses these same service entrypoints in local mode.
     env.LLM_MODEL = "common-changed";
-    env.LLM_REASONING_EFFORT = "max";
     env.LLM_TIER_ROUTES_JSON = "{}";
     db.database.prepare("UPDATE users SET membership_tier='premium' WHERE id=?").run(owner);
     expect(await dispatchOutboxEvent(env, entry.outboxEventId as string)).toBe(true);
@@ -256,7 +254,7 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
         membershipTier: tier,
         operation: run.operation,
         jobId: entry.jobId,
-        primary: { effort: run.operation === "dark_scope_assessment" ? "low" : "high" },
+        primary: { effort: run.operation === "dark_scope_assessment" ? null : "high" },
       });
     }
     const activated = await activateAnalysisAndRebuild(env, owner, domain, preference?.id as string);
@@ -287,10 +285,9 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     );
     expect(snapshot(db, generation.jobId as string)).toMatchObject({
       membershipTier: "premium",
-      tier: { primary: { model: "common-changed", effort: "max" } },
+      tier: { primary: { model: "common-changed", effort: null } },
     });
     env.LLM_MODEL = "changed-again";
-    env.LLM_REASONING_EFFORT = "none";
     env.LLM_TIER_ROUTES_JSON = '{"premium":{"provider":"openai","model":"must-not-call"}}';
     // Jev requests reconsideration once; the LLM repair keeps its job-pinned route.
     const createJudgment = judgmentProviders.createJudgmentProvider;
@@ -341,7 +338,7 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
       expect(JSON.parse(run.effective_settings_json as string).llmRouting).toMatchObject({
         membershipTier: "premium",
         jobId: generation.jobId,
-        primary: { effort: "max" },
+        primary: { effort: null },
       });
     }
     expect(fetchMock).not.toHaveBeenCalled();
@@ -352,7 +349,6 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     const entry = await createEntry(env, owner, domain, draft(domain), crypto.randomUUID());
     const saved = snapshot(db, entry.jobId);
     expect(saved.tier.primary.effort).toBeNull();
-    env.LLM_REASONING_EFFORT = "max";
     env.LLM_TIER_ROUTES_JSON = '{"basic":{"provider":"fake","model":"new-model","effort":"high"}}';
     const llm = await createJobLlmProvider(env, entry.jobId, owner);
     const result = await llm.generateStructured(probe);

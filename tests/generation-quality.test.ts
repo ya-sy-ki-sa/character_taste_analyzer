@@ -63,7 +63,7 @@ describe("generation Jev projection", () => {
     const character = structuredClone(candidate);
     character.briefCoverage[0].explanation = "根拠のない追加主張";
     const result = await judgeGeneration(
-      { JEV_PROVIDER: "fake", JEV_MODEL: "jev-1.13.0" } as Env,
+      { JEV_PROVIDER: "fake", JEV_MODEL: "typesafe/jev" } as Env,
       "generation-fixture",
       { ...brief, analysisDomain: "standard" } as GenerationBrief,
       character,

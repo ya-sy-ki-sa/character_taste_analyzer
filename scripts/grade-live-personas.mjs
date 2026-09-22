@@ -27,7 +27,7 @@ preserveJson(`${folder}/method.json`, {
   instructions,
   promptHash: digest(instructions),
   requestedModel: env.LLM_MODEL,
-  effort: env.LLM_REASONING_EFFORT || null,
+  effort: null,
   sources: "Frozen verified source notes; no additional model knowledge accepted as source evidence",
 });
 const sample = secondPass ? readJson(`${root}/second-pass-selection.json`).cases.map((c) => c.caseId) : null;
@@ -69,7 +69,6 @@ for (const c of selected) {
         },
         body: JSON.stringify({
           model: env.LLM_MODEL,
-          ...(env.LLM_REASONING_EFFORT ? { reasoning: { effort: env.LLM_REASONING_EFFORT } } : {}),
           store: false,
           max_output_tokens: 30000,
           input: [
@@ -98,7 +97,7 @@ for (const c of selected) {
         metadata: {
           requestedModel: env.LLM_MODEL,
           responseModel: body.model,
-          effort: env.LLM_REASONING_EFFORT || null,
+          effort: null,
           usage: body.usage,
           elapsedMs: observation.elapsedMs,
           promptHash: digest(instructions),

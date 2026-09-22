@@ -3,15 +3,22 @@ import type { z } from "zod";
 export type LlmProviderId = "openai" | "workers_ai" | "replay" | "fake";
 export type LlmOperation =
   | "character_understanding"
+  /** Historical metadata values retained for replay/old export decoding; no current call path emits them. */
+  | "understanding_audit"
   | "customization_delta"
   | "preference_analysis"
+  | "preference_audit"
   | "preference_hypotheses"
+  | "generation_comparison"
   | "dark_scope_assessment"
   | "dark_baseline_understanding"
   | "dark_character_understanding"
+  | "dark_understanding_audit"
   | "dark_preference_analysis"
+  | "dark_preference_audit"
   | "dark_character_generation"
   | "character_generation"
+  | "generation_validation"
   | "generation_repair"
   | "schema_repair";
 

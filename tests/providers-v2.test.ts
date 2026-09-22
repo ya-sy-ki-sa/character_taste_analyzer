@@ -20,7 +20,7 @@ const request = {
 function providerEnv(overrides: Partial<Env>): Env {
   return {
     JEV_PROVIDER: "fake",
-    JEV_MODEL: "jev-1.13.0",
+    JEV_MODEL: "typesafe/jev",
     LLM_PROVIDER: "fake",
     LLM_MODEL: "fake-v1",
     EMBEDDING_PROVIDER: "fake",
@@ -55,7 +55,7 @@ describe("explicit LLM provider routing", () => {
     });
     const env = providerEnv({
       JEV_PROVIDER: "fake",
-      JEV_MODEL: "jev-1.13.0",
+      JEV_MODEL: "typesafe/jev",
       LLM_PROVIDER: "workers_ai",
       LLM_MODEL: "workers-model",
       AI: { run },
@@ -72,7 +72,7 @@ describe("explicit LLM provider routing", () => {
   it("uses a configured deterministic fallback after a retryable failure", async () => {
     const env = providerEnv({
       JEV_PROVIDER: "fake",
-      JEV_MODEL: "jev-1.13.0",
+      JEV_MODEL: "typesafe/jev",
       LLM_PROVIDER: "workers_ai",
       LLM_MODEL: "workers-model",
       LLM_FALLBACK_PROVIDER: "fake",
@@ -107,7 +107,7 @@ describe("explicit LLM provider routing", () => {
     const error = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
@@ -160,7 +160,7 @@ describe("explicit LLM provider routing", () => {
     const error = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
@@ -203,7 +203,7 @@ describe("explicit LLM provider routing", () => {
     const error = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
@@ -250,7 +250,7 @@ describe("explicit LLM provider routing", () => {
     const error = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
@@ -287,7 +287,7 @@ describe("explicit LLM provider routing", () => {
     const error = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-luna",
         OPENAI_API_KEY: "test-key",
@@ -333,7 +333,7 @@ describe("explicit LLM provider routing", () => {
     const result = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-sol",
         OPENAI_API_KEY: "test-key",
@@ -355,7 +355,7 @@ describe("explicit LLM provider routing", () => {
     const result = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-sol",
         OPENAI_FLEX_ENABLED: "true",
@@ -378,7 +378,7 @@ describe("explicit LLM provider routing", () => {
     const result = await createLlmProvider(
       providerEnv({
         JEV_PROVIDER: "fake",
-        JEV_MODEL: "jev-1.13.0",
+        JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
         LLM_MODEL: "gpt-5.6-sol",
         OPENAI_API_KEY: "test-key",

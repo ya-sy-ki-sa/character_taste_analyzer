@@ -18,6 +18,9 @@ import { confirmUnderstanding } from "../../worker/features/entries/understandin
 import { loadCurrentProfile, processProfileRebuild } from "../../worker/features/profile/projection";
 import * as execution from "../../worker/llm/execution";
 import type { LlmProvider, StructuredLlmRequest } from "../../worker/llm/types";
+import { choiceAnswer, scoreAnswer } from "../../worker/judgment/policy";
+import * as judgmentProvider from "../../worker/judgment/provider";
+import type { JudgmentAnswer, JudgmentQuestion } from "../../worker/judgment/types";
 import type { Env } from "../../worker/types";
 import fixtures from "../fixtures/explicit-preferences.json";
 import { testDatabase } from "./database";
@@ -130,7 +133,7 @@ export async function setup(
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test",
     JEV_PROVIDER: "fake",
-    JEV_MODEL: "jev-1.13.0",
+    JEV_MODEL: "typesafe/jev",
     LLM_PROVIDER: "fake",
     LLM_MODEL: "fake",
     EMBEDDING_PROVIDER: "fake",
@@ -147,31 +150,13 @@ export async function setup(
       if (
         domain === "standard" &&
         fixture.understanding &&
-        ["character_understanding", "customization_delta", "understanding_audit"].includes(request.operation)
+        ["character_understanding", "customization_delta"].includes(request.operation)
       )
         value = fixture.understanding as typeof value;
-      if (useScript && /^(dark_)?preference_(analysis|audit)$/.test(request.operation)) {
-        const scripted =
-          request.operation.endsWith("_analysis") && fixture.generatedCandidate
-            ? fixture.generatedCandidate
-            : scriptedCandidate(fixture, domain);
+      if (useScript && ["preference_analysis", "dark_preference_analysis"].includes(request.operation)) {
+        const scripted = fixture.generatedCandidate ?? scriptedCandidate(fixture, domain);
         value = { ...scripted, ...(domain === "dark" ? { auditNotes: [] } : {}) } as typeof value;
       }
-      if (domain === "standard" && request.operation === "understanding_audit")
-        value = fakeGroundedUnderstanding(value as UnderstandingAudit) as typeof value;
-      if (domain === "standard" && request.operation === "understanding_audit" && fixture.understandingAuditOverride)
-        value = fixture.understandingAuditOverride(
-          value as import("../../shared/contracts/semantic-audit").GroundedUnderstandingAudit,
-          requests.filter((item) => item.operation === "understanding_audit").length,
-        ) as typeof value;
-      if (domain === "standard" && request.operation === "preference_audit")
-        value = fakeGroundedPreferences(
-          value as import("../../shared/contracts/preference").PreferenceCandidate,
-        ) as typeof value;
-      if (domain === "standard" && request.operation === "preference_audit" && fixture.auditOverride)
-        value = fixture.auditOverride(
-          value as import("../../shared/contracts/semantic-audit").GroundedPreferenceAudit,
-        ) as typeof value;
       return {
         value: request.schema.parse(value),
         metadata: {
@@ -189,6 +174,95 @@ export async function setup(
     },
   };
   vi.spyOn(execution, "createJobLlmProvider").mockResolvedValue(provider);
+  const preferenceAudit = fixture.auditOverride?.(
+    fakeGroundedPreferences(
+      structuredClone(
+        (fixture.generatedCandidate ??
+          scriptedCandidate(fixture, domain)) as import("../../shared/contracts/preference").PreferenceCandidate,
+      ),
+    ),
+  );
+  const understandingAudits = new Map<
+    number,
+    import("../../shared/contracts/semantic-audit").GroundedUnderstandingAudit
+  >();
+  const overrideChoice = (
+    answers: Record<string, JudgmentAnswer>,
+    questions: Record<string, JudgmentQuestion>,
+    id: string,
+    choice: string,
+  ) => {
+    const question = questions[id];
+    if (question?.type === "choice" && choice in question.criteria) answers[id] = choiceAnswer(question, choice);
+  };
+  vi.spyOn(judgmentProvider, "createJudgmentProvider").mockReturnValue({
+    providerId: "fake",
+    async evaluate(request) {
+      if (!request.fakeAnswers) throw new Error("TEST_JUDGMENT_FIXTURE_MISSING");
+      const answers = structuredClone(request.fakeAnswers);
+      const understandingMatch = request.context.stage.match(/^(?:base|target)(?::reconsider:(\d+))?:assertion$/u);
+      if (understandingMatch && fixture.understanding && fixture.understandingAuditOverride) {
+        const round = Number(understandingMatch[1] ?? 0);
+        let audit = understandingAudits.get(round);
+        if (!audit) {
+          audit = fixture.understandingAuditOverride(
+            fakeGroundedUnderstanding(structuredClone(fixture.understanding)),
+            round + 1,
+          );
+          understandingAudits.set(round, audit);
+        }
+        for (const id of Object.keys(request.questions)) {
+          const match = id.match(/^assertion_(\d+)_(scope|evidence_(\d+)|set)$/u);
+          if (!match) continue;
+          const assertion = audit.assertions[Number(match[1])];
+          if (!assertion) continue;
+          if (match[2] === "scope") overrideChoice(answers, request.questions, id, assertion.scopeAssessment.verdict);
+          else if (match[2] === "set" && assertion.evidenceSetAssessment)
+            overrideChoice(answers, request.questions, id, assertion.evidenceSetAssessment.verdict);
+          else {
+            const evidence = assertion.evidence[Number(match[3])];
+            if (evidence) overrideChoice(answers, request.questions, id, evidence.supportAssessment.verdict);
+          }
+        }
+      }
+      if (preferenceAudit && request.context.stage.startsWith("preference:")) {
+        for (const id of Object.keys(request.questions)) {
+          const match = id.match(
+            /^(preference|stance)_(\d+)(?:_projected)?_(scope|evidence_(\d+)|set|explicitness|polarity|strength)$/u,
+          );
+          if (!match) continue;
+          const assertion =
+            match[1] === "preference"
+              ? preferenceAudit.preferenceAssertions[Number(match[2])]
+              : preferenceAudit.valueStanceAssertions[Number(match[2])];
+          if (!assertion) continue;
+          const field = match[3];
+          if (field === "scope") overrideChoice(answers, request.questions, id, assertion.scopeAssessment.verdict);
+          else if (field === "set" && assertion.evidenceSetAssessment)
+            overrideChoice(answers, request.questions, id, assertion.evidenceSetAssessment.verdict);
+          else if (field === "explicitness") overrideChoice(answers, request.questions, id, assertion.explicitness);
+          else if (field === "polarity" && "polarity" in assertion)
+            overrideChoice(answers, request.questions, id, assertion.polarity);
+          else if (field === "strength" && "strength" in assertion) {
+            const question = request.questions[id];
+            if (question?.type === "score") {
+              const anchors = [0.3, 0.6, 0.8, 0.95];
+              const level = anchors.reduce(
+                (best, anchor, index) =>
+                  Math.abs(anchor - assertion.strength) < Math.abs(anchors[best] - assertion.strength) ? index : best,
+                0,
+              );
+              answers[id] = scoreAnswer(question, level);
+            }
+          } else {
+            const evidence = assertion.evidence[Number(match[4])];
+            if (evidence) overrideChoice(answers, request.questions, id, evidence.supportAssessment.verdict);
+          }
+        }
+      }
+      return { answers, model: "fake:typesafe/jev", usage: { input_tokens: 0, output_tokens: 0 } };
+    },
+  });
   const draft = anyEntryDraftSchema.parse({
     registrationType: "original",
     characterName: "固定応答テスト",

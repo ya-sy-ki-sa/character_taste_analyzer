@@ -47,7 +47,7 @@ async function setup(domain: AnalysisDomain, fixture = failures[0], allInvalid =
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test",
     JEV_PROVIDER: "fake",
-    JEV_MODEL: "jev-1.13.0",
+    JEV_MODEL: "typesafe/jev",
     LLM_PROVIDER: "fake",
     LLM_MODEL: "fake",
     EMBEDDING_PROVIDER: "fake",

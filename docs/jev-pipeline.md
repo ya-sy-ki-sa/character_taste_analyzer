@@ -13,7 +13,7 @@ JevがChoice/Noul/Scoreで意味を判断し、コードが採否・保留・再
 
 ## 実行基盤
 
-`worker/judgment` がTypeSafe・Fake・Replayを実装します。通常は `JEV_PROVIDER=typesafe`、`JEV_MODEL=jev-1.13.0`、サーバーSecret `TYPESAFE_API_KEY` が必要です。offlineはReplay、試験はFakeを明示します。ローカルの判断fixtureは外部APIへ送信しません。
+`worker/judgment` がCloudflare AI bindingのJev・Fake・Replayを実装します。通常は `JEV_PROVIDER=typesafe`、`JEV_MODEL=typesafe/jev`、`AI` binding、`AI_GATEWAY_GATEWAY_ID` が必要です。JevはCloudflareが提供するThird-party modelとして `env.AI.run("typesafe/jev", { state, questions }, { gateway: { id } })` から呼び出します。Jev専用のTypeSafe APIキー、Custom Provider、アカウントID、Gateway tokenは使用しません。offlineはReplay、試験はFakeを明示します。ローカルの判断fixtureは外部APIへ送信しません。
 
 Choiceの候補・回答ID、分布の合計、Scoreの段階と期待値、モデルID、利用量を検証します。欠落や不正応答は成功にしません。同一providerの通信は最大4並列、タイムアウト20秒、通信障害・429・5xxの再試行は最大2回です。Retry-Afterが内部待機上限を超える場合はジョブへ再試行可能な失敗を返します。
 
@@ -33,4 +33,4 @@ Choiceの候補・回答ID、分布の合計、Scoreの段階と期待値、モ�
 
 今回の実装では実API評価・デプロイを実行しません。後工程の実モデル比較は合計30米ドル上限です。Jev固有の詳細分布・判定履歴はローカル評価成果物へ記録し、既存アカウントエクスポートへ混入させません。
 
-公式仕様: [TypeSafe API](https://docs.typesafe.ai/api)、[モデルと言語対応](https://docs.typesafe.ai/models)、[確信度](https://docs.typesafe.ai/confidence)。
+公式仕様: [Cloudflare Jev model](https://developers.cloudflare.com/ai/models/typesafe/jev/)、[AI Gateway Worker binding methods](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/)、[AI Gateway REST API](https://developers.cloudflare.com/ai-gateway/usage/rest-api/)。

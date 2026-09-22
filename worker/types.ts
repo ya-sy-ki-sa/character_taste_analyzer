@@ -53,16 +53,13 @@ export type Env = {
   TURNSTILE_SITE_KEY?: string;
   LLM_PROVIDER: "openai" | "workers_ai" | "replay" | "fake";
   LLM_MODEL: string;
-  LLM_REASONING_EFFORT?: string;
   LLM_TIER_ROUTES_JSON?: string;
   LLM_FALLBACK_PROVIDER?: "openai" | "workers_ai" | "replay" | "fake" | "";
   LLM_FALLBACK_MODEL?: string;
-  LLM_FALLBACK_REASONING_EFFORT?: string;
   OPENAI_FLEX_ENABLED?: string;
   OPENAI_API_KEY?: string;
   JEV_PROVIDER?: "typesafe" | "fake" | "replay";
   JEV_MODEL?: string;
-  TYPESAFE_API_KEY?: string;
   MODERATION_PROVIDER?: "openai" | "fake";
   MODERATION_MODEL?: string;
   AI_GATEWAY_ACCOUNT_ID?: string;

@@ -12,11 +12,7 @@ import { darkResponseChannelPrompt } from "../../../shared/dark-response-channel
 import { entryBaseCharacterName, entryInputSources } from "../../../shared/entry-input";
 import { hmacHex, sha256Hex } from "../../lib/crypto";
 import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
-import {
-  DARK_BASELINE_SYSTEM,
-  DARK_SCOPE_SYSTEM,
-  DARK_UNDERSTANDING_SYSTEM,
-} from "../../llm/prompts/dark";
+import { DARK_BASELINE_SYSTEM, DARK_SCOPE_SYSTEM, DARK_UNDERSTANDING_SYSTEM } from "../../llm/prompts/dark";
 import { PREFERENCE_SCHEMA_VERSION, preferenceSystem } from "../../llm/prompts/preference";
 import type { Env } from "../../types";
 import { ontologyPrompt } from "./context";
@@ -31,6 +27,7 @@ import {
 import { refinementInstruction } from "./input";
 import {
   analysisIssueText,
+  analysisIssueTopic,
   judgeDarkBaselineCandidate,
   judgeDarkScopeCandidate,
   judgeDarkTransformationDeltas,
@@ -39,6 +36,7 @@ import {
 import type { CharacterResearch } from "./research";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { AttributeRow, EntryContext } from "./types";
+import { assessUnderstandingInformation, understandingQualityIssues } from "./understanding-quality";
 
 async function afterCompletedLlm<T>(
   operation: string,
@@ -186,8 +184,8 @@ export async function understandDarkBaseline(env: Env, entry: EntryContext, rese
       ...judged.candidate,
       uncertainties: [
         ...judged.candidate.uncertainties,
-        ...judged.issues.map((reason, index) => ({
-          topic: `judgment:${index + 1}`,
+        ...judged.issues.map((reason) => ({
+          topic: analysisIssueTopic(reason),
           reason: analysisIssueText(reason),
         })),
       ].slice(-50),
@@ -269,7 +267,12 @@ export async function auditDarkUnderstanding(
       correlationId: entry.entryRevisionId,
     }),
   );
-  let issues = [...judged.issues, ...deltas.issues];
+  let issues = [
+    ...judged.issues,
+    ...deltas.issues,
+    ...understandingQualityIssues(judged.candidate),
+    ...assessUnderstandingInformation(judged.audit, false).reasons,
+  ];
   for (let round = 1; issues.length && round <= MAX_RECONSIDERATION_ROUNDS; round++) {
     const messages = [
       { role: "system" as const, content: DARK_UNDERSTANDING_SYSTEM },
@@ -281,17 +284,20 @@ export async function auditDarkUnderstanding(
     current = {
       ...(await afterCompletedLlm("dark_character_understanding", initial.inputHash, attempts, async () =>
         entry.llm.generateStructured({
-        operation: "dark_character_understanding",
-        schemaName: "dark_character_understanding",
-        schemaVersion: "1.0",
-        schema: darkUnderstandingCandidateSchema,
-        jsonSchema: z.toJSONSchema(darkUnderstandingCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
-        messages,
-        maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-        temperature: 0,
-        idempotencyKey: `${entry.entryRevisionId}:dark-target:complete:${round}`,
-        safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-        enableWebSearch: entry.payload.registrationType === "existing",
+          operation: "dark_character_understanding",
+          schemaName: "dark_character_understanding",
+          schemaVersion: "1.0",
+          schema: darkUnderstandingCandidateSchema,
+          jsonSchema: z.toJSONSchema(darkUnderstandingCandidateSchema, { target: "draft-7" }) as Record<
+            string,
+            unknown
+          >,
+          messages,
+          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+          temperature: 0,
+          idempotencyKey: `${entry.entryRevisionId}:dark-target:complete:${round}`,
+          safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
+          enableWebSearch: entry.payload.registrationType === "existing",
           fakeFactory: () => sanitized,
         }),
       )),
@@ -327,14 +333,19 @@ export async function auditDarkUnderstanding(
         correlationId: entry.entryRevisionId,
       }),
     );
-    issues = [...judged.issues, ...deltas.issues];
+    issues = [
+      ...judged.issues,
+      ...deltas.issues,
+      ...understandingQualityIssues(judged.candidate),
+      ...assessUnderstandingInformation(judged.audit, true).reasons,
+    ];
   }
   const value: DarkUnderstandingCandidate = {
     ...(judged.candidate as DarkUnderstandingCandidate),
     transformationDeltas: deltas.deltas,
     uncertainties: [
       ...(judged.candidate.uncertainties ?? []),
-      ...issues.map((reason, index) => ({ topic: `judgment:${index + 1}`, reason: analysisIssueText(reason) })),
+      ...issues.map((reason) => ({ topic: analysisIssueTopic(reason), reason: analysisIssueText(reason) })),
     ].slice(-50),
     auditNotes: [...sanitized.auditNotes, ...issues.map(analysisIssueText)].slice(-50),
   };

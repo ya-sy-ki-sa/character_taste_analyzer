@@ -28,9 +28,23 @@ export function mergeSelectedPreferenceHypotheses(
     if (primary)
       return {
         ...primary,
+        attributeStableKey: item.attributeStableKey,
+        rawLabel: item.rawLabel,
+        polarity: item.polarity,
+        responseChannel: item.responseChannel,
+        strength: 0.6,
         explicitness: "user_confirmed" as const,
         confidence: 0.95,
         context: { ...primary.context, entryScope: item.scope || entryScope },
+        evidence: [
+          {
+            sourceRef: `input:${pointer.slice(1)}`,
+            sourceUrl: null,
+            inputPointer: pointer,
+            quote: item.description.slice(0, 500),
+            inferenceType: "direct" as const,
+          },
+        ],
       };
     return {
       attributeStableKey: item.attributeStableKey,

@@ -13,7 +13,10 @@ import {
   explainUnknownUnderstandingAspects,
   understandingQualityIssues,
 } from "../worker/features/analysis/understanding-quality";
-import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../worker/llm/prompts/semantic-audit";
+import {
+  ANALYSIS_JUDGMENT_POLICY_VERSION as SEMANTIC_AUDIT_POLICY,
+  ANALYSIS_JUDGMENT_POLICY_VERSION as SEMANTIC_AUDIT_SCHEMA_VERSION,
+} from "../worker/llm/prompts/judgment-analysis";
 import { UNDERSTANDING_INFORMATION_POLICY } from "../worker/llm/prompts/understanding";
 import { type LlmProvider, LlmProviderError, type StructuredLlmRequest } from "../worker/llm/types";
 import type { Env } from "../worker/types";
@@ -85,6 +88,7 @@ function setup(
   // Isolate call/coverage orchestration here; pipeline tests run the real provenance normalization.
   const normalizeAudit: NormalizeUnderstandingAudit = async (audit, _citations, completionAttempted) => ({
     ...explainUnknownUnderstandingAspects(audit),
+    aspectAssessments: audit.aspectAssessments,
     informationQuality: assessUnderstandingInformation(audit, completionAttempted),
   });
   return {
@@ -177,6 +181,7 @@ describe("character understanding completeness", () => {
           if (!afterCompletion || attempted) throw new Error("D1_ERROR: provenance unavailable");
           return {
             ...explainUnknownUnderstandingAspects(audit),
+            aspectAssessments: audit.aspectAssessments,
             informationQuality: assessUnderstandingInformation(audit, attempted),
           };
         },

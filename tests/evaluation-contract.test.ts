@@ -20,7 +20,7 @@ beforeAll(async () => {
       ENVIRONMENT: "local",
       AUTH_PEPPER: "evaluation-contract-fixture",
       JEV_PROVIDER: "fake",
-      JEV_MODEL: "jev-1.13.0",
+      JEV_MODEL: "typesafe/jev",
       LLM_PROVIDER: "fake",
       LLM_MODEL: "fake-v1",
       EMBEDDING_PROVIDER: "fake",

@@ -32,7 +32,7 @@ import { loadEntry, loadOntology, ontologyPrompt } from "./context";
 import { fakePreferences, refinedFakePreferences } from "./deterministic";
 import { commitHypothesisPreview, generatePreferenceHypotheses } from "./hypotheses";
 import { refinementInstruction } from "./input";
-import { analysisIssueText, judgePreferenceCandidate, rankPreferenceQuestions } from "./judgment";
+import { analysisIssueText, analysisIssueTopic, judgePreferenceCandidate, rankPreferenceQuestions } from "./judgment";
 import { analyzeDarkPreferences } from "./llm-dark";
 import { completedLlmGroup, persistModelRun } from "./model-runs";
 import { preferenceAssertionStatements } from "./preference-statements";
@@ -321,7 +321,8 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
               temperature: 0,
               idempotencyKey: `${entry.entryRevisionId}:dark-preference:${runGeneration}:complete:${round}`,
               safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-              fakeFactory: () => judgment.candidate as import("../../../shared/contracts/preference").DarkPreferenceCandidate,
+              fakeFactory: () =>
+                judgment.candidate as import("../../../shared/contracts/preference").DarkPreferenceCandidate,
             })
           : await entry.llm.generateStructured({
               operation: "preference_analysis",
@@ -336,7 +337,9 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
               safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
               fakeFactory: () => judgment.candidate as PreferenceCandidate,
             });
-      attempts.push(...(generated.attempts ?? [{ output: structuredClone(generated.value), metadata: generated.metadata }]));
+      attempts.push(
+        ...(generated.attempts ?? [{ output: structuredClone(generated.value), metadata: generated.metadata }]),
+      );
       result = { ...generated, value: structuredClone(generated.value) };
       preserveReviewedInputs(result.value);
       completedLlmGroups[completedLlmGroups.length - 1] = completedLlmGroup(preferenceOperation, inputHash, {
@@ -461,8 +464,8 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       ].slice(-50);
       result.value.uncertainties = [
         ...result.value.uncertainties,
-        ...judgment.issues.map((reason, index) => ({
-          topic: `judgment:${index + 1}`,
+        ...judgment.issues.map((reason) => ({
+          topic: analysisIssueTopic(reason),
           reason: analysisIssueText(reason).slice(0, 2_000),
           recommendedQuestion: null,
         })),
@@ -472,9 +475,6 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       userExplicitSummary: [
         ...new Set([
           ...retained.summary.userExplicitSummary,
-          entry.payload.preference.likedReasons?.slice(0, 1_000) ?? "",
-          entry.payload.preference.dislikedReasons?.slice(0, 1_000) ?? "",
-          entry.payload.preference.valueStanceNote?.slice(0, 1_000) ?? "",
           ...result.value.preferenceAssertions
             .filter((item) => ["user_explicit", "user_confirmed"].includes(item.explicitness))
             .map((item) => item.rawLabel),

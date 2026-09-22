@@ -5,8 +5,8 @@ import type {
   DarkTransformationDelta,
   DarkUnderstandingCandidate,
 } from "../../../shared/contracts/dark-understanding";
-import type { EvidenceReference } from "../../../shared/contracts/evidence";
 import type { AnyEntryDraft } from "../../../shared/contracts/entries";
+import type { EvidenceReference } from "../../../shared/contracts/evidence";
 import type { AnyPreferenceCandidate, PreferenceCandidate } from "../../../shared/contracts/preference";
 import type { PreferenceHypothesis } from "../../../shared/contracts/refinement";
 import type {
@@ -17,22 +17,16 @@ import type {
 } from "../../../shared/contracts/semantic-audit";
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
 import type { AspectAssessments } from "../../../shared/contracts/understanding-quality";
-import { entryInputSources } from "../../../shared/entry-input";
 import { darkResponseChannelCatalog } from "../../../shared/dark-response-channels";
+import { entryInputSources } from "../../../shared/entry-input";
 import { responseChannelCatalog } from "../../../shared/response-channels";
 import {
   type UnderstandingAspect,
   understandingAspectLabels,
   understandingAspects,
 } from "../../../shared/understanding-aspects";
+import { choiceAnswer, isCertainChoice, isCertainNoul, isCertainScore, scoreAnswer } from "../../judgment/policy";
 import { createJudgmentProvider } from "../../judgment/provider";
-import {
-  choiceAnswer,
-  isCertainChoice,
-  isCertainNoul,
-  isCertainScore,
-  scoreAnswer,
-} from "../../judgment/policy";
 import type { JudgmentAnswer, JudgmentProvider, JudgmentQuestion } from "../../judgment/types";
 import {
   ANALYSIS_INPUT_CLASSIFICATION_CRITERIA,
@@ -77,6 +71,12 @@ export type PreferenceJudgment = {
 export function analysisIssueText(issue: string): string {
   const separator = issue.lastIndexOf(": ");
   return (separator >= 0 ? issue.slice(separator + 2) : issue).replace(/\bJev\b/giu, "意味判定").trim();
+}
+
+export function analysisIssueTopic(issue: string): string {
+  return analysisIssueText(issue)
+    .replace(/[。.]$/u, "")
+    .slice(0, 500);
 }
 
 function choiceQuestion(instructions: string, criteria: Record<string, string>): JudgmentQuestion {
@@ -152,17 +152,16 @@ function sourceChunks<T extends JudgmentSource>(sources: T[]) {
 }
 
 function normalizedTerms(value: string): Set<string> {
-  const normalized = value.normalize("NFKC").toLocaleLowerCase().replace(/[\s、。・/／()[\]{}「」『』]/gu, "");
+  const normalized = value
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[\s、。・/／()[\]{}「」『』]/gu, "");
   const terms = new Set<string>();
   for (let index = 0; index < normalized.length - 1; index++) terms.add(normalized.slice(index, index + 2));
   return terms;
 }
 
-function attributeCandidates(
-  text: string,
-  currentKey: string | null,
-  ontology: AttributeRow[],
-): AttributeRow[] {
+function attributeCandidates(text: string, currentKey: string | null, ontology: AttributeRow[]): AttributeRow[] {
   const sourceTerms = normalizedTerms(text);
   const scored = ontology.map((item) => {
     const terms = normalizedTerms(`${item.label}${item.stable_key}`);
@@ -171,15 +170,17 @@ function attributeCandidates(
   });
   return scored
     .filter((item) => item.current || item.overlap > 0)
-    .sort((left, right) => right.current - left.current || right.overlap - left.overlap || left.item.stable_key.localeCompare(right.item.stable_key))
+    .sort(
+      (left, right) =>
+        right.current - left.current ||
+        right.overlap - left.overlap ||
+        left.item.stable_key.localeCompare(right.item.stable_key),
+    )
     .slice(0, 16)
     .map((item) => item.item);
 }
 
-function relevantSourceText(
-  evidence: EvidenceReference,
-  sources: JudgmentSource[],
-) {
+function relevantSourceText(evidence: EvidenceReference, sources: JudgmentSource[]) {
   const matched = sources.filter(
     (source) =>
       (evidence.inputPointer && source.pointer === evidence.inputPointer) ||
@@ -205,11 +206,35 @@ function explicitnessConfidence(explicitness: string, original: number): number 
 
 function closestStrengthIndex(value: number): number {
   return STRENGTH_ANCHORS.reduce(
-    (best, anchor, index) =>
-      Math.abs(anchor - value) < Math.abs(STRENGTH_ANCHORS[best] - value) ? index : best,
+    (best, anchor, index) => (Math.abs(anchor - value) < Math.abs(STRENGTH_ANCHORS[best] - value) ? index : best),
     0,
   );
 }
+
+const scopeReason = (verdict: string) =>
+  ({
+    consistent: "主体・対象・所有・否定・時期・条件・例外が提示された根拠と一致します。",
+    mismatch: "主体・対象・所有・否定・時期・条件・例外のいずれかが提示された根拠と食い違います。",
+    uncertain: "提示された根拠だけでは主体・対象・所有・否定・時期・条件・例外を確認できません。",
+  })[verdict] ?? "命題の範囲を確認できません。";
+
+const supportReason = (verdict: string) =>
+  ({
+    supported: "根拠は候補全体を支持します。",
+    partial: "根拠は候補の一部を支持します。",
+    unsupported: "根拠から候補を導けません。",
+    contradicted: "根拠は候補と矛盾します。",
+    unverifiable: "提示された資料だけでは候補を確認できません。",
+  })[verdict] ?? "根拠による支持を確認できません。";
+
+const inputClassificationLabel = (classification: string) =>
+  ({
+    preference: "好み・苦手の反応",
+    value_attitude: "価値や行為への態度",
+    character_fact: "人物や作品についての記述",
+    self_experience: "ユーザー自身の経験についての記述",
+    no_match: "分類を確認できない記述",
+  })[classification] ?? "分類を確認できない記述";
 
 function semanticFields(
   assertion: {
@@ -219,7 +244,13 @@ function semanticFields(
   },
   answers: Record<string, JudgmentAnswer>,
   prefix: string,
-  proposition: { evaluated: string; actor?: string | null; target?: string | null; negated?: string | null },
+  proposition: {
+    evaluated: string;
+    actor?: string | null;
+    target?: string | null;
+    possessor?: string | null;
+    negated?: string | null;
+  },
   issues: string[],
 ): SemanticFields {
   const protectedByReview = assertion.explicitness === "user_confirmed";
@@ -240,7 +271,7 @@ function semanticFields(
       ...reference,
       supportAssessment: {
         verdict: verdict as AuditedEvidence["supportAssessment"]["verdict"],
-        reason: `個別根拠の照合結果: ${verdict}`,
+        reason: supportReason(verdict),
       },
     };
   });
@@ -253,17 +284,17 @@ function semanticFields(
     evidenceSetAssessment = {
       verdict: verdict as EvidenceSetAssessment["verdict"],
       evidenceIndexes: verdict === "supported" ? evidence.map((_, index) => index) : [],
-      reason: `集合根拠の照合結果: ${verdict}`,
+      reason: verdict === "supported" ? "複数の根拠を合わせると候補全体を支持します。" : supportReason(verdict),
     };
   }
   const acceptedEvidence = evidence.filter((item) => ["supported", "partial"].includes(item.supportAssessment.verdict));
   return {
     scopeAssessment: {
       verdict: scope as ScopedProposition["verdict"],
-      reason: protectedByReview ? "ユーザー確認済みの命題を保持しました。" : `命題範囲の照合結果: ${scope}`,
+      reason: protectedByReview ? "ユーザーが確認済みの命題を保持しました。" : scopeReason(scope),
       actor: proposition.actor ?? null,
       target: proposition.target ?? null,
-      possessor: null,
+      possessor: proposition.possessor ?? null,
       evaluatedProposition: proposition.evaluated.slice(0, 1_000),
       negatedProposition: proposition.negated?.slice(0, 1_000) ?? null,
       anchors: acceptedEvidence.slice(0, 3).map(({ supportAssessment: _assessment, ...reference }) => reference),
@@ -294,10 +325,7 @@ async function judgeAssertion(
 ) {
   const { prefix, assertion } = input;
   const questions: Record<string, JudgmentQuestion> = {
-    [`${prefix}_scope`]: choiceQuestion(
-      ANALYSIS_JUDGMENT_PROMPTS.scope,
-      ANALYSIS_SCOPE_CRITERIA,
-    ),
+    [`${prefix}_scope`]: choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.scope, ANALYSIS_SCOPE_CRITERIA),
   };
   for (const [index] of assertion.evidence.entries())
     questions[`${prefix}_evidence_${index}`] = choiceQuestion(
@@ -305,57 +333,44 @@ async function judgeAssertion(
       ANALYSIS_SUPPORT_CRITERIA,
     );
   if (assertion.evidence.length > 1)
-    questions[`${prefix}_set`] = choiceQuestion(
-      ANALYSIS_JUDGMENT_PROMPTS.evidenceSet,
-      ANALYSIS_SUPPORT_CRITERIA,
-    );
+    questions[`${prefix}_set`] = choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.evidenceSet, ANALYSIS_SUPPORT_CRITERIA);
   if (input.attributes?.length)
-    questions[`${prefix}_attribute`] = choiceQuestion(
-      ANALYSIS_JUDGMENT_PROMPTS.attribute,
-      {
-        ...Object.fromEntries(input.attributes.map((item) => [item.stable_key, `${item.label} (${item.category})`])),
-        no_match: "辞書候補のどれにも意味・粒度・評価範囲が一致しない。",
-      },
-    );
+    questions[`${prefix}_attribute`] = choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.attribute, {
+      ...Object.fromEntries(input.attributes.map((item) => [item.stable_key, `${item.label} (${item.category})`])),
+      no_match: "辞書候補のどれにも意味・粒度・評価範囲が一致しない。",
+    });
   if (input.includePreferenceQuestions) {
     questions[`${prefix}_classification`] = choiceQuestion(
       ANALYSIS_JUDGMENT_PROMPTS.classification,
       ANALYSIS_INPUT_CLASSIFICATION_CRITERIA,
     );
-    questions[`${prefix}_explicitness`] = choiceQuestion(
-      ANALYSIS_JUDGMENT_PROMPTS.explicitness,
-      {
-        user_explicit: "ユーザーが対象・極性・条件を直接述べている。",
-        user_confirmed: "以前のレビューでユーザーが確認済みである。",
-        inferred: "原文に基づく意味の推測が必要である。",
-        model_knowledge: "ユーザー原文ではなくモデル知識だけに基づく。",
-        no_match: "候補を支持する様式がない。",
-      },
-    );
+    questions[`${prefix}_explicitness`] = choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.explicitness, {
+      user_explicit: "ユーザーが対象・極性・条件を直接述べている。",
+      user_confirmed: "以前のレビューでユーザーが確認済みである。",
+      inferred: "原文に基づく意味の推測が必要である。",
+      model_knowledge: "ユーザー原文ではなくモデル知識だけに基づく。",
+      no_match: "候補を支持する様式がない。",
+    });
     if (input.includePreferenceQuestions.polarity)
-      questions[`${prefix}_polarity`] = choiceQuestion(
-        ANALYSIS_JUDGMENT_PROMPTS.polarity,
-        {
-          positive: "対象への好意・魅力・関心を表す。",
-          negative: "対象への苦手・嫌悪・拒否を表す。",
-          mixed: "同じ対象・条件に肯定と否定がともに明示される。",
-          no_match: "極性を確認できない。",
-        },
-      );
+      questions[`${prefix}_polarity`] = choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.polarity, {
+        positive: "対象への好意・魅力・関心を表す。",
+        negative: "対象への苦手・嫌悪・拒否を表す。",
+        mixed: "同じ対象・条件に肯定と否定がともに明示される。",
+        no_match: "極性を確認できない。",
+      });
     if (input.includePreferenceQuestions.strength !== undefined)
-      questions[`${prefix}_strength`] = scoreQuestion(
-        ANALYSIS_JUDGMENT_PROMPTS.strength,
-        ["弱い反応 (0.3)", "通常の好き・苦手、または程度指定なし (0.6)", "強い反応 (0.8)", "最も強いと明示 (0.95)"],
-      );
+      questions[`${prefix}_strength`] = scoreQuestion(ANALYSIS_JUDGMENT_PROMPTS.strength, [
+        "弱い反応 (0.3)",
+        "通常の好き・苦手、または程度指定なし (0.6)",
+        "強い反応 (0.8)",
+        "最も強いと明示 (0.95)",
+      ]);
     if (input.includePreferenceQuestions.responseChannel !== undefined) {
       const catalog = input.domain === "dark" ? darkResponseChannelCatalog : responseChannelCatalog;
-      questions[`${prefix}_channel`] = choiceQuestion(
-        ANALYSIS_JUDGMENT_PROMPTS.responseChannel(input.domain),
-        {
-          ...Object.fromEntries(catalog.map((item) => [item.value, `${item.label}: ${item.description}`])),
-          no_match: "原文から特定の反応経路を確認できない。",
-        },
-      );
+      questions[`${prefix}_channel`] = choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.responseChannel(input.domain), {
+        ...Object.fromEntries(catalog.map((item) => [item.value, `${item.label}: ${item.description}`])),
+        no_match: "原文から特定の反応経路を確認できない。",
+      });
     }
   }
 
@@ -374,7 +389,9 @@ async function judgeAssertion(
     fakeAnswers[`${prefix}_attribute`] = fakeChoice(
       questions,
       `${prefix}_attribute`,
-      input.attributes.some((item) => item.stable_key === (input.proposition as { attributeStableKey?: string | null }).attributeStableKey)
+      input.attributes.some(
+        (item) => item.stable_key === (input.proposition as { attributeStableKey?: string | null }).attributeStableKey,
+      )
         ? ((input.proposition as { attributeStableKey: string }).attributeStableKey ?? "no_match")
         : "no_match",
     );
@@ -384,11 +401,7 @@ async function judgeAssertion(
       `${prefix}_classification`,
       input.includePreferenceQuestions.classification,
     );
-    fakeAnswers[`${prefix}_explicitness`] = fakeChoice(
-      questions,
-      `${prefix}_explicitness`,
-      assertion.explicitness,
-    );
+    fakeAnswers[`${prefix}_explicitness`] = fakeChoice(questions, `${prefix}_explicitness`, assertion.explicitness);
     if (input.includePreferenceQuestions.polarity)
       fakeAnswers[`${prefix}_polarity`] = fakeChoice(
         questions,
@@ -448,13 +461,10 @@ async function assessUnderstandingAspects(
     candidate.assertions.map(async (assertion, index) => {
       const id = "aspect";
       const questions = {
-        [id]: choiceQuestion(
-          ANALYSIS_JUDGMENT_PROMPTS.aspectAssignment,
-          {
-            ...Object.fromEntries(understandingAspects.map((aspect) => [aspect, understandingAspectLabels[aspect]])),
-            none: "人物像の7項目の具体的説明にはならない。",
-          },
-        ),
+        [id]: choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.aspectAssignment, {
+          ...Object.fromEntries(understandingAspects.map((aspect) => [aspect, understandingAspectLabels[aspect]])),
+          none: "人物像の7項目の具体的説明にはならない。",
+        }),
       };
       const fallback = inferAspect(assertion) ?? "none";
       const result = await provider.evaluate({
@@ -468,7 +478,8 @@ async function assessUnderstandingAspects(
     }),
   );
   assignments.forEach((aspect, index) => {
-    if (understandingAspects.includes(aspect as UnderstandingAspect)) mapped.get(aspect as UnderstandingAspect)?.push(index);
+    if (understandingAspects.includes(aspect as UnderstandingAspect))
+      mapped.get(aspect as UnderstandingAspect)?.push(index);
   });
 
   const entries = await Promise.all(
@@ -511,7 +522,14 @@ async function assessUnderstandingAspects(
         aspect,
         {
           kind,
-          reason: `項目の情報量判定: ${kind}`,
+          reason:
+            kind === "concrete"
+              ? "具体的な人物描写と対応する根拠があります。"
+              : kind === "label_only"
+                ? "分類名だけで、具体的な人物描写が不足しています。"
+                : kind === "attribution_only"
+                  ? "出所や解釈の注記だけで、具体的な人物描写が不足しています。"
+                  : "人物像の内容を確認できません。",
           summaryIndexes,
           assertionIndexes: kind === "concrete" ? assertionIndexes : [],
         },
@@ -545,9 +563,7 @@ async function understandingCoverageIssues(
       const questions = Object.fromEntries(
         understandingAspects.map((aspect) => [
           aspect,
-          noulQuestion(
-            ANALYSIS_JUDGMENT_PROMPTS.understandingCoverage(understandingAspectLabels[aspect], aspect),
-          ),
+          noulQuestion(ANALYSIS_JUDGMENT_PROMPTS.understandingCoverage(understandingAspectLabels[aspect], aspect)),
         ]),
       );
       const fakeAnswers = Object.fromEntries(
@@ -637,7 +653,8 @@ export async function judgeUnderstandingCandidate(
       const attributeStableKey = input.ontology.some((item) => item.stable_key === attributeChoice)
         ? attributeChoice
         : null;
-      if (attributeAnswer && !isCertainChoice(attributeAnswer)) issues.push(`${prefix}: 統制属性の対応を確定できません。`);
+      if (attributeAnswer && !isCertainChoice(attributeAnswer))
+        issues.push(`${prefix}: 統制属性の対応を確定できません。`);
       return {
         assertion: {
           ...assertion,
@@ -691,10 +708,20 @@ function preferenceProposition(item: {
   context: { subjects: string[]; exceptions: string[] } & Record<string, unknown>;
 }) {
   const subjects = item.context.subjects;
+  const ownershipContext = `${JSON.stringify(item.context.relationships ?? [])} ${JSON.stringify(
+    item.context.conditions ?? [],
+  )}`;
+  const possessor = subjects.find(
+    (subject) =>
+      ownershipContext.includes(`${subject}の`) ||
+      ownershipContext.includes(`${subject}に属`) ||
+      ownershipContext.includes(`${subject}が持`),
+  );
   return {
     evaluated: `${item.rawLabel} / ${item.polarity} / ${JSON.stringify(item.context)}`,
     actor: subjects[0] ?? null,
     target: subjects[1] ?? null,
+    possessor: possessor ?? null,
     negated: item.context.exceptions.length ? item.context.exceptions.join("、") : null,
   };
 }
@@ -709,12 +736,8 @@ async function preferenceCoverageIssues(
   const results = await Promise.all(
     sourceChunks(sourceInputs(payload, true)).map(async (source, index) => {
       const questions = {
-        preference_omission: noulQuestion(
-          ANALYSIS_JUDGMENT_PROMPTS.preferenceCoverage,
-        ),
-        stance_omission: noulQuestion(
-          ANALYSIS_JUDGMENT_PROMPTS.stanceCoverage,
-        ),
+        preference_omission: noulQuestion(ANALYSIS_JUDGMENT_PROMPTS.preferenceCoverage),
+        stance_omission: noulQuestion(ANALYSIS_JUDGMENT_PROMPTS.stanceCoverage),
       };
       const result = await provider.evaluate({
         state: {
@@ -789,7 +812,10 @@ export async function judgePreferenceCandidate(
       });
       const classification = answerChoice(result.answers[`${prefix}_classification`], "no_match");
       const protectedByReview = original.explicitness === "user_confirmed";
-      if (!protectedByReview && (!isCertainChoice(result.answers[`${prefix}_classification`]) || classification !== "preference"))
+      if (
+        !protectedByReview &&
+        (!isCertainChoice(result.answers[`${prefix}_classification`]) || classification !== "preference")
+      )
         issues.push(`${prefix}: 入力事実と嗜好反応を区別できません。`);
       const attributeAnswer = result.answers[`${prefix}_attribute`];
       const attributeChoice = answerChoice(attributeAnswer, "no_match");
@@ -828,17 +854,19 @@ export async function judgePreferenceCandidate(
         ? STRENGTH_ANCHORS[Math.max(0, Math.min(3, Math.round(strengthAnswer.score)))]
         : STRENGTH_ANCHORS[closestStrengthIndex(original.strength)];
       if (!protectedByReview && !isCertainScore(strengthAnswer)) issues.push(`${prefix}: 反応強度を確定できません。`);
-      const item = (protectedByReview
-        ? original
-        : {
-            ...original,
-            attributeStableKey,
-            polarity,
-            responseChannel,
-            strength,
-            explicitness,
-            confidence: explicitnessConfidence(explicitness, original.confidence),
-          }) as typeof original;
+      const item = (
+        protectedByReview
+          ? original
+          : {
+              ...original,
+              attributeStableKey,
+              polarity,
+              responseChannel,
+              strength,
+              explicitness,
+              confidence: explicitnessConfidence(explicitness, original.confidence),
+            }
+      ) as typeof original;
       const changed =
         item.attributeStableKey !== original.attributeStableKey ||
         item.polarity !== original.polarity ||
@@ -862,7 +890,7 @@ export async function judgePreferenceCandidate(
       const fields = semanticFields(item, validation.answers, validationPrefix, preferenceProposition(item), issues);
       if (classification !== "preference" && !protectedByReview) {
         fields.scopeAssessment.verdict = "mismatch";
-        fields.scopeAssessment.reason = `入力記述の分類が嗜好反応ではありません: ${classification}`;
+        fields.scopeAssessment.reason = `入力記述は${inputClassificationLabel(classification)}で、対象への好み・苦手として確認できません。`;
       }
       return { item, fields };
     }),
@@ -887,7 +915,10 @@ export async function judgePreferenceCandidate(
       });
       const classification = answerChoice(result.answers[`${prefix}_classification`], "no_match");
       const protectedByReview = original.explicitness === "user_confirmed";
-      if (!protectedByReview && (!isCertainChoice(result.answers[`${prefix}_classification`]) || classification !== "value_attitude"))
+      if (
+        !protectedByReview &&
+        (!isCertainChoice(result.answers[`${prefix}_classification`]) || classification !== "value_attitude")
+      )
         issues.push(`${prefix}: 価値態度と人物事実・嗜好・自己経験を区別できません。`);
       const explicitnessAnswer = result.answers[`${prefix}_explicitness`];
       const judgedExplicitness = answerChoice(explicitnessAnswer, "no_match");
@@ -914,12 +945,14 @@ export async function judgePreferenceCandidate(
       );
       if (classification !== "value_attitude" && !protectedByReview) {
         fields.scopeAssessment.verdict = "mismatch";
-        fields.scopeAssessment.reason = `入力記述の分類が価値態度ではありません: ${classification}`;
+        fields.scopeAssessment.reason = `入力記述は${inputClassificationLabel(classification)}で、価値や行為への態度として確認できません。`;
       }
       return { item, fields };
     }),
   );
-  issues.push(...(await preferenceCoverageIssues(provider, input.candidate, input.payload, input.correlationId, input.domain)));
+  issues.push(
+    ...(await preferenceCoverageIssues(provider, input.candidate, input.payload, input.correlationId, input.domain)),
+  );
   const candidate = {
     ...input.candidate,
     preferenceAssertions: preferences.map((item) => item.item),
@@ -947,10 +980,11 @@ export async function judgeDarkTransformationDeltas(
   const judged = await Promise.all(
     input.deltas.map(async (delta, index) => {
       const questions = {
-        verdict: choiceQuestion(
-          ANALYSIS_JUDGMENT_PROMPTS.darkDelta,
-          { supported: "差分が入力に支持される。", contradicted: "差分が入力と矛盾する。", uncertain: "入力だけでは差分を確認できない。" },
-        ),
+        verdict: choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.darkDelta, {
+          supported: "差分が入力に支持される。",
+          contradicted: "差分が入力と矛盾する。",
+          uncertain: "入力だけでは差分を確認できない。",
+        }),
       };
       const result = await provider.evaluate({
         state: { delta, baseline: input.baseline, darkInputs: sourceInputs(input.payload, false) },
@@ -960,7 +994,8 @@ export async function judgeDarkTransformationDeltas(
       });
       const answer = result.answers.verdict;
       const verdict = answerChoice(answer, "uncertain");
-      if (!isCertainChoice(answer) || verdict !== "supported") issues.push(`dark-delta-${index}: ダーク差分を確認できません。`);
+      if (!isCertainChoice(answer) || verdict !== "supported")
+        issues.push(`dark-delta-${index}: ダーク差分を確認できません。`);
       return verdict === "supported" ? [delta] : [];
     }),
   );
@@ -990,13 +1025,8 @@ export async function judgeDarkBaselineCandidate(
     priorVulnerabilities: input.candidate.priorVulnerabilities,
   };
   for (const key of Object.keys(values))
-    questions[key] = choiceQuestion(
-      ANALYSIS_JUDGMENT_PROMPTS.darkBaseline(key),
-      ANALYSIS_SUPPORT_CRITERIA,
-    );
-  questions.coverage = noulQuestion(
-    ANALYSIS_JUDGMENT_PROMPTS.darkBaselineCoverage,
-  );
+    questions[key] = choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.darkBaseline(key), ANALYSIS_SUPPORT_CRITERIA);
+  questions.coverage = noulQuestion(ANALYSIS_JUDGMENT_PROMPTS.darkBaselineCoverage);
   const fakeAnswers = Object.fromEntries([
     ...Object.keys(values).map((key) => [key, fakeChoice(questions, key, "supported")] as const),
     ["coverage", { type: "noul" as const, noul: 0 }],
@@ -1044,18 +1074,12 @@ export async function judgeDarkScopeCandidate(
 ) {
   const provider = createJudgmentProvider(env);
   const questions = {
-    verdict: choiceQuestion(
-      ANALYSIS_JUDGMENT_PROMPTS.darkScope,
-      {
-        in_scope: "dark専用の人物・状態・変化として明確に分析対象となる。",
-        borderline: "一部は該当するが、範囲や状態の追加確認が必要である。",
-        out_of_scope: "dark専用分析の対象となる根拠がない。",
-      },
-    ),
-    support: choiceQuestion(
-      ANALYSIS_JUDGMENT_PROMPTS.darkScopeSupport,
-      ANALYSIS_SUPPORT_CRITERIA,
-    ),
+    verdict: choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.darkScope, {
+      in_scope: "dark専用の人物・状態・変化として明確に分析対象となる。",
+      borderline: "一部は該当するが、範囲や状態の追加確認が必要である。",
+      out_of_scope: "dark専用分析の対象となる根拠がない。",
+    }),
+    support: choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.darkScopeSupport, ANALYSIS_SUPPORT_CRITERIA),
   };
   const result = await provider.evaluate({
     state: {
@@ -1106,34 +1130,62 @@ async function selectSuggestions<T>(
   kind: "question" | "hypothesis",
   maximum: number,
 ): Promise<T[]> {
+  const alternativeSummaries = candidates.slice(0, 12).map((item) => JSON.stringify(item).slice(0, 1_500));
   const questions = {
     relevant: noulQuestion(ANALYSIS_JUDGMENT_PROMPTS.suggestionRelevance(kind)),
-    impact: scoreQuestion(ANALYSIS_JUDGMENT_PROMPTS.suggestionImpact, ["影響なし", "小さい", "有用", "重要な解釈を変える"]),
-    answerability: scoreQuestion(ANALYSIS_JUDGMENT_PROMPTS.suggestionAnswerability, ["回答不能", "大きな負担", "具体的に回答可能", "一回答で明確になる"]),
+    impact: scoreQuestion(ANALYSIS_JUDGMENT_PROMPTS.suggestionImpact, [
+      "影響なし",
+      "小さい",
+      "有用",
+      "重要な解釈を変える",
+    ]),
+    answerability: scoreQuestion(ANALYSIS_JUDGMENT_PROMPTS.suggestionAnswerability, [
+      "回答不能",
+      "大きな負担",
+      "具体的に回答可能",
+      "一回答で明確になる",
+    ]),
   };
-  const outcomes = await Promise.allSettled(candidates.map(async (candidate, index) => {
-    const result = await provider.evaluate({
-      state: { ...state, candidate, alternatives: candidates },
-      questions,
-      context,
-      fakeAnswers: {
-        relevant: { type: "noul", noul: 1 },
-        impact: fakeScore(questions, "impact", 3),
-        answerability: fakeScore(questions, "answerability", 3),
-      },
-    });
-    const { relevant, impact, answerability } = result.answers;
-    const accepted = isCertainNoul(relevant) && relevant.type === "noul" && relevant.noul > 0.5
-      && isCertainScore(impact) && impact.score >= 2
-      && isCertainScore(answerability) && answerability.score >= 2;
-    return { candidate, index, accepted, impact: impact.type === "score" ? impact.score : 0,
-      answerability: answerability.type === "score" ? answerability.score : 0 };
-  }));
-  const ranked = outcomes.map((outcome) => {
-    if (outcome.status === "rejected") throw outcome.reason;
-    return outcome.value;
-  }).filter((item) => item.accepted)
-    .sort((left, right) => right.impact - left.impact || right.answerability - left.answerability || left.index - right.index);
+  const outcomes = await Promise.allSettled(
+    candidates.map(async (candidate, index) => {
+      const result = await provider.evaluate({
+        state: { ...state, candidate, alternativeSummaries },
+        questions,
+        context,
+        fakeAnswers: {
+          relevant: { type: "noul", noul: 1 },
+          impact: fakeScore(questions, "impact", 3),
+          answerability: fakeScore(questions, "answerability", 3),
+        },
+      });
+      const { relevant, impact, answerability } = result.answers;
+      const accepted =
+        isCertainNoul(relevant) &&
+        relevant.type === "noul" &&
+        relevant.noul > 0.5 &&
+        isCertainScore(impact) &&
+        impact.score >= 2 &&
+        isCertainScore(answerability) &&
+        answerability.score >= 2;
+      return {
+        candidate,
+        index,
+        accepted,
+        impact: impact.type === "score" ? impact.score : 0,
+        answerability: answerability.type === "score" ? answerability.score : 0,
+      };
+    }),
+  );
+  const ranked = outcomes
+    .map((outcome) => {
+      if (outcome.status === "rejected") throw outcome.reason;
+      return outcome.value;
+    })
+    .filter((item) => item.accepted)
+    .sort(
+      (left, right) =>
+        right.impact - left.impact || right.answerability - left.answerability || left.index - right.index,
+    );
   const selected: T[] = [];
   for (const { candidate } of ranked) {
     if (selected.length >= maximum) break;
@@ -1143,7 +1195,12 @@ async function selectSuggestions<T>(
         state: { candidate, selected },
         questions: { duplicate: noulQuestion(ANALYSIS_JUDGMENT_PROMPTS.suggestionDuplicate) },
         context: { ...context, stage: `${context.stage}:duplicate` },
-        fakeAnswers: { duplicate: { type: "noul", noul: selected.some((item) => JSON.stringify(item) === JSON.stringify(candidate)) ? 1 : 0 } },
+        fakeAnswers: {
+          duplicate: {
+            type: "noul",
+            noul: selected.some((item) => JSON.stringify(item) === JSON.stringify(candidate)) ? 1 : 0,
+          },
+        },
       });
       const duplicate = result.answers.duplicate;
       if (!isCertainNoul(duplicate) || duplicate.type !== "noul" || duplicate.noul > 0.5) continue;
@@ -1163,12 +1220,16 @@ export async function rankPreferenceQuestions(
   },
 ) {
   const candidates = input.uncertainties.filter((item) => item.recommendedQuestion);
-  const selected = new Set(await selectSuggestions(
-    createJudgmentProvider(env), candidates,
-    { preferenceInput: sourceInputs(input.payload, true) },
-    { correlationId: input.correlationId, stage: "preference:question-ranking", domain: input.domain },
-    "question", 3,
-  ));
+  const selected = new Set(
+    await selectSuggestions(
+      createJudgmentProvider(env),
+      candidates,
+      { preferenceInput: sourceInputs(input.payload, true) },
+      { correlationId: input.correlationId, stage: "preference:question-ranking", domain: input.domain },
+      "question",
+      3,
+    ),
+  );
   // Preserve every unresolved topic; only the suggested question is selected or withheld.
   return [...input.uncertainties]
     .sort((left, right) => Number(selected.has(right)) - Number(selected.has(left)))
@@ -1187,18 +1248,22 @@ export async function rankPreferenceHypotheses(
   },
 ) {
   return selectSuggestions(
-    createJudgmentProvider(env), input.candidates,
+    createJudgmentProvider(env),
+    input.candidates,
     {
       registration: sourceInputs(input.payload, false),
       understanding: {
         summary: input.understanding.summary,
         assertions: input.understanding.assertions.map((item) => ({
-          attributeStableKey: item.attributeStableKey, rawLabel: item.rawLabel, valueText: item.valueText,
+          attributeStableKey: item.attributeStableKey,
+          rawLabel: item.rawLabel,
+          valueText: item.valueText,
         })),
       },
       existingPreferences: input.existingPreferences,
     },
     { correlationId: input.correlationId, stage: "preference:hypothesis-ranking", domain: input.domain },
-    "hypothesis", 6,
+    "hypothesis",
+    6,
   );
 }

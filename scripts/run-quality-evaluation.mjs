@@ -16,12 +16,41 @@ const provider = option("--provider", "fake");
 if (!["fake", "openai"].includes(provider)) throw new Error("Evaluation supports explicit fake or openai providers");
 const vars = JSON.parse(readFileSync("wrangler.jsonc", "utf8")).vars;
 if (provider === "openai" && existsSync(".dev.vars")) process.loadEnvFile(".dev.vars");
+const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? process.env.AI_GATEWAY_ACCOUNT_ID;
+const cloudflareApiToken = process.env.CLOUDFLARE_API_TOKEN;
+const ai =
+  provider === "fake"
+    ? undefined
+    : {
+        async run(model, input, options) {
+          if (!cloudflareAccountId || !cloudflareApiToken)
+            throw new Error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required for live Jev evaluation");
+          const response = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(cloudflareAccountId)}/ai/run`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${cloudflareApiToken}`,
+                "Content-Type": "application/json",
+                "cf-aig-gateway-id": options.gateway.id,
+              },
+              body: JSON.stringify({ model, input }),
+              signal: AbortSignal.timeout(20_000),
+            },
+          );
+          const payload = await response.json();
+          if (!response.ok || payload?.success === false)
+            throw Object.assign(new Error("Cloudflare AI run failed"), { status: response.status });
+          return payload?.result ?? payload;
+        },
+      };
 const env = {
   ...vars,
   ...process.env,
+  AI: ai,
   LLM_PROVIDER: provider,
   JEV_PROVIDER: provider === "fake" ? "fake" : "typesafe",
-  JEV_MODEL: "jev-1.13.0",
+  JEV_MODEL: "typesafe/jev",
   LLM_MODEL: provider === "fake" ? "fake-v1" : option("--model", vars.LLM_MODEL),
   AUTH_PEPPER: "quality-evaluation-synthetic-data",
   MODERATION_PROVIDER: "fake",

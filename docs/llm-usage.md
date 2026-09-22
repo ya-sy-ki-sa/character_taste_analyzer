@@ -115,6 +115,8 @@ LLMの処理一覧と混同しないよう、同じ外部AI基盤を使うが自
 
 ## Jev適用候補の調査（2026-09-18）
 
+この節は改修前の調査記録です。現行の実行経路・責務・設定は [Jev中心の処理](jev-pipeline.md) が正本であり、以下の旧operation名やshadow導入手順は現在のWorker実装を表しません。
+
 ### 結論
 
 現行のLLM処理をJevへ全面置換する候補はない。Jevは自由文・コード・説明付きの完全なJSONを生成するモデルではなく、同じ `state` に対する `Choice`・`Score`・`Noul` の型付き判断と確率を返すモデルである。[TypeSafe公式のSystem One説明](https://docs.typesafe.ai/concepts/system-one) でも、生成や理由説明ではなく、ソフトウェアが直接利用する判断を返す位置付けになっている。
@@ -146,7 +148,7 @@ LLMの処理一覧と混同しないよう、同じ外部AI基盤を使うが自
 2. `confidence` はChoice／Scoreの確率分布から算出される不確実性の指標であり、真偽を保証するものではない。Noulはyesの確率を返すため、閾値は実データで校正し、低確信・中間確率を自動採用しない。[Confidence](https://docs.typesafe.ai/confidence)、[Noul](https://docs.typesafe.ai/primitives/noul)
 3. このアプリは日本語の細かい否定・条件・反応経路を扱うため、最初から既存LLMを外さず、同じ入力に対するJevの判断を記録するshadow評価から始める。固定fixtureでfalse positive、false negative、保留率、既存監査との一致を比較する。
 4. 実装する場合は、現在の `LlmProvider.generateStructured` にJevを無理に同型化せず、`TypeSafeJudge`のような別adapterと結果型を設ける。Jevの公式APIは `state` と typed `questions` を受け、`answers` と確率を返すため、既存の文章生成・Schema修復の契約とは責務が異なる。[HTTP API](https://docs.typesafe.ai/api)
-5. 呼出しはWorker側から行い、`TYPESAFE_API_KEY`をブラウザへ出さない。公式JavaScript SDKは `@typesafe-ai/sdk` を案内しているが、導入時はCloudflare Workersでの実行可否を確認し、必要なら公式HTTP APIを使う。[JavaScript SDK](https://docs.typesafe.ai/sdk/javascript)
+5. 呼出しはWorker側の `AI` bindingから行い、`env.AI.run("typesafe/jev", { state, questions }, { gateway: { id } })` を使う。JevはCloudflareのThird-party modelとしてAI Gatewayに接続されるため、TypeSafe APIキーやCustom Providerをアプリで管理しない。[Cloudflare Jev model](https://developers.cloudflare.com/ai/models/typesafe/jev/)、[Worker binding methods](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/)
 
 ### 改修候補の着手順
 

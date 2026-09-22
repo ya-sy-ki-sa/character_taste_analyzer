@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { choiceAnswer, isCertainChoice, isCertainNoul, scoreAnswer } from "../worker/judgment/policy";
 import {
+  CloudflareJevJudgmentProvider,
   FakeJudgmentProvider,
   ReplayJudgmentProvider,
-  TypeSafeJudgmentProvider,
   validateJudgmentConfig,
 } from "../worker/judgment/provider";
 import type { JudgmentRequest } from "../worker/judgment/types";
 import { fixtureResult, parseJudgmentResult } from "../worker/judgment/validation";
+import type { AiBinding } from "../worker/types";
 
 const choice = {
   type: "choice",
@@ -22,10 +23,12 @@ const request = (): JudgmentRequest => ({
   fakeAnswers: { support: choiceAnswer(choice, "supported") },
 });
 const response = () => ({
-  model: "jev-1.13.0",
+  model: "typesafe/jev",
   answers: { support: choiceAnswer(choice, "supported") },
   usage: { input_tokens: 20, output_tokens: 0 },
 });
+const gatewayId = "test-gateway";
+const binding = (run: AiBinding["run"]): AiBinding => ({ run });
 
 afterEach(() => {
   vi.useRealTimers();
@@ -38,17 +41,14 @@ describe("typed judgments", () => {
     let active = 0;
     let maximum = 0;
     const logs = vi.spyOn(console, "info").mockImplementation(() => {});
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        active++;
-        maximum = Math.max(maximum, active);
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        active--;
-        return Response.json(response());
-      }),
-    );
-    const provider = new TypeSafeJudgmentProvider("test-key", "jev-1.13.0");
+    const run = vi.fn(async () => {
+      active++;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active--;
+      return response();
+    });
+    const provider = new CloudflareJevJudgmentProvider(binding(run), "typesafe/jev", gatewayId);
     const completion = Promise.all(
       Array.from({ length: 9 }, () => provider.evaluate({ ...request(), state: "PRIVATE_SOURCE_TEXT" })),
     );
@@ -60,14 +60,13 @@ describe("typed judgments", () => {
   it("retries capacity failures at most twice", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "info").mockImplementation(() => {});
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(null, { status: 429 })));
-    vi.stubGlobal("fetch", fetchMock);
+    const run = vi.fn().mockRejectedValue({ status: 429 });
     const completion = expect(
-      new TypeSafeJudgmentProvider("test-key", "jev-1.13.0").evaluate(request()),
+      new CloudflareJevJudgmentProvider(binding(run), "typesafe/jev", gatewayId).evaluate(request()),
     ).rejects.toMatchObject({ code: "PROVIDER_CAPACITY_EXHAUSTED", retryable: true });
     await vi.runAllTimersAsync();
     await completion;
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(run).toHaveBeenCalledTimes(3);
   });
   it("requires the exact question set and probability distribution", () => {
     expect(() => parseJudgmentResult({ ...response(), answers: {} }, request().questions)).toThrow();
@@ -100,29 +99,50 @@ describe("typed judgments", () => {
     }
     expect(fetchMock).not.toHaveBeenCalled();
   });
-  it("sends only real state/questions and omits fixture answers and context", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json(response()));
-    vi.stubGlobal("fetch", fetchMock);
+  it("uses the Cloudflare AI binding and omits fixture answers and context", async () => {
+    const run = vi.fn().mockResolvedValue(response());
     vi.spyOn(console, "info").mockImplementation(() => {});
-    await new TypeSafeJudgmentProvider("test-key", "jev-1.13.0").evaluate(request());
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(Object.keys(body).sort()).toEqual(["model", "questions", "state"]);
-    expect(body).not.toHaveProperty("fakeAnswers");
+    await new CloudflareJevJudgmentProvider(binding(run), "typesafe/jev", gatewayId).evaluate(request());
+    expect(run).toHaveBeenCalledWith(
+      "typesafe/jev",
+      { state: request().state, questions: request().questions },
+      {
+        gateway: { id: gatewayId },
+      },
+    );
+    expect(run.mock.calls[0]?.[1]).not.toHaveProperty("fakeAnswers");
+    expect(run.mock.calls[0]?.[1]).not.toHaveProperty("context");
   });
   it("does not retry invalid responses or authentication errors", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
-    const fetchMock = vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 }));
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(new TypeSafeJudgmentProvider("test-key", "jev-1.13.0").evaluate(request())).rejects.toMatchObject({
+    const run = vi.fn().mockRejectedValue({ status: 401 });
+    await expect(
+      new CloudflareJevJudgmentProvider(binding(run), "typesafe/jev", gatewayId).evaluate(request()),
+    ).rejects.toMatchObject({
       retryable: false,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledTimes(1);
   });
   it("rejects missing configuration without inferring a provider from the LLM", () => {
     expect(validateJudgmentConfig({})).toContain("JEV_PROVIDER_CONFIGURATION_INVALID");
-    expect(validateJudgmentConfig({ JEV_PROVIDER: "typesafe", JEV_MODEL: "jev-1.13.0" })).toContain(
-      "TYPESAFE_API_KEY_REQUIRED",
+    expect(validateJudgmentConfig({ JEV_PROVIDER: "typesafe", JEV_MODEL: "typesafe/jev" })).toEqual(
+      expect.arrayContaining(["AI_BINDING_MISSING_FOR_JEV", "AI_GATEWAY_GATEWAY_ID_REQUIRED_FOR_JEV"]),
     );
-    expect(validateJudgmentConfig({ JEV_PROVIDER: "fake", JEV_MODEL: "jev-1.13.0" })).toEqual([]);
+    expect(
+      validateJudgmentConfig({
+        JEV_PROVIDER: "typesafe",
+        JEV_MODEL: "typesafe/jev",
+        AI: binding(vi.fn()),
+      }),
+    ).toEqual(expect.arrayContaining(["AI_GATEWAY_GATEWAY_ID_REQUIRED_FOR_JEV"]));
+    expect(
+      validateJudgmentConfig({
+        JEV_PROVIDER: "typesafe",
+        JEV_MODEL: "typesafe/jev",
+        AI: binding(vi.fn()),
+        AI_GATEWAY_GATEWAY_ID: "test-gateway",
+      }),
+    ).toEqual([]);
+    expect(validateJudgmentConfig({ JEV_PROVIDER: "fake", JEV_MODEL: "typesafe/jev" })).toEqual([]);
   });
 });

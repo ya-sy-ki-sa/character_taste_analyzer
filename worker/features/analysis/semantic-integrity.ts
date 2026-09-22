@@ -16,6 +16,16 @@ type Assertion = {
   confidence: number;
   explicitness: string;
 };
+const explicitnessLabel = (value: string) =>
+  ({
+    user_confirmed: "ユーザー確認済み",
+    user_explicit: "ユーザー原文で明示",
+    source_explicit: "資料で明示",
+    source_interpreted: "資料からの解釈",
+    inferred: "原文からの推測",
+    model_knowledge: "モデル知識",
+  })[value] ?? "確認できる出所";
+
 export async function verifySemanticAssertion(
   assertion: Assertion,
   sources: ProvenanceSource[],
@@ -128,7 +138,7 @@ export async function verifySemanticAssertion(
           : !keep
             ? "主張全体を支持する有効な根拠を確認できません。"
             : explicitness !== assertion.explicitness
-              ? `検証後の根拠に合わせて出所を${explicitness}へ変更しました。`
+              ? `検証後の根拠に合わせて出所を「${explicitnessLabel(explicitness)}」へ変更しました。`
               : null;
   return {
     keep,

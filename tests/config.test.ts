@@ -8,7 +8,7 @@ function localEnv(overrides: Partial<Env> = {}): Env {
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test-pepper",
     JEV_PROVIDER: "fake",
-    JEV_MODEL: "jev-1.13.0",
+    JEV_MODEL: "typesafe/jev",
     LLM_PROVIDER: "replay",
     LLM_MODEL: "replay-v1",
     MODERATION_PROVIDER: "fake",
@@ -53,7 +53,7 @@ describe("readiness configuration", () => {
       validateConfig(
         localEnv({
           JEV_PROVIDER: "fake",
-          JEV_MODEL: "jev-1.13.0",
+          JEV_MODEL: "typesafe/jev",
           LLM_PROVIDER: "openai",
           LLM_MODEL: "gpt-5.6-luna",
           EMBEDDING_PROVIDER: "openai",

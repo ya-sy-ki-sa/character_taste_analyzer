@@ -2,7 +2,7 @@ import type { GroundedUnderstandingAudit } from "../../../shared/contracts/seman
 import { understandingAuditSchema } from "../../../shared/contracts/understanding-quality";
 import { understandingAspects } from "../../../shared/understanding-aspects";
 import type { verifySemanticAssertion } from "./semantic-integrity";
-import { assessUnderstandingInformation, explainUnknownUnderstandingAspects } from "./understanding-quality";
+import { assessUnderstandingInformation } from "./understanding-quality";
 
 type Verified = Awaited<ReturnType<typeof verifySemanticAssertion>>;
 export function normalizeUnderstanding(
@@ -26,23 +26,23 @@ export function normalizeUnderstanding(
   for (const aspect of understandingAspects) {
     const assessment = next.aspectAssessments[aspect];
     const retained = assessment.assertionIndexes.filter((index) => indexes.has(index));
-    const removed = retained.length !== assessment.assertionIndexes.length;
-    if (removed || (!next.assertions.length && audit.assertions.length)) {
-      const max = aspect === "narrativeRole" || aspect === "moralityOrientation" ? 200 : 500;
-      next.summary[aspect] = retained.map((index) => audit.assertions[index].valueText.slice(0, max));
-      assessment.summaryIndexes = next.summary[aspect].map((_, index) => index);
-      assessment.kind = retained.length ? assessment.kind : "unknown";
-      assessment.reason = retained.length
-        ? "根拠検証後に保持された人物描写に参照を更新しました。"
-        : "対象・根拠の検証後に採用できる人物描写が残りませんでした。";
-      if (!retained.length) next.uncertainties.push({ topic: aspect, reason: assessment.reason });
-    }
+    const max = aspect === "narrativeRole" || aspect === "moralityOrientation" ? 200 : 500;
+    next.summary[aspect] = [
+      ...new Set(retained.map((index) => audit.assertions[index].valueText.trim().slice(0, max)).filter(Boolean)),
+    ];
+    assessment.summaryIndexes = next.summary[aspect].map((_, index) => index);
+    assessment.kind = retained.length ? assessment.kind : "unknown";
+    assessment.reason = retained.length
+      ? "根拠検証後に保持された人物描写から要約を構成しました。"
+      : "対象・根拠の検証後に採用できる人物描写が残りませんでした。";
+    if (!retained.length && !next.uncertainties.some((item) => item.topic === aspect))
+      next.uncertainties.push({ topic: aspect, reason: assessment.reason });
     assessment.assertionIndexes = retained.map((index) => indexes.get(index) as number);
   }
   next.uncertainties = next.uncertainties.slice(-50);
   const parsed = understandingAuditSchema.parse(next);
   return {
-    ...explainUnknownUnderstandingAspects(parsed),
+    ...parsed,
     informationQuality: assessUnderstandingInformation(parsed, completionAttempted),
   };
 }

@@ -9,7 +9,6 @@ const files = execFileSync("git", ["ls-files", "-co", "--exclude-standard"], { e
 const patterns = [
   /\bsk-[A-Za-z0-9_-]{20,}\b/gu,
   /OPENAI_API_KEY\s*=\s*[^\s"'<>{}]{12,}/gu,
-  /TYPESAFE_API_KEY\s*=\s*[^\s"'<>{}]{12,}/gu,
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/gu,
 ];
 const findings = [];

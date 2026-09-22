@@ -15,6 +15,11 @@ ${Object.entries(understandingAspectLabels)
 - 「不明」「確認できません」等の代替文をsummaryに入れない。
 - 項目を埋めるための設定創作、ユーザー嗜好の人物事実への転用を禁止する。`;
 
+// Kept as a named compatibility export for quality tooling; runtime completeness
+// is now judged by worker/features/analysis/judgment.ts.
+export const UNDERSTANDING_INFORMATION_INSTRUCTION =
+  "各人物像項目の情報量と根拠の不足はJevの意味判定へ渡し、コードが不明点と再検討を制御する。";
+
 export const UNDERSTANDING_SOURCE_INSTRUCTION = `[INPUT_MAPPING:UNDERSTANDING]
 - 既成の一般的な基本像 := システム収集済み公開情報＋利用可能なモデル知識。
 - 既成（カスタム）のbase stage := baseCharacterNameを元キャラクター名として基本像を構成。

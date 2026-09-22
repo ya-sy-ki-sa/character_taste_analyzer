@@ -16,7 +16,7 @@ import { carryCompletedLlmGroups } from "./completed-on-error";
 import { ontologyPrompt } from "./context";
 import { fakeUnderstanding } from "./deterministic";
 import { analysisErrorCode, safeAnalysisErrorDetail } from "./failures";
-import { analysisIssueText, judgeUnderstandingCandidate } from "./judgment";
+import { analysisIssueText, analysisIssueTopic, judgeUnderstandingCandidate } from "./judgment";
 import type { CharacterResearch } from "./research";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { AttributeRow, EntryContext, NormalizeUnderstandingAudit } from "./types";
@@ -153,11 +153,7 @@ export async function understandOne(
     }),
   );
   let normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
-  let issues = [
-    ...judged.issues,
-    ...understandingQualityIssues(normalized),
-    ...normalized.informationQuality.reasons,
-  ];
+  let issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
   for (let round = 1; issues.length && round <= MAX_RECONSIDERATION_ROUNDS; round++) {
     completionAttempted = true;
     current = await recordCall({
@@ -194,25 +190,22 @@ export async function understandOne(
       }),
     );
     normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
-    issues = [
-      ...judged.issues,
-      ...understandingQualityIssues(normalized),
-      ...normalized.informationQuality.reasons,
-    ];
+    issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
   }
   if (issues.length) {
     normalized = {
       ...normalized,
       uncertainties: [
         ...normalized.uncertainties,
-        ...issues.map((reason, index) => ({
-          topic: `judgment:${index + 1}`,
+        ...issues.map((reason) => ({
+          topic: analysisIssueTopic(reason),
           reason: analysisIssueText(reason).slice(0, 2_000),
         })),
       ].slice(-50),
       sourceAssessment: {
         ...normalized.sourceAssessment,
-        coverage: normalized.sourceAssessment.coverage === "sufficient" ? "partial" : normalized.sourceAssessment.coverage,
+        coverage:
+          normalized.sourceAssessment.coverage === "sufficient" ? "partial" : normalized.sourceAssessment.coverage,
         limitations: [...normalized.sourceAssessment.limitations, ...issues.map(analysisIssueText)].slice(-50),
       },
     };

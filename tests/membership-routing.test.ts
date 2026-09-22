@@ -29,7 +29,7 @@ function setup(overrides: Partial<Env> = {}) {
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test-only",
     JEV_PROVIDER: "fake",
-    JEV_MODEL: "jev-1.13.0",
+    JEV_MODEL: "typesafe/jev",
     LLM_PROVIDER: "workers_ai",
     LLM_MODEL: "common-model",
     LLM_TIER_ROUTES_JSON: JSON.stringify(

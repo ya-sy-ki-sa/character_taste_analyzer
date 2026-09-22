@@ -4,18 +4,37 @@ import { CHOICE_CONFIDENCE, JUDGMENT_POLICY_VERSION, NOUL_NO, NOUL_YES } from ".
 import { type JudgmentProvider, JudgmentProviderError, type JudgmentRequest, type JudgmentResult } from "./types";
 import { fixtureResult, parseJudgmentResult, validateQuestions } from "./validation";
 
-const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
+const DEFAULT_JEV_MODEL = "typesafe/jev";
 const TIMEOUT_MS = 20_000;
-const MAX_RESPONSE_BYTES = 1_048_576;
 const encoder = new TextEncoder();
 const size = (value: unknown) => encoder.encode(JSON.stringify(value)).length;
 
-export function validateJudgmentConfig(env: Pick<Env, "JEV_PROVIDER" | "JEV_MODEL" | "TYPESAFE_API_KEY">): string[] {
+async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new JudgmentProviderError("timeout", true)), milliseconds);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+export function validateJudgmentConfig(
+  env: Pick<Env, "JEV_PROVIDER" | "JEV_MODEL" | "AI" | "AI_GATEWAY_GATEWAY_ID">,
+): string[] {
   const errors: string[] = [];
   if (!["typesafe", "fake", "replay"].includes(env.JEV_PROVIDER ?? ""))
     errors.push("JEV_PROVIDER_CONFIGURATION_INVALID");
   if (!env.JEV_MODEL?.trim()) errors.push("JEV_MODEL_REQUIRED");
-  if (env.JEV_PROVIDER === "typesafe" && !env.TYPESAFE_API_KEY?.trim()) errors.push("TYPESAFE_API_KEY_REQUIRED");
+  if (env.JEV_PROVIDER === "typesafe") {
+    if (env.JEV_MODEL?.trim() && env.JEV_MODEL.trim() !== DEFAULT_JEV_MODEL) errors.push("JEV_MODEL_INVALID");
+    if (!env.AI) errors.push("AI_BINDING_MISSING_FOR_JEV");
+    if (!env.AI_GATEWAY_GATEWAY_ID?.trim()) errors.push("AI_GATEWAY_GATEWAY_ID_REQUIRED_FOR_JEV");
+  }
   return errors;
 }
 
@@ -58,7 +77,11 @@ export class FakeJudgmentProvider implements JudgmentProvider {
   async evaluate(request: JudgmentRequest): Promise<JudgmentResult> {
     validateQuestions(request.questions);
     if (!request.fakeAnswers) throw new JudgmentProviderError("offline_fixture_missing", false);
-    return fixtureResult(`${this.providerId}:jev-1.13.0`, structuredClone(request.fakeAnswers), request.questions);
+    return fixtureResult(
+      `${this.providerId}:${DEFAULT_JEV_MODEL}`,
+      structuredClone(request.fakeAnswers),
+      request.questions,
+    );
   }
 }
 export class ReplayJudgmentProvider extends FakeJudgmentProvider {
@@ -66,24 +89,25 @@ export class ReplayJudgmentProvider extends FakeJudgmentProvider {
   // Fixtures are supplied with the replayed candidate/source, not inferred from prompt wording.
 }
 
-export class TypeSafeJudgmentProvider implements JudgmentProvider {
+export class CloudflareJevJudgmentProvider implements JudgmentProvider {
   readonly providerId = "typesafe";
   private active = 0;
   private readonly waiters: Array<() => void> = [];
   constructor(
-    private readonly apiKey: string,
+    private readonly ai: NonNullable<Env["AI"]>,
     private readonly model: string,
+    private readonly gatewayId: string,
   ) {}
 
   private async limited<T>(run: () => Promise<T>): Promise<T> {
     if (this.active >= 4) await new Promise<void>((resolve) => this.waiters.push(resolve));
-    else this.active++;
+    this.active++;
     try {
       return await run();
     } finally {
+      this.active--;
       const next = this.waiters.shift();
       if (next) next();
-      else this.active--;
     }
   }
 
@@ -148,68 +172,37 @@ export class TypeSafeJudgmentProvider implements JudgmentProvider {
 
   private async call(state: unknown, questions: JudgmentRequest["questions"]): Promise<JudgmentResult> {
     for (let attempt = 0; attempt <= 2; attempt++) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-      let retryDelay = 500 * 2 ** attempt;
       try {
-        const response = await fetch(ENDPOINT, {
-          method: "POST",
-          signal: controller.signal,
-          headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: this.model, state, questions }),
-        });
-        if (!response.ok) {
-          await response.body?.cancel();
-          const retryable = response.status === 429 || response.status >= 500;
-          const header = response.headers.get("retry-after");
-          if (header) {
-            const seconds = Number(header);
-            const milliseconds = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - Date.now();
-            if (Number.isFinite(milliseconds)) retryDelay = Math.max(retryDelay, milliseconds);
-          }
-          if (!retryable || attempt === 2 || retryDelay > TIMEOUT_MS)
-            throw new JudgmentProviderError(
-              `http_${response.status}`,
-              retryable,
-              response.status === 429 || response.status === 529 ? "PROVIDER_CAPACITY_EXHAUSTED" : undefined,
-            );
-        } else {
-          if (!response.body) throw new JudgmentProviderError("empty_response", false);
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let text = "";
-          let bytes = 0;
-          try {
-            while (true) {
-              const part = await reader.read();
-              if (part.done) break;
-              bytes += part.value.byteLength;
-              if (bytes > MAX_RESPONSE_BYTES) {
-                await reader.cancel();
-                throw new JudgmentProviderError("response_too_large", false);
-              }
-              text += decoder.decode(part.value, { stream: true });
-            }
-            text += decoder.decode();
-          } finally {
-            reader.releaseLock();
-          }
-          let raw: unknown;
-          try {
-            raw = JSON.parse(text);
-          } catch {
-            throw new JudgmentProviderError("invalid_json", false);
-          }
-          return parseJudgmentResult(raw, questions);
-        }
+        const raw = await withTimeout(
+          this.ai.run(this.model, { state, questions }, { gateway: { id: this.gatewayId } }),
+          TIMEOUT_MS,
+        );
+        return parseJudgmentResult(raw, questions);
       } catch (error) {
-        if (error instanceof JudgmentProviderError) throw error;
-        if (attempt === 2)
-          throw new JudgmentProviderError(controller.signal.aborted ? "timeout" : "network_error", true);
-      } finally {
-        clearTimeout(timeout);
+        const status =
+          typeof error === "object" && error !== null && "status" in error && typeof error.status === "number"
+            ? error.status
+            : undefined;
+        const message = error instanceof Error ? error.message : String(error);
+        const authenticationFailure = /401|403|unauthorized|forbidden/iu.test(message);
+        const retryable =
+          error instanceof JudgmentProviderError
+            ? error.retryable
+            : !authenticationFailure &&
+              (status === undefined ||
+                status === 429 ||
+                (status !== undefined && status >= 500) ||
+                /429|5\d\d|timeout|network|fetch/iu.test(message));
+        if (!retryable || attempt === 2) {
+          if (error instanceof JudgmentProviderError) throw error;
+          throw new JudgmentProviderError(
+            status === 429 ? "http_429" : status !== undefined && status >= 500 ? `http_${status}` : "network_error",
+            retryable,
+            status === 429 ? "PROVIDER_CAPACITY_EXHAUSTED" : undefined,
+          );
+        }
       }
-      await new Promise<void>((resolve) => setTimeout(resolve, retryDelay));
+      await new Promise<void>((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
     }
     throw new JudgmentProviderError("retry_exhausted", true);
   }
@@ -219,5 +212,8 @@ export function createJudgmentProvider(env: Env): JudgmentProvider {
   if (validateJudgmentConfig(env).length) throw new JudgmentProviderError("missing_configuration", false);
   if (env.JEV_PROVIDER === "fake") return new FakeJudgmentProvider();
   if (env.JEV_PROVIDER === "replay") return new ReplayJudgmentProvider();
-  return new TypeSafeJudgmentProvider(env.TYPESAFE_API_KEY ?? "", env.JEV_MODEL ?? "");
+  const ai = env.AI;
+  const gatewayId = env.AI_GATEWAY_GATEWAY_ID;
+  if (!ai || !gatewayId) throw new JudgmentProviderError("missing_configuration", false);
+  return new CloudflareJevJudgmentProvider(ai, env.JEV_MODEL ?? DEFAULT_JEV_MODEL, gatewayId);
 }

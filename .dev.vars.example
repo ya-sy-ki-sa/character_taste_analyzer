@@ -1,53 +1,74 @@
 # このファイルを .dev.vars にコピーし、値を設定してください。.dev.vars はコミットしないでください。
+#
+# Providerの選択、モデル名、quotaなどの基準設定は wrangler.jsonc にまとめています。
+# このファイルでは、ローカル実行で必要な秘密値と、Provider・モデルの上書き設定を管理します。
 
-# 認証情報などのハッシュ計算に使う秘密値。32バイト以上のランダムな値を設定してください。
+# -----------------------------------------------------------------------------
+# 共通の認証・運用
+#
+# AUTH_PEPPER: 認証情報などのハッシュ計算に使う32バイト以上のランダムな秘密値。
+# TURNSTILE_SECRET: 登録・ログイン時のボット対策。本番では必須、ローカルでは空欄可。
+# -----------------------------------------------------------------------------
 AUTH_PEPPER=replace-with-at-least-32-random-bytes
-
-# OpenAI の API キー。OpenAI API は常に Cloudflare AI Gateway 経由で呼び出します。
-OPENAI_API_KEY=replace-with-openai-api-key
-
-# Jev の意味判定用。TypeSafe APIへ直接接続します。
-TYPESAFE_API_KEY=replace-with-typesafe-api-key
-JEV_PROVIDER=typesafe
-JEV_MODEL=jev-1.13.0
-
-# OpenAI の Flex Processing を使う場合は true。false の場合は処理方式を指定しません。
-OPENAI_FLEX_ENABLED=false
-
-# 共通モデルの推論量。空欄ではAPIに送信せず、モデルの既定値を使用します。
-# OpenAIでは none / minimal / low / medium / high / xhigh / max を指定できますが、対応値はモデルによって異なります。
-# Workers AIでは @cf/openai/gpt-oss-120b と @cf/openai/gpt-oss-20b の low / medium / high に対応しています。
-# noneは明示的な指定であり、空欄とは異なります。Fake / Replayでは推論量を変更しません。
-LLM_REASONING_EFFORT=
-
-# フォールバック先の推論量。LLM_FALLBACK_PROVIDER / LLM_FALLBACK_MODEL を設定した場合だけ指定できます。
-# 空欄ではフォールバック先モデルの既定値を使用し、共通モデルの推論量は引き継ぎません。
-LLM_FALLBACK_REASONING_EFFORT=
-
-# ティア別モデルの任意設定。各ティアに {"provider":"接続先","model":"モデル名","effort":"high"} を指定します。
-# ティア名は basic / silver / gold / premium。省略したティアは共通の接続先・モデル・推論量を継承します。
-# ティアの接続先を明示してeffortだけ省略した場合は、そのモデルの既定値を使用します。
-# 例: {"premium":{"provider":"openai","model":"gpt-5.6-luna","effort":"high"}}
-# 推論量を含む割当はジョブ作成時に保存され、設定変更は新規ジョブから反映されます。
-LLM_TIER_ROUTES_JSON={}
-
-# 自由記述の入力を事前チェックする接続先。通常は openai、外部 API を使わない試験では fake を指定します。
-MODERATION_PROVIDER=openai
-
-# 入力の事前チェックに使うモデル名。
-MODERATION_MODEL=omni-moderation-latest
-
-# AI Gateway を作成した Cloudflare アカウントの ID。
-AI_GATEWAY_ACCOUNT_ID=replace-with-cloudflare-account-id
-
-# 使用する AI Gateway の ID。
-AI_GATEWAY_GATEWAY_ID=default
-
-# 「アカウント > AI Gateway > 実行（Run）」権限を持つ Cloudflare API トークン。
-AI_GATEWAY_TOKEN=replace-with-cloudflare-ai-gateway-token
-
-# 登録・ログイン時のボット対策に使う Turnstile のシークレットキー。本番では必須です。
-# ローカルでは空欄にできます。
 TURNSTILE_SECRET=
 
-# `npm run dev:offline`は専用のoffline環境を選び、Replay/Fakeで動くため、AI関連の値は使用しません。
+# -----------------------------------------------------------------------------
+# Jev: Cloudflare Workers AI binding経由の意味判定
+#
+# JEV_PROVIDER: 判断Providerの選択。typesafeでCloudflareのThird-party modelを使う。
+# JEV_MODEL: Cloudflare AIのモデルID。現在はtypesafe/jevに固定。
+# -----------------------------------------------------------------------------
+JEV_PROVIDER=typesafe
+JEV_MODEL=typesafe/jev
+
+# -----------------------------------------------------------------------------
+# LLM: ルーティング・推論設定
+#
+# OPENAI_FLEX_ENABLED: OpenAIのFlex Processingを使う場合はtrue。
+# LLM_TIER_ROUTES_JSON: ティア別のprovider、model、effort。ティアはbasic / silver / gold / premium。
+#   effortを省略したルートは、選択したモデルの既定値を使う。
+#   例: {"premium":{"provider":"openai","model":"gpt-5.6-luna","effort":"high"}}
+# -----------------------------------------------------------------------------
+OPENAI_FLEX_ENABLED=false
+LLM_TIER_ROUTES_JSON={}
+
+# -----------------------------------------------------------------------------
+# Embedding: 嗜好ベクトル生成
+#
+# EMBEDDING_PROVIDER: embeddingの接続先。通常はopenai、外部APIを使わない試験ではfake。
+# EMBEDDING_MODEL: 利用するembeddingモデル。OpenAIの既定値はtext-embedding-3-small。
+# EMBEDDING_DIMENSIONS: モデルの出力次元。モデルに合わせて変更する。
+# -----------------------------------------------------------------------------
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSIONS=1536
+
+# -----------------------------------------------------------------------------
+# OpenAI / Cloudflare AI Gateway: REST接続
+#
+# OPENAI_API_KEY: OpenAIのAPIキー。OpenAIへのREST呼出しはAI Gateway経由。
+# AI_GATEWAY_ACCOUNT_ID: REST呼出しに使うCloudflareアカウントID。JevはAI binding経由のため不要。
+# AI_GATEWAY_GATEWAY_ID: JevのAI bindingとOpenAI系REST呼出しで共通利用するGateway ID。
+# AI_GATEWAY_TOKEN: REST呼出し用Cloudflare APIトークン。
+#   「アカウント > AI Gateway > 実行（Run）」権限が必要。JevはAI binding経由のため不要。
+# -----------------------------------------------------------------------------
+OPENAI_API_KEY=replace-with-openai-api-key
+AI_GATEWAY_ACCOUNT_ID=replace-with-cloudflare-account-id
+AI_GATEWAY_GATEWAY_ID=default
+AI_GATEWAY_TOKEN=replace-with-cloudflare-ai-gateway-token
+
+# -----------------------------------------------------------------------------
+# Moderation: 入力内容の事前チェック
+#
+# MODERATION_PROVIDER: 通常はopenai。外部APIを使わない試験ではfakeを指定する。
+# MODERATION_MODEL: 入力の事前チェックに使うモデル名。
+# -----------------------------------------------------------------------------
+MODERATION_PROVIDER=openai
+MODERATION_MODEL=omni-moderation-latest
+
+# -----------------------------------------------------------------------------
+# Offline実行
+#
+# npm run dev:offlineは専用のoffline環境を選び、Replay/Fakeで動くため、
+# 上記の外部AI関連値は使用しない。
+# -----------------------------------------------------------------------------
