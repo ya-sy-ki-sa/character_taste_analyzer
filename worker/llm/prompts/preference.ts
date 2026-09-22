@@ -4,7 +4,7 @@ import { DARK_SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION } from "./analysis";
 import { preferenceAttributeInstruction } from "./preference-attributes";
 import { REFERENCE_SCOPE_INSTRUCTION } from "./reference-scope";
 
-export const PREFERENCE_PROMPT_VERSION = "v4.1.0";
+export const PREFERENCE_PROMPT_VERSION = "v4.2.0";
 export const PREFERENCE_SCHEMA_VERSION = "3.0";
 
 const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
@@ -27,6 +27,7 @@ const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
 6. 悪役・加害描写への好意から、加害の道徳的支持も不支持も補わない。行動の裏事情への好意と加害を称賛しない態度が両方明示されれば別々に保持する。
 7. 「AだけでなくB」「AではなくB」「AよりB」の比較は、Bだけへ平坦化せず、比較対象と優先関係をcontext.conditionsへ保持する。
 8. ユーザー自身の失敗・経歴は背景であり、それ自体をpositive嗜好候補にしない。人物との共通部分、または人物から生じた反応が明示される場合だけ、その支持範囲でactual_similarityやmotivationを作る。
+9. 自己属性、劣等感、引け目、過去の失敗はユーザー背景として読む。人物側の特徴への好意が明示されない限り、同じ語を人物側のpositive対象へ移さない。
 
 [DECISION_RULES:VALUE_STANCE]
 - 好き・かっこいい・憧れる・苦手は嗜好の根拠であり、それだけでvalueStanceAssertionsを追加しない。
@@ -116,6 +117,7 @@ const PREFERENCE_STRUCTURE_INSTRUCTION = `[OUTPUT_MAPPING:PREFERENCE]
 - 引用を共有する場合も、各候補の対象・極性・条件をそれぞれ支持すること。
 - 反応ごとに支持される対象範囲を先に確定する。対象と成立条件が一致する候補だけattributeStableKeyとrawLabelを揃える。
 - 反応経路・適用範囲の意味ある違いは保持する。語句の類似だけによる統合、候補間の条件の補完を禁止する。
+- 同一対象・極性・反応経路・根拠・成立条件の近接候補は1件に統合する。反応経路が異なる候補はそれぞれ根拠を検証して保持する。
 - 相互選択・特別さを競争だけへ置換しない。
 - 固有名詞・具体的な元表現はevidenceと必要なcontextに保持する。一般化した属性とcontextの組が引用に支持されれば、rawLabelと原文の文字列一致は不要。
 - 一般概念が確定不能 → 名前入りの属性を返さず、要約や不確実性に残す。

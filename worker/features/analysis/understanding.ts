@@ -249,7 +249,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
             }),
           )
         : null;
-      const verifiedAssertions = semanticResults
+      let verifiedAssertions = semanticResults
         ? semanticResults.filter((item) => item.keep)
         : await Promise.all(
             call.value.assertions.map(async (assertion) => {
@@ -271,11 +271,15 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         const quality = (call.value.sourceAssessment as Record<string, unknown>).informationQuality as
           | { completionAttempted?: boolean }
           | undefined;
-        const { informationQuality, ...normalized } = normalizeUnderstanding(
+        const { informationQuality, canonicalSourceIndexes, canonicalProofs, ...normalized } = normalizeUnderstanding(
           call.semanticAudit,
           semanticResults,
           quality?.completionAttempted ?? (call.attempts?.length ?? 1) > 1,
         );
+        verifiedAssertions = canonicalProofs.map((proof, index) => ({
+          id: semanticResults[canonicalSourceIndexes[index]].id,
+          ...proof,
+        }));
         const domainFields =
           "darkState" in call.value
             ? {

@@ -4,11 +4,12 @@ import {
   CloudflareJevJudgmentProvider,
   FakeJudgmentProvider,
   ReplayJudgmentProvider,
+  createJudgmentProvider,
   validateJudgmentConfig,
 } from "../worker/judgment/provider";
 import type { JudgmentRequest } from "../worker/judgment/types";
 import { fixtureResult, parseJudgmentResult } from "../worker/judgment/validation";
-import type { AiBinding } from "../worker/types";
+import type { AiBinding, Env } from "../worker/types";
 
 const choice = {
   type: "choice",
@@ -224,5 +225,30 @@ describe("typed judgments", () => {
       }),
     ).toEqual([]);
     expect(validateJudgmentConfig({ JEV_PROVIDER: "fake", JEV_MODEL: "typesafe/jev" })).toEqual([]);
+  });
+  it("uses authenticated Cloudflare REST for local Jev without an AI binding", async () => {
+    const fetcher = vi.fn(async () => Response.json({ success: true, result: response() }));
+    vi.stubGlobal("fetch", fetcher);
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const env = {
+      ENVIRONMENT: "local",
+      JEV_PROVIDER: "typesafe",
+      JEV_MODEL: "typesafe/jev",
+      AI_GATEWAY_ACCOUNT_ID: "account-id",
+      AI_GATEWAY_GATEWAY_ID: gatewayId,
+      AI_GATEWAY_TOKEN: "test-secret",
+    } as Env;
+    expect(validateJudgmentConfig(env)).toEqual([]);
+    expect(validateJudgmentConfig({ ...env, AI_GATEWAY_TOKEN: undefined })).toContain("JEV_REST_AUTH_MISSING");
+    const result = await createJudgmentProvider(env).evaluate(request());
+    expect(result.answers.support).toMatchObject({ type: "choice", choice: "supported" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.cloudflare.com/client/v4/accounts/account-id/ai/run");
+    expect(init.headers).toMatchObject({ Authorization: "Bearer test-secret", "cf-aig-gateway-id": gatewayId });
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      model: "typesafe/jev",
+      input: { state: { source: "fixture" } },
+    });
   });
 });

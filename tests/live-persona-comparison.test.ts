@@ -84,6 +84,19 @@ describe("live persona comparison", () => {
     wrongModel.usage.responseModels = ["other"];
     expect(() => compare(run(), wrongModel)).toThrow("ACTUAL_MODEL_MISMATCH");
   });
+  it("allows an explicitly recorded model change while still checking the model actually used", () => {
+    const current = run();
+    current.usage = { requestedModels: ["new-model"], responseModels: ["new-model"] };
+    const adjusted = { baseline: settings, current: { LLM_MODEL: "new-model" } };
+    expect(() => compareRuns(run(), current, dataset, dataset, adjusted)).toThrow("SETTINGS_MISMATCH");
+    const result = compareRuns(run(), current, dataset, dataset, adjusted, { allowModelDifference: true });
+    expect(result.modelDifference).toEqual({ baseline: "test-model", current: "new-model" });
+    expect(result.limitations.join(" ")).toContain("モデル変更");
+    current.usage.responseModels = ["unexpected"];
+    expect(() => compareRuns(run(), current, dataset, dataset, adjusted, { allowModelDifference: true })).toThrow(
+      "ACTUAL_MODEL_MISMATCH",
+    );
+  });
   it("derives correction evidence totals from observations, including unavailable operations", () => {
     const result = summarizeCorrections([
       {

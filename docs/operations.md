@@ -32,7 +32,7 @@ E2E起動時は、通常用`.dev.vars`のProvider設定がoffline環境を上書
 
 ## Jevの意味判定
 
-通常実行では `JEV_PROVIDER=typesafe`、`JEV_MODEL=typesafe/jev`、Wranglerの `AI` binding、`AI_GATEWAY_GATEWAY_ID` を設定します。JevはCloudflareのThird-party modelとして、Workerの `env.AI.run("typesafe/jev", { state, questions }, { gateway: { id: AI_GATEWAY_GATEWAY_ID } })` から呼び出します。Jev専用のTypeSafe APIキー、Custom Provider、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN` は不要です。Cloudflare側のモデルプロバイダ認証とUnified Billingを利用します。設定不足はreadinessの既存configurationチェックで検出します。
+通常実行では `JEV_PROVIDER=typesafe`、`JEV_MODEL=typesafe/jev`、`AI_GATEWAY_GATEWAY_ID` を設定します。ローカル開発（`ENVIRONMENT=local`）はremote `AI` bindingを使わず、`AI_GATEWAY_ACCOUNT_ID` と `AI_GATEWAY_TOKEN` によるCloudflare REST APIの `/ai/run` から同じGatewayを経由してJevを呼び出します。staging／productionは各環境の `AI` bindingで `env.AI.run("typesafe/jev", { state, questions }, { gateway: { id: AI_GATEWAY_GATEWAY_ID } })` を使います。Jev専用のTypeSafe APIキーやCustom Providerは不要です。Cloudflare側のモデルプロバイダ認証とUnified Billingを利用します。設定不足はreadinessの既存configurationチェックで検出します。
 
 `offline`は `JEV_PROVIDER=replay`、単体試験のEnvは `fake` を明示します。両方とも判断箇所から供給する固定fixtureを使用し、欠落fixtureを推定成功に変えません。Replay/Fakeの通過は意味理解の精度を示しません。
 
@@ -83,7 +83,7 @@ npx wrangler secret put AI_GATEWAY_ACCOUNT_ID --env production
 npx wrangler secret put AI_GATEWAY_TOKEN --env production
 ```
 
-Workers AIは`AI` bindingを使用しますが、各`env.AI.run()`へ同じGateway IDを渡すため、LLMとEmbeddingのログ・レート制限・利用量をAI Gatewayへ集約できます。Replay／Fakeは外部APIを呼ばないためGateway対象外です。
+staging／productionのWorkers AIは`AI` bindingを使用し、各`env.AI.run()`へ同じGateway IDを渡します。ローカルJevはREST APIへGateway IDを指定します。LLMとEmbeddingも同じAI Gatewayを経由します。Replay／Fakeは外部APIを呼ばないためGateway対象外です。
 
 EmbeddingはLLMと独立した`EmbeddingProvider` Portを使います。local/productionのOpenAI `text-embedding-3-small`は1536次元、stagingのWorkers AI BGE-M3は1024次元です。OpenAI、Workers AI、Fakeの各Adapterをfactoryで切り替え、返却vectorの件数・順序・有限値・次元数を共通契約で検証します。
 

@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { type UnderstandingCandidate, understandingCandidateSchema } from "../../../shared/contracts/understanding";
-import { understandingAspectLabels, understandingAspects } from "../../../shared/understanding-aspects";
 import {
   entryBaseCharacterName,
   entryInputSources,
   entryPreferenceContext,
   entryReferenceMaterial,
 } from "../../../shared/entry-input";
+import { understandingAspectLabels, understandingAspects } from "../../../shared/understanding-aspects";
 import { MAX_ANALYSIS_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import { hmacHex, sha256Hex } from "../../lib/crypto";
 import { UNDERSTANDING_COMPLETION_INSTRUCTION, understandingSystem } from "../../llm/prompts/understanding";
@@ -18,6 +18,7 @@ import { ontologyPrompt } from "./context";
 import { fakeUnderstanding } from "./deterministic";
 import { analysisErrorCode, safeAnalysisErrorDetail } from "./failures";
 import { analysisIssueText, analysisIssueTopic, judgeUnderstandingCandidate } from "./judgment";
+import { UNDERSTANDING_PROVENANCE_BUDGET } from "./normalize-understanding";
 import type { CharacterResearch } from "./research";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { AttributeRow, EntryContext, NormalizeUnderstandingAudit } from "./types";
@@ -165,6 +166,23 @@ export async function understandOne(
     const missingAspects = understandingAspects
       .filter((aspect) => normalized.informationQuality.aspects[aspect].kind !== "concrete")
       .map((aspect) => ({ aspect, label: understandingAspectLabels[aspect] }));
+    const modelUsed = normalized.assertions.filter((item) => item.explicitness === "model_knowledge").length;
+    const remainingBudget = {
+      groundedPerAspect: Object.fromEntries(
+        understandingAspects.map((aspect) => [
+          aspect,
+          Math.max(
+            0,
+            UNDERSTANDING_PROVENANCE_BUDGET.groundedPerAspect -
+              normalized.informationQuality.aspects[aspect].assertionIndexes.filter(
+                (index) => normalized.assertions[index]?.explicitness !== "model_knowledge",
+              ).length,
+          ),
+        ]),
+      ),
+      modelPerMissingAspect: UNDERSTANDING_PROVENANCE_BUDGET.modelPerAspect,
+      modelTotalRemaining: Math.max(0, UNDERSTANDING_PROVENANCE_BUDGET.modelTotal - modelUsed),
+    };
     const retainedCandidate = {
       summary: Object.fromEntries(
         understandingAspects.flatMap((aspect) =>
@@ -194,7 +212,7 @@ export async function understandOne(
         ...messages,
         {
           role: "user",
-          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n再検討回数: ${round}/${MAX_ANALYSIS_RECONSIDERATION_ROUNDS}\n欠落項目: ${JSON.stringify(missingAspects)}\n保持済み候補: ${JSON.stringify(retainedCandidate)}\n利用可能な出典: ${JSON.stringify(availableSources)}`,
+          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n再検討回数: ${round}/${MAX_ANALYSIS_RECONSIDERATION_ROUNDS}\n欠落項目: ${JSON.stringify(missingAspects)}\n残り補完予算: ${JSON.stringify(remainingBudget)}\n保持済み候補: ${JSON.stringify(retainedCandidate)}\n利用可能な出典: ${JSON.stringify(availableSources)}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,

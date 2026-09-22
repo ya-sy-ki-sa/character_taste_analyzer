@@ -1,4 +1,9 @@
 import { writeFileSync } from "node:fs";
+import {
+  judgmentQuestionMetrics,
+  preferencePrecisionMetrics,
+  understandingInformationMetrics,
+} from "../evaluation/live-personas/metrics.mjs";
 import { validateSelection } from "../evaluation/live-personas/selection.mjs";
 import { digest, liveRunRoot, readJson, saveJson } from "../evaluation/live-personas/storage.mjs";
 
@@ -139,13 +144,28 @@ const judgmentAudits = records
   .filter(Boolean);
 const judgmentOutcomes = judgmentAudits.flatMap((artifact) => artifact.outcomes ?? []);
 const judgmentCalls = judgmentAudits.flatMap((artifact) => artifact.calls ?? []);
+const judgmentCallCoverageComplete =
+  judgmentAudits.length === records.length &&
+  judgmentAudits.every((artifact) => artifact.coverage?.answers === "available");
+const understandingInformation = understandingInformationMetrics(
+  records.map((record) => readJson(`${root}/cases/${record.caseId}/understanding-before.json`, null)?.understanding),
+);
+const preferencePrecision = preferencePrecisionMetrics(readJson(`${root}/precision-review.json`, null));
 const judgmentSummary = {
   schemaVersion: "live-judgment-summary/v1",
   casesWithArtifacts: judgmentAudits.length,
   casesWithAnswers: judgmentAudits.filter((artifact) => artifact.coverage?.answers === "available").length,
   casesWithFinalOutcomes: judgmentAudits.filter((artifact) => artifact.coverage?.finalOutcomes === "available").length,
-  calls: judgmentCalls.length,
-  answers: judgmentCalls.reduce((total, call) => total + (call.answers?.length ?? 0), 0),
+  calls: judgmentCallCoverageComplete ? judgmentCalls.length : null,
+  answers: judgmentCallCoverageComplete
+    ? judgmentCalls.reduce((total, call) => total + (call.answers?.length ?? 0), 0)
+    : null,
+  observedCalls: judgmentCalls.length,
+  callCoverageComplete: judgmentCallCoverageComplete,
+  questionsByType: judgmentQuestionMetrics(judgmentAudits),
+  contributionNote: judgmentCallCoverageComplete
+    ? "監査記録に質問IDと最終assertion outcomeの対応がないため、質問単位の寄与は未測定。呼出数と低confidence率のみ実測。"
+    : "一部または全部のアプリログが未取得のため、Jev呼出総数・回答総数は未測定。保存された最終outcomeの件数を呼出数へ読み替えない。",
   outcomes: Object.fromEntries(
     ["accepted", "degraded", "rejected"].map((value) => [
       value,
@@ -272,6 +292,8 @@ const result = {
   method: "Codexによる合成データ・自動評価。OpenAIの構造化採点補助とCodex再点検。実利用者の満足度を示すものではない。",
   datasetHash: digest(dataset),
   overall,
+  understandingInformation,
+  preferencePrecision,
   byPersona,
   judgments: judgmentSummary,
   usage,
@@ -506,6 +528,9 @@ const md = [
   `構造化された好み候補が0件のケース: ${overall.emptyPreferenceCases.join(", ")}。要約に残るだけでも意味の抽出はmatchedになり得るため、候補数・集計への保持を別途確認した。情報不足による適切な保留も含む。`,
   `期待要素の内訳: ${JSON.stringify(overall.expected)}。作品理解の主張内訳: ${JSON.stringify(overall.understanding)}。好みの主張内訳: ${JSON.stringify(overall.preference)}。`,
   `全段階を合わせた根拠支持率は${percent(overall.allClaimSupportRate)}。表の支持率は好み段階のみ。完全に同文・同段階の重複${overall.duplicateClaimSlots}枠は率へ重ねて加点せず、原記録には残す。`,
+  `人物理解: canonical assertion ${understandingInformation.canonicalAssertionCount}件（保存行 ${understandingInformation.assertionCount}件）、具体aspect ${understandingInformation.concreteAspectCount}件、接地済み具体項目 ${understandingInformation.groundedConcreteItemCount}件、モデル知識のみの具体項目 ${understandingInformation.modelKnowledgeConcreteItemCount}件。aspect coverage ${understandingInformation.aspectCoverage}件、grounded coverage ${understandingInformation.groundedCoverage}件。分母と単位を分けて集計する。`,
+  `嗜好のprecision（独立レビュー）: 対象 ${preferencePrecision.target.correct}/${preferencePrecision.target.assessed} (${percent(preferencePrecision.target.precision)})、反応経路 ${preferencePrecision.responseChannel.correct}/${preferencePrecision.responseChannel.assessed} (${percent(preferencePrecision.responseChannel.precision)})。未採点は分母へ含めない。`,
+  `Jev質問別の呼出数・低confidence率はjudgment-summary.jsonのquestionsByTypeを参照。${judgmentSummary.contributionNote}`,
   "",
   `要求モデル: ${usage.requestedModels.join(", ") || "集計待ち"} / 応答モデル: ${usage.responseModels.join(", ") || "集計待ち"} / effortは未指定(null)。モデル既定値を実リクエストの指定値として扱わない。`,
   `LLM実行記録 ${usage.recordedAppModelCalls}件。取得済みinput tokens ${usage.inputTokens ?? "不明"} / output tokens ${usage.outputTokens ?? "不明"}。`,

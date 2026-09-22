@@ -94,6 +94,8 @@ describe("understanding information quality storage and continuation", () => {
         item.content.startsWith(UNDERSTANDING_COMPLETION_INSTRUCTION),
       )?.content;
       expect(completion).toContain("欠落項目");
+      expect(completion).toContain('"modelTotalRemaining":4');
+      expect(completion).toContain('"modelPerMissingAspect":1');
       expect(completion).toContain("保持済み候補");
       expect(completion).toContain("利用可能な出典");
       expect(completion).toContain('"assertions":[]');
@@ -104,9 +106,11 @@ describe("understanding information quality storage and continuation", () => {
       expect(quality).toMatchObject({
         completionAttempted: true,
         status: recovers ? "not_flagged" : "limited",
-        concreteAspectCount: recovers ? 6 : 0,
+        concreteAspectCount: recovers ? 5 : 0,
       });
-      expect(t.detail.understanding?.assertions).toHaveLength(recovers ? candidate.assertions.length : 0);
+      // D03's recovered fixture contains model-only evidence. The new global
+      // budget retains four assertions, which jointly cover five aspects.
+      expect(t.detail.understanding?.assertions).toHaveLength(recovers ? 4 : 0);
       expect(t.analysis.assertions.length).toBeGreaterThan(0);
       const rows = t.db.database
         .prepare(
@@ -138,8 +142,48 @@ describe("understanding information quality storage and continuation", () => {
     expect(t.detail.understanding?.informationQuality).toMatchObject({
       status: "not_flagged",
       completionAttempted: false,
-      concreteAspectCount: 6,
+      concreteAspectCount: 5,
     });
+    expect(t.detail.understanding?.assertions).toHaveLength(4);
+  });
+
+  it("keeps a physically grounded aspect ahead of the model knowledge budget", async () => {
+    const fixture = sparseFixtures.find((item) => item.caseId === "D03");
+    if (!fixture) throw new Error("D03 fixture missing");
+    const candidate = frozenAudit(fixture);
+    const valueText = "冷酷な知略で支配する人物。";
+    candidate.assertions[12] = {
+      ...candidate.assertions[12],
+      rawLabel: "行動",
+      valueText,
+      explicitness: "user_explicit",
+      evidence: [
+        {
+          sourceRef: "input:/characterBasicInfo",
+          sourceUrl: null,
+          inputPointer: "/characterBasicInfo",
+          quote: valueText,
+          inferenceType: "direct",
+        },
+      ],
+    };
+    candidate.summary.behavior = [valueText];
+    candidate.aspectAssessments.behavior = {
+      kind: "concrete",
+      reason: "ユーザー入力の原文に接地した行動",
+      summaryIndexes: [0],
+      assertionIndexes: [12],
+    };
+    const t = await setup("standard", { ...explicitFixtures[0], understanding: candidate });
+    const assertion = t.detail.understanding?.assertions.find((item) => item.value_text === valueText);
+    expect(assertion).toMatchObject({
+      explicitness: "user_explicit",
+      evidence: [expect.objectContaining({ verificationStatus: "verified_quote", evidenceOrigin: "user_input" })],
+    });
+    expect(t.detail.understanding?.informationQuality?.aspects.behavior.kind).toBe("concrete");
+    expect(
+      t.detail.understanding?.assertions.filter((item) => item.explicitness === "model_knowledge").length,
+    ).toBeLessThanOrEqual(4);
   });
 
   it("completes when quotes fail verification even though the model marks them supported", async () => {

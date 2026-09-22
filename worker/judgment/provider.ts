@@ -57,7 +57,18 @@ async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promis
 }
 
 export function validateJudgmentConfig(
-  env: Pick<Env, "JEV_PROVIDER" | "JEV_MODEL" | "AI" | "AI_GATEWAY_GATEWAY_ID">,
+  env: Partial<
+    Pick<
+      Env,
+      | "ENVIRONMENT"
+      | "JEV_PROVIDER"
+      | "JEV_MODEL"
+      | "AI"
+      | "AI_GATEWAY_ACCOUNT_ID"
+      | "AI_GATEWAY_GATEWAY_ID"
+      | "AI_GATEWAY_TOKEN"
+    >
+  >,
 ): string[] {
   const errors: string[] = [];
   if (!["typesafe", "fake", "replay"].includes(env.JEV_PROVIDER ?? ""))
@@ -65,10 +76,36 @@ export function validateJudgmentConfig(
   if (!env.JEV_MODEL?.trim()) errors.push("JEV_MODEL_REQUIRED");
   if (env.JEV_PROVIDER === "typesafe") {
     if (env.JEV_MODEL?.trim() && env.JEV_MODEL.trim() !== DEFAULT_JEV_MODEL) errors.push("JEV_MODEL_INVALID");
-    if (!env.AI) errors.push("AI_BINDING_MISSING_FOR_JEV");
+    if (!env.AI && env.ENVIRONMENT !== "local") errors.push("AI_BINDING_MISSING_FOR_JEV");
+    if (!env.AI && env.ENVIRONMENT === "local" && (!env.AI_GATEWAY_ACCOUNT_ID || !env.AI_GATEWAY_TOKEN))
+      errors.push("JEV_REST_AUTH_MISSING");
     if (!env.AI_GATEWAY_GATEWAY_ID?.trim()) errors.push("AI_GATEWAY_GATEWAY_ID_REQUIRED_FOR_JEV");
   }
   return errors;
+}
+
+/** Local development uses the same Gateway without requiring a remote preview session. */
+function localRestAi(env: Env): NonNullable<Env["AI"]> {
+  return {
+    async run(model, input, options) {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.AI_GATEWAY_ACCOUNT_ID ?? "")}/ai/run`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.AI_GATEWAY_TOKEN}`,
+            "Content-Type": "application/json",
+            "cf-aig-gateway-id": options.gateway.id,
+            "cf-aig-skip-cache": "true",
+          },
+          body: JSON.stringify({ model, input }),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        },
+      );
+      if (!response.ok) throw { status: response.status };
+      return response.json();
+    },
+  };
 }
 
 async function emit(
@@ -265,7 +302,7 @@ export function createJudgmentProvider(env: Env): JudgmentProvider {
   if (validateJudgmentConfig(env).length) throw new JudgmentProviderError("missing_configuration", false);
   if (env.JEV_PROVIDER === "fake") return new FakeJudgmentProvider();
   if (env.JEV_PROVIDER === "replay") return new ReplayJudgmentProvider();
-  const ai = env.AI;
+  const ai = env.AI ?? (env.ENVIRONMENT === "local" ? localRestAi(env) : undefined);
   const gatewayId = env.AI_GATEWAY_GATEWAY_ID;
   if (!ai || !gatewayId) throw new JudgmentProviderError("missing_configuration", false);
   return new CloudflareJevJudgmentProvider(

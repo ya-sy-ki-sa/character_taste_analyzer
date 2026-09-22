@@ -6,7 +6,14 @@ import { digest, readJson } from "../evaluation/live-personas/storage.mjs";
 process.umask(0o077);
 const args = process.argv.slice(2);
 const options = {};
+let allowModelDifference = false;
 for (let i = 0; i < args.length; i += 2) {
+  if (args[i] === "--allow-model-difference") {
+    if (allowModelDifference) throw new Error("Duplicate --allow-model-difference");
+    allowModelDifference = true;
+    i--;
+    continue;
+  }
   if (!["--baseline", "--current", "--output", "--cases"].includes(args[i]) || !args[i + 1] || options[args[i]])
     throw new Error("Usage: --baseline RUN_DIR --current RUN_DIR --output NEW_DIRECTORY");
   options[args[i]] = args[i + 1];
@@ -32,14 +39,16 @@ for (const root of [baselineRoot, currentRoot]) {
   const manifest = read(root, "dataset-manifest.json");
   if (digest(read(root, "dataset.json")) !== manifest.sha256) throw new Error("Dataset manifest mismatch");
 }
-const result = (options["--cases"] ? compareSubsetRuns : compareRuns)(
+const comparisonArgs = [
   read(baselineRoot, "evaluation.json"),
   read(currentRoot, "evaluation.json"),
   read(baselineRoot, "dataset.json"),
   read(currentRoot, "dataset.json"),
   { baseline: read(baselineRoot, "runtime-settings.json"), current: read(currentRoot, "runtime-settings.json") },
-  options["--cases"]?.split(","),
-);
+];
+const result = options["--cases"]
+  ? compareSubsetRuns(...comparisonArgs, options["--cases"].split(","), { allowModelDifference })
+  : compareRuns(...comparisonArgs, { allowModelDifference });
 if (options["--cases"]) {
   const ids = new Set(options["--cases"].split(","));
   for (const [label, root] of [

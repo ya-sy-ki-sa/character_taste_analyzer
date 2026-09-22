@@ -64,4 +64,8 @@ export type NormalizeUnderstandingAudit = (
   audit: import("../../../shared/contracts/semantic-audit").GroundedUnderstandingAudit,
   citations: NonNullable<LlmRunMetadata["citations"]>,
   completionAttempted: boolean,
-) => Promise<ReturnType<typeof import("./normalize-understanding").normalizeUnderstanding>>;
+) => Promise<
+  import("../../../shared/contracts/understanding-quality").UnderstandingAudit & {
+    informationQuality: import("../../../shared/contracts/understanding-quality").UnderstandingInformationQuality;
+  }
+>;

@@ -255,11 +255,8 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     const { env, owner, snapshot } = await setup(domain);
     await confirmUnderstanding(env, owner, domain, snapshot.id);
     const confirmed = await loadConfirmedUnderstanding(env, owner, snapshot.id);
-    expect(confirmed.rows.map((item) => item.raw_label)).toEqual([
-      "有効な人物属性",
-      "混在する人物属性",
-      "独立したモデル知識",
-    ]);
+    // Model knowledge without a missing concrete aspect no longer consumes a saved slot.
+    expect(confirmed.rows.map((item) => item.raw_label)).toEqual(["有効な人物属性", "混在する人物属性"]);
     const correction = await setup(domain);
     await mutateUnderstandingReview(
       correction.env,

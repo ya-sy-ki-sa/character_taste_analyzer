@@ -35,6 +35,7 @@ import { refinementInstruction } from "./input";
 import { analysisIssueText, analysisIssueTopic, judgePreferenceCandidate, rankPreferenceQuestions } from "./judgment";
 import { analyzeDarkPreferences } from "./llm-dark";
 import { completedLlmGroup, persistModelRun } from "./model-runs";
+import { uniquePreferenceIndexes } from "./preference-canonical";
 import { preferenceAssertionStatements } from "./preference-statements";
 import * as repository from "./repositories/preference";
 import {
@@ -444,6 +445,11 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     });
     verifiedPreferences = verifiedPreferences.filter((item) => item.keep);
     verifiedStances = verifiedStances.filter((item) => item.keep);
+    const uniqueIndexes = new Set(uniquePreferenceIndexes(result.value.preferenceAssertions));
+    result.value.preferenceAssertions = result.value.preferenceAssertions.filter((_, index) =>
+      uniqueIndexes.has(index),
+    ) as typeof result.value.preferenceAssertions;
+    verifiedPreferences = verifiedPreferences.filter((_, index) => uniqueIndexes.has(index));
     result.value =
       params.analysisDomain === "standard"
         ? preferenceCandidateSchema.parse(result.value)

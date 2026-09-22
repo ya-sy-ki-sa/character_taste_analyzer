@@ -1,6 +1,6 @@
 import { understandingAspectLabels } from "../../../shared/understanding-aspects";
 import { SYSTEM_INSTRUCTION } from "./analysis";
-export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v2.1.0";
+export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v2.2.0";
 
 export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `[TASK:UNDERSTANDING_COVERAGE]
 キャラクター像の7項目をそれぞれ検討する。
@@ -10,7 +10,11 @@ ${Object.entries(understandingAspectLabels)
   .join("\n")}
 [OUTPUT_RULES:UNDERSTANDING]
 - 各項目に根拠のある人物像を具体的な文章で記述し、対応するassertionsに根拠・出所を保持する。名前・作品名だけを人物像の完成とみなさない。
-- 利用可能なモデル知識はexplicitness=model_knowledge、sourceRef=model_knowledgeとし、確信度を上げない。公開資料にないという理由だけで一律削除しない。
+- 同じ命題を区分ごとに別assertionとして再生成しない。1件のassertionを必要な複数区分から参照する。
+- 複合主張に確認済み部分と未確認部分がある場合、根拠の異なる独立したassertionsに分割し、各部分の出所を混ぜない。
+- ユーザー入力と公式資料に接地する候補を先に選び、各項目の接地済み候補は原則2件までに絞る。
+- 利用可能なモデル知識は接地候補がない項目だけに1件、全体で最大4件を目安とする。explicitness=model_knowledge、sourceRef=model_knowledgeとし、確信度を上げない。同内容のsource_interpreted候補があればモデル知識版を作らない。
+- モデル知識は未照合として扱い、確認済み事実のように断定しない。公開資料にないという理由だけで根拠付き候補を一律削除しない。
 - 本当に不明な項目 → summaryの該当項目を空配列、uncertainties.topicを項目の英語キー、reasonを具体的な不明理由とする。
 - 「不明」「確認できません」等の代替文をsummaryに入れない。
 - 項目を埋めるための設定創作、ユーザー嗜好の人物事実への転用を禁止する。`;
@@ -36,14 +40,14 @@ export const UNDERSTANDING_SOURCE_INSTRUCTION = `[INPUT_MAPPING:UNDERSTANDING]
 - 嗜好入力は意図的に含まれていない。人物の事実・解釈とユーザーが好きな属性を混同しない。`;
 
 export const UNDERSTANDING_COMPLETION_INSTRUCTION = `[TASK:UNDERSTANDING_COMPLETION]
-入力: 欠落している人物像項目、保持済みの人物描写、利用可能な入力Pointerと出典、元の登録情報。
+入力: 欠落している人物像項目、残り補完予算、保持済みの人物描写、利用可能な入力Pointerと出典、元の登録情報。
 指定された欠落項目を1巡だけ再検討する。改訂案は再び意味判定へ渡される。
 処理:
 1. 元の登録情報を基準に不足項目を再検討する。
-2. 既成キャラクターは利用可能な公開情報検索とモデル知識で補完する。
+2. 既成キャラクターは入力・公式資料の根拠を優先して補完する。モデル知識は接地候補がない項目だけに、指定された項目別・全体の残り予算内で追加する。
 3. オリジナル・カスタム固有の設定は入力資料の範囲を保持する。
 4. 根拠を取得できない項目には項目別の不明理由を残す。
-5. 保持済みのassertionを維持する。過去の削除理由から断定を再生成せず、利用可能な出典が支持する範囲だけを追加する。項目数を埋めるための創作は禁止。
+5. 保持済みのassertionを維持する。欠落項目以外のassertionやsummaryを再生成・増補しない。過去の削除理由から断定を再生成せず、利用可能な出典が支持する範囲だけを追加する。項目数を埋めるための創作は禁止。
 出力: 指定Schemaに適合する完全な候補。`;
 
 export function understandingSystem(): string {

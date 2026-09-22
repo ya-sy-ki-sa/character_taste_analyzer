@@ -257,7 +257,25 @@ describe("scripted proposition audits through persistence and aggregation", () =
     };
     const t = await setup("standard", item);
     expect(t.analysis.assertions).toHaveLength(1);
-    expect(t.analysis.assertions[0].context.conditions).toContain(`比較条件：${input}`);
+    expect(t.analysis.assertions[0].context.conditions).toEqual([
+      input.startsWith("戦う")
+        ? "戦う強さだけでなく食べさせて助けるヒーローっぽさも評価"
+        : "力を手に入れることより誰かを助けるために力を使うところを優先",
+    ]);
+  });
+  it("keeps A13's own inferiority as context rather than a positive preference", async () => {
+    const input =
+      "背が高くないのに、工夫してボールを追いかけるのが好き。自分も背のことで引け目があるから、見ているとまだ頑張れると思う。";
+    const t = await setup("standard", {
+      caseId: "A13-self-background",
+      preference: { likedReasons: input, responseChannels: [] },
+      expectedAssertions: [
+        { rawLabel: "背の低さへの引け目", quote: input, responseChannel: null, conditions: [] },
+        { rawLabel: "低身長を補う工夫", quote: input, responseChannel: "motivation", conditions: [] },
+      ],
+    });
+    expect(t.analysis.assertions.map((row) => row.raw_label)).toEqual(["低身長を補う工夫"]);
+    expect(t.analysis.summary.userExplicitSummary.join(" ")).toContain("引け目");
   });
   it("excludes a mismatched candidate while retaining explicit input and questions", async () => {
     const item = fixture(scopes[0]);

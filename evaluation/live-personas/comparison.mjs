@@ -39,7 +39,7 @@ function pairedSummary(before, after) {
   };
 }
 
-export function compareRuns(baseline, current, baselineDataset, currentDataset, settings) {
+export function compareRuns(baseline, current, baselineDataset, currentDataset, settings, options = {}) {
   const beforeIds = baseline.records.map((r) => r.caseId);
   const afterIds = current.records.map((r) => r.caseId);
   if (
@@ -65,13 +65,18 @@ export function compareRuns(baseline, current, baselineDataset, currentDataset, 
     "MODERATION_MODEL",
     "OPENAI_FLEX_ENABLED",
   ];
+  const modelSettings = new Set(["LLM_MODEL", "LLM_TIER_ROUTES_JSON"]);
   for (const key of settingKeys)
-    if (settings.baseline[key] !== settings.current[key]) throw new Error(`COMPARISON_SETTINGS_MISMATCH ${key}`);
-  for (const run of [baseline, current]) {
+    if (settings.baseline[key] !== settings.current[key] && !(options.allowModelDifference && modelSettings.has(key)))
+      throw new Error(`COMPARISON_SETTINGS_MISMATCH ${key}`);
+  for (const [run, side] of [
+    [baseline, "baseline"],
+    [current, "current"],
+  ]) {
     if (run.records.some((r) => r.claims.length && !r.codexReviewed))
       throw new Error("COMPARISON_REQUIRES_REVIEWED_GRADES");
     for (const model of [...run.usage.requestedModels, ...run.usage.responseModels])
-      if (model !== settings.baseline.LLM_MODEL) throw new Error("COMPARISON_ACTUAL_MODEL_MISMATCH");
+      if (model !== settings[side].LLM_MODEL) throw new Error("COMPARISON_ACTUAL_MODEL_MISMATCH");
   }
   const byId = new Map(current.records.map((r) => [r.caseId, r]));
   const commonIds = baseline.records
@@ -102,6 +107,9 @@ export function compareRuns(baseline, current, baselineDataset, currentDataset, 
     currentStatus: current.status,
     datasetHash: baseline.datasetHash,
     settings: settings.current,
+    modelDifference: options.allowModelDifference
+      ? { baseline: settings.baseline.LLM_MODEL, current: settings.current.LLM_MODEL }
+      : null,
     all: pairedSummary(baseline.records, current.records),
     common: {
       caseIds: commonIds,
@@ -133,6 +141,9 @@ export function compareRuns(baseline, current, baselineDataset, currentDataset, 
       "共通ケース群でも生成された主張数は異なる。支持率は各出力の主張を分母とし、同一主張同士の正誤比較ではない。",
       "期待要素抽出率には要約での保持を含む。構造化候補とプロフィールへの反映は追加評価で別に確認する。",
       "確認不能、欠損、未実施を成功として補わない。引用文字列の検証件数や情報量は、意味的正確率ではない。",
+      ...(options.allowModelDifference
+        ? ["LLMモデルが前回と異なる。観測差にはモデル変更とアプリ改修の両方が含まれ、改修単独の効果には分解できない。"]
+        : []),
     ],
   };
 }
@@ -153,7 +164,7 @@ export function summarizeCorrections(records) {
 }
 
 /** Explicit subset comparisons verify the full original first; ordinary comparisons remain strict. */
-export function compareSubsetRuns(baseline, current, baselineDataset, currentDataset, settings, caseIds) {
+export function compareSubsetRuns(baseline, current, baselineDataset, currentDataset, settings, caseIds, options = {}) {
   if (
     digest(baselineDataset) !== baseline.datasetHash ||
     digest(baseline.records.map((r) => r.caseId)) !== digest(baselineDataset.cases.map((c) => c.id))
@@ -166,7 +177,7 @@ export function compareSubsetRuns(baseline, current, baselineDataset, currentDat
     records: baseline.records.filter((r) => caseIds.includes(r.caseId)),
     datasetHash: digest(subset),
   };
-  const result = compareRuns(selectedBaseline, current, subset, currentDataset, settings);
+  const result = compareRuns(selectedBaseline, current, subset, currentDataset, settings, options);
   result.selection = { caseIds, originalCaseCount: baseline.records.length, originalDatasetHash: baseline.datasetHash };
   // Full-run usage cannot stand in for the selected cases' usage. A separate attributed usage report may supply it.
   result.usage.baseline = { recordedAppModelCalls: null, inputTokens: null, outputTokens: null };

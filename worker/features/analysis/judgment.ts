@@ -46,6 +46,7 @@ import type { ProvenanceSource } from "../../platform/provenance/verifier";
 import type { Env } from "../../types";
 import type { CharacterResearch } from "./research";
 import type { AttributeRow } from "./types";
+import { isSelfBackgroundPreference, withConciseComparison } from "./preference-canonical";
 import { understandingAssertionAspects } from "./understanding-aspects";
 
 const CONFIDENCE_CAPS = {
@@ -958,21 +959,6 @@ function explicitStandardResponseChannel(
   return explicitHighEvaluation && reliableHeroPraise && !visual ? "admiration" : guarded;
 }
 
-function preserveComparisonConditions<T extends AnyPreferenceCandidate["preferenceAssertions"][number]>(item: T): T {
-  const comparison = item.evidence
-    .filter((evidence) => evidence.inputPointer?.startsWith("/preference/"))
-    .map((evidence) => evidence.quote?.trim() ?? "")
-    .find((quote) => /(?:だけじゃなく|より(?:も|、)|より優先|より先)/u.test(quote));
-  if (!comparison || item.context.conditions.some((condition) => condition.includes(comparison))) return item;
-  return {
-    ...item,
-    context: {
-      ...item.context,
-      conditions: [...new Set([...item.context.conditions, `比較条件：${comparison.slice(0, 480)}`])].slice(0, 10),
-    },
-  };
-}
-
 async function preferenceCoverageIssues(
   provider: JudgmentProvider,
   candidate: AnyPreferenceCandidate,
@@ -1046,7 +1032,7 @@ export async function judgePreferenceCandidate(
   }));
   const preferences = await Promise.all(
     input.candidate.preferenceAssertions.map(async (generated, index) => {
-      const original = preserveComparisonConditions(generated);
+      const original = withConciseComparison(generated);
       const prefix = `preference_${index}`;
       const result = await judgeAssertion(provider, {
         correlationId: input.correlationId,
@@ -1181,7 +1167,12 @@ export async function judgePreferenceCandidate(
         issues,
         blockingIssues,
       );
-      if (
+      if (!protectedByReview && isSelfBackgroundPreference(item)) {
+        fields.scopeAssessment.verdict = "mismatch";
+        fields.scopeAssessment.reason = "ユーザー自身の経験・引け目は人物への好み対象ではありません。";
+        fields.judgmentDisposition = "rejected";
+        issues.push(`${prefix}: 自己経験を好み対象から除外しました。`);
+      } else if (
         !protectedByReview &&
         ((isCertainChoice(classificationAnswer) && classification !== "preference") || coreFieldRejected)
       ) {
