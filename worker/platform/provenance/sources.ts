@@ -40,6 +40,7 @@ export async function loadInputProvenanceSources(env: Env, sourceSetId: string |
       inputPointer: typeof locator.pointer === "string" ? locator.pointer : null,
       url: typeof citation.url === "string" ? citation.url : null,
       origin: source.source_type === "user_text" ? ("user_input" as const) : ("source" as const),
+      sourceType: source.source_type as ProvenanceSource["sourceType"],
     };
   });
 }
@@ -71,6 +72,7 @@ export async function prepareExternalProvenanceSources(
     const now = nowIso();
     const existing = await first<{
       source_id: string;
+      source_type: string;
       text_content: string;
       citation_json: string;
     }>(repository.selectSources(env.DB, [ownerUserId, source.url]));
@@ -117,7 +119,14 @@ export async function prepareExternalProvenanceSources(
         );
       }
       if (sourceSetId) prepared.push(repository.insertSourceSetItems(env.DB, [sourceSetId, existing.source_id]));
-      result.push({ sourceId: existing.source_id, text, inputPointer: null, url: source.url, origin: "source" });
+      result.push({
+        sourceId: existing.source_id,
+        text,
+        inputPointer: null,
+        url: source.url,
+        origin: "source",
+        sourceType: existing.source_type as ProvenanceSource["sourceType"],
+      });
       continue;
     }
     const documentId = crypto.randomUUID();
@@ -144,6 +153,7 @@ export async function prepareExternalProvenanceSources(
       inputPointer: null,
       url: source.url,
       origin: "source",
+      sourceType: "secondary",
     });
   }
   return { sources: result, statements: prepared };

@@ -54,6 +54,8 @@ export const understandingInformationQualitySchema = z.object({
   status: z.enum(["limited", "not_flagged"]),
   contentAspectCount: z.number().int().min(0).max(7),
   concreteAspectCount: z.number().int().min(0).max(7),
+  groundedConcreteItemCount: z.number().int().nonnegative().max(100).default(0),
+  modelKnowledgeConcreteItemCount: z.number().int().nonnegative().max(100).default(0),
   completionAttempted: z.boolean(),
   reasons: z.array(z.string().max(1_000)).max(10),
   aspects: aspectAssessmentsSchema,

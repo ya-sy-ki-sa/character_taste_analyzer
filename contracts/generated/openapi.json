@@ -1822,6 +1822,18 @@
                         "minimum": 0,
                         "maximum": 7
                       },
+                      "groundedConcreteItemCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100,
+                        "default": 0
+                      },
+                      "modelKnowledgeConcreteItemCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100,
+                        "default": 0
+                      },
                       "completionAttempted": {
                         "type": "boolean"
                       },
@@ -2456,6 +2468,18 @@
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 7
+                      },
+                      "groundedConcreteItemCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100,
+                        "default": 0
+                      },
+                      "modelKnowledgeConcreteItemCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100,
+                        "default": 0
                       },
                       "completionAttempted": {
                         "type": "boolean"

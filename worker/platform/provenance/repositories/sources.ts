@@ -23,7 +23,7 @@ export function selectSources(
 ): D1PreparedStatement {
   return db
     .prepare(`
-        SELECT id AS source_id,citation_json,text_content
+        SELECT id AS source_id,source_type,citation_json,text_content
         FROM sources
         WHERE owner_user_id=? AND json_extract(citation_json,'$.url')=? LIMIT 1
       `)

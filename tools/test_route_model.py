@@ -130,7 +130,7 @@ class RoutingTests(unittest.TestCase):
             assessment({"mechanical": 4.0, **{key: 0.0 for key in route_model.SCORES if key != "mechanical"}}, confidence=0.9),
         )
         self.assertEqual(result["candidate"], "luna_max")
-        self.assertEqual(result["model"], "gpt-5.6-luna")
+        self.assertEqual(result["model"], "gpt-6-luna")
         self.assertEqual(result["reasoning_effort"], "max")
 
     def test_low_confidence_never_routes_below_sol_max(self):
@@ -139,6 +139,7 @@ class RoutingTests(unittest.TestCase):
             assessment({"mechanical": 4.0, **{key: 0.0 for key in route_model.SCORES if key != "mechanical"}}, confidence=0.5),
         )
         self.assertEqual(result["candidate"], "sol_max")
+        self.assertEqual(result["model"], "gpt-6-sol")
 
     def test_route_candidates_are_effort_ordered_and_questions_do_not_select_models(self):
         self.assertEqual(route_model.CANDIDATE_KEYS, (

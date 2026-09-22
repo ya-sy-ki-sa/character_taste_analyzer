@@ -6,6 +6,10 @@ import { understandingAuditSchema } from "./understanding-quality";
 export const semanticSupportSchema = z.object({
   verdict: z.enum(["supported", "partial", "unsupported", "contradicted", "unverifiable"]),
   reason: z.string().trim().min(1).max(500),
+  /** Choice confidence is distribution concentration, not proof that the selected verdict is correct. */
+  choiceConfidence: z.number().min(0).max(1).optional(),
+  selectedProbability: z.number().min(0).max(1).optional(),
+  decisionCertain: z.boolean().optional(),
 });
 export const scopedPropositionSchema = z.object({
   verdict: z.enum(["consistent", "mismatch", "uncertain"]),

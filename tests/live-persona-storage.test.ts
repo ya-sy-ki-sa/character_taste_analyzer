@@ -98,7 +98,7 @@ describe("persistent live evaluation evidence", () => {
   });
   it("aggregates final accepted, degraded and rejected semantic outcomes per case", () => {
     const audit = (targetId: string, keep: boolean, reasonCode: string, diagnosticCodes: string[] = []) => ({
-      policyVersion: "analysis-judgment/2.1",
+      policyVersion: "analysis-judgment/2.2",
       targetId,
       keep,
       reasonCode,
@@ -114,11 +114,11 @@ describe("persistent live evaluation evidence", () => {
             entry_revision_id: "revision-1",
             quality_context_json: JSON.stringify({
               semanticAudit: {
-                policyVersion: "analysis-judgment/2.1",
+                policyVersion: "analysis-judgment/2.2",
                 assertions: [
                   audit("accepted", true, "accepted"),
-                  audit("degraded", true, "accepted_verified_subset", ["invalid_set_index"]),
-                  audit("rejected", false, "judgment_rejected", ["high_conflict"]),
+                  audit("degraded", true, "accepted_verified_subset", ["invalid_set_index", "low_confidence_support"]),
+                  audit("rejected", false, "judgment_rejected", ["high_conflict", "high_semantic_rejection"]),
                 ],
               },
             }),
@@ -135,6 +135,8 @@ describe("persistent live evaluation evidence", () => {
       "rejected",
     ]);
     expect(result.A01.outcomes[1].diagnosticCodes).toContain("invalid_set_index");
+    expect(result.A01.outcomes[1].diagnosticCodes).toContain("low_confidence_support");
     expect(result.A01.outcomes[2].diagnosticCodes).toContain("high_conflict");
+    expect(result.A01.outcomes[2].diagnosticCodes).toContain("high_semantic_rejection");
   });
 });

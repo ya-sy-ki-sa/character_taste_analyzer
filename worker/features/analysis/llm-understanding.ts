@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { type UnderstandingCandidate, understandingCandidateSchema } from "../../../shared/contracts/understanding";
+import { understandingAspectLabels, understandingAspects } from "../../../shared/understanding-aspects";
 import {
   entryBaseCharacterName,
   entryInputSources,
@@ -150,17 +151,39 @@ export async function understandOne(
       correlationId: entry.entryRevisionId,
       stage,
       domain: entry.analysisDomain,
+      registeredCharacter: analysisTargetName,
     }),
   );
   let normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
   let issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
-  let blockingIssues = [...judged.blockingIssues, ...understandingQualityIssues(normalized)];
   for (
     let round = 1;
     normalized.informationQuality.concreteAspectCount < 2 && round <= MAX_ANALYSIS_RECONSIDERATION_ROUNDS;
     round++
   ) {
     completionAttempted = true;
+    const missingAspects = understandingAspects
+      .filter((aspect) => normalized.informationQuality.aspects[aspect].kind !== "concrete")
+      .map((aspect) => ({ aspect, label: understandingAspectLabels[aspect] }));
+    const retainedCandidate = {
+      summary: Object.fromEntries(
+        understandingAspects.flatMap((aspect) =>
+          normalized.summary[aspect].some((text) => text.trim()) ? [[aspect, normalized.summary[aspect]]] : [],
+        ),
+      ),
+      assertions: normalized.assertions,
+      customizationDeltas: normalized.customizationDeltas,
+    };
+    const availableSources = {
+      inputPointers: allowedInputPointers,
+      publicSources: research.sources.map(({ title, url, provider, trustReason }) => ({
+        title,
+        url,
+        provider,
+        trustReason,
+      })),
+      citedUrls: [...new Set(citations.map((citation) => citation.url))],
+    };
     current = await recordCall({
       operation: includeCustomization ? "customization_delta" : "character_understanding",
       schemaName: "character_understanding_candidate",
@@ -171,7 +194,7 @@ export async function understandOne(
         ...messages,
         {
           role: "user",
-          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n再検討回数: ${round}/${MAX_ANALYSIS_RECONSIDERATION_ROUNDS}\n高確信の不足・矛盾と関連論点: ${JSON.stringify([...new Set([...blockingIssues, ...issues])])}\n項目別の情報量判定: ${JSON.stringify(normalized.informationQuality.aspects)}\n根拠検証・正規化後の候補: ${JSON.stringify(normalized)}\n取得済み引用: ${JSON.stringify(citations)}`,
+          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n再検討回数: ${round}/${MAX_ANALYSIS_RECONSIDERATION_ROUNDS}\n欠落項目: ${JSON.stringify(missingAspects)}\n保持済み候補: ${JSON.stringify(retainedCandidate)}\n利用可能な出典: ${JSON.stringify(availableSources)}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -192,11 +215,11 @@ export async function understandOne(
         correlationId: entry.entryRevisionId,
         stage: `${stage}:reconsider:${round}`,
         domain: entry.analysisDomain,
+        registeredCharacter: analysisTargetName,
       }),
     );
     normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
     issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
-    blockingIssues = [...judged.blockingIssues, ...understandingQualityIssues(normalized)];
   }
   if (issues.length) {
     normalized = {
@@ -212,7 +235,9 @@ export async function understandOne(
         ...normalized.sourceAssessment,
         coverage:
           normalized.sourceAssessment.coverage === "sufficient" ? "partial" : normalized.sourceAssessment.coverage,
-        limitations: [...normalized.sourceAssessment.limitations, ...issues.map(analysisIssueText)].slice(-50),
+        limitations: [...new Set([...normalized.sourceAssessment.limitations, ...issues.map(analysisIssueText)])].slice(
+          -50,
+        ),
       },
     };
   }

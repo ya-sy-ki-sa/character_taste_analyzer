@@ -14,6 +14,7 @@ export type ProvenanceSource = {
   inputPointer: string | null;
   url: string | null;
   origin: "user_input" | "source";
+  sourceType?: "official" | "primary" | "secondary" | "transformative" | "user_text" | "model_knowledge" | null;
 };
 
 export type VerifiedEvidence = {
@@ -26,6 +27,7 @@ export type VerifiedEvidence = {
   inputPointer: string | null;
   verificationStatus: "verified_quote" | "source_attributed" | "model_knowledge" | "invalid";
   inferenceType: EvidenceReference["inferenceType"];
+  sourceType?: ProvenanceSource["sourceType"];
   resolutionMethod?: "external_id" | "canonical_url" | "input_pointer" | "quote" | "model_knowledge";
   issueReason?: CitationIssue["reason"];
 };
@@ -113,6 +115,7 @@ export async function verifyEvidenceReference(
         verificationStatus: "model_knowledge",
         resolutionMethod: "model_knowledge",
         inferenceType: evidence.inferenceType,
+        sourceType: "model_knowledge",
       };
     }
     return {
@@ -126,6 +129,7 @@ export async function verifyEvidenceReference(
       verificationStatus: "invalid",
       issueReason: "source_unavailable",
       inferenceType: evidence.inferenceType,
+      sourceType: null,
     };
   }
   const quote = evidence.quote?.trim() || null;
@@ -144,6 +148,7 @@ export async function verifyEvidenceReference(
         resolutionMethod,
         issueReason: "quote_not_found",
         inferenceType: evidence.inferenceType,
+        sourceType: source.sourceType,
       };
     }
     if (start >= 0) {
@@ -158,6 +163,7 @@ export async function verifyEvidenceReference(
         verificationStatus: "verified_quote",
         resolutionMethod,
         inferenceType: evidence.inferenceType,
+        sourceType: source.sourceType,
       };
     }
   }
@@ -172,5 +178,6 @@ export async function verifyEvidenceReference(
     verificationStatus: "source_attributed",
     resolutionMethod,
     inferenceType: evidence.inferenceType,
+    sourceType: source.sourceType,
   };
 }

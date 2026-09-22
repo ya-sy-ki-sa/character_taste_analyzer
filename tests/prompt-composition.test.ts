@@ -28,6 +28,14 @@ describe("prompt composition boundaries", () => {
       expect(text).toContain(`${channel.value}: ${channel.label} — ${channel.description}`);
     expect(promptRegistry.darkPreference.text).not.toContain(responseChannelPrompt());
   });
+  it("keeps self experience out of positive targets and preserves explicit comparison axes", () => {
+    const text = promptRegistry.preference.text;
+    expect(text).toContain("ユーザー自身の失敗・経歴は背景");
+    expect(text).toContain("失敗経験そのものをpositive候補にしない");
+    expect(text).toContain("比較対象と優先関係をcontext.conditionsへ保持");
+    expect(text).toContain("獲得より救助目的を優先する比較");
+    expect(text).toContain("行動・能力・生き方・頼もしさを指す「かっこいい」");
+  });
   it("keeps the persisted evidence-set contract and historical omissions compatible", () => {
     const assertion = groundedUnderstandingAuditSchema.shape.assertions.element;
     expect(z.toJSONSchema(assertion, { target: "draft-7" }).required).toContain("evidenceSetAssessment");

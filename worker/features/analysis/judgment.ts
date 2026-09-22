@@ -46,6 +46,7 @@ import type { ProvenanceSource } from "../../platform/provenance/verifier";
 import type { Env } from "../../types";
 import type { CharacterResearch } from "./research";
 import type { AttributeRow } from "./types";
+import { understandingAssertionAspects } from "./understanding-aspects";
 
 const CONFIDENCE_CAPS = {
   user_confirmed: 0.95,
@@ -322,6 +323,13 @@ function semanticFields(
       supportAssessment: {
         verdict: verdict as AuditedEvidence["supportAssessment"]["verdict"],
         reason: supportReason(verdict),
+        ...(answer?.type === "choice"
+          ? {
+              choiceConfidence: answer.confidence,
+              selectedProbability: answer.probabilities[answer.choice] ?? 0,
+              decisionCertain: isCertainChoice(answer),
+            }
+          : {}),
       },
     };
   });
@@ -342,6 +350,13 @@ function semanticFields(
       verdict: verdict as EvidenceSetAssessment["verdict"],
       evidenceIndexes: verdict === "supported" ? evidence.map((_, index) => index) : [],
       reason: verdict === "supported" ? "複数の根拠を合わせると候補全体を支持します。" : supportReason(verdict),
+      ...(answer?.type === "choice"
+        ? {
+            choiceConfidence: answer.confidence,
+            selectedProbability: answer.probabilities[answer.choice] ?? 0,
+            decisionCertain: isCertainChoice(answer),
+          }
+        : {}),
     };
   }
   const acceptedEvidence = evidence.filter((item) => ["supported", "partial"].includes(item.supportAssessment.verdict));
@@ -535,17 +550,6 @@ async function judgeAssertion(
   });
 }
 
-function inferAspect(assertion: UnderstandingCandidate["assertions"][number]): UnderstandingAspect | null {
-  const key = assertion.attributeStableKey ?? "";
-  if (/(^|\.)role\.|\.archetype\./u.test(key)) return "narrativeRole";
-  if (/(^|\.)(morality|goodness|evil)\.|\.harm\./u.test(key)) return "moralityOrientation";
-  if (/(^|\.)motivation\./u.test(key)) return "goals";
-  if (/(^|\.)value\.|\.morality\./u.test(key)) return "values";
-  if (/(^|\.)relationship\./u.test(key)) return "relationships";
-  if (/(^|\.)aesthetic\.|\.expression\.|\.competence\./u.test(key)) return "expression";
-  return "behavior";
-}
-
 async function assessUnderstandingAspects(
   provider: JudgmentProvider,
   candidate: UnderstandingCandidate,
@@ -557,6 +561,8 @@ async function assessUnderstandingAspects(
   const mapped = new Map<UnderstandingAspect, number[]>(understandingAspects.map((aspect) => [aspect, []]));
   const assignments = await Promise.all(
     candidate.assertions.map(async (assertion, index) => {
+      const deterministic = understandingAssertionAspects(assertion);
+      if (deterministic.length) return deterministic;
       const id = "aspect";
       const questions = {
         [id]: choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.aspectAssignment, {
@@ -564,7 +570,7 @@ async function assessUnderstandingAspects(
           none: "人物像の7項目の具体的説明にはならない。",
         }),
       };
-      const fallback = inferAspect(assertion) ?? "none";
+      const fallback = "none";
       const result = await provider.evaluate({
         state: { assertion: { index, rawLabel: assertion.rawLabel, valueText: assertion.valueText } },
         questions,
@@ -573,12 +579,15 @@ async function assessUnderstandingAspects(
       });
       if (!isCertainChoice(result.answers[id])) issues.push(`assertion:${index}: 人物像の対応項目を確定できません。`);
       const selected = selectedChoice(result.answers[id], fallback);
-      return [...understandingAspects, "none"].includes(selected as UnderstandingAspect | "none") ? selected : fallback;
+      return [
+        [...understandingAspects, "none"].includes(selected as UnderstandingAspect | "none") ? selected : fallback,
+      ];
     }),
   );
-  assignments.forEach((aspect, index) => {
-    if (understandingAspects.includes(aspect as UnderstandingAspect))
-      mapped.get(aspect as UnderstandingAspect)?.push(index);
+  assignments.forEach((assigned, index) => {
+    for (const aspect of assigned)
+      if (understandingAspects.includes(aspect as UnderstandingAspect))
+        mapped.get(aspect as UnderstandingAspect)?.push(index);
   });
 
   const entries = await Promise.all(
@@ -702,6 +711,44 @@ async function understandingCoverageIssues(
   };
 }
 
+const genericUnderstandingSubject =
+  /^(?:相手|人|人物|本人|自分|自身|彼|彼女|仲間|友人|友達|家族|弟|兄|姉|妹|親|子ども|誰か|他者|敵|味方|主人公|ヒーロー|みんな|普段|場合|場面|時|作品|物語|笑顔|行動|性格|態度|目的|目標|価値|関係|外見|声|話し方)$/u;
+const explicitSubjectPattern = /(?:^|[。！？!?、\n]\s*)([^。！？!?、\n]{1,40}?)(?:は|が)(?=[^はが])/gu;
+const nonNameSubjectSignal =
+  /(?:を|に|へ|で|と|も|から|まで|より|こと|ところ|ため|よう|助け|救|守|戦|行動|目的|目標|失敗|再挑戦|姿|態度|関係)/u;
+
+function normalizeSubjectSignal(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(/^[\s「」『』【】()（）]+|[\s「」『』【】()（）]+$/gu, "")
+    .replace(/(?:さん|くん|君|ちゃん|様)$/u, "")
+    .trim();
+}
+
+/** Only explicit, person-like grammatical subjects can reopen the registered-subject decision. */
+function competingUnderstandingSubjects(
+  assertion: UnderstandingCandidate["assertions"][number],
+  registeredCharacter: string,
+): string[] {
+  const registered = normalizeSubjectSignal(registeredCharacter);
+  const text = [assertion.valueText, assertion.scopeText, ...assertion.evidence.map((item) => item.quote ?? "")].join(
+    "\n",
+  );
+  const candidates = [...text.matchAll(explicitSubjectPattern)].map((match) => normalizeSubjectSignal(match[1] ?? ""));
+  return [
+    ...new Set(
+      candidates.filter(
+        (candidate) =>
+          candidate &&
+          !genericUnderstandingSubject.test(candidate) &&
+          !nonNameSubjectSignal.test(candidate) &&
+          !candidate.includes(registered) &&
+          !registered.includes(candidate),
+      ),
+    ),
+  ];
+}
+
 export async function judgeUnderstandingCandidate(
   env: Env,
   input: {
@@ -712,6 +759,7 @@ export async function judgeUnderstandingCandidate(
     correlationId: string;
     stage: string;
     domain: AnalysisDomain;
+    registeredCharacter?: string;
     provenanceSources?: ProvenanceSource[];
   },
 ) {
@@ -739,9 +787,12 @@ export async function judgeUnderstandingCandidate(
       end: source.text.length,
     })),
   ];
+  const registeredCharacter = input.registeredCharacter ?? input.payload.characterName;
   const judged = await Promise.all(
     input.candidate.assertions.map(async (assertion, index) => {
       const prefix = `assertion_${index}`;
+      const competingSubjects = competingUnderstandingSubjects(assertion, registeredCharacter);
+      const subjectResolved = competingSubjects.length === 0;
       const result = await judgeAssertion(provider, {
         correlationId: input.correlationId,
         stage: `${input.stage}:assertion`,
@@ -749,6 +800,13 @@ export async function judgeUnderstandingCandidate(
         prefix,
         assertion,
         proposition: assertion,
+        scopeProposition: { subjectResolved },
+        applicationContext: {
+          registeredCharacter,
+          subjectResolvedByRegistrationContract: subjectResolved,
+          competingSubjects,
+          genericRelationshipTargetsRemainGeneric: true,
+        },
         sourceContext: {
           evidence: assertion.evidence,
           sources: assertion.evidence.flatMap((reference) => relevantSourceText(reference, sources)),
@@ -776,7 +834,12 @@ export async function judgeUnderstandingCandidate(
           assertion,
           result.answers,
           prefix,
-          { evaluated: assertion.valueText, actor: input.payload.characterName, target: assertion.scopeText },
+          {
+            evaluated: assertion.valueText,
+            actor: registeredCharacter,
+            target: assertion.scopeText,
+            subjectResolved,
+          },
           issues,
           blockingIssues,
         ),
@@ -882,6 +945,34 @@ function guardResponseChannel(
   return channel;
 }
 
+function explicitStandardResponseChannel(
+  original: AnyPreferenceCandidate["preferenceAssertions"][number],
+  guarded: string | null,
+  domain: AnalysisDomain,
+) {
+  if (domain !== "standard") return guarded;
+  const text = [original.rawLabel, ...original.evidence.map((item) => item.quote ?? "")].join(" ");
+  const explicitHighEvaluation = /(?:かっこいい|格好いい|憧れ(?:る|て|が))/u.test(text);
+  const reliableHeroPraise = /(?:頼れ.{0,20}ヒーロー|ヒーロー.{0,20}頼れ)/u.test(text);
+  const visual = /(?:外見|容姿|衣装|服装|配色|髪|瞳|デザイン|造形)/u.test(text);
+  return explicitHighEvaluation && reliableHeroPraise && !visual ? "admiration" : guarded;
+}
+
+function preserveComparisonConditions<T extends AnyPreferenceCandidate["preferenceAssertions"][number]>(item: T): T {
+  const comparison = item.evidence
+    .filter((evidence) => evidence.inputPointer?.startsWith("/preference/"))
+    .map((evidence) => evidence.quote?.trim() ?? "")
+    .find((quote) => /(?:だけじゃなく|より(?:も|、)|より優先|より先)/u.test(quote));
+  if (!comparison || item.context.conditions.some((condition) => condition.includes(comparison))) return item;
+  return {
+    ...item,
+    context: {
+      ...item.context,
+      conditions: [...new Set([...item.context.conditions, `比較条件：${comparison.slice(0, 480)}`])].slice(0, 10),
+    },
+  };
+}
+
 async function preferenceCoverageIssues(
   provider: JudgmentProvider,
   candidate: AnyPreferenceCandidate,
@@ -954,7 +1045,8 @@ export async function judgePreferenceCandidate(
     text: source.text,
   }));
   const preferences = await Promise.all(
-    input.candidate.preferenceAssertions.map(async (original, index) => {
+    input.candidate.preferenceAssertions.map(async (generated, index) => {
+      const original = preserveComparisonConditions(generated);
       const prefix = `preference_${index}`;
       const result = await judgeAssertion(provider, {
         correlationId: input.correlationId,
@@ -1031,9 +1123,10 @@ export async function judgePreferenceCandidate(
       const allowedChannels = new Set<string>(
         (input.domain === "dark" ? darkResponseChannelCatalog : responseChannelCatalog).map((item) => item.value),
       );
-      const responseChannel = guardResponseChannel(
-        allowedChannels.has(channelChoice) ? channelChoice : null,
+      const responseChannel = explicitStandardResponseChannel(
         original,
+        guardResponseChannel(allowedChannels.has(channelChoice) ? channelChoice : null, original),
+        input.domain,
       ) as typeof original.responseChannel;
       const strengthAnswer = result.answers[`${prefix}_strength`];
       const strength = isCertainScore(strengthAnswer)

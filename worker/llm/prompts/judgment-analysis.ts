@@ -1,6 +1,6 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 
-export const ANALYSIS_JUDGMENT_POLICY_VERSION = "analysis-judgment/2.1";
+export const ANALYSIS_JUDGMENT_POLICY_VERSION = "analysis-judgment/2.2";
 
 export const ANALYSIS_SUPPORT_CRITERIA = {
   supported: "原文が、対象・条件・否定を含む候補全体を支持する。",

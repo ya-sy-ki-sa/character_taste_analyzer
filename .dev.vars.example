@@ -29,10 +29,10 @@ JEV_MODEL=typesafe/jev
 #   ティアに該当する設定がなければdefaultを使い、defaultもなければwrangler.jsoncの共通設定を使う。
 #   LLM_PROVIDERがreplay/fakeの場合は、テスト用の共通設定を優先する。
 #   effortを省略したルートは、選択したモデルの既定値を使う。
-#   例: {"premium":{"provider":"openai","model":"gpt-5.6-luna","effort":"high"}}
+#   例: {"premium":{"provider":"openai","model":"gpt-6-luna","effort":"high"}}
 # -----------------------------------------------------------------------------
 OPENAI_FLEX_ENABLED=false
-LLM_TIER_ROUTES_JSON={"default":{"provider":"openai","model":"gpt-5.6-luna"}}
+LLM_TIER_ROUTES_JSON={"default":{"provider":"openai","model":"gpt-6-luna"}}
 
 # -----------------------------------------------------------------------------
 # Embedding: 嗜好ベクトル生成

@@ -179,7 +179,11 @@ function sanitizeOutcome(assertion, stage, runId, entryRevisionId, policyVersion
     ...new Set(
       [
         ...(Array.isArray(assertion.diagnosticCodes) ? assertion.diagnosticCodes : []),
-        ...(["invalid_set_index", "high_conflict"].includes(assertion.reasonCode) ? [assertion.reasonCode] : []),
+        ...(["invalid_set_index", "high_conflict", "low_confidence_support", "high_semantic_rejection"].includes(
+          assertion.reasonCode,
+        )
+          ? [assertion.reasonCode]
+          : []),
       ]
         .map((code) => boundedString(code, 128))
         .filter(Boolean),

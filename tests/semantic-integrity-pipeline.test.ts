@@ -228,6 +228,37 @@ describe("scripted proposition audits through persistence and aggregation", () =
     expect(t.analysis.assertions).toHaveLength(1);
     expect(t.analysis.assertions[0].response_channel).toBeNull();
   });
+  it("maps explicit praise of reliable heroism to admiration", async () => {
+    const input = "頼れるヒーローってかっこいい。";
+    const item: Fixture = {
+      caseId: "A02-explicit-admiration",
+      preference: { likedReasons: input, responseChannels: [] },
+      expectedAssertions: [
+        {
+          rawLabel: "頼れるヒーロー性",
+          quote: input,
+          responseChannel: "person_liking",
+          conditions: [],
+        },
+      ],
+    };
+    const t = await setup("standard", item);
+    expect(t.analysis.assertions).toHaveLength(1);
+    expect(t.analysis.assertions[0].response_channel).toBe("admiration");
+  });
+  it.each([
+    "戦う強さだけじゃなく、食べさせて助けるヒーローっぽさが好き。",
+    "力を手に入れることより、誰かを助けるために力を使うところが好き。",
+  ])("retains a stated comparison as a condition: %s", async (input) => {
+    const item: Fixture = {
+      caseId: "comparison-condition",
+      preference: { likedReasons: input, responseChannels: [] },
+      expectedAssertions: [{ rawLabel: "比較を伴う援助", quote: input, responseChannel: null, conditions: [] }],
+    };
+    const t = await setup("standard", item);
+    expect(t.analysis.assertions).toHaveLength(1);
+    expect(t.analysis.assertions[0].context.conditions).toContain(`比較条件：${input}`);
+  });
   it("excludes a mismatched candidate while retaining explicit input and questions", async () => {
     const item = fixture(scopes[0]);
     item.auditOverride = (value) => {

@@ -49,6 +49,25 @@ export async function verifySemanticAssertion(
       ? [index]
       : [];
   });
+  const degradedVerifiedIndexes = verified.evidence.flatMap((proof, index) => {
+    const reference = assertion.evidence[index];
+    const support = reference.supportAssessment;
+    const originMatches = ["source_explicit", "source_interpreted"].includes(assertion.explicitness)
+      ? proof.evidenceOrigin === "source"
+      : ["user_explicit", "inferred"].includes(assertion.explicitness)
+        ? proof.evidenceOrigin === "user_input"
+        : false;
+    const lowConfidence =
+      support.decisionCertain === false ||
+      (support.decisionCertain === undefined && assertion.judgmentDisposition === "degraded");
+    return assertion.judgmentDisposition === "degraded" &&
+      lowConfidence &&
+      ["partial", "unverifiable"].includes(support.verdict) &&
+      proof.verificationStatus === "verified_quote" &&
+      originMatches
+      ? [index]
+      : [];
+  });
   const evidenceSet = assertion.evidenceSetAssessment;
   const setIndexes = evidenceSet?.evidenceIndexes ?? [];
   const uniqueSetIndexes = [...new Set(setIndexes)].filter(
@@ -85,20 +104,19 @@ export async function verifySemanticAssertion(
       : individuallySupportedIndexes
     : individuallySupportedIndexes;
   // Only a deliberately separate model-knowledge reference can survive as model knowledge.
-  const modelIndexes =
-    character && !evidenceSet
-      ? verified.evidence.flatMap((proof, index) => {
-          const ref = assertion.evidence[index];
-          return ref.sourceRef === "model_knowledge" &&
-            !ref.sourceUrl &&
-            !ref.inputPointer &&
-            ref.inferenceType !== "direct" &&
-            proof.verificationStatus === "model_knowledge" &&
-            ref.supportAssessment.verdict === "unverifiable"
-            ? [index]
-            : [];
-        })
-      : [];
+  const modelIndexes = character
+    ? verified.evidence.flatMap((proof, index) => {
+        const ref = assertion.evidence[index];
+        return ref.sourceRef === "model_knowledge" &&
+          !ref.sourceUrl &&
+          !ref.inputPointer &&
+          ref.inferenceType !== "direct" &&
+          proof.verificationStatus === "model_knowledge" &&
+          ref.supportAssessment.verdict === "unverifiable"
+          ? [index]
+          : [];
+      })
+    : [];
   const anchored = anchors.some(
     (proof) => proof.verificationStatus === "verified_quote" && (character || proof.evidenceOrigin === "user_input"),
   );
@@ -122,7 +140,7 @@ export async function verifySemanticAssertion(
     character &&
     assertion.judgmentDisposition === "degraded" &&
     assertion.scopeAssessment.verdict !== "mismatch" &&
-    supportedIndexes.length > 0;
+    (supportedIndexes.length > 0 || degradedVerifiedIndexes.length > 0 || modelIndexes.length > 0);
   const verifiedSubsetFallback = Boolean(evidenceSet && !validSet && supportedIndexes.length > 0);
   const rejectedByJudgment = assertion.judgmentDisposition === "rejected";
   const keep = Boolean(
@@ -131,9 +149,13 @@ export async function verifySemanticAssertion(
         explicitPreferenceFallback ||
         degradedCharacterFallback),
   );
-  const acceptedSupportedIndexes = explicitPreferenceFallback
-    ? [...new Set([...supportedIndexes, ...directUserIndexes])]
-    : supportedIndexes;
+  const acceptedSupportedIndexes = [
+    ...new Set([
+      ...supportedIndexes,
+      ...degradedVerifiedIndexes,
+      ...(explicitPreferenceFallback ? directUserIndexes : []),
+    ]),
+  ];
   let explicitness = assertion.explicitness;
   let confidence = keep
     ? explicitPreferenceFallback || degradedCharacterFallback || verifiedSubsetFallback
@@ -148,6 +170,9 @@ export async function verifySemanticAssertion(
   } else if (keep) {
     const supports = acceptedSupportedIndexes.map((index) => verified.evidence[index]);
     const user = supports.filter((proof) => proof.evidenceOrigin === "user_input");
+    const source = supports.filter((proof) => proof.evidenceOrigin === "source");
+    const allSourceSupportIsOfficial =
+      source.length > 0 && source.every((proof) => ["official", "primary"].includes(proof.sourceType ?? ""));
     const isDirect = (proof: (typeof supports)[number]) =>
       proof.verificationStatus === "verified_quote" && proof.inferenceType !== "inferred";
     const direct = evidenceSet
@@ -158,7 +183,9 @@ export async function verifySemanticAssertion(
       ? direct && !alreadyInferred
         ? user.length
           ? "user_explicit"
-          : "source_explicit"
+          : allSourceSupportIsOfficial
+            ? "source_explicit"
+            : "source_interpreted"
         : "source_interpreted"
       : direct && !alreadyInferred
         ? assertion.explicitness === "user_confirmed"
@@ -229,7 +256,8 @@ export async function verifySemanticAssertion(
       reasonCode,
       diagnosticCodes: [
         ...(invalidSetIndex ? ["invalid_set_index"] : []),
-        ...(rejectedByJudgment ? ["high_conflict"] : []),
+        ...(degradedVerifiedIndexes.length ? ["low_confidence_support"] : []),
+        ...(rejectedByJudgment ? ["high_conflict", "high_semantic_rejection"] : []),
       ],
       before: { confidence: assertion.confidence, explicitness: assertion.explicitness },
       after: {

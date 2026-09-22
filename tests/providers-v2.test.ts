@@ -109,7 +109,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-luna",
+        LLM_MODEL: "gpt-6-luna",
         OPENAI_API_KEY: "test-key",
       }),
     )
@@ -124,7 +124,7 @@ describe("explicit LLM provider routing", () => {
           output: { errorCode: "EXTERNAL_PROVIDER_REJECTED" },
           metadata: {
             provider: "openai",
-            resolvedModel: "gpt-5.6-luna",
+            resolvedModel: "gpt-6-luna",
             providerRequestId: "req_rejected",
             attemptNumber: 0,
             providerResponseDiagnostics: {
@@ -162,7 +162,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-luna",
+        LLM_MODEL: "gpt-6-luna",
         OPENAI_API_KEY: "test-key",
       }),
     )
@@ -205,7 +205,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-luna",
+        LLM_MODEL: "gpt-6-luna",
         OPENAI_API_KEY: "test-key",
       }),
     )
@@ -252,7 +252,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-luna",
+        LLM_MODEL: "gpt-6-luna",
         OPENAI_API_KEY: "test-key",
       }),
     )
@@ -289,7 +289,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-luna",
+        LLM_MODEL: "gpt-6-luna",
         OPENAI_API_KEY: "test-key",
       }),
     )
@@ -316,7 +316,7 @@ describe("explicit LLM provider routing", () => {
       const headers = new Headers(init?.headers);
       expect(String(input)).toBe("https://gateway.ai.cloudflare.com/v1/test-account/test-gateway/openai/responses");
       expect(body).toMatchObject({
-        model: "gpt-5.6-sol",
+        model: "gpt-6-sol",
         store: false,
         safety_identifier: "privacy-safe-user-hash",
         max_output_tokens: 100,
@@ -335,7 +335,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-sol",
+        LLM_MODEL: "gpt-6-sol",
         OPENAI_API_KEY: "test-key",
       }),
     ).generateStructured({ ...request, safetyIdentifier: "privacy-safe-user-hash" });
@@ -357,7 +357,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-sol",
+        LLM_MODEL: "gpt-6-sol",
         OPENAI_FLEX_ENABLED: "true",
         OPENAI_API_KEY: "test-key",
       }),
@@ -380,7 +380,7 @@ describe("explicit LLM provider routing", () => {
         JEV_PROVIDER: "fake",
         JEV_MODEL: "typesafe/jev",
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-sol",
+        LLM_MODEL: "gpt-6-sol",
         OPENAI_API_KEY: "test-key",
       }),
     ).generateStructured({ ...request, enableWebSearch: true });
@@ -418,7 +418,7 @@ describe("explicit LLM provider routing", () => {
         ),
       );
       const result = await createLlmProvider(
-        providerEnv({ LLM_PROVIDER: "openai", LLM_MODEL: "gpt-5.6-sol", OPENAI_API_KEY: "test-key" }),
+        providerEnv({ LLM_PROVIDER: "openai", LLM_MODEL: "gpt-6-sol", OPENAI_API_KEY: "test-key" }),
       ).generateStructured(request);
       expect(result.value.value).toBe("collected");
       expect(result.metadata.citations).toEqual([

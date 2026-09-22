@@ -55,7 +55,7 @@ describe("readiness configuration", () => {
           JEV_PROVIDER: "fake",
           JEV_MODEL: "typesafe/jev",
           LLM_PROVIDER: "openai",
-          LLM_MODEL: "gpt-5.6-luna",
+          LLM_MODEL: "gpt-6-luna",
           EMBEDDING_PROVIDER: "openai",
           EMBEDDING_MODEL: "text-embedding-3-small",
           EMBEDDING_DIMENSIONS: "1024",

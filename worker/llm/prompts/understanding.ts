@@ -1,6 +1,6 @@
 import { understandingAspectLabels } from "../../../shared/understanding-aspects";
 import { SYSTEM_INSTRUCTION } from "./analysis";
-export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v2.0.0";
+export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v2.1.0";
 
 export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `[TASK:UNDERSTANDING_COVERAGE]
 キャラクター像の7項目をそれぞれ検討する。
@@ -31,17 +31,19 @@ export const UNDERSTANDING_SOURCE_INSTRUCTION = `[INPUT_MAPPING:UNDERSTANDING]
 - 検索結果が対象と不一致／情報競合／根拠が弱い → 断定せずlimitationsまたはuncertaintiesに記録。
 [INVARIANTS:UNDERSTANDING_SOURCE]
 - 出所を混同しない。
+- 引用の物理照合、主張への意味的支持、資料の公式性を別々に扱う。公式・一次資料以外の直接引用は、引用確認済みでもsource_interpretedを上限とする。
+- preferenceContext・userCharacterViewはユーザー解釈であり、作品の公式設定を裏付ける資料として使わない。
 - 嗜好入力は意図的に含まれていない。人物の事実・解釈とユーザーが好きな属性を混同しない。`;
 
 export const UNDERSTANDING_COMPLETION_INSTRUCTION = `[TASK:UNDERSTANDING_COMPLETION]
-入力: 意味判定・根拠検証後の人物像、不足・矛盾・低確信の論点、元の登録情報。
-指定された論点を最大2巡の範囲で再検討する。改訂案は再び意味判定へ渡される。
+入力: 欠落している人物像項目、保持済みの人物描写、利用可能な入力Pointerと出典、元の登録情報。
+指定された欠落項目を1巡だけ再検討する。改訂案は再び意味判定へ渡される。
 処理:
 1. 元の登録情報を基準に不足項目を再検討する。
 2. 既成キャラクターは利用可能な公開情報検索とモデル知識で補完する。
 3. オリジナル・カスタム固有の設定は入力資料の範囲を保持する。
 4. 根拠を取得できない項目には項目別の不明理由を残す。
-5. 除外された断定をそのまま復活させない。除外理由を解消する根拠を得るか、支持される対象範囲へ修正する。反復して項目数を埋めるための創作は禁止。
+5. 保持済みのassertionを維持する。過去の削除理由から断定を再生成せず、利用可能な出典が支持する範囲だけを追加する。項目数を埋めるための創作は禁止。
 出力: 指定Schemaに適合する完全な候補。`;
 
 export function understandingSystem(): string {

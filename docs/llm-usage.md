@@ -26,9 +26,9 @@
 | `customization_delta` | カスタム後の人物について、元キャラクターとの差分を含む人物像を抽出する。 | `analysis` / `character_understanding/v2.3.0` | 上記に加えて、元キャラクターの確認前基本像とカスタム内容 | `character_understanding_candidate`。同じ [`llm-understanding.ts`](../worker/features/analysis/llm-understanding.ts) |
 | `dark_baseline_understanding` | カスタム前の元キャラクターを、dark版の比較基準（baseline）として構造化する。通常版の属性や好みは抽出しない。 | `darkBaseline` / `dark_baseline_understanding/v2.3.0` | 元キャラクター、変化前入力、収集済み情報、許可Pointer | `dark_baseline_understanding`。[`llm-dark.ts`](../worker/features/analysis/llm-dark.ts) |
 | `dark_character_understanding` | dark状態を専用Ontologyで分析し、主体性・同意・認識・抵抗・自我・責任・可逆性と変化差分を保持する。 | `darkUnderstanding` / `dark_character_understanding/v2.3.0` | 登録情報、baseline、収集済み情報、許可Pointer、dark Ontology | `dark_character_understanding`。[`llm-dark.ts`](../worker/features/analysis/llm-dark.ts) |
-| `understanding_audit` | 抽出済み人物像を資料・出典と照合し、根拠のない断定を修正する。通常版では情報量の7項目監査と意味監査も行う。 | `understandingInformation` / `understanding-information/v1.7.0` + `understandingSemanticIntegrity` / `semantic-integrity/v1.7.0` | 登録情報、候補、収集済み資料、引用、Ontology、除外・差し替え情報 | `character_understanding_grounded_audit`。[`llm-understanding.ts`](../worker/features/analysis/llm-understanding.ts) |
+| `understanding_audit` | 抽出済み人物像を資料・出典と照合し、根拠のない断定を修正する。通常版では情報量の7項目監査と意味監査も行う。 | `understandingInformation` / `understanding-information/v2.1.0` + `understandingSemanticIntegrity` / `semantic-integrity/v1.7.0` | 登録情報、候補、収集済み資料、引用、Ontology、除外・差し替え情報 | `character_understanding_grounded_audit`。[`llm-understanding.ts`](../worker/features/analysis/llm-understanding.ts) |
 | `dark_understanding_audit` | dark状態の候補を監査し、根拠のない善化・悲劇化・闇化契機・主体性などを追加せずに改訂する。 | `darkUnderstandingAudit` / `dark_understanding_audit/v2.3.0` | 収集資料、登録情報、候補、照合資料、dark Ontology、レビュー履歴 | `dark_character_understanding`。[`llm-dark.ts`](../worker/features/analysis/llm-dark.ts) |
-| 補完（operationは元処理と同じ） | 人物像の情報量が不足、または根拠検証後も不足した場合に、各stageにつき最大1回補完する。その後、人物理解監査を再実行する。 | `understandingCompletion` / `understanding-information/v1.7.0` をユーザーメッセージへ追加 | 不足項目、不明理由、正規化後候補、取得済み引用、元の登録情報 | `character_understanding_candidate` または `customization_delta`。[`llm-understanding.ts`](../worker/features/analysis/llm-understanding.ts) |
+| 補完（operationは元処理と同じ） | 根拠検証後の具体項目が2未満の場合に、各stageにつき最大1回補完する。その後、人物理解監査を再実行する。 | `understandingCompletion` / `understanding-information/v2.1.0` をユーザーメッセージへ追加 | 欠落項目、保持済み候補、利用可能な入力Pointer・出典、元の登録情報 | `character_understanding_candidate` または `customization_delta`。[`llm-understanding.ts`](../worker/features/analysis/llm-understanding.ts) |
 
 人物理解の既成キャラクターでは、登録情報とは別にWikipedia・Wikidataから収集した資料が動的入力へ渡されます。検索・出典の収集自体はLLMではなく [`research.ts`](../worker/features/analysis/research.ts) の決定的な外部API処理です。
 
@@ -36,7 +36,7 @@
 
 | 処理 / operation | 実行条件・目的 | 固定プロンプト（版） | 主な動的入力 | 出力・呼出元 |
 | --- | --- | --- | --- | --- |
-| `preference_analysis` | 通常版で、確認済み人物理解とユーザーの好き・苦手・反応から嗜好候補を抽出する。 | `preference` / `preference/v3.11.0` | 確認済み人物理解、嗜好入力、以前の確認記録、除外・差し替え、追加回答、Ontology | `preference_analysis_candidate`。[`preference.ts`](../worker/features/analysis/preference.ts) |
+| `preference_analysis` | 通常版で、確認済み人物理解とユーザーの好き・苦手・反応から嗜好候補を抽出する。 | `preference` / `preference/v4.1.0` | 確認済み人物理解、嗜好入力、以前の確認記録、除外・差し替え、追加回答、Ontology | `preference_analysis_candidate`。[`preference.ts`](../worker/features/analysis/preference.ts) |
 | `preference_audit` | 通常版の嗜好候補を独立監査し、属性粒度、否定の作用域、対象・条件・反応経路、根拠を改訂する。 | `preferenceAudit` / `preference_audit/v3.11.0` + `semanticIntegrity` / `semantic-integrity/v1.7.0` | 初回候補、人物理解、ユーザー入力、レビュー履歴、照合資料、Ontology | `preference_grounded_audit`。[`preference.ts`](../worker/features/analysis/preference.ts) |
 | `dark_preference_analysis` | dark版で、ダーク状態・変化差分・支配構造などと結びつく嗜好だけを抽出する。 | `darkPreference` / `dark_preference/v3.11.0` | dark人物理解、dark嗜好入力、変化差分、レビュー履歴、dark反応経路、dark Ontology | `dark_preference_candidate`。[`llm-dark.ts`](../worker/features/analysis/llm-dark.ts) |
 | `dark_preference_audit` | dark版の嗜好候補を監査し、一般的な人物嗜好の混入、主体性・支配・時系列の混同、辞書キーの不整合を修正する。 | `darkPreferenceAudit` / `dark_preference_audit/v3.11.0` | 初回候補、確認済みdark人物理解、ユーザー入力、照合資料、dark Ontology | `dark_preference_candidate`。[`llm-dark.ts`](../worker/features/analysis/llm-dark.ts) |
@@ -73,10 +73,10 @@
 | --- | --- | --- |
 | `semanticIntegrity` | `semantic-integrity/v1.7.0` | 通常版嗜好の意味監査 |
 | `understandingSemanticIntegrity` | `semantic-integrity/v1.7.0` | 人物理解の意味監査 |
-| `understandingInformation` | `understanding-information/v1.7.0` | 人物理解監査・情報量判定 |
-| `understandingCompletion` | `understanding-information/v1.7.0` | 不足人物像の補完指示 |
-| `understandingAssessmentRepair` | `understanding-information/v1.7.0` | assessment参照の限定修復 |
-| `preference` / `preferenceAudit` | `preference/v3.11.0` / `preference_audit/v3.11.0` | 通常版の嗜好抽出・監査 |
+| `understandingInformation` | `understanding-information/v2.1.0` | 人物理解監査・情報量判定 |
+| `understandingCompletion` | `understanding-information/v2.1.0` | 不足人物像の補完指示 |
+| `understandingAssessmentRepair` | `understanding-information/v2.1.0` | assessment参照の限定修復 |
+| `preference` / `preferenceAudit` | `preference/v4.1.0` / `preference_audit/v4.1.0` | 通常版の嗜好抽出・監査 |
 | `darkPreference` / `darkPreferenceAudit` | `dark_preference/v3.11.0` / `dark_preference_audit/v3.11.0` | dark版の嗜好抽出・監査 |
 | `preferenceRefinement` | `preference_refinement/v3.11.0` | 追加回答・選択仮説の再分析指示 |
 | `citationVerification` | `external-id/v1.1.0` | 外部出典台帳・引用規則 |

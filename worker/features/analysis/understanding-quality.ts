@@ -26,6 +26,19 @@ export function assessUnderstandingInformation(
   const concreteAspectCount = aspects.filter(
     (aspect) => candidate.aspectAssessments[aspect].kind === "concrete",
   ).length;
+  const concreteAssertionIndexes = new Set(
+    aspects.flatMap((aspect) =>
+      candidate.aspectAssessments[aspect].kind === "concrete"
+        ? candidate.aspectAssessments[aspect].assertionIndexes
+        : [],
+    ),
+  );
+  const groundedConcreteItemCount = [...concreteAssertionIndexes].filter(
+    (index) => candidate.assertions[index]?.explicitness !== "model_knowledge",
+  ).length;
+  const modelKnowledgeConcreteItemCount = [...concreteAssertionIndexes].filter(
+    (index) => candidate.assertions[index]?.explicitness === "model_knowledge",
+  ).length;
   const limited = contentAspectCount <= 1 || concreteAspectCount < 2;
   return {
     policyVersion: UNDERSTANDING_INFORMATION_POLICY,
@@ -33,6 +46,8 @@ export function assessUnderstandingInformation(
     status: limited ? "limited" : "not_flagged",
     contentAspectCount,
     concreteAspectCount,
+    groundedConcreteItemCount,
+    modelKnowledgeConcreteItemCount,
     completionAttempted,
     reasons: limited
       ? [

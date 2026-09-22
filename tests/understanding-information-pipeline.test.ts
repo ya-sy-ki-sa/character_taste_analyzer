@@ -11,6 +11,61 @@ import { rebuild, setup } from "./support/preference-pipeline";
 import { frozenAudit } from "./support/understanding-audit";
 
 describe("understanding information quality storage and continuation", () => {
+  it("resolves the registered subject in code and leaves generic relationship targets untouched", async () => {
+    const fixture = sparseFixtures.find((item) => item.caseId === "D03");
+    if (!fixture) throw new Error("D03 fixture missing");
+    const understanding = frozenAudit(fixture);
+    const examples = [
+      "笑顔で来てくれる頼れる人物として行動する。",
+      "仲間が失敗しても再挑戦できるよう助ける。",
+      "相手を守るために自分から動く。",
+      "弟が危機にあるとき、救助を優先する。",
+    ];
+    understanding.assertions = examples.map((valueText, index) => ({
+      ...understanding.assertions[index],
+      rawLabel: `登録主体の人物描写${index + 1}`,
+      valueText,
+    }));
+    const t = await setup("standard", { ...explicitFixtures[0], understanding });
+    const requests = t.judgmentRequests.filter((request) => request.context.stage === "target:assertion");
+    expect(requests).toHaveLength(examples.length);
+    expect(
+      requests.every((request) => !Object.keys(request.questions).some((id) => id.endsWith("_scope_subject"))),
+    ).toBe(true);
+    expect(requests.map((request) => (request.state as { applicationContext?: unknown }).applicationContext)).toEqual(
+      examples.map(() =>
+        expect.objectContaining({
+          registeredCharacter: "固定応答テスト",
+          subjectResolvedByRegistrationContract: true,
+          genericRelationshipTargetsRemainGeneric: true,
+        }),
+      ),
+    );
+  });
+
+  it("asks Jev about subject scope only when a distinct person is explicit", async () => {
+    const fixture = sparseFixtures.find((item) => item.caseId === "D03");
+    if (!fixture) throw new Error("D03 fixture missing");
+    const understanding = frozenAudit(fixture);
+    understanding.assertions = [
+      {
+        ...understanding.assertions[0],
+        rawLabel: "別人物の行為",
+        valueText: "太宰治が仲間を助ける。",
+      },
+    ];
+    const t = await setup("standard", { ...explicitFixtures[0], understanding });
+    const request = t.judgmentRequests.find((item) => item.context.stage === "target:assertion");
+    expect(request?.questions).toHaveProperty("assertion_0_scope_subject");
+    expect(request?.state).toMatchObject({
+      applicationContext: {
+        registeredCharacter: "固定応答テスト",
+        subjectResolvedByRegistrationContract: false,
+        competingSubjects: ["太宰治"],
+      },
+    });
+  });
+
   it.each([true, false])(
     "completes after grounding removes apparently sufficient content (recovers=%s)",
     async (recovers) => {
@@ -24,8 +79,8 @@ describe("understanding information quality storage and continuation", () => {
         understandingAuditOverride(value, auditNumber) {
           if (auditNumber === 1 || !recovers)
             for (const assertion of value.assertions) {
-              assertion.scopeAssessment.verdict = "uncertain";
-              assertion.scopeAssessment.reason = "対象範囲を確認できない人物描写";
+              assertion.evidence[0].supportAssessment.verdict = "unsupported";
+              assertion.evidence[0].supportAssessment.reason = "高確信で支持されない固定判定";
             }
           return value;
         },
@@ -38,9 +93,12 @@ describe("understanding information quality storage and continuation", () => {
       const completion = calls[1].messages.find((item) =>
         item.content.startsWith(UNDERSTANDING_COMPLETION_INSTRUCTION),
       )?.content;
-      expect(completion).toContain("根拠検証・正規化後の候補");
+      expect(completion).toContain("欠落項目");
+      expect(completion).toContain("保持済み候補");
+      expect(completion).toContain("利用可能な出典");
       expect(completion).toContain('"assertions":[]');
-      expect(completion).toContain("assertion_0:");
+      expect(completion).not.toContain("assertion_0:");
+      expect(completion).not.toContain("高確信で支持されない固定判定");
       for (const value of originalValues) expect(completion).not.toContain(value);
       const quality = t.detail.understanding?.informationQuality;
       expect(quality).toMatchObject({

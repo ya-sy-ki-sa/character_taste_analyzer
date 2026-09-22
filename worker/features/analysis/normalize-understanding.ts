@@ -3,6 +3,7 @@ import { understandingAuditSchema } from "../../../shared/contracts/understandin
 import { understandingAspects } from "../../../shared/understanding-aspects";
 import type { verifySemanticAssertion } from "./semantic-integrity";
 import { assessUnderstandingInformation } from "./understanding-quality";
+import { isConcreteUnderstandingAssertion, understandingAssertionAspects } from "./understanding-aspects";
 
 type Verified = Awaited<ReturnType<typeof verifySemanticAssertion>>;
 export function normalizeUnderstanding(
@@ -23,9 +24,21 @@ export function normalizeUnderstanding(
       },
     ];
   });
+  const aspectIndexes = new Map(understandingAspects.map((aspect) => [aspect, [] as number[]]));
+  audit.assertions.forEach((assertion, originalIndex) => {
+    const retainedIndex = indexes.get(originalIndex);
+    if (retainedIndex === undefined) return;
+    if (!isConcreteUnderstandingAssertion(assertion)) return;
+    const deterministic = understandingAssertionAspects(assertion);
+    const fallback = understandingAspects.filter((aspect) =>
+      audit.aspectAssessments[aspect].assertionIndexes.includes(originalIndex),
+    );
+    for (const aspect of deterministic.length ? deterministic : fallback)
+      aspectIndexes.get(aspect)?.push(originalIndex);
+  });
   for (const aspect of understandingAspects) {
     const assessment = next.aspectAssessments[aspect];
-    const retained = assessment.assertionIndexes.filter((index) => indexes.has(index));
+    const retained = [...new Set(aspectIndexes.get(aspect) ?? [])];
     const max = aspect === "narrativeRole" || aspect === "moralityOrientation" ? 200 : 500;
     next.summary[aspect] = [
       ...new Set(retained.map((index) => audit.assertions[index].valueText.trim().slice(0, max)).filter(Boolean)),

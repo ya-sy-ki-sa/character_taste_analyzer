@@ -4,7 +4,7 @@ import { DARK_SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION } from "./analysis";
 import { preferenceAttributeInstruction } from "./preference-attributes";
 import { REFERENCE_SCOPE_INSTRUCTION } from "./reference-scope";
 
-export const PREFERENCE_PROMPT_VERSION = "v4.0.0";
+export const PREFERENCE_PROMPT_VERSION = "v4.1.0";
 export const PREFERENCE_SCHEMA_VERSION = "3.0";
 
 const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
@@ -25,6 +25,8 @@ const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
 4. 否定の作用域を保持する。否定語の一律削除、極性の機械的反転、反対側の候補の自動追加を禁止する。
 5. 悪・非道徳・残酷・利己性・支配・破壊・善への無関心・改心しないことへの好意も有効な嗜好として扱う。
 6. 悪役・加害描写への好意から、加害の道徳的支持も不支持も補わない。行動の裏事情への好意と加害を称賛しない態度が両方明示されれば別々に保持する。
+7. 「AだけでなくB」「AではなくB」「AよりB」の比較は、Bだけへ平坦化せず、比較対象と優先関係をcontext.conditionsへ保持する。
+8. ユーザー自身の失敗・経歴は背景であり、それ自体をpositive嗜好候補にしない。人物との共通部分、または人物から生じた反応が明示される場合だけ、その支持範囲でactual_similarityやmotivationを作る。
 
 [DECISION_RULES:VALUE_STANCE]
 - 好き・かっこいい・憧れる・苦手は嗜好の根拠であり、それだけでvalueStanceAssertionsを追加しない。
@@ -53,6 +55,7 @@ ${responseChannelPrompt()}
 - aesthetic_likingは外見・衣装・色・造形への評価。行動・生き方のかっこよさには割り当てない。
 - character_craft_appreciationは設定・脚本・描写の組み立てへの評価。主体性・努力・能力への好意だけには割り当てない。
 - admirationは能力・生き方・姿勢への高い評価。「憧れる」だけではwishful_identificationを追加しない。
+- 行動・能力・生き方・頼もしさを指す「かっこいい」は明示的な高評価でありadmirationにできる。外見・衣装・造形を指す「かっこいい」はaesthetic_likingとし、対象を文脈で分ける。
 - wishful_identification := 人物の姿勢・性質を自分も身につけたい願望。主体はユーザー。人物全体への同一化や同一行動の逐語的一致は不要。
 - actual_similarity := 主観的な自己照合。人物側とユーザー側の特徴・経験を特定 → 原文が結び付ける共通部分を抽出 → その範囲だけをrawLabel・contextに残す。「自分も…だから」という理由づけもinferredの根拠とし、「似ている」の明記を要求しない。
 - 共通部分が候補の一部なら、努力・能力・心理等の未支持部分を外して再判定する。自己経験の併記だけ、照合先不明、人物全体への拡張は不可。
@@ -61,6 +64,7 @@ ${responseChannelPrompt()}
 [BOUNDARY_EXAMPLES:STANDARD_REACTION]
 - 「怖くても助ける姿に憧れる」→ admiration。「自分も怖くても助けられるようになりたい」→ wishful_identification。
 - 「失敗しても再挑戦する姿が好き。自分も失敗が多いから励まされる」→ 失敗経験へのactual_similarityと再挑戦へのmotivation。ユーザーにも再挑戦する性質があるとは補わない。
+- 「最初はできなくても諦めないところが好き。自分も部活で失敗するから、また練習しようと思える」→ 諦めない姿への好意とmotivation。ユーザーの失敗経験そのものをpositive候補にしない。
 - 「再挑戦する姿が好き。自分も部活をしているが似ているとは思わない」→ 自己類似を追加しない。
 - 「衣装の配色が好き。台詞の反復で成長を描く脚本が巧い」→ 外見評価と作劇評価をそれぞれ保持する。`;
 
@@ -78,7 +82,9 @@ const PREFERENCE_CONTEXT_INSTRUCTION = `[PROCEDURE:CONTEXT]
 [BOUNDARY_EXAMPLES:CONTEXT]
 - 「友情以上」→ ユーザーの関係解釈。公式の恋愛関係やユーザー自身の恋愛感情に変換しない。
 - 声をきっかけに友人との記憶を想起 → 声質への好みやノスタルジーを断定しない。
-- 冷たい性格だけで終わる場合への苦手 → 不変性全般への苦手に拡張しない。`;
+- 冷たい性格だけで終わる場合への苦手 → 不変性全般への苦手に拡張しない。
+- 「戦う強さだけでなく、料理で助けるところが好き」→ 料理による援助を対象にし、「戦闘だけではない援助」を比較条件として保持する。
+- 「力を得ることより、誰かを助けるために力を使うところが好き」→ 力の使用目的を対象にし、獲得より救助目的を優先する比較をconditionsへ保持する。`;
 
 const PREFERENCE_SCORING_INSTRUCTION = `[SCORING:STRENGTH]
 - strength := その対象・条件に表明された好意または苦手の強さ。positive/negativeにかかわらず強い反応ほど高い。

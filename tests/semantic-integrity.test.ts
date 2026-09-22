@@ -48,7 +48,7 @@ const verify = (item = assertion(), character = false, provenance = sources) =>
   verifySemanticAssertion(
     item,
     provenance,
-    new Set(),
+    new Set(provenance.flatMap((source) => (source.url ? [source.url] : []))),
     new CitationRegistry(),
     { targetType: character ? "character_assertion" : "preference_assertion", targetId: "test", modelRunId: "run" },
     [],
@@ -68,6 +68,60 @@ describe("semantic and physical evidence normalization", () => {
       confidence: 0.6,
       explicitness: "user_explicit",
       audit: { reasonCode: "accepted_explicit_fallback" },
+    });
+    expect((await verify(item)).audit.diagnosticCodes).toContain("low_confidence_support");
+  });
+  it.each(["partial", "unverifiable"] as const)(
+    "retains a physically verified character assertion when low-confidence support is %s",
+    async (verdict) => {
+      const item = assertion();
+      item.judgmentDisposition = "degraded";
+      item.evidence[0].supportAssessment = {
+        verdict,
+        reason: "分布が集中していない固定判定",
+        choiceConfidence: 0.35,
+        selectedProbability: 0.48,
+        decisionCertain: false,
+      };
+      const result = await verify(item, true);
+      expect(result).toMatchObject({ keep: true, confidence: 0.6, explicitness: "user_explicit" });
+      expect(result.audit.diagnosticCodes).toContain("low_confidence_support");
+    },
+  );
+  it("keeps physical, semantic, and source-authority results separate", async () => {
+    const url = "https://example.com/secondary";
+    const reference = {
+      ...input,
+      sourceRef: null,
+      inputPointer: null,
+      sourceUrl: url,
+      quote: "仲間を助ける",
+    };
+    const item = assertion([reference]);
+    item.explicitness = "source_explicit";
+    item.judgmentDisposition = "degraded";
+    item.evidence[0].supportAssessment = {
+      verdict: "partial",
+      reason: "低confidenceの意味支持",
+      choiceConfidence: 0.4,
+      selectedProbability: 0.5,
+      decisionCertain: false,
+    };
+    const result = await verify(item, true, [
+      {
+        sourceId: "secondary",
+        origin: "source",
+        sourceType: "secondary",
+        inputPointer: null,
+        url,
+        text: "仲間を助ける人物である。",
+      },
+    ]);
+    expect(result).toMatchObject({ keep: true, explicitness: "source_interpreted", confidence: 0.6 });
+    expect(result.audit.evidence[0]).toMatchObject({
+      accepted: true,
+      verification: { verificationStatus: "verified_quote", sourceType: "secondary" },
+      reference: { supportAssessment: { verdict: "partial", decisionCertain: false } },
     });
   });
   it("does not let an explicit quote bypass a high-confidence Jev rejection", async () => {
@@ -143,6 +197,7 @@ describe("semantic and physical evidence normalization", () => {
     const result = await verify(item, false, [{ ...sources[0], text: "銀髪が好き。銀髪は好きではない。" }]);
     expect(result).toMatchObject({ keep: false, confidence: 0, audit: { reasonCode: "judgment_rejected" } });
     expect(result.audit.diagnosticCodes).toContain("high_conflict");
+    expect(result.audit.diagnosticCodes).toContain("high_semantic_rejection");
   });
   it("does not infer a preference from non-user evidence", async () => {
     const item = assertion([
@@ -203,6 +258,14 @@ describe("semantic and physical evidence normalization", () => {
       audit: { reasonCode: "accepted_verified_subset" },
     });
   });
+  it("retains an independent model-knowledge item beside an evidence set at the 0.45 cap", async () => {
+    const item = assertion([input, model]);
+    item.explicitness = "model_knowledge";
+    item.evidenceSetAssessment = { verdict: "partial", reason: "資料と独立知識を分離", evidenceIndexes: [0] };
+    const result = await verify(item, true);
+    expect(result).toMatchObject({ keep: true, confidence: 0.45, explicitness: "model_knowledge" });
+    expect(result.evidence.map((proof) => proof.verificationStatus)).toEqual(["verified_quote", "model_knowledge"]);
+  });
   it("does not relabel an unavailable source as model knowledge", async () => {
     const item = assertion([{ ...invalid, sourceRef: "missing-source", inferenceType: "inferred" }]);
     item.scopeAssessment.anchors = [];
@@ -236,7 +299,11 @@ describe("references after evidence normalization", () => {
   it("remaps remaining assertion references and rebuilds an affected summary", async () => {
     const audit = fakeGroundedUnderstanding(frozenAudit(sparseFixtures[0]));
     audit.assertions = [audit.assertions[0]];
-    audit.assertions.push({ ...audit.assertions[0], valueText: "保持される具体的な人物描写" });
+    audit.assertions.push({
+      ...audit.assertions[0],
+      rawLabel: "物語上の役割",
+      valueText: "仲間を導く役割を担う、保持される具体的な人物描写",
+    });
     audit.aspectAssessments.narrativeRole = {
       kind: "concrete",
       reason: "fixture",
@@ -247,10 +314,38 @@ describe("references after evidence normalization", () => {
     const rejected = { ...kept, keep: false, confidence: 0 };
     const normalized = normalizeUnderstanding(audit, [rejected, kept], false);
     expect(normalized.assertions).toHaveLength(1);
-    expect(normalized.summary.narrativeRole).toEqual(["保持される具体的な人物描写"]);
+    expect(normalized.summary.narrativeRole).toEqual(["仲間を導く役割を担う、保持される具体的な人物描写"]);
     expect(normalized.informationQuality.aspects.narrativeRole.assertionIndexes).toEqual([0]);
     expect(normalized.informationQuality.aspects.narrativeRole.kind).toBe("concrete");
+    expect(normalized.informationQuality).toMatchObject({
+      groundedConcreteItemCount: 1,
+      modelKnowledgeConcreteItemCount: 0,
+    });
     expect(audit.assertions).toHaveLength(2);
+  });
+  it("uses a stable key as the primary aspect and adds safe textual secondary aspects", async () => {
+    const audit = fakeGroundedUnderstanding(frozenAudit(sparseFixtures[0]));
+    audit.assertions = [
+      {
+        ...audit.assertions[0],
+        attributeStableKey: "relationship.protective",
+        rawLabel: "弟の救助",
+        valueText: "弟を助けることを目的に、自分から行動する。",
+        explicitness: "source_interpreted",
+      },
+    ];
+    for (const aspect of Object.values(audit.aspectAssessments)) aspect.assertionIndexes = [];
+    audit.aspectAssessments.expression.assertionIndexes = [0];
+    const kept = { ...(await verify(assertion(), true)), explicitness: "source_interpreted" };
+    const normalized = normalizeUnderstanding(audit, [kept], false);
+    expect(normalized.summary.relationships).toEqual(["弟を助けることを目的に、自分から行動する。"]);
+    expect(normalized.summary.goals).toEqual(normalized.summary.relationships);
+    expect(normalized.summary.behavior).toEqual(normalized.summary.relationships);
+    expect(normalized.summary.expression).toEqual([]);
+    expect(normalized.informationQuality).toMatchObject({
+      groundedConcreteItemCount: 1,
+      modelKnowledgeConcreteItemCount: 0,
+    });
   });
   it("explains missing content and does not invent references after all assertions are excluded", async () => {
     const audit = fakeGroundedUnderstanding(frozenAudit(sparseFixtures[0]));

@@ -153,7 +153,7 @@ const judgmentSummary = {
     ]),
   ),
   diagnostics: Object.fromEntries(
-    ["invalid_set_index", "high_conflict"].map((code) => [
+    ["invalid_set_index", "high_conflict", "low_confidence_support", "high_semantic_rejection"].map((code) => [
       code,
       judgmentOutcomes.filter((outcome) => outcome.diagnosticCodes?.includes(code)).length,
     ]),

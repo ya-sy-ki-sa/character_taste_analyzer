@@ -1,26 +1,26 @@
 {
   "analysisJudgment": {
-    "promptVersion": "analysis-judgment/2.1",
+    "promptVersion": "analysis-judgment/2.2",
     "sha256": "51f13e1c987e50d843db45a61fc2b53d23ecad6436629b25f4687c0ccb64ed02"
   },
   "understandingCompletion": {
-    "promptVersion": "understanding-information/v2.0.0",
-    "sha256": "af869e73ab030498c57daea58d13d6a3f3537276a3f521b66826e20a8ad4b4f8"
+    "promptVersion": "understanding-information/v2.1.0",
+    "sha256": "d00ef1e29c4132aa731d71d5bdf2de5d8d0398d77be668aa046e48b83635928c"
   },
   "generationJudgment": {
     "promptVersion": "generation-judgment/1.0",
     "sha256": "59b950e4e81dc6864d8bd2911e4e6d5d1aaa4b90e232a39907a6641b754ed294"
   },
   "preference": {
-    "promptVersion": "preference/v4.0.0",
-    "sha256": "e059294bd7e9db56a628135d871ec46d70b8c3c6ca78ea56406b8e5f47e66bf2"
+    "promptVersion": "preference/v4.1.0",
+    "sha256": "a9415391d0f9b9dec1c53855096f2a0288e900d0fec8d5c4734d89cd0120ad7c"
   },
   "darkPreference": {
-    "promptVersion": "dark_preference/v4.0.0",
-    "sha256": "64207d060b3a5f248536c9c1b47a23783840bb0a3d687a5de924dd0f0a1c0f5d"
+    "promptVersion": "dark_preference/v4.1.0",
+    "sha256": "bed19a69a31afbd592f0cfd37a93403dfdba4380b20c34305c84117b616f4db4"
   },
   "preferenceRefinement": {
-    "promptVersion": "preference_refinement/v4.0.0",
+    "promptVersion": "preference_refinement/v4.1.0",
     "sha256": "c08910b5602245396a203734368b29ab2079c455e046b8728088fb73ec93deab"
   },
   "citationVerification": {
@@ -36,24 +36,24 @@
     "sha256": "5c64efe74762b825413873b2a94fda59fdbb8a5c6f3225fcc97aa0d02d8a01ba"
   },
   "darkAnalysis": {
-    "promptVersion": "dark_analysis/v3.0.0",
+    "promptVersion": "dark_analysis/v3.1.0",
     "sha256": "54ae020ecbbeb00886bd4b7f07691d30ca4ab85532eba2fa59db708ed8321c02"
   },
   "darkScope": {
-    "promptVersion": "dark_scope_assessment/v3.0.0",
+    "promptVersion": "dark_scope_assessment/v3.1.0",
     "sha256": "b94accc82a2de3a98eb6b87c588fe2668b713bf65779002729de9408740fa818"
   },
   "darkBaseline": {
-    "promptVersion": "dark_baseline_understanding/v3.0.0",
+    "promptVersion": "dark_baseline_understanding/v3.1.0",
     "sha256": "d53ba285cd2b434580dc16ca33ba4ee9f1b112ac1ee1496c43159c6c93402ca1"
   },
   "darkUnderstanding": {
-    "promptVersion": "dark_character_understanding/v3.0.0",
+    "promptVersion": "dark_character_understanding/v3.1.0",
     "sha256": "7436c4f8067c5466edd8c9b3d7ee0fa9ddb976c7eafd30baa382ecc78cb82360"
   },
   "analysis": {
-    "promptVersion": "character_understanding/v3.0.0",
-    "sha256": "40b16b37b0a049d3777b45dea0e09f48cf1c952006952a759be0a558ca254188"
+    "promptVersion": "character_understanding/v3.1.0",
+    "sha256": "b8964d30c9291fd3ffbdce88f6a16dc557b164f675f37811b8b1bd2f0b6ba102"
   },
   "generation": {
     "promptVersion": "character_generation/v3.0.0",
