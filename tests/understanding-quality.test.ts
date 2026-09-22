@@ -193,7 +193,7 @@ describe("character understanding completeness", () => {
     expect(result.value.sourceAssessment.informationQuality).toMatchObject({
       status: "limited",
     });
-    expect(result.attempts).toHaveLength(3);
+    expect(result.attempts).toHaveLength(2);
   });
 
   it("repairs unexplained partial gaps and keeps original-character research disabled", async () => {
@@ -257,7 +257,7 @@ describe("sparse character understanding", () => {
     const candidate = frozenAudit(sparseFixtures[0]);
     const { run, requests } = setup([candidate, candidate, candidate, candidate]);
     const result = await run();
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(2);
     expect(result.value.sourceAssessment.informationQuality).toMatchObject({
       status: "limited",
       contentAspectCount: 1,
@@ -267,7 +267,7 @@ describe("sparse character understanding", () => {
     expect(result.value.assertions).toEqual(candidate.assertions);
     expect(Object.values(result.value.summary).every((item) => item.length > 0)).toBe(true);
     expect(result.value).not.toHaveProperty("aspectAssessments");
-    expect(result.attempts).toHaveLength(3);
+    expect(result.attempts).toHaveLength(2);
     expect(result.metadata.effectiveSettings).toMatchObject({
       understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
     });
@@ -320,7 +320,7 @@ describe("sparse character understanding", () => {
       contentAspectCount: 1,
       concreteAspectCount: 1,
     });
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(2);
     expect(requests.every((request) => !request.enableWebSearch)).toBe(true);
   });
 
@@ -385,16 +385,16 @@ describe("sparse character understanding", () => {
     const { run, requests } = setup([partial, partial, partial]);
     const result = await run();
     expect(result.value.sourceAssessment.informationQuality.status).toBe("not_flagged");
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(2);
   });
 
   it("keeps completed records when the additional audit fails", async () => {
     const sparse = frozenAudit(sparseFixtures[0]);
     const error = new LlmProviderError("unavailable", "EXTERNAL_PROVIDER_UNAVAILABLE", true);
-    const { run } = setup([sparse, sparse, error]);
+    const { run } = setup([sparse, error]);
     await expect(run()).rejects.toMatchObject({
       code: error.code,
-      attempts: [expect.any(Object), expect.any(Object)],
+      attempts: [expect.any(Object)],
     });
   });
 

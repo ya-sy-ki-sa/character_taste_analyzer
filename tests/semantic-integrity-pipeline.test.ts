@@ -211,24 +211,36 @@ describe("scripted proposition audits through persistence and aggregation", () =
     expect(profile?.dimensions).toHaveLength(1);
     expect(profile?.dimensions[0].condition.conditions).toEqual(["冷淡な人物に限る"]);
   });
-  it.each(["mismatch", "uncertain"] as const)(
-    "excludes a %s candidate while retaining explicit input and questions",
-    async (verdict) => {
-      const item = fixture(scopes[0]);
-      item.auditOverride = (value) => {
-        value.preferenceAssertions[0].scopeAssessment.verdict = verdict;
-        value.summary.limitations = ["old unverified channel interpretation"];
-        return value;
-      };
-      const t = await setup("standard", item);
-      expect(t.analysis.assertions).toEqual([]);
-      expect(t.analysis.summary.userExplicitSummary).toContain(item.preference.likedReasons);
-      expect(t.analysis.uncertainties.length).toBeGreaterThan(0);
-      expect(t.analysis.uncertainties.at(-1)?.recommendedQuestion).toBeNull();
-      expect(t.analysis.summary.limitations).not.toContain("old unverified channel interpretation");
-      expect((await rebuild(t, "standard"))?.dimensions).toEqual([]);
-    },
-  );
+  it("excludes a mismatched candidate while retaining explicit input and questions", async () => {
+    const item = fixture(scopes[0]);
+    item.auditOverride = (value) => {
+      value.preferenceAssertions[0].scopeAssessment.verdict = "mismatch";
+      value.summary.limitations = ["old unverified channel interpretation"];
+      return value;
+    };
+    const t = await setup("standard", item);
+    expect(t.analysis.assertions).toEqual([]);
+    expect(t.analysis.summary.userExplicitSummary).toContain(item.preference.likedReasons);
+    expect(t.analysis.uncertainties.length).toBeGreaterThan(0);
+    expect(t.analysis.uncertainties.at(-1)?.recommendedQuestion).toBeNull();
+    expect(t.analysis.summary.limitations).not.toContain("old unverified channel interpretation");
+    expect((await rebuild(t, "standard"))?.dimensions).toEqual([]);
+  });
+  it("retains an uncertain explicit preference with degraded confidence", async () => {
+    const item = fixture(scopes[0]);
+    item.auditOverride = (value) => {
+      value.preferenceAssertions[0].scopeAssessment.verdict = "uncertain";
+      return value;
+    };
+    const t = await setup("standard", item);
+    expect(t.analysis.assertions).toHaveLength(1);
+    expect(t.analysis.assertions[0]).toMatchObject({
+      explicitness: "user_explicit",
+      confidence: 0.6,
+      stable_key: null,
+    });
+    expect((await rebuild(t, "standard"))?.dimensions).toHaveLength(1);
+  });
   it("does not turn '好きとは限らない' into an adopted dislike", async () => {
     const item = fixture({
       ...scopes[0],

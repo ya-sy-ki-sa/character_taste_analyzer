@@ -4,6 +4,7 @@ import type {
   EvidenceSetAssessment,
   ScopedProposition,
 } from "../../../shared/contracts/semantic-audit";
+import { DEGRADED_EXPLICIT_CONFIDENCE_CAP, type JudgmentDisposition } from "../../judgment/policy";
 import { ANALYSIS_JUDGMENT_POLICY_VERSION } from "../../llm/prompts/judgment-analysis";
 import type { CitationRegistry } from "../../platform/provenance/registry";
 import { type ProvenanceSource, verifyEvidenceReference } from "../../platform/provenance/verifier";
@@ -15,6 +16,7 @@ type Assertion = {
   evidenceSetAssessment?: EvidenceSetAssessment | null;
   confidence: number;
   explicitness: string;
+  judgmentDisposition?: JudgmentDisposition;
 };
 const explicitnessLabel = (value: string) =>
   ({
@@ -64,8 +66,15 @@ export async function verifySemanticAssertion(
         (character || proof.evidenceOrigin === "user_input")
       );
     });
+  const rejectedEvidenceSet = Boolean(evidenceSet?.verdict === "supported" && !validSet);
   // A failed whole-claim assessment cannot fall back to a single quote or model knowledge.
-  const supportedIndexes = evidenceSet ? (validSet ? setIndexes : []) : individuallySupportedIndexes;
+  const supportedIndexes = evidenceSet
+    ? validSet
+      ? setIndexes
+      : assertion.judgmentDisposition
+        ? individuallySupportedIndexes
+        : []
+    : individuallySupportedIndexes;
   // Only a deliberately separate model-knowledge reference can survive as model knowledge.
   const modelIndexes =
     character && !evidenceSet
@@ -87,14 +96,41 @@ export async function verifySemanticAssertion(
   const scopeConsistent =
     assertion.scopeAssessment.verdict === "consistent" &&
     (anchored || (character && modelIndexes.length > 0 && assertion.scopeAssessment.anchors.length === 0));
-  const keep = Boolean(scopeConsistent && (supportedIndexes.length || modelIndexes.length));
+  const directUserIndexes = verified.evidence.flatMap((proof, index) => {
+    const reference = assertion.evidence[index];
+    return proof.verificationStatus === "verified_quote" &&
+      proof.evidenceOrigin === "user_input" &&
+      reference.inferenceType === "direct"
+      ? [index]
+      : [];
+  });
+  const explicitPreferenceFallback =
+    target.targetType === "preference_assertion" &&
+    assertion.judgmentDisposition === "degraded" &&
+    assertion.explicitness === "user_explicit" &&
+    directUserIndexes.length > 0;
+  const rejectedByJudgment = assertion.judgmentDisposition === "rejected";
+  const rejectedByPolicy = rejectedByJudgment || rejectedEvidenceSet;
+  const keep = Boolean(
+    !rejectedByPolicy &&
+      ((scopeConsistent && (supportedIndexes.length || modelIndexes.length)) || explicitPreferenceFallback),
+  );
+  const acceptedSupportedIndexes = explicitPreferenceFallback
+    ? [...new Set([...supportedIndexes, ...directUserIndexes])]
+    : supportedIndexes;
   let explicitness = assertion.explicitness;
-  let confidence = keep ? assertion.confidence : 0;
-  if (keep && !supportedIndexes.length) {
+  let confidence = keep
+    ? explicitPreferenceFallback
+      ? Math.min(assertion.confidence, DEGRADED_EXPLICIT_CONFIDENCE_CAP)
+      : assertion.confidence
+    : 0;
+  if (keep && explicitPreferenceFallback) {
+    explicitness = "user_explicit";
+  } else if (keep && !acceptedSupportedIndexes.length) {
     explicitness = "model_knowledge";
     confidence = Math.min(confidence, 0.45);
   } else if (keep) {
-    const supports = supportedIndexes.map((index) => verified.evidence[index]);
+    const supports = acceptedSupportedIndexes.map((index) => verified.evidence[index]);
     const user = supports.filter((proof) => proof.evidenceOrigin === "user_input");
     const isDirect = (proof: (typeof supports)[number]) =>
       proof.verificationStatus === "verified_quote" && proof.inferenceType !== "inferred";
@@ -118,28 +154,40 @@ export async function verifySemanticAssertion(
       confidence = Math.min(confidence, 0.45);
     }
   }
-  const accepted = new Set([...supportedIndexes, ...modelIndexes]);
+  const accepted = new Set([...acceptedSupportedIndexes, ...modelIndexes]);
   const reasonCode = keep
-    ? "accepted"
-    : assertion.scopeAssessment.verdict !== "consistent"
-      ? "scope_unresolved"
-      : !scopeConsistent
-        ? "anchor_unavailable"
-        : verified.evidence.some((proof) => proof.verificationStatus === "invalid")
-          ? "evidence_unavailable"
-          : "support_insufficient";
+    ? explicitPreferenceFallback
+      ? "accepted_explicit_fallback"
+      : "accepted"
+    : rejectedEvidenceSet
+      ? "evidence_set_rejected"
+      : rejectedByJudgment
+        ? "judgment_rejected"
+        : assertion.scopeAssessment.verdict !== "consistent"
+          ? "scope_unresolved"
+          : !scopeConsistent
+            ? "anchor_unavailable"
+            : verified.evidence.some((proof) => proof.verificationStatus === "invalid")
+              ? "evidence_unavailable"
+              : "support_insufficient";
   const reason =
-    reasonCode === "anchor_unavailable"
-      ? "対象の照合に必要な原文を確認できません。"
-      : reasonCode === "evidence_unavailable"
-        ? "根拠の出典本文または引用を確認できません。"
-        : !scopeConsistent
-          ? `対象・否定範囲を確認できません：${assertion.scopeAssessment.reason}`
-          : !keep
-            ? "主張全体を支持する有効な根拠を確認できません。"
-            : explicitness !== assertion.explicitness
-              ? `検証後の根拠に合わせて出所を「${explicitnessLabel(explicitness)}」へ変更しました。`
-              : null;
+    reasonCode === "accepted_explicit_fallback"
+      ? "Jevの判定が低確信だったため、照合済みのユーザー明示引用を低confidenceで保持しました。"
+      : reasonCode === "evidence_set_rejected"
+        ? "複数根拠の集合に無効または範囲外の参照が含まれるため除外しました。"
+        : reasonCode === "judgment_rejected"
+          ? "Jevが高確信で候補の矛盾または非支持を判定しました。"
+          : reasonCode === "anchor_unavailable"
+            ? "対象の照合に必要な原文を確認できません。"
+            : reasonCode === "evidence_unavailable"
+              ? "根拠の出典本文または引用を確認できません。"
+              : !scopeConsistent
+                ? `対象・否定範囲を確認できません：${assertion.scopeAssessment.reason}`
+                : !keep
+                  ? "主張全体を支持する有効な根拠を確認できません。"
+                  : explicitness !== assertion.explicitness
+                    ? `検証後の根拠に合わせて出所を「${explicitnessLabel(explicitness)}」へ変更しました。`
+                    : null;
   return {
     keep,
     explicitness,

@@ -214,11 +214,12 @@ export async function setup(
           understandingAudits.set(round, audit);
         }
         for (const id of Object.keys(request.questions)) {
-          const match = id.match(/^assertion_(\d+)_(scope|evidence_(\d+)|set)$/u);
+          const match = id.match(/^assertion_(\d+)_(scope_(?:subject|negation|conditions)|evidence_(\d+)|set)$/u);
           if (!match) continue;
           const assertion = audit.assertions[Number(match[1])];
           if (!assertion) continue;
-          if (match[2] === "scope") overrideChoice(answers, request.questions, id, assertion.scopeAssessment.verdict);
+          if (match[2].startsWith("scope_"))
+            overrideChoice(answers, request.questions, id, assertion.scopeAssessment.verdict);
           else if (match[2] === "set" && assertion.evidenceSetAssessment)
             overrideChoice(answers, request.questions, id, assertion.evidenceSetAssessment.verdict);
           else {
@@ -251,7 +252,7 @@ export async function setup(
       if (preferenceAudit && request.context.stage.startsWith("preference:")) {
         for (const id of Object.keys(request.questions)) {
           const match = id.match(
-            /^(preference|stance)_(\d+)(?:_projected)?_(scope|evidence_(\d+)|set|explicitness|polarity|strength)$/u,
+            /^(preference|stance)_(\d+)(?:_projected)?_(scope_(?:subject|negation|conditions)|evidence_(\d+)|set|explicitness|polarity|strength)$/u,
           );
           if (!match) continue;
           const assertion =
@@ -260,7 +261,8 @@ export async function setup(
               : preferenceAudit.valueStanceAssertions[Number(match[2])];
           if (!assertion) continue;
           const field = match[3];
-          if (field === "scope") overrideChoice(answers, request.questions, id, assertion.scopeAssessment.verdict);
+          if (field.startsWith("scope_"))
+            overrideChoice(answers, request.questions, id, assertion.scopeAssessment.verdict);
           else if (field === "set" && assertion.evidenceSetAssessment)
             overrideChoice(answers, request.questions, id, assertion.evidenceSetAssessment.verdict);
           else if (field === "explicitness") overrideChoice(answers, request.questions, id, assertion.explicitness);

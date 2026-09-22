@@ -14,7 +14,7 @@ import {
 } from "../../../shared/contracts/preference";
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
 import { entryInputSources, entryPreferenceContext, entryScopeText } from "../../../shared/entry-input";
-import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
+import { MAX_ANALYSIS_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import { hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import { createJobLlmProvider } from "../../llm/execution";
@@ -297,12 +297,12 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       correlationId: entry.entryRevisionId,
       domain: params.analysisDomain,
     });
-    for (let round = 1; judgment.issues.length && round <= MAX_RECONSIDERATION_ROUNDS; round++) {
+    for (let round = 1; judgment.blockingIssues.length && round <= MAX_ANALYSIS_RECONSIDERATION_ROUNDS; round++) {
       const correctionMessages = [
         { role: "system" as const, content: preferenceSystem(params.analysisDomain) },
         {
           role: "user" as const,
-          content: `既存候補を再検討し、同じSchema全体を返す。新しい嗜好・事実・根拠は創作しない。\n再検討回数: ${round}/${MAX_RECONSIDERATION_ROUNDS}\n不足・矛盾・低確信: ${JSON.stringify(judgment.issues)}\n検証後候補: ${JSON.stringify(judgment.candidate)}\n確認済み理解: ${JSON.stringify(analysisUnderstanding)}\n登録情報: ${JSON.stringify(entry.payload)}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n統制属性: ${JSON.stringify(ontology)}`,
+          content: `既存候補を再検討し、同じSchema全体を返す。新しい嗜好・事実・根拠は創作しない。\n再検討回数: ${round}/${MAX_ANALYSIS_RECONSIDERATION_ROUNDS}\n高確信の不足・矛盾: ${JSON.stringify(judgment.blockingIssues)}\n検証後候補: ${JSON.stringify(judgment.candidate)}\n確認済み理解: ${JSON.stringify(analysisUnderstanding)}\n登録情報: ${JSON.stringify(entry.payload)}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n統制属性: ${JSON.stringify(ontology)}`,
         },
       ];
       const generated =

@@ -58,6 +58,27 @@ describe("semantic and physical evidence normalization", () => {
   it("retains explicit preferences without requiring a response channel", async () => {
     expect(await verify()).toMatchObject({ keep: true, confidence: 0.94, explicitness: "user_explicit" });
   });
+  it("retains a directly quoted explicit preference when Jev is uncertain", async () => {
+    const item = assertion();
+    item.judgmentDisposition = "degraded";
+    item.scopeAssessment.verdict = "uncertain";
+    item.evidence[0].supportAssessment.verdict = "unverifiable";
+    expect(await verify(item)).toMatchObject({
+      keep: true,
+      confidence: 0.6,
+      explicitness: "user_explicit",
+      audit: { reasonCode: "accepted_explicit_fallback" },
+    });
+  });
+  it("does not let an explicit quote bypass a high-confidence Jev rejection", async () => {
+    const item = assertion();
+    item.judgmentDisposition = "rejected";
+    expect(await verify(item)).toMatchObject({
+      keep: false,
+      confidence: 0,
+      audit: { reasonCode: "judgment_rejected" },
+    });
+  });
   it.each(["partial", "unsupported", "contradicted", "unverifiable"] as const)(
     "does not adopt a literal quote whose semantic verdict is %s",
     async (verdict) => {

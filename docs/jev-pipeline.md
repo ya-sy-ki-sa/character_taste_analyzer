@@ -25,7 +25,11 @@ Cloudflare AI bindingの返却値は `state`・`result`・`gatewayMetadata` の�
 
 ## 不確実な判断
 
-不足・矛盾は論点を限定して既存の割当LLMへ戻し、最大2巡補完します。修正後はJevで再検証します。未解決の人物理解・嗜好は既存レビューと不明点へ接続します。反応経路だけ不明な好みはnull経路で保持できます。
+分析の判定は `accepted`、`degraded`、`rejected` に分けます。高確信の矛盾・非支持だけを `rejected` として割当LLMへ最大1巡戻し、低確信は再生成せず `degraded` として不明点へ接続します。生成検査の最大2巡は維持します。
+
+ユーザー入力の直接引用とPointerを照合でき、LLM候補が `user_explicit` で、Jevが高確信で矛盾を示していない嗜好は、scopeや支持判定が低確信でもconfidence上限0.6で保持します。辞書属性が不明なら `attributeStableKey=null`、反応経路が不明なら `responseChannel=null` とし、raw label・極性・引用・条件を失わせません。人物事実やモデル知識から同じ例外で嗜好を作ることはありません。
+
+scopeは主体・対象、否定・極性、条件・例外の独立した質問へ分け、該当する論点だけをコードで合成します。複数根拠の集合判定が低確信でも、単独で候補全体を支持する有効な根拠は利用できます。ただし無効・範囲外の参照を含む「支持済み」根拠集合は従来どおり不採用です。
 
 生成候補は必須・禁止条件の合格後に嗜好適合・整合性・候補間差異の順で比較します。重大違反を平均点で相殺しません。順位の確信が不足する場合はordinal順で既存比較画面へ渡し、推薦順位を確定的な好みとして扱いません。自動推薦ではselected_atを更新しません。
 
@@ -33,6 +37,6 @@ Cloudflare AI bindingの返却値は `state`・`result`・`gatewayMetadata` の�
 
 型・lint・資産/契約整合性とは別に、単体・結合・Playwright・実モデルの意味品質を確認します。新方式のテストfixtureは実際のJevの精度を示しません。比較評価では主体、否定、条件、引用集合、抽出漏れ、dark文脈、保留率、生成の制約違反を確認します。
 
-今回の実装では実APIの1ケース（`standard-narrative`）を実行してJev通信と分析完了を確認しました。デプロイは実行していません。後工程の実モデル比較は合計30米ドル上限です。Jev固有の詳細分布・判定履歴はローカル評価成果物へ記録し、既存アカウントエクスポートへ混入させません。
+今回の実装では実APIの1ケース（`standard-narrative`）を実行してJev通信と分析完了を確認しました。デプロイは実行していません。後工程の実モデル比較は合計30米ドル上限です。Jev固有の詳細分布・判定履歴はlocal環境の構造化ログへだけ記録し、原文・引用・stateや既存アカウントエクスポートへ混入させません。preview・productionは従来どおり集計値だけを記録します。
 
 公式仕様: [Cloudflare Jev model](https://developers.cloudflare.com/ai/models/typesafe/jev/)、[AI Gateway Worker binding methods](https://developers.cloudflare.com/ai-gateway/usage/worker-binding-methods/)、[AI Gateway REST API](https://developers.cloudflare.com/ai-gateway/usage/rest-api/)。

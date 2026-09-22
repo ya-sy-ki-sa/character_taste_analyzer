@@ -6,10 +6,10 @@ import {
   entryPreferenceContext,
   entryReferenceMaterial,
 } from "../../../shared/entry-input";
+import { MAX_ANALYSIS_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import { hmacHex, sha256Hex } from "../../lib/crypto";
 import { UNDERSTANDING_COMPLETION_INSTRUCTION, understandingSystem } from "../../llm/prompts/understanding";
 import { LlmProviderError, type StructuredLlmResult } from "../../llm/types";
-import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import type { Env } from "../../types";
 import { isRetryableFailure } from "../jobs/policy";
 import { carryCompletedLlmGroups } from "./completed-on-error";
@@ -154,7 +154,12 @@ export async function understandOne(
   );
   let normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
   let issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
-  for (let round = 1; issues.length && round <= MAX_RECONSIDERATION_ROUNDS; round++) {
+  let blockingIssues = [
+    ...judged.blockingIssues,
+    ...understandingQualityIssues(normalized),
+    ...normalized.informationQuality.reasons,
+  ];
+  for (let round = 1; blockingIssues.length && round <= MAX_ANALYSIS_RECONSIDERATION_ROUNDS; round++) {
     completionAttempted = true;
     current = await recordCall({
       operation: includeCustomization ? "customization_delta" : "character_understanding",
@@ -166,7 +171,7 @@ export async function understandOne(
         ...messages,
         {
           role: "user",
-          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n再検討回数: ${round}/${MAX_RECONSIDERATION_ROUNDS}\n不足・矛盾・低確信: ${JSON.stringify(issues)}\n項目別の情報量判定: ${JSON.stringify(normalized.informationQuality.aspects)}\n根拠検証・正規化後の候補: ${JSON.stringify(normalized)}\n取得済み引用: ${JSON.stringify(citations)}`,
+          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n再検討回数: ${round}/${MAX_ANALYSIS_RECONSIDERATION_ROUNDS}\n高確信の不足・矛盾と関連論点: ${JSON.stringify([...new Set([...blockingIssues, ...issues])])}\n項目別の情報量判定: ${JSON.stringify(normalized.informationQuality.aspects)}\n根拠検証・正規化後の候補: ${JSON.stringify(normalized)}\n取得済み引用: ${JSON.stringify(citations)}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -191,6 +196,11 @@ export async function understandOne(
     );
     normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
     issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
+    blockingIssues = [
+      ...judged.blockingIssues,
+      ...understandingQualityIssues(normalized),
+      ...normalized.informationQuality.reasons,
+    ];
   }
   if (issues.length) {
     normalized = {

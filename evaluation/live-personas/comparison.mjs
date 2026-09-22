@@ -8,9 +8,11 @@ const ratio = (numerator, denominator) => ({
   rate: denominator ? numerator / denominator : null,
 });
 const uniqueClaims = (row) => [...new Map(row.claims.map((c) => [`${c.stage}/${c.text}`, c])).values()];
+const isPreferenceClaim = (claim) =>
+  claim.stage === "preference" || ["preference_assertion", "value_stance"].includes(claim.stage);
 export function summarizeCases(rows) {
   const expected = rows.flatMap((r) => r.expected).filter((e) => e.label !== "not_evaluable");
-  const preference = rows.flatMap(uniqueClaims).filter((c) => c.stage === "preference");
+  const preference = rows.flatMap(uniqueClaims).filter(isPreferenceClaim);
   return {
     cases: rows.length,
     completion: ratio(rows.filter((r) => r.status === "complete").length, rows.length),
@@ -18,7 +20,7 @@ export function summarizeCases(rows) {
     failed: rows.filter((r) => ["failed", "submission_failed"].includes(r.status)).length,
     held: rows.filter((r) => r.status === "held").length,
     pending: rows.filter((r) => !terminal.has(r.status)).length,
-    evaluated: rows.filter((r) => r.claims.some((c) => c.stage === "preference")).length,
+    evaluated: rows.filter((r) => r.claims.some(isPreferenceClaim)).length,
     recall: ratio(expected.filter((e) => e.label === "matched").length, expected.length),
     support: ratio(preference.filter((c) => c.label === "supported").length, preference.length),
     emptyPreferenceCases: rows.filter((r) => r.metrics.structuredPreferenceCount === 0).map((r) => r.caseId),
@@ -73,11 +75,7 @@ export function compareRuns(baseline, current, baselineDataset, currentDataset, 
   }
   const byId = new Map(current.records.map((r) => [r.caseId, r]));
   const commonIds = baseline.records
-    .filter(
-      (r) =>
-        r.claims.some((c) => c.stage === "preference") &&
-        byId.get(r.caseId).claims.some((c) => c.stage === "preference"),
-    )
+    .filter((r) => r.claims.some(isPreferenceClaim) && byId.get(r.caseId).claims.some(isPreferenceClaim))
     .map((r) => r.caseId);
   const common = new Set(commonIds);
   const rows = baseline.records.map((before) => {

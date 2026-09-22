@@ -33,8 +33,8 @@ describe("understanding information quality storage and continuation", () => {
       const calls = t.requests.filter((request) =>
         ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
       );
-      expect(calls).toHaveLength(recovers ? 2 : 3);
-      expect(new Set(calls.map((request) => request.idempotencyKey)).size).toBe(recovers ? 2 : 3);
+      expect(calls).toHaveLength(2);
+      expect(new Set(calls.map((request) => request.idempotencyKey)).size).toBe(2);
       const completion = calls[1].messages.find((item) =>
         item.content.startsWith(UNDERSTANDING_COMPLETION_INSTRUCTION),
       )?.content;
@@ -55,7 +55,7 @@ describe("understanding information quality storage and continuation", () => {
           "SELECT operation,output_hash FROM model_run_metadata WHERE operation IN ('customization_delta','character_understanding','understanding_audit')",
         )
         .all();
-      expect(rows).toHaveLength(recovers ? 2 : 3);
+      expect(rows).toHaveLength(2);
       expect(rows.every((row) => typeof row.output_hash === "string" && row.output_hash.length === 64)).toBe(true);
       const snapshot = t.db.database
         .prepare(
@@ -132,7 +132,7 @@ describe("understanding information quality storage and continuation", () => {
       t.requests.filter((request) =>
         ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
     const preferenceCalls = t.requests.filter((request) => request.operation.startsWith("preference_"));
     expect(preferenceCalls).toHaveLength(1);
     for (const call of preferenceCalls) {
@@ -155,7 +155,7 @@ describe("understanding information quality storage and continuation", () => {
         "SELECT prompt_version,schema_version,effective_settings_json FROM model_run_metadata WHERE operation IN ('character_understanding','customization_delta')",
       )
       .all();
-    expect(metadata).toHaveLength(3);
+    expect(metadata).toHaveLength(2);
     for (const row of metadata) expect(row.schema_version).toBe("1.0");
   });
 

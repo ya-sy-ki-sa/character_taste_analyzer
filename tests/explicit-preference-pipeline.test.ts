@@ -469,7 +469,7 @@ describe("negation counterexamples at the audit boundary", () => {
       expect(profile?.dimensions[0].negativeScore).toBe(0);
       expect(
         result.requests.filter((item) => /^(dark_)?preference_(analysis|audit)$/.test(item.operation)),
-      ).toHaveLength(3);
+      ).toHaveLength(2);
       expect(result.analysis.summary.userExplicitSummary[0]).toContain("冷たい人物が好きとは限らない");
       expect(result.analysis.uncertainties).toEqual(
         expect.arrayContaining([expect.objectContaining({ topic: "冷たい人物" })]),

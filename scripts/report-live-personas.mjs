@@ -27,6 +27,8 @@ const ratio = (a, b) => (b ? a / b : null);
 const uniqueClaims = (claims) => [
   ...new Map(claims.map((c) => [`${c.caseId ?? ""}/${c.stage}/${c.text}`, c])).values(),
 ];
+const isStructuredPreferenceClaim = (claim) =>
+  claim.stage === "preference" || ["preference_assertion", "value_stance"].includes(claim.stage);
 const percent = (x) => (x === null ? "—" : `${(x * 100).toFixed(1)}%`);
 const elapsed = (a, b) => (a && b ? Math.max(0, Date.parse(b) - Date.parse(a)) / 1000 : null);
 const reviews = readJson(`${root}/codex-review.json`, { cases: {} });
@@ -45,7 +47,8 @@ const records = dataset.cases.map((c) => {
     }))
   ).map((g) => ({ ...g, ...(review?.expectedOverrides?.[g.id] ?? {}) }));
   const unique = uniqueClaims(claims);
-  const prefClaims = unique.filter((x) => x.stage === "preference");
+  const prefClaims = unique.filter(isStructuredPreferenceClaim);
+  const preferenceSummaryClaims = unique.filter((x) => x.stage === "preference_summary");
   const factClaims = unique.filter((x) => x.stage === "understanding");
   const applicable = expected.filter((x) => x.label !== "not_evaluable");
   const issues = review?.issues ?? assisted?.issues ?? [];
@@ -75,8 +78,13 @@ const records = dataset.cases.map((c) => {
       allClaimSupportRate: ratio(unique.filter((x) => x.label === "supported").length, unique.length),
       facts: count(factClaims),
       preference: count(prefClaims),
+      preferenceSummary: count(preferenceSummaryClaims),
       recall: ratio(expected.filter((x) => x.label === "matched").length, applicable.length),
       supportRate: ratio(prefClaims.filter((x) => x.label === "supported").length, prefClaims.length),
+      summarySupportRate: ratio(
+        preferenceSummaryClaims.filter((x) => x.label === "supported").length,
+        preferenceSummaryClaims.length,
+      ),
     },
     timing: {
       understandingSeconds: elapsed(state.submittedAt, state.understandingAt),
@@ -97,7 +105,8 @@ const records = dataset.cases.map((c) => {
 function aggregate(rows) {
   const expected = rows.flatMap((x) => x.expected).filter((x) => x.label !== "not_evaluable");
   const claims = rows.flatMap((x) => uniqueClaims(x.claims));
-  const pref = claims.filter((x) => x.stage === "preference");
+  const pref = claims.filter(isStructuredPreferenceClaim);
+  const summaries = claims.filter((x) => x.stage === "preference_summary");
   return {
     planned: rows.length,
     complete: rows.filter((x) => x.status === "complete").length,
@@ -110,11 +119,13 @@ function aggregate(rows) {
     codexReviewed: rows.filter((x) => x.codexReviewed).length,
     recall: ratio(expected.filter((x) => x.label === "matched").length, expected.length),
     supportRate: ratio(pref.filter((x) => x.label === "supported").length, pref.length),
+    summarySupportRate: ratio(summaries.filter((x) => x.label === "supported").length, summaries.length),
     allClaimSupportRate: ratio(claims.filter((x) => x.label === "supported").length, claims.length),
     duplicateClaimSlots: rows.reduce((n, x) => n + x.metrics.duplicateClaimSlots, 0),
     expected: count(rows.flatMap((x) => x.expected)),
     understanding: count(claims.filter((x) => x.stage === "understanding")),
     preference: count(pref),
+    preferenceSummary: count(summaries),
     issues: rows.flatMap((x) => x.issues).length,
     emptyPreferenceCases: rows.filter((x) => x.metrics.structuredPreferenceCount === 0).map((x) => x.caseId),
   };
@@ -368,9 +379,12 @@ const groupedIssues = Object.entries(Object.groupBy(issueRows, groupFor)).map(([
       new Set(
         rows.flatMap((x) =>
           (x.claimIds ?? [])
-            .filter(
-              (id) => records.find((c) => c.caseId === x.caseId)?.claims.find((q) => q.id === id)?.stage === stage,
-            )
+            .filter((id) => {
+              const claimStage = records.find((c) => c.caseId === x.caseId)?.claims.find((q) => q.id === id)?.stage;
+              return stage === "preference"
+                ? claimStage === "preference" || ["preference_assertion", "value_stance"].includes(claimStage)
+                : claimStage === stage;
+            })
             .map((id) => `${x.caseId}/${id}`),
         ),
       ).size,

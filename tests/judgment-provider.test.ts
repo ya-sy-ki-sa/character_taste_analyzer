@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { choiceAnswer, isCertainChoice, isCertainNoul, scoreAnswer } from "../worker/judgment/policy";
+import { choiceAnswer, isCertainChoice, isCertainNoul, scoreAnswer, selectedChoice } from "../worker/judgment/policy";
 import {
   CloudflareJevJudgmentProvider,
   FakeJudgmentProvider,
@@ -123,6 +123,8 @@ describe("typed judgments", () => {
     const parsed = parseJudgmentResult({ ...response(), answers: { support: answer } }, request().questions);
 
     expect(parsed.answers.support).toMatchObject({ choice: "supported" });
+    expect(selectedChoice(parsed.answers.support, "unknown")).toBe("supported");
+    expect(isCertainChoice(parsed.answers.support)).toBe(false);
   });
   it("accepts a calibrated score with rounded probability expectation", () => {
     const question = { ...score, criteria: [...score.criteria] };

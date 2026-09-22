@@ -77,6 +77,7 @@ async function emit(
   elapsed: number,
   result?: JudgmentResult,
   reason?: string,
+  includeDecisions = false,
 ) {
   const counts = { yes: 0, no: 0, uncertain: 0, concentrated: 0 };
   for (const answer of Object.values(result?.answers ?? {})) {
@@ -97,6 +98,16 @@ async function emit(
       model: result?.model,
       questionCount: Object.keys(request.questions).length,
       judgments: counts,
+      ...(includeDecisions && result
+        ? {
+            decisions: Object.entries(result.answers).map(([id, answer]) => ({
+              id,
+              type: answer.type,
+              selected: answer.type === "choice" ? answer.choice : answer.type === "score" ? answer.score : answer.noul,
+              ...(answer.type === "noul" ? {} : { confidence: answer.confidence, probabilities: answer.probabilities }),
+            })),
+          }
+        : {}),
       usage: result?.usage,
       latencyMs: elapsed,
       reason,
@@ -130,6 +141,7 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
     private readonly ai: NonNullable<Env["AI"]>,
     private readonly model: string,
     private readonly gatewayId: string,
+    private readonly diagnostics = false,
   ) {}
 
   private get providerContext(): JudgmentProviderContext {
@@ -198,14 +210,14 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
       }
       if (failure) {
         // Account for completed batches even if a sibling failed. No partial answers are returned.
-        await emit(request, this.providerId, Date.now() - started, result, "batch_incomplete");
+        await emit(request, this.providerId, Date.now() - started, result, "batch_incomplete", this.diagnostics);
         throw failure;
       }
-      await emit(request, this.providerId, Date.now() - started, result);
+      await emit(request, this.providerId, Date.now() - started, result, undefined, this.diagnostics);
       return result;
     } catch (error) {
       const providerError = this.withProviderContext(error);
-      await emit(request, this.providerId, Date.now() - started, undefined, providerError.reason);
+      await emit(request, this.providerId, Date.now() - started, undefined, providerError.reason, this.diagnostics);
       throw providerError;
     }
   }
@@ -256,5 +268,10 @@ export function createJudgmentProvider(env: Env): JudgmentProvider {
   const ai = env.AI;
   const gatewayId = env.AI_GATEWAY_GATEWAY_ID;
   if (!ai || !gatewayId) throw new JudgmentProviderError("missing_configuration", false);
-  return new CloudflareJevJudgmentProvider(ai, env.JEV_MODEL ?? DEFAULT_JEV_MODEL, gatewayId);
+  return new CloudflareJevJudgmentProvider(
+    ai,
+    env.JEV_MODEL ?? DEFAULT_JEV_MODEL,
+    gatewayId,
+    env.ENVIRONMENT === "local",
+  );
 }

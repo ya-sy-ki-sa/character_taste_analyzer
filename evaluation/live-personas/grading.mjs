@@ -21,17 +21,17 @@ export function extractClaims(detail) {
   if (p) {
     for (const key of ["userExplicitSummary", "inferredSummary"])
       for (const [i, text] of p.summary[key].entries())
-        add("preference", `/preferenceAnalysis/summary/${key}/${i}`, text, { explicitness: key });
+        add("preference_summary", `/preferenceAnalysis/summary/${key}/${i}`, text, { explicitness: key });
     for (const [i, a] of p.assertions.entries())
       add(
-        "preference",
+        "preference_assertion",
         `/preferenceAnalysis/assertions/${i}`,
         `${a.raw_label} | polarity=${a.polarity} | response_channel=${a.response_channel}`,
         { assertionId: a.id, explicitness: a.explicitness, evidence: a.evidence, stableKey: a.stable_key },
       );
     for (const [i, a] of p.valueStances.entries())
       add(
-        "preference",
+        "value_stance",
         `/preferenceAnalysis/valueStances/${i}`,
         `${a.target_ref} | stance=${a.stance} | orientation=${a.orientation}`,
         { assertionId: a.id, explicitness: a.explicitness, evidence: a.evidence },
@@ -45,7 +45,7 @@ export const gradingInstructions = `あなたは合成データによるキャ�
 各claimを supported / partial / unsupported / contradicted / unverifiable に分類し、日本語で短い具体的な根拠を記す。claimsを1件も省略・追加しない。
 understandingの作品事実は提供された公式資料の確認済みfactsだけで裏付ける。モデル自身の作品知識や、入力にユーザーの見方が書いてあるというだけでは公式事実の裏付けにならない。公式資料が薄い細部はunverifiable。資料の見出し、URL、登場人物一覧だけで性格・場面を検証済みにしない。ユーザー解釈として帰属が明瞭なら入力で支持できる。間違いを確定できないunverifiableは誤り数へ含めない。
 preferenceはユーザー入力が主な根拠。出典の性格情報をユーザーの好みへ自動転換しない。好みのラベル・極性・反応経路の組合せ全体を評価する。本文に同じ単語があるだけでsupportedにしない。特に本人が恋愛したいという願望と二人の関係への解釈、昔の視聴記憶と現在の自己投影、共感と心配、憧れと応援、非賛同と嫌悪の違いを見る。適切に留保された推論はpartialでもよいが、明示されていない反応経路をexplicitとする断定はunsupported。
-gold.expectedの各idについて matched / partial / missed / not_evaluable。好み出力全体の意味を見る。引用根拠やsummaryにも保持されていればmatchedを認め、根拠の引用だけで反応経路を間違えた場合はpartial。情報不足で保留することを誤りとしない。キャラクター理解の中にあるだけでは好み抽出のmatchedにしない。
+gold.expectedの各idについて matched / partial / missed / not_evaluable。構造化されたpreference_assertionまたはvalue_stanceの意味だけで判定する。preference_summaryへの再掲だけではmatchedまたはpartialにせず、構造化候補がなければmissedとする。根拠の引用だけで反応経路を間違えた場合はpartial。情報不足で保留することを誤りとしない。キャラクター理解の中にあるだけでは好み抽出のmatchedにしない。
 gradeごとに根拠となる入力断片またはsourceIdを挙げる。作品の細部が未確認というだけで重大エラーにしない。issuesは入力との矛盾、明瞭な過剰推測、要素の脱落、出典と解釈の混同など、根拠のある問題だけ。severityはhigh（中核嗜好の逆転・恋愛願望や公式設定の誤断定）、medium（重要要素の欠落・反応経路の不一致）、low（表現の狭さ・軽微な曖昧さ）。同じ原因による問題をまとめる。
 judgmentNotesには保留対応、否定と条件、範囲の保持の評価を記す。採点不能を成功と見なさない。`;
 
