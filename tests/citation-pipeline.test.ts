@@ -232,7 +232,10 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     const { snapshot, detail, requests } = await setup(domain, fixture);
     const bad = snapshot.assertions.find((item) => item.raw_label === "無効な人物属性");
     expect(bad).toBeUndefined();
-    expect(snapshot.assertions.find((item) => item.raw_label === "混在する人物属性")).toBeUndefined();
+    expect(snapshot.assertions.find((item) => item.raw_label === "混在する人物属性")).toMatchObject({
+      confidence: 0.6,
+      evidence: [expect.objectContaining({ quote: "照合可能な人物像", verificationStatus: "verified_quote" })],
+    });
     expect(reviewDetailSchema.parse(detail).understanding?.citationIssues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -252,7 +255,11 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     const { env, owner, snapshot } = await setup(domain);
     await confirmUnderstanding(env, owner, domain, snapshot.id);
     const confirmed = await loadConfirmedUnderstanding(env, owner, snapshot.id);
-    expect(confirmed.rows.map((item) => item.raw_label)).toEqual(["有効な人物属性", "独立したモデル知識"]);
+    expect(confirmed.rows.map((item) => item.raw_label)).toEqual([
+      "有効な人物属性",
+      "混在する人物属性",
+      "独立したモデル知識",
+    ]);
     const correction = await setup(domain);
     await mutateUnderstandingReview(
       correction.env,
@@ -302,12 +309,12 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     const rows = await projection
       .selectPreferenceAssertions(db.DB, [owner, owner])
       .all<{ raw_label: string; evidence_count: number; evidence_quality: number }>();
-    expect(rows.results?.map((row) => row.raw_label)).toEqual(["有効な好み"]);
+    expect(rows.results?.map((row) => row.raw_label).sort()).toEqual(["有効な好み", "混在する好み"].sort());
     expect(rows.results?.every((row) => row.evidence_count === 1 && row.evidence_quality === 1)).toBe(true);
     const stances = await projection.selectValueStanceAssertions(db.DB, [owner, owner]).all<{ target_ref: string }>();
     expect(stances.results?.map((row) => row.target_ref)).toEqual(["有効な価値態度"]);
     const retained = await loadRetainedPreferences(env, owner, analysis.id);
-    expect(retained.preferences).toHaveLength(1);
+    expect(retained.preferences).toHaveLength(2);
     expect(retained.stances).toHaveLength(1);
   });
 

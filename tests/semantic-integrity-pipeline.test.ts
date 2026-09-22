@@ -150,7 +150,7 @@ describe("scripted proposition audits through persistence and aggregation", () =
     });
     const quality = t.analysis.qualityContext as { semanticAudit: { assertions: Array<{ scope: unknown }> } };
     expect(quality.semanticAudit.assertions[0].scope).toMatchObject({
-      actor: row.actor,
+      actor: row.actor ?? "固定応答テスト",
       target: row.target,
       possessor: row.possessor,
       negatedProposition: row.negative,
@@ -210,6 +210,23 @@ describe("scripted proposition audits through persistence and aggregation", () =
     const profile = await rebuild(t, "standard");
     expect(profile?.dimensions).toHaveLength(1);
     expect(profile?.dimensions[0].condition.conditions).toEqual(["冷淡な人物に限る"]);
+  });
+  it("does not label wording alone as voice or performance liking", async () => {
+    const item: Fixture = {
+      caseId: "A14-channel-guard",
+      preference: { likedReasons: "ぶっきらぼうな言い方が好き。", responseChannels: [] },
+      expectedAssertions: [
+        {
+          rawLabel: "ぶっきらぼうな言い方",
+          quote: "ぶっきらぼうな言い方が好き。",
+          responseChannel: "voice_performance_liking",
+          conditions: [],
+        },
+      ],
+    };
+    const t = await setup("standard", item);
+    expect(t.analysis.assertions).toHaveLength(1);
+    expect(t.analysis.assertions[0].response_channel).toBeNull();
   });
   it("excludes a mismatched candidate while retaining explicit input and questions", async () => {
     const item = fixture(scopes[0]);

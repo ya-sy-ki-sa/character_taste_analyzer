@@ -196,7 +196,7 @@ describe("character understanding completeness", () => {
     expect(result.attempts).toHaveLength(2);
   });
 
-  it("repairs unexplained partial gaps and keeps original-character research disabled", async () => {
+  it("does not retry unexplained gaps once two concrete aspects remain", async () => {
     const partial = known();
     partial.uncertainties = [];
     const original = entryDraftSchema.parse({
@@ -207,8 +207,8 @@ describe("character understanding completeness", () => {
     });
     const { run, requests } = setup([partial, known()], original);
     await run();
-    expect(requests).toHaveLength(2);
-    expect(requests[1].enableWebSearch).toBe(false);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].enableWebSearch).toBe(false);
   });
 
   it("preserves completed call records when an audit provider fails", async () => {
@@ -379,13 +379,13 @@ describe("sparse character understanding", () => {
     },
   );
 
-  it("still stops on unexplained gaps after completion", async () => {
+  it("does not use the completion call for non-blocking unexplained gaps", async () => {
     const partial = known();
     partial.uncertainties = [];
     const { run, requests } = setup([partial, partial, partial]);
     const result = await run();
     expect(result.value.sourceAssessment.informationQuality.status).toBe("not_flagged");
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(1);
   });
 
   it("keeps completed records when the additional audit fails", async () => {

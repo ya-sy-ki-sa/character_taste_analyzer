@@ -2,7 +2,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "vite";
 import { cases, personas, rubric, sources } from "../evaluation/live-personas/dataset.mjs";
 import { selectDataset } from "../evaluation/live-personas/selection.mjs";
-import { digest, liveRunRoot, preserveJson, readJson } from "../evaluation/live-personas/storage.mjs";
+import {
+  digest,
+  liveRunRoot,
+  preserveJson,
+  readJson,
+  selectSafeRuntimeSettings,
+} from "../evaluation/live-personas/storage.mjs";
 
 process.umask(0o077);
 const root = liveRunRoot();
@@ -52,24 +58,7 @@ try {
     });
   const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8")).vars;
   process.loadEnvFile(".dev.vars");
-  const safeKeys = [
-    "ENVIRONMENT",
-    "LLM_PROVIDER",
-    "LLM_MODEL",
-    "LLM_TIER_ROUTES_JSON",
-    "LLM_FALLBACK_PROVIDER",
-    "LLM_FALLBACK_MODEL",
-    "EMBEDDING_PROVIDER",
-    "EMBEDDING_MODEL",
-    "MODERATION_PROVIDER",
-    "MODERATION_MODEL",
-    "OPENAI_FLEX_ENABLED",
-    "APP_ORIGIN",
-  ];
-  preserveJson(
-    `${root}/runtime-settings.json`,
-    Object.fromEntries(safeKeys.map((k) => [k, process.env[k] ?? config[k] ?? null])),
-  );
+  preserveJson(`${root}/runtime-settings.json`, selectSafeRuntimeSettings(process.env, config));
   mkdirSync(root, { recursive: true });
   const lines = [
     "# 事前調査・固定入力",

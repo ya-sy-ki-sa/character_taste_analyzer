@@ -121,9 +121,12 @@ function answerChoice(answer: JudgmentAnswer | undefined, fallback: string): str
   return isCertainChoice(answer) ? answer.choice : fallback;
 }
 
-function scopeQuestionIds(prefix: string, proposition: { negated?: string | null; hasConditions?: boolean }): string[] {
+function scopeQuestionIds(
+  prefix: string,
+  proposition: { subjectResolved?: boolean; negated?: string | null; hasConditions?: boolean },
+): string[] {
   return [
-    `${prefix}_scope_subject`,
+    ...(!proposition.subjectResolved ? [`${prefix}_scope_subject`] : []),
     ...(proposition.negated ? [`${prefix}_scope_negation`] : []),
     ...(proposition.hasConditions ? [`${prefix}_scope_conditions`] : []),
   ];
@@ -269,6 +272,7 @@ function semanticFields(
     possessor?: string | null;
     negated?: string | null;
     hasConditions?: boolean;
+    subjectResolved?: boolean;
   },
   issues: string[],
   blockingIssues: string[],
@@ -276,9 +280,9 @@ function semanticFields(
   const protectedByReview = assertion.explicitness === "user_confirmed";
   const scopeAnswers = scopeQuestionIds(prefix, proposition).map((id) => answers[id]);
   const certainScopeMismatch = scopeAnswers.some((answer) => isCertainChoice(answer) && answer.choice === "mismatch");
-  const allScopeCertainAndConsistent =
-    scopeAnswers.length > 0 &&
-    scopeAnswers.every((answer) => isCertainChoice(answer) && answer.choice === "consistent");
+  const allScopeCertainAndConsistent = scopeAnswers.every(
+    (answer) => isCertainChoice(answer) && answer.choice === "consistent",
+  );
   const scope = protectedByReview
     ? "consistent"
     : certainScopeMismatch
@@ -294,7 +298,9 @@ function semanticFields(
 
   let hasUncertainEvidence = false;
   let hasRejectedEvidence = false;
+  let hasCertainSupportedEvidence = false;
   let hasDegradedEvidence = false;
+  const rejectedEvidenceIssues: string[] = [];
   const evidence = assertion.evidence.map((reference, index) => {
     const answer = answers[`${prefix}_evidence_${index}`];
     const modelKnowledge = reference.sourceRef === "model_knowledge";
@@ -305,10 +311,11 @@ function semanticFields(
     if (!protectedByReview && (!isCertainChoice(answer) || certainRejected)) {
       const issue = `${prefix}: 根拠${index + 1}が候補を十分に支持しません。`;
       issues.push(issue);
-      if (certainRejected) blockingIssues.push(issue);
+      if (certainRejected) rejectedEvidenceIssues.push(issue);
     }
     hasUncertainEvidence ||= !isCertainChoice(answer);
     hasRejectedEvidence ||= certainRejected;
+    hasCertainSupportedEvidence ||= isCertainChoice(answer) && verdict === "supported";
     hasDegradedEvidence ||= !certainRejected && verdict !== "supported";
     return {
       ...reference,
@@ -338,7 +345,9 @@ function semanticFields(
     };
   }
   const acceptedEvidence = evidence.filter((item) => ["supported", "partial"].includes(item.supportAssessment.verdict));
-  const rejected = !protectedByReview && (certainScopeMismatch || hasRejectedEvidence || setRejected);
+  const rejectedEvidence = hasRejectedEvidence && !hasCertainSupportedEvidence;
+  if (rejectedEvidence) blockingIssues.push(...rejectedEvidenceIssues);
+  const rejected = !protectedByReview && (certainScopeMismatch || rejectedEvidence || setRejected);
   const degraded =
     !protectedByReview &&
     !rejected &&
@@ -369,8 +378,9 @@ async function judgeAssertion(
     prefix: string;
     assertion: { evidence: EvidenceReference[]; explicitness: string; confidence: number };
     proposition: unknown;
-    scopeProposition?: { negated?: string | null; hasConditions?: boolean };
+    scopeProposition?: { subjectResolved?: boolean; negated?: string | null; hasConditions?: boolean };
     sourceContext: unknown;
+    applicationContext?: unknown;
     attributes?: AttributeRow[];
     includePreferenceQuestions?: {
       classification: "preference" | "value_attitude";
@@ -384,6 +394,7 @@ async function judgeAssertion(
   const scopeProposition = (input.scopeProposition ?? input.proposition) as {
     negated?: string | null;
     hasConditions?: boolean;
+    subjectResolved?: boolean;
     context?: { conditions?: unknown[]; exceptions?: unknown[]; narrativePhases?: unknown[] };
   };
   const hasConditions = Boolean(
@@ -392,10 +403,17 @@ async function judgeAssertion(
       scopeProposition.context?.exceptions?.length ||
       scopeProposition.context?.narrativePhases?.length,
   );
-  const scopeIds = scopeQuestionIds(prefix, { negated: scopeProposition.negated, hasConditions });
-  const questions: Record<string, JudgmentQuestion> = {
-    [scopeIds[0]]: choiceQuestion(ANALYSIS_JUDGMENT_PROMPTS.scopeSubject, ANALYSIS_SCOPE_CRITERIA),
-  };
+  const scopeIds = scopeQuestionIds(prefix, {
+    subjectResolved: scopeProposition.subjectResolved,
+    negated: scopeProposition.negated,
+    hasConditions,
+  });
+  const questions: Record<string, JudgmentQuestion> = {};
+  if (!scopeProposition.subjectResolved)
+    questions[`${prefix}_scope_subject`] = choiceQuestion(
+      ANALYSIS_JUDGMENT_PROMPTS.scopeSubject,
+      ANALYSIS_SCOPE_CRITERIA,
+    );
   if (scopeProposition.negated)
     questions[`${prefix}_scope_negation`] = choiceQuestion(
       ANALYSIS_JUDGMENT_PROMPTS.scopeNegation,
@@ -503,6 +521,7 @@ async function judgeAssertion(
   return provider.evaluate({
     state: {
       candidate: input.proposition,
+      applicationContext: input.applicationContext,
       sourceContext: input.sourceContext,
       attributeCandidates: input.attributes?.map((item) => ({
         stableKey: item.stable_key,
@@ -800,11 +819,16 @@ export async function judgeUnderstandingCandidate(
   };
 }
 
-function preferenceProposition(item: {
-  rawLabel: string;
-  polarity: string;
-  context: { subjects: string[]; exceptions: string[] } & Record<string, unknown>;
-}) {
+const genericPreferenceSubject = /^(?:相手|人|人物|仲間|友人|家族|誰か|他者|敵|味方)$/u;
+
+function preferenceProposition(
+  item: {
+    rawLabel: string;
+    polarity: string;
+    context: { subjects: string[]; exceptions: string[] } & Record<string, unknown>;
+  },
+  characterName: string,
+) {
   const subjects = item.context.subjects;
   const ownershipContext = `${JSON.stringify(item.context.relationships ?? [])} ${JSON.stringify(
     item.context.conditions ?? [],
@@ -815,10 +839,14 @@ function preferenceProposition(item: {
       ownershipContext.includes(`${subject}に属`) ||
       ownershipContext.includes(`${subject}が持`),
   );
+  const first = subjects[0]?.trim();
+  const defaultsToRegisteredCharacter = !first || genericPreferenceSubject.test(first);
+  const actor = defaultsToRegisteredCharacter ? characterName : first;
+  const target = defaultsToRegisteredCharacter ? (first ?? null) : (subjects[1] ?? null);
   return {
     evaluated: `${item.rawLabel} / ${item.polarity} / ${JSON.stringify(item.context)}`,
-    actor: subjects[0] ?? null,
-    target: subjects[1] ?? null,
+    actor,
+    target,
     possessor: possessor ?? null,
     negated: item.context.exceptions.length ? item.context.exceptions.join("、") : null,
     hasConditions: Boolean(
@@ -826,7 +854,32 @@ function preferenceProposition(item: {
         (item.context.narrativePhases as unknown[] | undefined)?.length ||
         item.context.exceptions.length,
     ),
+    subjectResolved: actor === characterName,
   };
+}
+
+function guardResponseChannel(
+  channel: string | null,
+  original: AnyPreferenceCandidate["preferenceAssertions"][number],
+) {
+  if (!channel) return null;
+  if (
+    original.evidence.some(
+      (item) => item.inputPointer === "/preference/responseChannels" && item.quote?.includes(channel),
+    )
+  )
+    return channel;
+  const text = [original.rawLabel, ...original.evidence.map((item) => item.quote ?? "")].join(" ");
+  if (channel === "voice_performance_liking" && !/(?:声|声優|音声|ボイス|発声|声の演技)/u.test(text)) return null;
+  if (channel === "fandom_support" && !/(?:投票|購入|布教|紹介|グッズ|課金|ファン活動|推し活|応援行動)/u.test(text))
+    return null;
+  if (
+    ["romantic_attraction", "dark_romantic_attraction"].includes(channel) &&
+    (!/(?:恋愛|恋人|付き合|結婚|キス|デート|ロマンチック)/u.test(text) ||
+      /(?:恋愛感情|恋愛的).{0,8}(?:ない|ではない|わけではない)/u.test(text))
+  )
+    return null;
+  return channel;
 }
 
 async function preferenceCoverageIssues(
@@ -910,7 +963,13 @@ export async function judgePreferenceCandidate(
         prefix,
         assertion: original,
         proposition: original,
-        scopeProposition: preferenceProposition(original),
+        scopeProposition: preferenceProposition(original, input.payload.characterName),
+        applicationContext: {
+          registeredCharacter: input.payload.characterName,
+          preferenceContext: input.payload.preferenceContext ?? null,
+          omittedSubjectDefaultsToRegisteredCharacter: true,
+          genericTargetsRemainGeneric: true,
+        },
         sourceContext: {
           evidence: original.evidence,
           sources: original.evidence.flatMap((reference) => relevantSourceText(reference, sources)),
@@ -972,9 +1031,10 @@ export async function judgePreferenceCandidate(
       const allowedChannels = new Set<string>(
         (input.domain === "dark" ? darkResponseChannelCatalog : responseChannelCatalog).map((item) => item.value),
       );
-      const responseChannel = allowedChannels.has(channelChoice)
-        ? (channelChoice as typeof original.responseChannel)
-        : null;
+      const responseChannel = guardResponseChannel(
+        allowedChannels.has(channelChoice) ? channelChoice : null,
+        original,
+      ) as typeof original.responseChannel;
       const strengthAnswer = result.answers[`${prefix}_strength`];
       const strength = isCertainScore(strengthAnswer)
         ? STRENGTH_ANCHORS[Math.max(0, Math.min(3, Math.round(strengthAnswer.score)))]
@@ -1006,7 +1066,13 @@ export async function judgePreferenceCandidate(
             prefix: `${prefix}_projected`,
             assertion: item,
             proposition: item,
-            scopeProposition: preferenceProposition(item),
+            scopeProposition: preferenceProposition(item, input.payload.characterName),
+            applicationContext: {
+              registeredCharacter: input.payload.characterName,
+              preferenceContext: input.payload.preferenceContext ?? null,
+              omittedSubjectDefaultsToRegisteredCharacter: true,
+              genericTargetsRemainGeneric: true,
+            },
             sourceContext: {
               evidence: item.evidence,
               sources: item.evidence.flatMap((reference) => relevantSourceText(reference, sources)),
@@ -1018,7 +1084,7 @@ export async function judgePreferenceCandidate(
         item,
         validation.answers,
         validationPrefix,
-        preferenceProposition(item),
+        preferenceProposition(item, input.payload.characterName),
         issues,
         blockingIssues,
       );

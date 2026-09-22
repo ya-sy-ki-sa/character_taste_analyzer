@@ -51,6 +51,17 @@ export async function verifySemanticAssertion(
   });
   const evidenceSet = assertion.evidenceSetAssessment;
   const setIndexes = evidenceSet?.evidenceIndexes ?? [];
+  const uniqueSetIndexes = [...new Set(setIndexes)].filter(
+    (index) => Number.isInteger(index) && index >= 0 && index < verified.evidence.length,
+  );
+  const invalidSetIndex = Boolean(
+    evidenceSet?.verdict === "supported" &&
+      (setIndexes.length === 0 ||
+        setIndexes.length > 3 ||
+        uniqueSetIndexes.length !== setIndexes.length ||
+        uniqueSetIndexes.length !==
+          setIndexes.filter((index) => index >= 0 && index < verified.evidence.length).length),
+  );
   const validSet =
     evidenceSet?.verdict === "supported" &&
     setIndexes.length > 0 &&
@@ -66,14 +77,12 @@ export async function verifySemanticAssertion(
         (character || proof.evidenceOrigin === "user_input")
       );
     });
-  const rejectedEvidenceSet = Boolean(evidenceSet?.verdict === "supported" && !validSet);
-  // A failed whole-claim assessment cannot fall back to a single quote or model knowledge.
+  // Jev may return duplicated or out-of-range set indexes. Treat that as an
+  // auditable structural defect and salvage independently verified evidence.
   const supportedIndexes = evidenceSet
     ? validSet
       ? setIndexes
-      : assertion.judgmentDisposition
-        ? individuallySupportedIndexes
-        : []
+      : individuallySupportedIndexes
     : individuallySupportedIndexes;
   // Only a deliberately separate model-knowledge reference can survive as model knowledge.
   const modelIndexes =
@@ -109,18 +118,25 @@ export async function verifySemanticAssertion(
     assertion.judgmentDisposition === "degraded" &&
     assertion.explicitness === "user_explicit" &&
     directUserIndexes.length > 0;
+  const degradedCharacterFallback =
+    character &&
+    assertion.judgmentDisposition === "degraded" &&
+    assertion.scopeAssessment.verdict !== "mismatch" &&
+    supportedIndexes.length > 0;
+  const verifiedSubsetFallback = Boolean(evidenceSet && !validSet && supportedIndexes.length > 0);
   const rejectedByJudgment = assertion.judgmentDisposition === "rejected";
-  const rejectedByPolicy = rejectedByJudgment || rejectedEvidenceSet;
   const keep = Boolean(
-    !rejectedByPolicy &&
-      ((scopeConsistent && (supportedIndexes.length || modelIndexes.length)) || explicitPreferenceFallback),
+    !rejectedByJudgment &&
+      ((scopeConsistent && (supportedIndexes.length || modelIndexes.length)) ||
+        explicitPreferenceFallback ||
+        degradedCharacterFallback),
   );
   const acceptedSupportedIndexes = explicitPreferenceFallback
     ? [...new Set([...supportedIndexes, ...directUserIndexes])]
     : supportedIndexes;
   let explicitness = assertion.explicitness;
   let confidence = keep
-    ? explicitPreferenceFallback
+    ? explicitPreferenceFallback || degradedCharacterFallback || verifiedSubsetFallback
       ? Math.min(assertion.confidence, DEGRADED_EXPLICIT_CONFIDENCE_CAP)
       : assertion.confidence
     : 0;
@@ -158,23 +174,23 @@ export async function verifySemanticAssertion(
   const reasonCode = keep
     ? explicitPreferenceFallback
       ? "accepted_explicit_fallback"
-      : "accepted"
-    : rejectedEvidenceSet
-      ? "evidence_set_rejected"
-      : rejectedByJudgment
-        ? "judgment_rejected"
-        : assertion.scopeAssessment.verdict !== "consistent"
-          ? "scope_unresolved"
-          : !scopeConsistent
-            ? "anchor_unavailable"
-            : verified.evidence.some((proof) => proof.verificationStatus === "invalid")
-              ? "evidence_unavailable"
-              : "support_insufficient";
+      : degradedCharacterFallback || verifiedSubsetFallback
+        ? "accepted_verified_subset"
+        : "accepted"
+    : rejectedByJudgment
+      ? "judgment_rejected"
+      : assertion.scopeAssessment.verdict !== "consistent"
+        ? "scope_unresolved"
+        : !scopeConsistent
+          ? "anchor_unavailable"
+          : verified.evidence.some((proof) => proof.verificationStatus === "invalid")
+            ? "evidence_unavailable"
+            : "support_insufficient";
   const reason =
     reasonCode === "accepted_explicit_fallback"
       ? "Jevの判定が低確信だったため、照合済みのユーザー明示引用を低confidenceで保持しました。"
-      : reasonCode === "evidence_set_rejected"
-        ? "複数根拠の集合に無効または範囲外の参照が含まれるため除外しました。"
+      : reasonCode === "accepted_verified_subset"
+        ? "Jevの判定が低確信、または根拠集合に不備があったため、個別に照合できた根拠だけを低confidenceで保持しました。"
         : reasonCode === "judgment_rejected"
           ? "Jevが高確信で候補の矛盾または非支持を判定しました。"
           : reasonCode === "anchor_unavailable"
@@ -193,7 +209,8 @@ export async function verifySemanticAssertion(
     explicitness,
     confidence,
     evidence: verified.evidence.flatMap((proof, index) => {
-      if (!accepted.has(index) && proof.verificationStatus !== "invalid") return [];
+      if (keep && !accepted.has(index)) return [];
+      if (!keep && proof.verificationStatus !== "invalid") return [];
       return [{ ...proof, inferenceType: modelIndexes.includes(index) ? ("inferred" as const) : proof.inferenceType }];
     }),
     audit: {
@@ -210,6 +227,10 @@ export async function verifySemanticAssertion(
       keep,
       reason,
       reasonCode,
+      diagnosticCodes: [
+        ...(invalidSetIndex ? ["invalid_set_index"] : []),
+        ...(rejectedByJudgment ? ["high_conflict"] : []),
+      ],
       before: { confidence: assertion.confidence, explicitness: assertion.explicitness },
       after: {
         confidence,

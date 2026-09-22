@@ -2,7 +2,17 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { correct } from "./corrections.mjs";
 import { validateSelection } from "./selection.mjs";
-import { digest, liveRunRoot, preserveJson, readJson, sameInput, saveJson, selectResumeEntry } from "./storage.mjs";
+import {
+  digest,
+  liveRunRoot,
+  preserveJson,
+  readJson,
+  readSanitizedJudgmentLog,
+  sameInput,
+  saveCaseJudgmentAudits,
+  saveJson,
+  selectResumeEntry,
+} from "./storage.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -341,7 +351,16 @@ export async function run(browser, validateInput) {
     }
     const download = await page.request.get(`${base}/api/v1/account/exports/${id}/download`);
     if (!download.ok()) throw new Error("EXPORT_DOWNLOAD_FAILED");
-    preserveJson(`${root}/exports/${p.id}-${label}.json`, await download.json());
+    const exportPath = `${root}/exports/${p.id}-${label}.json`;
+    preserveJson(exportPath, await download.json());
+    if (label === "baseline")
+      saveCaseJudgmentAudits(
+        root,
+        readJson(exportPath),
+        state.cases,
+        readSanitizedJudgmentLog(),
+        `exports/${p.id}-${label}.json`,
+      );
     event("export_saved", { personaId: p.id, label });
   }
   for (const p of dataset.personas.filter((p) => dataset.cases.some((c) => c.personaId === p.id))) {

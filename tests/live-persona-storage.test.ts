@@ -5,7 +5,17 @@ import { describe, expect, it } from "vitest";
 // @ts-expect-error JS evaluation module
 import { validateGrade } from "../evaluation/live-personas/grading.mjs";
 // @ts-expect-error JS tool module
-import { preserveJson, readJson, sameInput, selectResumeEntry } from "../evaluation/live-personas/storage.mjs";
+import * as liveStorage from "../evaluation/live-personas/storage.mjs";
+
+const {
+  buildCaseJudgmentAudits,
+  preserveJson,
+  readJson,
+  sameInput,
+  sanitizeJudgmentLog,
+  selectResumeEntry,
+  selectSafeRuntimeSettings,
+} = liveStorage;
 
 describe("persistent live evaluation evidence", () => {
   it("preserves the first observation when a resumed run sees another result", () => {
@@ -42,5 +52,89 @@ describe("persistent live evaluation evidence", () => {
     expect(() => validateGrade({ ...grade, expected: [{ id: "E1", claimIds: ["Q9"] }] }, c, claims)).toThrow(
       "UNKNOWN_CLAIM",
     );
+  });
+  it("records Jev settings without copying credentials", () => {
+    expect(
+      selectSafeRuntimeSettings({
+        JEV_PROVIDER: "typesafe",
+        JEV_MODEL: "typesafe/jev",
+        AI_GATEWAY_TOKEN: "secret",
+      }),
+    ).toMatchObject({ JEV_PROVIDER: "typesafe", JEV_MODEL: "typesafe/jev" });
+    expect(selectSafeRuntimeSettings({ JEV_PROVIDER: "typesafe", AI_GATEWAY_TOKEN: "secret" })).not.toHaveProperty(
+      "AI_GATEWAY_TOKEN",
+    );
+  });
+  it("sanitizes live Jev decisions and excludes request state", () => {
+    const events = sanitizeJudgmentLog(
+      `${JSON.stringify({
+        event: "judgment_completed",
+        correlationId: "revision-1",
+        stage: "preference:assertion",
+        provider: "typesafe",
+        model: "jev-1.12",
+        questionHash: "hash",
+        questionCount: 1,
+        state: { secret: "must-not-survive" },
+        decisions: [
+          {
+            id: "preference_0_classification",
+            type: "choice",
+            selected: "preference",
+            confidence: 0.91,
+            probabilities: { preference: 0.94, no_match: 0.06 },
+          },
+        ],
+      })}\n`,
+    );
+    expect(events).toEqual([
+      expect.objectContaining({
+        correlationId: "revision-1",
+        provider: "typesafe",
+        answers: [expect.objectContaining({ selected: "preference", confidence: 0.91 })],
+      }),
+    ]);
+    expect(JSON.stringify(events)).not.toContain("must-not-survive");
+  });
+  it("aggregates final accepted, degraded and rejected semantic outcomes per case", () => {
+    const audit = (targetId: string, keep: boolean, reasonCode: string, diagnosticCodes: string[] = []) => ({
+      policyVersion: "analysis-judgment/2.1",
+      targetId,
+      keep,
+      reasonCode,
+      diagnosticCodes,
+      after: { confidence: keep ? 0.6 : 0 },
+    });
+    const exported = {
+      entries: { revisions: [{ id: "revision-1", entry_id: "entry-1", revision_number: 1 }] },
+      preferenceAnalysis: {
+        runs: [
+          {
+            id: "preference-run",
+            entry_revision_id: "revision-1",
+            quality_context_json: JSON.stringify({
+              semanticAudit: {
+                policyVersion: "analysis-judgment/2.1",
+                assertions: [
+                  audit("accepted", true, "accepted"),
+                  audit("degraded", true, "accepted_verified_subset", ["invalid_set_index"]),
+                  audit("rejected", false, "judgment_rejected", ["high_conflict"]),
+                ],
+              },
+            }),
+          },
+        ],
+      },
+    };
+    const result = buildCaseJudgmentAudits(exported, { A01: { entryId: "entry-1" } }, [
+      { correlationId: "revision-1", answers: [] },
+    ]);
+    expect(result.A01.outcomes.map((item: { disposition: string }) => item.disposition)).toEqual([
+      "accepted",
+      "degraded",
+      "rejected",
+    ]);
+    expect(result.A01.outcomes[1].diagnosticCodes).toContain("invalid_set_index");
+    expect(result.A01.outcomes[2].diagnosticCodes).toContain("high_conflict");
   });
 });

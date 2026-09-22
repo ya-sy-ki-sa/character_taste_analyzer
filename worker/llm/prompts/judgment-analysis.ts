@@ -1,6 +1,6 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 
-export const ANALYSIS_JUDGMENT_POLICY_VERSION = "analysis-judgment/2.0";
+export const ANALYSIS_JUDGMENT_POLICY_VERSION = "analysis-judgment/2.1";
 
 export const ANALYSIS_SUPPORT_CRITERIA = {
   supported: "原文が、対象・条件・否定を含む候補全体を支持する。",
@@ -27,7 +27,7 @@ export const ANALYSIS_INPUT_CLASSIFICATION_CRITERIA = {
 export const ANALYSIS_JUDGMENT_PROMPTS = {
   scope: "`candidate`が表す命題を`sourceContext`と照合し、指定された論点だけを判定する。",
   scopeSubject:
-    "`candidate`と`sourceContext`を照合し、命題の主体、対象、所有者が一致するか判定する。否定、時期、条件、例外はこの質問では判定しない。",
+    "`candidate`、`applicationContext`、`sourceContext`を照合し、命題の主体、対象、所有者が一致するか判定する。登録キャラクター名が省略された記述はapplicationContextの既定主体を使い、相手・人・仲間などの一般対象へ固有名を補わない。否定、時期、条件、例外はこの質問では判定しない。",
   scopeNegation:
     "`candidate`と`sourceContext`を照合し、否定表現の作用域と極性が一致するか判定する。主体や条件の詳しさはこの質問では判定しない。",
   scopeConditions:

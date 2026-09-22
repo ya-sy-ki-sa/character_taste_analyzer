@@ -104,8 +104,8 @@ describe("semantic and physical evidence normalization", () => {
     expect(result.audit.evidence.every((ref) => ref.accepted)).toBe(true);
     expect(result.audit.evidenceSetAssessment).toEqual(item.evidenceSetAssessment);
   });
-  it.each(["duplicate", "out-of-range", "empty", "invalid-quote", "contradicted", "non-user", "incomplete"] as const)(
-    "rejects a defective evidence set: %s",
+  it.each(["duplicate", "out-of-range", "empty", "invalid-quote", "incomplete"] as const)(
+    "salvages verified evidence from a defective evidence set: %s",
     async (fault) => {
       const item = assertion([
         { ...input, quote: "銀髪が好き。" },
@@ -119,17 +119,41 @@ describe("semantic and physical evidence normalization", () => {
           fault === "duplicate" ? [0, 0] : fault === "out-of-range" ? [0, 2] : fault === "empty" ? [] : [0, 1],
       };
       if (fault === "invalid-quote") item.evidence[1].quote = "原文にない条件";
-      if (fault === "contradicted") item.evidence[1].supportAssessment.verdict = "contradicted";
       const provenance: ProvenanceSource[] = [
         {
           ...sources[0],
           text: "銀髪が好き。冷淡な人物に限る。",
-          origin: fault === "non-user" ? "source" : "user_input",
+          origin: "user_input",
         },
       ];
-      expect(await verify(item, false, provenance)).toMatchObject({ keep: false, confidence: 0 });
+      const result = await verify(item, false, provenance);
+      expect(result).toMatchObject({ keep: true, confidence: 0.6, audit: { reasonCode: "accepted_verified_subset" } });
+      if (["duplicate", "out-of-range", "empty"].includes(fault))
+        expect(result.audit.diagnosticCodes).toContain("invalid_set_index");
     },
   );
+  it("rejects a high-confidence conflict even when one quote is physically present", async () => {
+    const item = assertion([
+      { ...input, quote: "銀髪が好き。" },
+      { ...input, quote: "銀髪は好きではない。" },
+    ]);
+    item.evidence[1].supportAssessment.verdict = "contradicted";
+    item.evidenceSetAssessment = { verdict: "contradicted", reason: "根拠同士が真に矛盾", evidenceIndexes: [] };
+    item.judgmentDisposition = "rejected";
+    const result = await verify(item, false, [{ ...sources[0], text: "銀髪が好き。銀髪は好きではない。" }]);
+    expect(result).toMatchObject({ keep: false, confidence: 0, audit: { reasonCode: "judgment_rejected" } });
+    expect(result.audit.diagnosticCodes).toContain("high_conflict");
+  });
+  it("does not infer a preference from non-user evidence", async () => {
+    const item = assertion([
+      { ...input, quote: "銀髪が好き。" },
+      { ...input, quote: "冷淡な人物に限る。" },
+    ]);
+    item.evidence[1].supportAssessment.verdict = "partial";
+    item.evidenceSetAssessment = { verdict: "supported", reason: "集合の判定", evidenceIndexes: [0, 1] };
+    const provenance = [{ ...sources[0], text: "銀髪が好き。冷淡な人物に限る。", origin: "source" as const }];
+    expect(await verify(item, false, provenance)).toMatchObject({ keep: false, confidence: 0 });
+  });
   it.each(["mismatch", "uncertain"] as const)("holds an unresolved scope: %s", async (verdict) => {
     const item = assertion();
     item.scopeAssessment.verdict = verdict;
@@ -154,7 +178,7 @@ describe("semantic and physical evidence normalization", () => {
     item.scopeAssessment.anchors = [];
     const result = await verify(item, true);
     expect(result).toMatchObject({ keep: true, confidence: 0.45, explicitness: "model_knowledge" });
-    expect(result.evidence.map((ref) => ref.verificationStatus)).toEqual(["invalid", "model_knowledge"]);
+    expect(result.evidence.map((ref) => ref.verificationStatus)).toEqual(["model_knowledge"]);
   });
   it("retains explicit model-knowledge paraphrases observed in the live pilot, without upgrading certainty", async () => {
     const item = assertion([{ ...model, inferenceType: "paraphrase" }]);
@@ -170,10 +194,14 @@ describe("semantic and physical evidence normalization", () => {
     expect(result.audit.evidence[0].reference.inferenceType).toBe("paraphrase");
     expect(result.audit.after.normalizedModelEvidenceIndexes).toEqual([0]);
   });
-  it("does not bypass an unsupported evidence set using model knowledge", async () => {
+  it("retains independently verified source evidence when a set is only partial", async () => {
     const item = assertion([input, model]);
     item.evidenceSetAssessment = { verdict: "partial", reason: "主張全体には不足", evidenceIndexes: [0] };
-    expect(await verify(item, true)).toMatchObject({ keep: false, confidence: 0 });
+    expect(await verify(item, true)).toMatchObject({
+      keep: true,
+      confidence: 0.6,
+      audit: { reasonCode: "accepted_verified_subset" },
+    });
   });
   it("does not relabel an unavailable source as model knowledge", async () => {
     const item = assertion([{ ...invalid, sourceRef: "missing-source", inferenceType: "inferred" }]);
@@ -221,6 +249,7 @@ describe("references after evidence normalization", () => {
     expect(normalized.assertions).toHaveLength(1);
     expect(normalized.summary.narrativeRole).toEqual(["保持される具体的な人物描写"]);
     expect(normalized.informationQuality.aspects.narrativeRole.assertionIndexes).toEqual([0]);
+    expect(normalized.informationQuality.aspects.narrativeRole.kind).toBe("concrete");
     expect(audit.assertions).toHaveLength(2);
   });
   it("explains missing content and does not invent references after all assertions are excluded", async () => {

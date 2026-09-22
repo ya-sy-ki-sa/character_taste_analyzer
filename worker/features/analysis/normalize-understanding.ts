@@ -31,7 +31,9 @@ export function normalizeUnderstanding(
       ...new Set(retained.map((index) => audit.assertions[index].valueText.trim().slice(0, max)).filter(Boolean)),
     ];
     assessment.summaryIndexes = next.summary[aspect].map((_, index) => index);
-    assessment.kind = retained.length ? assessment.kind : "unknown";
+    // A retained assertion already passed semantic and physical evidence checks.
+    // Jev's low-confidence aspect-information label must not erase that content.
+    assessment.kind = retained.length ? "concrete" : "unknown";
     assessment.reason = retained.length
       ? "根拠検証後に保持された人物描写から要約を構成しました。"
       : "対象・根拠の検証後に採用できる人物描写が残りませんでした。";

@@ -134,6 +134,31 @@ const byPersona = Object.fromEntries(
   dataset.personas.map((p) => [p.id, aggregate(records.filter((c) => c.personaId === p.id))]),
 );
 const overall = aggregate(records);
+const judgmentAudits = records
+  .map((record) => readJson(`${root}/cases/${record.caseId}/judgment-audit.json`, null))
+  .filter(Boolean);
+const judgmentOutcomes = judgmentAudits.flatMap((artifact) => artifact.outcomes ?? []);
+const judgmentCalls = judgmentAudits.flatMap((artifact) => artifact.calls ?? []);
+const judgmentSummary = {
+  schemaVersion: "live-judgment-summary/v1",
+  casesWithArtifacts: judgmentAudits.length,
+  casesWithAnswers: judgmentAudits.filter((artifact) => artifact.coverage?.answers === "available").length,
+  casesWithFinalOutcomes: judgmentAudits.filter((artifact) => artifact.coverage?.finalOutcomes === "available").length,
+  calls: judgmentCalls.length,
+  answers: judgmentCalls.reduce((total, call) => total + (call.answers?.length ?? 0), 0),
+  outcomes: Object.fromEntries(
+    ["accepted", "degraded", "rejected"].map((value) => [
+      value,
+      judgmentOutcomes.filter((outcome) => outcome.disposition === value).length,
+    ]),
+  ),
+  diagnostics: Object.fromEntries(
+    ["invalid_set_index", "high_conflict"].map((code) => [
+      code,
+      judgmentOutcomes.filter((outcome) => outcome.diagnosticCodes?.includes(code)).length,
+    ]),
+  ),
+};
 const modelRows = [];
 for (const p of dataset.personas) {
   const exported =
@@ -248,6 +273,7 @@ const result = {
   datasetHash: digest(dataset),
   overall,
   byPersona,
+  judgments: judgmentSummary,
   usage,
   timingSummary,
   records,
@@ -258,6 +284,7 @@ const result = {
   correctionIssues,
 };
 saveJson(`${root}/evaluation.json`, result);
+saveJson(`${root}/judgment-summary.json`, judgmentSummary);
 saveJson(`${root}/model-runs.json`, modelRows);
 write(
   "evaluation.csv",

@@ -1,7 +1,7 @@
 {
   "analysisJudgment": {
-    "promptVersion": "analysis-judgment/2.0",
-    "sha256": "7234c841ed4f952755e25aa412c8e51fae1bfccde3bfcbc47f43d629080a834e"
+    "promptVersion": "analysis-judgment/2.1",
+    "sha256": "51f13e1c987e50d843db45a61fc2b53d23ecad6436629b25f4687c0ccb64ed02"
   },
   "understandingCompletion": {
     "promptVersion": "understanding-information/v2.0.0",

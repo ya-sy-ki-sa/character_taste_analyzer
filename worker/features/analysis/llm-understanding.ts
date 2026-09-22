@@ -154,12 +154,12 @@ export async function understandOne(
   );
   let normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
   let issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
-  let blockingIssues = [
-    ...judged.blockingIssues,
-    ...understandingQualityIssues(normalized),
-    ...normalized.informationQuality.reasons,
-  ];
-  for (let round = 1; blockingIssues.length && round <= MAX_ANALYSIS_RECONSIDERATION_ROUNDS; round++) {
+  let blockingIssues = [...judged.blockingIssues, ...understandingQualityIssues(normalized)];
+  for (
+    let round = 1;
+    normalized.informationQuality.concreteAspectCount < 2 && round <= MAX_ANALYSIS_RECONSIDERATION_ROUNDS;
+    round++
+  ) {
     completionAttempted = true;
     current = await recordCall({
       operation: includeCustomization ? "customization_delta" : "character_understanding",
@@ -196,11 +196,7 @@ export async function understandOne(
     );
     normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
     issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
-    blockingIssues = [
-      ...judged.blockingIssues,
-      ...understandingQualityIssues(normalized),
-      ...normalized.informationQuality.reasons,
-    ];
+    blockingIssues = [...judged.blockingIssues, ...understandingQualityIssues(normalized)];
   }
   if (issues.length) {
     normalized = {
