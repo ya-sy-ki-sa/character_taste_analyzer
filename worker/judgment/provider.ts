@@ -1,13 +1,46 @@
 import { sha256Hex } from "../lib/crypto";
 import type { Env } from "../types";
 import { CHOICE_CONFIDENCE, JUDGMENT_POLICY_VERSION, NOUL_NO, NOUL_YES } from "./policy";
-import { type JudgmentProvider, JudgmentProviderError, type JudgmentRequest, type JudgmentResult } from "./types";
+import {
+  type JudgmentProvider,
+  type JudgmentProviderContext,
+  JudgmentProviderError,
+  type JudgmentRequest,
+  type JudgmentResult,
+} from "./types";
 import { fixtureResult, parseJudgmentResult, validateQuestions } from "./validation";
 
 const DEFAULT_JEV_MODEL = "typesafe/jev";
+const JEV_RESPONSE_MODEL_PATTERN = /^jev-\d+(?:\.\d+)+$/u;
 const TIMEOUT_MS = 20_000;
 const encoder = new TextEncoder();
 const size = (value: unknown) => encoder.encode(JSON.stringify(value)).length;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isJevResult(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && "model" in value && "answers" in value && "usage" in value;
+}
+
+function isCompatibleJevModel(requestedModel: string, responseModel: string): boolean {
+  return (
+    responseModel === requestedModel ||
+    (requestedModel === DEFAULT_JEV_MODEL && JEV_RESPONSE_MODEL_PATTERN.test(responseModel))
+  );
+}
+
+/** Cloudflare AI bindings return the model result inside a response envelope. */
+export function unwrapJevResponse(raw: unknown): unknown {
+  let current = raw;
+  for (let depth = 0; depth < 3; depth++) {
+    if (isJevResult(current)) return current;
+    if (!isRecord(current) || !("result" in current)) return current;
+    current = current.result;
+  }
+  return current;
+}
 
 async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -99,6 +132,18 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
     private readonly gatewayId: string,
   ) {}
 
+  private get providerContext(): JudgmentProviderContext {
+    return { providerId: this.providerId, model: this.model };
+  }
+
+  private withProviderContext(error: unknown): JudgmentProviderError {
+    if (error instanceof JudgmentProviderError) {
+      if (error.context?.providerId === this.providerId && error.context.model === this.model) return error;
+      return new JudgmentProviderError(error.reason, error.retryable, error.code, this.providerContext);
+    }
+    return new JudgmentProviderError("invalid_request", false, "EXTERNAL_PROVIDER_UNAVAILABLE", this.providerContext);
+  }
+
   private async limited<T>(run: () => Promise<T>): Promise<T> {
     if (this.active >= 4) await new Promise<void>((resolve) => this.waiters.push(resolve));
     this.active++;
@@ -146,7 +191,7 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
           continue;
         }
         const item = outcome.value;
-        if (item.model !== this.model) throw new JudgmentProviderError("model_mismatch", false);
+        if (!isCompatibleJevModel(this.model, item.model)) throw new JudgmentProviderError("model_mismatch", false);
         Object.assign(result.answers, item.answers);
         result.usage.input_tokens += item.usage.input_tokens;
         result.usage.output_tokens += item.usage.output_tokens;
@@ -159,14 +204,9 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
       await emit(request, this.providerId, Date.now() - started, result);
       return result;
     } catch (error) {
-      await emit(
-        request,
-        this.providerId,
-        Date.now() - started,
-        undefined,
-        error instanceof JudgmentProviderError ? error.reason : "invalid_request",
-      );
-      throw error instanceof JudgmentProviderError ? error : new JudgmentProviderError("invalid_request", false);
+      const providerError = this.withProviderContext(error);
+      await emit(request, this.providerId, Date.now() - started, undefined, providerError.reason);
+      throw providerError;
     }
   }
 
@@ -177,34 +217,35 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
           this.ai.run(this.model, { state, questions }, { gateway: { id: this.gatewayId } }),
           TIMEOUT_MS,
         );
-        return parseJudgmentResult(raw, questions);
+        return parseJudgmentResult(unwrapJevResponse(raw), questions);
       } catch (error) {
+        const providerError = error instanceof JudgmentProviderError ? this.withProviderContext(error) : undefined;
         const status =
           typeof error === "object" && error !== null && "status" in error && typeof error.status === "number"
             ? error.status
             : undefined;
         const message = error instanceof Error ? error.message : String(error);
         const authenticationFailure = /401|403|unauthorized|forbidden/iu.test(message);
-        const retryable =
-          error instanceof JudgmentProviderError
-            ? error.retryable
-            : !authenticationFailure &&
-              (status === undefined ||
-                status === 429 ||
-                (status !== undefined && status >= 500) ||
-                /429|5\d\d|timeout|network|fetch/iu.test(message));
+        const retryable = providerError
+          ? providerError.retryable
+          : !authenticationFailure &&
+            (status === undefined ||
+              status === 429 ||
+              (status !== undefined && status >= 500) ||
+              /429|5\d\d|timeout|network|fetch/iu.test(message));
         if (!retryable || attempt === 2) {
-          if (error instanceof JudgmentProviderError) throw error;
+          if (providerError) throw providerError;
           throw new JudgmentProviderError(
             status === 429 ? "http_429" : status !== undefined && status >= 500 ? `http_${status}` : "network_error",
             retryable,
             status === 429 ? "PROVIDER_CAPACITY_EXHAUSTED" : undefined,
+            this.providerContext,
           );
         }
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
     }
-    throw new JudgmentProviderError("retry_exhausted", true);
+    throw new JudgmentProviderError("retry_exhausted", true, "EXTERNAL_PROVIDER_UNAVAILABLE", this.providerContext);
   }
 }
 

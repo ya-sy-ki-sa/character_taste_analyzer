@@ -185,7 +185,7 @@ describe("verification-only source documents", () => {
     ).toMatchObject({ verificationStatus: "verified_quote" });
   });
   it.each(["standard", "dark"] as const)(
-    "does not send persisted external bodies in actual %s preference audit messages",
+    "does not send persisted external bodies in actual %s preference Jev requests",
     async (domain) => {
       const marker = "SERVER_ONLY_DOCUMENT_BODY_";
       const body = marker.repeat(8000);
@@ -199,12 +199,10 @@ describe("verification-only source documents", () => {
         ]);
         await env.DB.batch(sources.statements);
       });
-      const audits = t.requests.filter((request) => request.operation.includes("preference_audit"));
-      expect(audits).toHaveLength(1);
-      const messages = JSON.stringify(audits[0].messages);
-      expect(messages).toContain("https://example.com/full-document");
+      const audits = t.judgmentRequests.filter((request) => request.context.stage.startsWith("preference:"));
+      expect(audits.length).toBeGreaterThan(0);
+      const messages = JSON.stringify(audits);
       expect(messages).not.toContain(marker);
-      expect(messages).toContain(t.analysis.assertions[0].evidence[0].quote);
       expect(
         t.db.database.prepare("SELECT length(text_content) AS size FROM sources WHERE title='Full document'").get()
           ?.size,

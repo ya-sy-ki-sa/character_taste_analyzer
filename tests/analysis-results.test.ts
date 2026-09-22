@@ -18,6 +18,7 @@ import { graphAttributeEntries } from "../src/lib/graph-labels";
 import { analysisFailureMetadata, safeAnalysisErrorDetail } from "../worker/features/analysis/failures";
 import { hasPreferenceAnalysisCandidates } from "../worker/features/analysis/result-policy";
 import { localizeAttributeReference, localizeUnderstandingSummary } from "../worker/features/profile/attribute-labels";
+import { JudgmentProviderError } from "../worker/judgment/types";
 import { LlmProviderError, type LlmRunMetadata } from "../worker/llm/types";
 
 describe("preference analysis result validation", () => {
@@ -89,6 +90,24 @@ describe("analysis error diagnostics", () => {
     expect(detail).toContain("出力トークン: 100000／上限: 100000");
     expect(detail).not.toContain("resp_completed");
     expect(detail?.match(/max_output_tokens/gu)).toHaveLength(1);
+  });
+
+  it("keeps Jev failures separate from completed LLM metadata", () => {
+    const completedMetadata = metadata("resp_completed", "completed", "none");
+    const error = new JudgmentProviderError("invalid_response", false, "EXTERNAL_PROVIDER_UNAVAILABLE", {
+      providerId: "typesafe",
+      model: "typesafe/jev",
+    });
+
+    const selected = analysisFailureMetadata(error, completedMetadata);
+    const detail = safeAnalysisErrorDetail(error, selected);
+
+    expect(selected).toBeUndefined();
+    expect(detail).toContain("Jev Provider: typesafe");
+    expect(detail).toContain("Jev Model: typesafe/jev");
+    expect(detail).toContain("Jev reason: invalid_response");
+    expect(detail).not.toContain("Provider: openai");
+    expect(detail).not.toContain("resp_completed");
   });
 });
 

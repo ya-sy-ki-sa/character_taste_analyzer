@@ -1,3 +1,4 @@
+import { JudgmentProviderError } from "../../judgment/types";
 import { nowIso } from "../../lib/crypto";
 import { LlmProviderError, type LlmRunMetadata } from "../../llm/types";
 import { ProvenanceVerificationError } from "../../platform/provenance/sources";
@@ -37,7 +38,12 @@ export async function updateFailure(
 }
 
 export function analysisErrorCode(error: unknown): string {
-  if (error instanceof LlmProviderError || error instanceof ProvenanceVerificationError) return error.code;
+  if (
+    error instanceof JudgmentProviderError ||
+    error instanceof LlmProviderError ||
+    error instanceof ProvenanceVerificationError
+  )
+    return error.code;
   return error instanceof Error ? error.message : "ANALYSIS_FAILED";
 }
 
@@ -45,6 +51,9 @@ export function analysisFailureMetadata(
   error: unknown,
   latestCompletedMetadata?: LlmRunMetadata,
 ): LlmRunMetadata | undefined {
+  // A completed LLM call is unrelated to a later Jev failure. Do not attach its
+  // metadata to the persisted error or make the failure look like an OpenAI one.
+  if (error instanceof JudgmentProviderError) return undefined;
   if (error instanceof LlmProviderError) {
     return error.attempts.at(-1)?.metadata ?? error.attemptMetadata ?? latestCompletedMetadata;
   }
@@ -52,6 +61,16 @@ export function analysisFailureMetadata(
 }
 
 export function safeAnalysisErrorDetail(error: unknown, metadata?: LlmRunMetadata): string | undefined {
+  if (error instanceof JudgmentProviderError) {
+    return [
+      error.message,
+      `Jev Provider: ${error.context?.providerId ?? "unknown"}`,
+      error.context?.model ? `Jev Model: ${error.context.model}` : null,
+      `Jev reason: ${error.reason}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
   const base =
     error instanceof LlmProviderError || error instanceof ProvenanceVerificationError
       ? (error.safeDetail ?? error.message)

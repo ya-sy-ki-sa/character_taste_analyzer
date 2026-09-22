@@ -16,11 +16,11 @@ import { createEntry } from "../../worker/features/entries/create";
 import { loadEntryReview } from "../../worker/features/entries/review";
 import { confirmUnderstanding } from "../../worker/features/entries/understanding-review";
 import { loadCurrentProfile, processProfileRebuild } from "../../worker/features/profile/projection";
-import * as execution from "../../worker/llm/execution";
-import type { LlmProvider, StructuredLlmRequest } from "../../worker/llm/types";
 import { choiceAnswer, scoreAnswer } from "../../worker/judgment/policy";
 import * as judgmentProvider from "../../worker/judgment/provider";
-import type { JudgmentAnswer, JudgmentQuestion } from "../../worker/judgment/types";
+import type { JudgmentAnswer, JudgmentQuestion, JudgmentRequest } from "../../worker/judgment/types";
+import * as execution from "../../worker/llm/execution";
+import type { LlmProvider, StructuredLlmRequest } from "../../worker/llm/types";
 import type { Env } from "../../worker/types";
 import fixtures from "../fixtures/explicit-preferences.json";
 import { testDatabase } from "./database";
@@ -142,6 +142,7 @@ export async function setup(
     GENERATION_DAILY_QUOTA: "100",
   } as Env;
   const requests: StructuredLlmRequest<unknown>[] = [];
+  const judgmentRequests: JudgmentRequest[] = [];
   const provider: LlmProvider = {
     providerId: "fake",
     async generateStructured(request) {
@@ -198,6 +199,7 @@ export async function setup(
   vi.spyOn(judgmentProvider, "createJudgmentProvider").mockReturnValue({
     providerId: "fake",
     async evaluate(request) {
+      judgmentRequests.push(structuredClone(request));
       if (!request.fakeAnswers) throw new Error("TEST_JUDGMENT_FIXTURE_MISSING");
       const answers = structuredClone(request.fakeAnswers);
       const understandingMatch = request.context.stage.match(/^(?:base|target)(?::reconsider:(\d+))?:assertion$/u);
@@ -224,6 +226,27 @@ export async function setup(
             if (evidence) overrideChoice(answers, request.questions, id, evidence.supportAssessment.verdict);
           }
         }
+      }
+      const aspectMatch = request.context.stage.match(/^(?:base|target)(?::reconsider:(\d+))?:aspect$/u);
+      if (aspectMatch && fixture.understanding) {
+        const state = request.state as { assertion?: { index?: number } };
+        const index = state.assertion?.index;
+        if (typeof index === "number") {
+          const assigned = Object.entries(fixture.understanding.aspectAssessments).find(([, assessment]) =>
+            assessment.assertionIndexes.includes(index),
+          )?.[0];
+          if (assigned) overrideChoice(answers, request.questions, "aspect", assigned);
+        }
+      }
+      const informationMatch = request.context.stage.match(/^(?:base|target)(?::reconsider:(\d+))?:information$/u);
+      if (informationMatch && fixture.understanding) {
+        const state = request.state as { aspect?: string };
+        const assessment = state.aspect
+          ? fixture.understanding.aspectAssessments[
+              state.aspect as keyof typeof fixture.understanding.aspectAssessments
+            ]
+          : undefined;
+        if (assessment) overrideChoice(answers, request.questions, "kind", assessment.kind);
       }
       if (preferenceAudit && request.context.stage.startsWith("preference:")) {
         for (const id of Object.keys(request.questions)) {
@@ -290,7 +313,7 @@ export async function setup(
   if (!detail?.preferenceAnalysis)
     throw new Error(JSON.stringify(db.database.prepare("SELECT error_detail_safe FROM jobs").all()));
   expect(reviewDetailSchema.safeParse(detail).success).toBe(true);
-  return { db, env, owner, params, detail, analysis: detail.preferenceAnalysis, requests };
+  return { db, env, owner, params, detail, analysis: detail.preferenceAnalysis, requests, judgmentRequests };
 }
 export async function rebuild(value: Awaited<ReturnType<typeof setup>>, domain: AnalysisDomain) {
   const { env, owner, analysis } = value;

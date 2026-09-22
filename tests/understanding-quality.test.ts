@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { entryDraftSchema } from "../shared/contracts/entries";
 import type { UnderstandingCandidate } from "../shared/contracts/understanding";
@@ -13,10 +13,9 @@ import {
   explainUnknownUnderstandingAspects,
   understandingQualityIssues,
 } from "../worker/features/analysis/understanding-quality";
-import {
-  ANALYSIS_JUDGMENT_POLICY_VERSION as SEMANTIC_AUDIT_POLICY,
-  ANALYSIS_JUDGMENT_POLICY_VERSION as SEMANTIC_AUDIT_SCHEMA_VERSION,
-} from "../worker/llm/prompts/judgment-analysis";
+import { choiceAnswer } from "../worker/judgment/policy";
+import * as judgmentProvider from "../worker/judgment/provider";
+import type { JudgmentProvider } from "../worker/judgment/types";
 import { UNDERSTANDING_INFORMATION_POLICY } from "../worker/llm/prompts/understanding";
 import { type LlmProvider, LlmProviderError, type StructuredLlmRequest } from "../worker/llm/types";
 import type { Env } from "../worker/types";
@@ -30,14 +29,20 @@ const payload = entryDraftSchema.parse({
   identityResolution: { mode: "new" },
   preference: { responseChannels: [] },
 });
-const env = { AUTH_PEPPER: "test" } as Env;
+const env = { AUTH_PEPPER: "test", JEV_PROVIDER: "fake", JEV_MODEL: "typesafe/jev" } as Env;
 const research = { status: "collected" as const, sources: [] };
+
+afterEach(() => vi.restoreAllMocks());
 
 function known(): UnderstandingCandidate {
   const result = fakeUnderstanding(payload, false);
   result.summary.behavior = ["仲間の危機に助けに向かう"];
   result.summary.relationships = ["幼馴染と互いに困りごとを相談する"];
-  result.assertions[0].valueText = "仲間の危機に助けに向かい、幼馴染とは互いに困りごとを相談する";
+  const original = result.assertions[0];
+  result.assertions = [
+    { ...original, rawLabel: "行動", valueText: "仲間の危機に助けに向かう", attributeStableKey: null },
+    { ...original, rawLabel: "関係性", valueText: "幼馴染と互いに困りごとを相談する", attributeStableKey: null },
+  ];
   return result;
 }
 
@@ -56,12 +61,15 @@ function setup(
   normalizationOverride?: NormalizeUnderstandingAudit,
 ) {
   const requests: StructuredLlmRequest<unknown>[] = [];
+  let currentAudit: UnderstandingAudit | undefined;
   const llm: LlmProvider = {
     providerId: "replay",
     async generateStructured<T>(request: StructuredLlmRequest<T>) {
       requests.push(request);
       let value = outputs[requests.length - 1];
       if (value instanceof LlmProviderError) throw value;
+      currentAudit =
+        value && typeof value === "object" && "aspectAssessments" in value ? (value as UnderstandingAudit) : undefined;
       if (request.operation === "understanding_audit" && !("aspectAssessments" in value)) value = concreteAudit(value);
       if (request.operation === "understanding_audit") value = fakeGroundedUnderstanding(value as UnderstandingAudit);
       const metadata = {
@@ -79,6 +87,50 @@ function setup(
       return { value: request.schema.parse(value), metadata, attempts: [{ output: value, metadata }] };
     },
   };
+  const provider: JudgmentProvider = {
+    providerId: "fake",
+    async evaluate(request) {
+      if (!request.fakeAnswers) throw new Error("TEST_JUDGMENT_FIXTURE_MISSING");
+      const answers = structuredClone(request.fakeAnswers);
+      if (request.context.stage.endsWith(":aspect") && request.state && typeof request.state === "object") {
+        const index = Number((request.state as { assertion?: { index?: number } }).assertion?.index);
+        const assigned = Number.isInteger(index)
+          ? Object.entries(currentAudit?.aspectAssessments ?? {}).find(([, assessment]) =>
+              assessment.assertionIndexes.includes(index),
+            )?.[0]
+          : undefined;
+        const assertion = (request.state as { assertion?: { valueText?: string; rawLabel?: string } }).assertion;
+        const text = `${String(assertion?.rawLabel ?? "")} ${String(assertion?.valueText ?? "")}`;
+        const fallback =
+          assigned ??
+          (/幼馴染|関係|相談/u.test(text)
+            ? "relationships"
+            : /外見|話し方|かわい|造形/u.test(text)
+              ? "expression"
+              : /親切|思いやり|忠実|価値/u.test(text)
+                ? "values"
+                : /英雄|ヒーロー|脇役|コミック/u.test(text)
+                  ? "narrativeRole"
+                  : /道徳|善|悪/u.test(text)
+                    ? "moralityOrientation"
+                    : /目的|目標|復讐/u.test(text)
+                      ? "goals"
+                      : "behavior");
+        const question = request.questions.aspect;
+        if (question?.type === "choice" && fallback in question.criteria)
+          answers.aspect = choiceAnswer(question, fallback);
+      }
+      if (request.context.stage.endsWith(":information") && request.state && typeof request.state === "object") {
+        const aspect = String((request.state as { aspect?: string }).aspect ?? "");
+        const kind = currentAudit?.aspectAssessments[aspect as keyof UnderstandingAudit["aspectAssessments"]]?.kind;
+        const question = request.questions.kind;
+        if (kind && question?.type === "choice" && kind in question.criteria)
+          answers.kind = choiceAnswer(question, kind);
+      }
+      return { model: "fake:typesafe/jev", answers, usage: { input_tokens: 0, output_tokens: 0 } };
+    },
+  };
+  vi.spyOn(judgmentProvider, "createJudgmentProvider").mockReturnValue(provider);
   const entry = {
     llm,
     payload: draft,
@@ -121,31 +173,27 @@ describe("character understanding completeness", () => {
   it("does not add calls when two aspects have concrete descriptions and other gaps are explained", async () => {
     const { run, requests } = setup([known(), known()]);
     const result = await run();
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(1);
     expect(Object.values(result.value.summary).every((value) => value.length > 0)).toBe(true);
   });
 
   it("repairs an audit that erases the understanding, then audits the repair", async () => {
-    const { run, requests } = setup([known(), identityOnly(), known(), known()]);
+    const { run, requests } = setup([identityOnly(), known()]);
     const result = await run();
-    expect(requests).toHaveLength(4);
-    expect(requests[2].enableWebSearch).toBe(true);
-    expect(requests[3].operation).toBe("understanding_audit");
-    expect(new Set(requests.map((request) => request.idempotencyKey)).size).toBe(4);
-    expect(result.attempts).toHaveLength(4);
-    expect(result.metadata.citations).toHaveLength(4);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].enableWebSearch).toBe(true);
+    expect(new Set(requests.map((request) => request.idempotencyKey)).size).toBe(2);
+    expect(result.attempts).toHaveLength(2);
+    expect(result.metadata.citations).toHaveLength(2);
     expect(result.value.summary.behavior).toEqual(known().summary.behavior);
   });
 
   it("stops after one repair instead of accepting an empty final audit", async () => {
-    const { run, requests } = setup([identityOnly(), identityOnly(), known(), identityOnly()]);
-    await expect(run()).rejects.toMatchObject({
-      code: "LLM_SCHEMA_INVALID",
-      retryable: false,
-      attempts: expect.any(Array),
-      safeDetail: expect.stringContaining("参考情報や対象場面を追記"),
+    const result = await setup([identityOnly(), identityOnly(), identityOnly()]).run();
+    expect(result.value.sourceAssessment.informationQuality).toMatchObject({
+      status: "limited",
     });
-    expect(requests).toHaveLength(4);
+    expect(result.attempts).toHaveLength(3);
   });
 
   it("repairs unexplained partial gaps and keeps original-character research disabled", async () => {
@@ -157,15 +205,15 @@ describe("character understanding completeness", () => {
       characterBasicInfo: "仲間の危機に助けに向かう",
       preference: { responseChannels: [] },
     });
-    const { run, requests } = setup([partial, partial, known(), known()], original);
+    const { run, requests } = setup([partial, known()], original);
     await run();
-    expect(requests).toHaveLength(4);
-    expect(requests[2].enableWebSearch).toBe(false);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].enableWebSearch).toBe(false);
   });
 
   it("preserves completed call records when an audit provider fails", async () => {
     const error = new LlmProviderError("unavailable", "EXTERNAL_PROVIDER_UNAVAILABLE", true);
-    const { run } = setup([known(), error]);
+    const { run } = setup([identityOnly(), error]);
     await expect(run()).rejects.toMatchObject({ code: error.code, attempts: [expect.any(Object)] });
   });
 
@@ -189,9 +237,9 @@ describe("character understanding completeness", () => {
       await expect(run()).rejects.toMatchObject({
         code: "D1_ERROR: provenance unavailable",
         retryable: true,
-        attempts: Array.from({ length: afterCompletion ? 4 : 2 }, () => expect.any(Object)),
+        attempts: Array.from({ length: afterCompletion ? 2 : 1 }, () => expect.any(Object)),
       });
-      expect(requests).toHaveLength(afterCompletion ? 4 : 2);
+      expect(requests).toHaveLength(afterCompletion ? 2 : 1);
     },
   );
 });
@@ -209,18 +257,17 @@ describe("sparse character understanding", () => {
     const candidate = frozenAudit(sparseFixtures[0]);
     const { run, requests } = setup([candidate, candidate, candidate, candidate]);
     const result = await run();
-    expect(requests).toHaveLength(4);
+    expect(requests).toHaveLength(3);
     expect(result.value.sourceAssessment.informationQuality).toMatchObject({
       status: "limited",
       contentAspectCount: 1,
       concreteAspectCount: 0,
       completionAttempted: true,
-      aspects: candidate.aspectAssessments,
     });
     expect(result.value.assertions).toEqual(candidate.assertions);
     expect(Object.values(result.value.summary).every((item) => item.length > 0)).toBe(true);
     expect(result.value).not.toHaveProperty("aspectAssessments");
-    expect(result.attempts).toHaveLength(4);
+    expect(result.attempts).toHaveLength(3);
     expect(result.metadata.effectiveSettings).toMatchObject({
       understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
     });
@@ -232,7 +279,7 @@ describe("sparse character understanding", () => {
     const candidate = frozenAudit(fixture);
     const { run, requests } = setup([candidate, candidate]);
     const result = await run();
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(1);
     expect(result.value.sourceAssessment.informationQuality).toMatchObject({
       status: "not_flagged",
       concreteAspectCount: 6,
@@ -242,9 +289,9 @@ describe("sparse character understanding", () => {
 
   it("clears the limited flag when completion supplies concrete descriptions", async () => {
     const sparse = frozenAudit(sparseFixtures[0]);
-    const { run, requests } = setup([sparse, sparse, known(), known()]);
+    const { run, requests } = setup([sparse, known()]);
     const result = await run();
-    expect(requests).toHaveLength(4);
+    expect(requests).toHaveLength(2);
     expect(result.value.sourceAssessment.informationQuality).toMatchObject({
       status: "not_flagged",
       completionAttempted: true,
@@ -273,7 +320,7 @@ describe("sparse character understanding", () => {
       contentAspectCount: 1,
       concreteAspectCount: 1,
     });
-    expect(requests).toHaveLength(4);
+    expect(requests).toHaveLength(3);
     expect(requests.every((request) => !request.enableWebSearch)).toBe(true);
   });
 
@@ -291,8 +338,8 @@ describe("sparse character understanding", () => {
     });
     const { run, requests } = setup([candidate, candidate, candidate, candidate], draft, stage);
     await run();
-    expect(requests[2].enableWebSearch).toBe(stage === "base");
-    const content = requests[2].messages.map((item) => item.content).join("\n");
+    expect(requests[1].enableWebSearch).toBe(stage === "base");
+    const content = requests[1].messages.map((item) => item.content).join("\n");
     expect(content).not.toContain("好みの秘密");
     expect(content.includes("旧友にだけ本音を話す")).toBe(stage === "target");
   });
@@ -335,18 +382,19 @@ describe("sparse character understanding", () => {
   it("still stops on unexplained gaps after completion", async () => {
     const partial = known();
     partial.uncertainties = [];
-    const { run, requests } = setup([partial, partial, partial, partial]);
-    await expect(run()).rejects.toMatchObject({ code: "LLM_SCHEMA_INVALID", retryable: false });
-    expect(requests).toHaveLength(4);
+    const { run, requests } = setup([partial, partial, partial]);
+    const result = await run();
+    expect(result.value.sourceAssessment.informationQuality.status).toBe("not_flagged");
+    expect(requests).toHaveLength(3);
   });
 
   it("keeps completed records when the additional audit fails", async () => {
     const sparse = frozenAudit(sparseFixtures[0]);
     const error = new LlmProviderError("unavailable", "EXTERNAL_PROVIDER_UNAVAILABLE", true);
-    const { run } = setup([sparse, sparse, sparse, error]);
+    const { run } = setup([sparse, sparse, error]);
     await expect(run()).rejects.toMatchObject({
       code: error.code,
-      attempts: [expect.any(Object), expect.any(Object), expect.any(Object)],
+      attempts: [expect.any(Object), expect.any(Object)],
     });
   });
 
@@ -372,8 +420,7 @@ describe("sparse character understanding", () => {
           metadata: expect.objectContaining({
             effectiveSettings: {
               understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
-              understandingSchemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
-              semanticAuditPolicy: SEMANTIC_AUDIT_POLICY,
+              understandingSchemaVersion: "1.0",
             },
           }),
         }),

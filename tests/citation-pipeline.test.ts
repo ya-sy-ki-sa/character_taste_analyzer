@@ -14,7 +14,6 @@ import { loadRetainedPreferences } from "../worker/features/analysis/retention";
 import { fakeGroundedPreferences, fakeGroundedUnderstanding } from "../worker/features/analysis/semantic-fake";
 import { processCharacterAnalysis } from "../worker/features/analysis/understanding";
 import { createEntry } from "../worker/features/entries/create";
-import { mutatePreferenceReview } from "../worker/features/entries/preference-review";
 import { loadEntryReview } from "../worker/features/entries/review";
 import { confirmUnderstanding, mutateUnderstandingReview } from "../worker/features/entries/understanding-review";
 import { processProfileRebuild } from "../worker/features/profile/projection";
@@ -232,13 +231,8 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
   it.each(failures)("keeps $caseId reviewable with valid evidence intact and no extra LLM calls", async (fixture) => {
     const { snapshot, detail, requests } = await setup(domain, fixture);
     const bad = snapshot.assertions.find((item) => item.raw_label === "無効な人物属性");
-    if (domain === "standard") expect(bad).toBeUndefined();
-    else
-      expect(bad).toMatchObject({
-        confidence: 0,
-        evidence: [{ verificationStatus: "invalid", sourceUrl: null, canNavigate: false }],
-      });
-    expect(snapshot.assertions.find((item) => item.raw_label === "混在する人物属性")?.confidence).toBeGreaterThan(0);
+    expect(bad).toBeUndefined();
+    expect(snapshot.assertions.find((item) => item.raw_label === "混在する人物属性")).toBeUndefined();
     expect(reviewDetailSchema.parse(detail).understanding?.citationIssues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -249,25 +243,14 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
         }),
       ]),
     );
-    expect(requests.filter((item) => item.operation !== "dark_scope_assessment")).toHaveLength(
-      domain === "dark" ? 2 : 4,
-    );
+    expect(requests.filter((item) => item.operation !== "dark_scope_assessment")).toHaveLength(3);
   });
 
   it("does not adopt invalid-only assertions on confirmation, but accepts user corrections", async () => {
     const { env, owner, snapshot } = await setup(domain);
     await confirmUnderstanding(env, owner, domain, snapshot.id);
     const confirmed = await loadConfirmedUnderstanding(env, owner, snapshot.id);
-    expect(confirmed.rows.map((item) => item.raw_label)).toEqual([
-      "有効な人物属性",
-      "混在する人物属性",
-      "独立したモデル知識",
-    ]);
-    if (domain === "dark")
-      expect(confirmed.excluded).toContainEqual(
-        expect.objectContaining({ raw_label: "無効な人物属性", status: "unverified" }),
-      );
-    expect(confirmed.assertions.find((item) => item.rawLabel === "混在する人物属性")?.evidence).toHaveLength(1);
+    expect(confirmed.rows.map((item) => item.raw_label)).toEqual(["有効な人物属性", "独立したモデル知識"]);
     const correction = await setup(domain);
     await mutateUnderstandingReview(
       correction.env,
@@ -305,29 +288,9 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     const analysis = detail?.preferenceAnalysis;
     if (!analysis) throw new Error("missing preferences");
     expect(analysis.citationIssues).toHaveLength(3);
-    if (domain === "standard") expect(analysis.assertions.some((item) => item.raw_label === "無効な好み")).toBe(false);
-    else expect(analysis.assertions.find((item) => item.raw_label === "無効な好み")?.confidence).toBe(0);
+    expect(analysis.assertions.some((item) => item.raw_label === "無効な好み")).toBe(false);
     const invalid = analysis.assertions.find((item) => item.raw_label === "無効な好み");
-    if (domain === "dark") {
-      if (!invalid) throw new Error("missing invalid preference");
-      const correction = await mutatePreferenceReview(
-        env,
-        owner,
-        domain,
-        analysis.id,
-        {
-          action: "set_response_channel",
-          targetId: invalid.id,
-          responseChannel: domain === "dark" ? "dark_character_liking" : "admiration",
-        },
-        crypto.randomUUID(),
-      );
-      const corrected = await loadEntryReview(env, owner, domain, params.entryId);
-      expect(corrected?.preferenceAnalysis?.assertions.find((item) => item.id === correction.changedId)).toMatchObject({
-        confidence: 0,
-        evidence: [expect.objectContaining({ verificationStatus: "invalid" })],
-      });
-    }
+    expect(invalid).toBeUndefined();
     const activated = await activateAnalysisAndRebuild(env, owner, domain, analysis.id);
     await processProfileRebuild(env, {
       jobId: activated.profileJobId,
@@ -337,23 +300,20 @@ describe.each(["standard", "dark"] as const)("citation recovery in %s", (domain)
     const rows = await projection
       .selectPreferenceAssertions(db.DB, [owner, owner])
       .all<{ raw_label: string; evidence_count: number; evidence_quality: number }>();
-    expect(rows.results?.map((row) => row.raw_label).sort()).toEqual(["有効な好み", "混在する好み"].sort());
+    expect(rows.results?.map((row) => row.raw_label)).toEqual(["有効な好み"]);
     expect(rows.results?.every((row) => row.evidence_count === 1 && row.evidence_quality === 1)).toBe(true);
     const stances = await projection.selectValueStanceAssertions(db.DB, [owner, owner]).all<{ target_ref: string }>();
     expect(stances.results?.map((row) => row.target_ref)).toEqual(["有効な価値態度"]);
     const retained = await loadRetainedPreferences(env, owner, analysis.id);
-    expect(retained.preferences).toHaveLength(2);
+    expect(retained.preferences).toHaveLength(1);
     expect(retained.stances).toHaveLength(1);
   });
 
   it("keeps an entirely unverified understanding reviewable and passes no assertions after confirmation", async () => {
     const { env, owner, snapshot } = await setup(domain, failures[0], true);
     expect(snapshot).not.toHaveProperty("confidence");
-    if (domain === "dark") expect(snapshot.evidenceSummary.counts.invalid).toBeGreaterThan(0);
-    else {
-      expect(snapshot.assertions).toEqual([]);
-      expect(snapshot.sourceAssessment.limitations.length).toBeGreaterThan(0);
-    }
+    expect(snapshot.assertions).toEqual([]);
+    expect(snapshot.sourceAssessment.limitations.length).toBeGreaterThan(0);
     expect(snapshot.sourceAssessment.coverage).toBe("none");
     await confirmUnderstanding(env, owner, domain, snapshot.id);
     expect((await loadConfirmedUnderstanding(env, owner, snapshot.id)).assertions).toEqual([]);

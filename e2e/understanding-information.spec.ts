@@ -40,7 +40,7 @@ for (const domain of ["standard", "dark"] as const) {
     expect(initial.understanding).not.toHaveProperty("confidence");
     expect(initial.understanding.evidenceSummary.assertionCount).toBe(initial.understanding.assertions.length);
     if (domain === "standard") expect(initial.understanding.informationQuality.status).toBe("limited");
-    else expect(initial.understanding.informationQuality).toBeUndefined();
+    else expect(initial.understanding.informationQuality.status).toBe("limited");
     await page.goto(`${appBase}/entries`);
     await page.getByRole("button", { name: /一場面の人物/u }).click();
     const dialog = page.getByRole("dialog", { name: "解析内容の確認" });

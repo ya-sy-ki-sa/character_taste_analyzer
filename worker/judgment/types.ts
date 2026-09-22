@@ -29,8 +29,13 @@ export type JudgmentResult = {
   model: string;
   usage: { input_tokens: number; output_tokens: number };
 };
+export type JudgmentProviderId = "typesafe" | "fake" | "replay";
+export type JudgmentProviderContext = {
+  providerId: JudgmentProviderId;
+  model: string;
+};
 export interface JudgmentProvider {
-  readonly providerId: "typesafe" | "fake" | "replay";
+  readonly providerId: JudgmentProviderId;
   evaluate(request: JudgmentRequest): Promise<JudgmentResult>;
 }
 
@@ -39,6 +44,7 @@ export class JudgmentProviderError extends Error {
     readonly reason: string,
     readonly retryable: boolean,
     readonly code = "EXTERNAL_PROVIDER_UNAVAILABLE",
+    readonly context?: JudgmentProviderContext,
   ) {
     // Existing job failure handlers persist Error.message. Keep it safe and compatible.
     super(code);

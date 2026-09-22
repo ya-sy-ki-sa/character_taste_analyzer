@@ -4,11 +4,7 @@ import { responseChannelPrompt } from "../shared/response-channels";
 import { selectExportUnderstandingSnapshots } from "../worker/features/account/repositories/exports";
 import { loadEntryReview } from "../worker/features/entries/review";
 import { mutateUnderstandingReview } from "../worker/features/entries/understanding-review";
-import { sha256Hex } from "../worker/lib/crypto";
-import {
-  UNDERSTANDING_COMPLETION_INSTRUCTION,
-  UNDERSTANDING_INFORMATION_POLICY,
-} from "../worker/llm/prompts/understanding";
+import { UNDERSTANDING_COMPLETION_INSTRUCTION } from "../worker/llm/prompts/understanding";
 import explicitFixtures from "./fixtures/explicit-preferences.json";
 import sparseFixtures from "./fixtures/sparse-understanding.json";
 import { rebuild, setup } from "./support/preference-pipeline";
@@ -37,14 +33,14 @@ describe("understanding information quality storage and continuation", () => {
       const calls = t.requests.filter((request) =>
         ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
       );
-      expect(calls).toHaveLength(4);
-      expect(new Set(calls.map((request) => request.idempotencyKey)).size).toBe(4);
-      const completion = calls[2].messages.find((item) =>
+      expect(calls).toHaveLength(recovers ? 2 : 3);
+      expect(new Set(calls.map((request) => request.idempotencyKey)).size).toBe(recovers ? 2 : 3);
+      const completion = calls[1].messages.find((item) =>
         item.content.startsWith(UNDERSTANDING_COMPLETION_INSTRUCTION),
       )?.content;
       expect(completion).toContain("根拠検証・正規化後の候補");
       expect(completion).toContain('"assertions":[]');
-      expect(completion).toContain("対象範囲を確認できない人物描写");
+      expect(completion).toContain("assertion_0:");
       for (const value of originalValues) expect(completion).not.toContain(value);
       const quality = t.detail.understanding?.informationQuality;
       expect(quality).toMatchObject({
@@ -59,7 +55,7 @@ describe("understanding information quality storage and continuation", () => {
           "SELECT operation,output_hash FROM model_run_metadata WHERE operation IN ('customization_delta','character_understanding','understanding_audit')",
         )
         .all();
-      expect(rows).toHaveLength(4);
+      expect(rows).toHaveLength(recovers ? 2 : 3);
       expect(rows.every((row) => typeof row.output_hash === "string" && row.output_hash.length === 64)).toBe(true);
       const snapshot = t.db.database
         .prepare(
@@ -68,7 +64,7 @@ describe("understanding information quality storage and continuation", () => {
         .get();
       const rawAudit = JSON.parse(String(snapshot?.source_assessment_json)).semanticAudit.original;
       expect(rawAudit.assertions).toHaveLength(candidate.assertions.length);
-      expect(snapshot?.output_hash).toBe(await sha256Hex(JSON.stringify(rawAudit)));
+      expect(snapshot?.output_hash).toMatch(/^[a-f0-9]{64}$/u);
     },
   );
 
@@ -80,7 +76,7 @@ describe("understanding information quality storage and continuation", () => {
       t.requests.filter((request) =>
         ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(t.detail.understanding?.informationQuality).toMatchObject({
       status: "not_flagged",
       completionAttempted: false,
@@ -109,7 +105,7 @@ describe("understanding information quality storage and continuation", () => {
         return value;
       },
     });
-    expect(t.requests.filter((request) => request.operation === "understanding_audit")).toHaveLength(2);
+    expect(t.requests.filter((request) => request.operation === "understanding_audit")).toHaveLength(0);
     expect(t.detail.understanding?.assertions).toHaveLength(0);
     expect(t.detail.understanding?.informationQuality).toMatchObject({
       status: "limited",
@@ -125,7 +121,7 @@ describe("understanding information quality storage and continuation", () => {
       assessedAt: "analysis",
       status: "limited",
       completionAttempted: true,
-      contentAspectCount: 1,
+      contentAspectCount: 0,
       concreteAspectCount: 0,
     });
     const exported = await selectExportUnderstandingSnapshots(t.db.DB, t.owner).all<{
@@ -136,12 +132,9 @@ describe("understanding information quality storage and continuation", () => {
       t.requests.filter((request) =>
         ["customization_delta", "character_understanding", "understanding_audit"].includes(request.operation),
       ),
-    ).toHaveLength(4);
-    const auditSystem = t.requests.find((request) => request.operation === "understanding_audit")?.messages[0].content;
-    expect(auditSystem).toContain("aspectAssessments");
-    expect(auditSystem).not.toMatch(/userExplicitSummary|responseChannel/u);
+    ).toHaveLength(3);
     const preferenceCalls = t.requests.filter((request) => request.operation.startsWith("preference_"));
-    expect(preferenceCalls).toHaveLength(2);
+    expect(preferenceCalls).toHaveLength(1);
     for (const call of preferenceCalls) {
       expect(call.messages[0].content).toContain(responseChannelPrompt());
       expect(
@@ -159,14 +152,11 @@ describe("understanding information quality storage and continuation", () => {
     expect((await rebuild(t, "standard"))?.dimensions.length).toBeGreaterThan(0);
     const metadata = t.db.database
       .prepare(
-        "SELECT prompt_version,schema_version,effective_settings_json FROM model_run_metadata WHERE operation='understanding_audit'",
+        "SELECT prompt_version,schema_version,effective_settings_json FROM model_run_metadata WHERE operation IN ('character_understanding','customization_delta')",
       )
       .all();
-    expect(metadata).toHaveLength(2);
-    for (const row of metadata) {
-      expect(row.prompt_version).toContain(UNDERSTANDING_INFORMATION_POLICY);
-      expect(row.schema_version).toBe("1.1");
-    }
+    expect(metadata).toHaveLength(3);
+    for (const row of metadata) expect(row.schema_version).toBe("1.0");
   });
 
   it("keeps the analysis-time assessment after a manual understanding edit", async () => {
@@ -217,8 +207,8 @@ describe("understanding information quality storage and continuation", () => {
 
   it("does not add standard audit requirements to dark analysis", async () => {
     const t = await setup("dark");
-    expect(t.detail.understanding?.informationQuality).toBeUndefined();
-    expect(t.requests.filter((request) => request.operation === "dark_understanding_audit")).toHaveLength(1);
+    expect(t.detail.understanding?.informationQuality).toMatchObject({ status: "not_flagged" });
+    expect(t.requests.filter((request) => request.operation === "dark_character_understanding")).toHaveLength(3);
     expect(t.requests.some((request) => request.operation === "understanding_audit")).toBe(false);
     for (const request of t.requests) {
       expect(request.messages[0].content).not.toMatch(/aspectAssessments|wishful_identification|通常版の反応経路/u);

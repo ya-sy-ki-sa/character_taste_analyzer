@@ -580,7 +580,7 @@ describe("quality pipeline against current D1 schema", () => {
       const addition = next.assertions.find(
         (item) => item.stable_key === selected.attributeStableKey && item.response_channel === selected.responseChannel,
       );
-      expect(addition?.explicitness).toBe("user_explicit");
+      expect(addition?.explicitness).toBe("user_confirmed");
       expect(addition?.status).toBe("proposed");
       expect(addition?.evidence.length).toBeGreaterThan(0);
       expect(next.hypothesisPreview).toBeNull();

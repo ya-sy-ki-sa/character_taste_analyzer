@@ -128,9 +128,6 @@
           "remote": false
         }
       ],
-      "ai": {
-        "binding": "AI"
-      },
       "workflows": [
         {
           "name": "character-taste-analysis-offline",

@@ -221,6 +221,6 @@ describe("references after evidence normalization", () => {
       summaryIndexes: [],
       assertionIndexes: [],
     });
-    expect(normalized.summary.narrativeRole[0]).toContain("確認できません");
+    expect(normalized.summary.narrativeRole).toEqual([]);
   });
 });

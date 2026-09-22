@@ -8,15 +8,15 @@ import {
 import type { EntryDraft } from "../../../shared/contracts/entries";
 import {
   type AnyPreferenceCandidate,
-  type PreferenceCandidate,
   darkPreferenceCandidateSchema,
+  type PreferenceCandidate,
   preferenceCandidateSchema,
 } from "../../../shared/contracts/preference";
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
 import { entryInputSources, entryPreferenceContext, entryScopeText } from "../../../shared/entry-input";
+import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import { hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
-import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import { createJobLlmProvider } from "../../llm/execution";
 import { ANALYSIS_JUDGMENT_POLICY_VERSION } from "../../llm/prompts/judgment-analysis";
 import { PREFERENCE_PROMPT_VERSION, PREFERENCE_SCHEMA_VERSION, preferenceSystem } from "../../llm/prompts/preference";
@@ -475,6 +475,10 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       userExplicitSummary: [
         ...new Set([
           ...retained.summary.userExplicitSummary,
+          entry.payload.preference.likedReasons?.slice(0, 1_000) ?? "",
+          ...(entry.payload.preference.dislikedReasons
+            ? [entry.payload.preference.dislikedReasons.slice(0, 1_000)]
+            : []),
           ...result.value.preferenceAssertions
             .filter((item) => ["user_explicit", "user_confirmed"].includes(item.explicitness))
             .map((item) => item.rawLabel),

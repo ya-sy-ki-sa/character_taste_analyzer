@@ -25,27 +25,7 @@ export function mergeSelectedPreferenceHypotheses(
     const primary = matches[0];
     // Keep the model's interpretation when it already covers this explicit selection.
     // Only a missing selection needs a deterministic fallback, preventing duplicate rows.
-    if (primary)
-      return {
-        ...primary,
-        attributeStableKey: item.attributeStableKey,
-        rawLabel: item.rawLabel,
-        polarity: item.polarity,
-        responseChannel: item.responseChannel,
-        strength: 0.6,
-        explicitness: "user_confirmed" as const,
-        confidence: 0.95,
-        context: { ...primary.context, entryScope: item.scope || entryScope },
-        evidence: [
-          {
-            sourceRef: `input:${pointer.slice(1)}`,
-            sourceUrl: null,
-            inputPointer: pointer,
-            quote: item.description.slice(0, 500),
-            inferenceType: "direct" as const,
-          },
-        ],
-      };
+    if (primary) return { ...primary, context: { ...primary.context, entryScope: item.scope || entryScope } };
     return {
       attributeStableKey: item.attributeStableKey,
       rawLabel: item.rawLabel,

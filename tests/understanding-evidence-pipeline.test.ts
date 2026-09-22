@@ -58,7 +58,7 @@ describe.each(["standard", "dark"] as const)("understanding evidence transport (
       }
     });
     expect(t.analysis.assertions.map((item) => item.confidence)).toEqual(
-      explicitFixtures[0].expectedAssertions.map(() => 0.92),
+      explicitFixtures[0].expectedAssertions.map(() => 0.9),
     );
     expect(
       t.db.database

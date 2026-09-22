@@ -24,6 +24,8 @@ npm run dev:offline
 
 `offline`環境はLLMをReplay、EmbeddingをFakeへ明示的に切り替えます。Playwrightは専用portと毎回新しい一時D1を使い、既存serverや開発D1を再利用しません。通常起動時に失敗をFake成功へ置き換える暗黙fallbackはありません。
 
+E2E起動時は、通常用`.dev.vars`のProvider設定がoffline環境を上書きしないよう、`AUTH_PEPPER`だけを含む一時`.dev.vars.offline`を自動生成し、終了時に削除または復元します。通常用のOpenAI・AI Gateway認証情報はE2Eへ渡しません。
+
 現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`database/migrations`です。
 
 改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当を保存し、`effort` は `LLM_TIER_ROUTES_JSON` の選択されたルートで指定した値または `null`（モデル既定値）になります。生成要求には `profileSnapshotId` が必須です。

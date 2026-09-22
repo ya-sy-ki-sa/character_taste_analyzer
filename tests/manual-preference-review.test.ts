@@ -131,7 +131,7 @@ describe.each(["standard", "dark"] as const)("manual declaration in %s", (domain
     expect(profile?.valueStances).toHaveLength(1);
     const snapshot = await loadProfileSnapshotItems(t.env, t.owner, domain);
     expect(snapshot.items.find((item) => item.type === "value_stance")?.payload).toMatchObject({ confidence: 0.95 });
-    expect(t.requests).toHaveLength(calls + 2);
+    expect(t.requests).toHaveLength(calls + 1);
   });
   it.each(fixtures)("restores $caseId / $key with exactly one review evidence", async (frozen) => {
     const t = await setup(domain, fixtureFor(frozen));

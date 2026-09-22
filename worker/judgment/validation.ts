@@ -19,6 +19,16 @@ const wireResult = z.object({
   answers: z.record(z.string(), wireAnswer),
   usage: z.object({ input_tokens: z.number().int().nonnegative(), output_tokens: z.number().int().nonnegative() }),
 });
+function normalizeDistribution(probabilities: Record<string, number>): Record<string, number> {
+  const values = Object.values(probabilities);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  // Jev returns probabilities rounded to two decimal places. Allow only the
+  // resulting rounding error, then restore a normalized distribution locally.
+  const roundingTolerance = 0.005 * values.length + 0.001;
+  if (total <= 0 || Math.abs(total - 1) > roundingTolerance)
+    throw new JudgmentProviderError("invalid_distribution", false);
+  return Object.fromEntries(Object.entries(probabilities).map(([key, value]) => [key, value / total]));
+}
 const questionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("noul"),
@@ -64,22 +74,18 @@ export function parseJudgmentResult(raw: unknown, questions: Record<string, Judg
         : question.type === "score"
           ? Object.fromEntries(question.criteria.map((level, index) => [String(index), level]))
           : {};
-    const probabilities = Object.values(answer.probabilities);
-    if (!sameKeys(answer.probabilities, expected) || Math.abs(probabilities.reduce((a, b) => a + b, 0) - 1) > 0.001)
-      throw new JudgmentProviderError("invalid_distribution", false);
+    if (!sameKeys(answer.probabilities, expected)) throw new JudgmentProviderError("invalid_distribution", false);
+    const probabilities = normalizeDistribution(answer.probabilities);
     if (answer.type === "choice") {
-      if (!Object.hasOwn(expected, answer.choice) || answer.probabilities[answer.choice] < Math.max(...probabilities))
-        throw new JudgmentProviderError("invalid_choice", false);
-      result.answers[id] = answer;
+      if (!Object.hasOwn(expected, answer.choice)) throw new JudgmentProviderError("invalid_choice", false);
+      result.answers[id] = { ...answer, probabilities };
     } else {
-      const ordered = Object.keys(expected).map((key) => answer.probabilities[key]);
-      const expectation = ordered.reduce((sum, value, index) => sum + value * index, 0);
+      const ordered = Object.keys(expected).map((key) => probabilities[key]);
       if (
         !sameKeys(answer.legend, expected) ||
         Object.keys(expected).some((key) => answer.legend[key] !== expected[key]) ||
         answer.score < 0 ||
-        answer.score > ordered.length - 1 ||
-        Math.abs(expectation - answer.score) > 0.01
+        answer.score > ordered.length - 1
       )
         throw new JudgmentProviderError("invalid_score", false);
       result.answers[id] = {

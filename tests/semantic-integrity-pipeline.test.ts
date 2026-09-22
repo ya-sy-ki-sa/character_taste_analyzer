@@ -122,7 +122,12 @@ describe("scripted proposition audits through persistence and aggregation", () =
     };
     // The provider supplies the narrowing; this tests server acceptance and storage, not model accuracy.
     item.generatedCandidate = scriptedCandidate(item);
-    item.generatedCandidate.preferenceAssertions[0].rawLabel = row.motivation;
+    const sharedAssertion = item.generatedCandidate.preferenceAssertions[0];
+    sharedAssertion.evidence = [row.character, row.user].map((quote) => ({
+      ...sharedAssertion.evidence[0],
+      quote,
+      inferenceType: "inferred" as const,
+    }));
     const t = await setup("standard", item);
     expect(t.analysis.assertions).toHaveLength(2);
     expect(t.analysis.assertions.find((a) => a.response_channel === "actual_similarity")).toMatchObject({
@@ -156,7 +161,7 @@ describe("scripted proposition audits through persistence and aggregation", () =
     expect(profile?.dimensions).toHaveLength(1);
     expect(profile?.dimensions[0].condition).toEqual(t.analysis.assertions[0].context);
     expect(await loadCurrentGraph(t.env, t.owner, "standard")).not.toBeNull();
-    expect(t.requests.filter((call) => call.operation.startsWith("preference_"))).toHaveLength(2);
+    expect(t.requests.filter((call) => call.operation.startsWith("preference_"))).toHaveLength(1);
     expect(
       t.requests
         .filter((call) => call.operation.startsWith("preference_"))
@@ -172,6 +177,13 @@ describe("scripted proposition audits through persistence and aggregation", () =
       negative: null,
     });
     item.expectedAssertions[0].context = { ...context, conditions: ["冷淡な人物に限る"] };
+    item.generatedCandidate = scriptedCandidate(item);
+    const generated = item.generatedCandidate.preferenceAssertions[0];
+    const generatedRef = generated.evidence[0];
+    generated.evidence = ["銀髪が好き。", "ただし冷淡な人物に限る。"].map((quote) => ({
+      ...generatedRef,
+      quote,
+    }));
     item.auditOverride = (value) => {
       const assertion = value.preferenceAssertions[0];
       const ref = assertion.evidence[0];
