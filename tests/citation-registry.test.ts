@@ -128,7 +128,7 @@ describe("citation-aware LLM calls", () => {
     fakeFactory: () => ({ value: "https://invented.example" }),
   };
 
-  it("passes collected IDs initially and carries every attempt citation into audits without extra calls", async () => {
+  it("passes collected IDs initially and carries every attempt citation into reconsideration without extra calls", async () => {
     const requests: StructuredLlmRequest<unknown>[] = [];
     const provider: LlmProvider = {
       providerId: "replay",
@@ -150,14 +150,14 @@ describe("citation-aware LLM calls", () => {
     };
     const wrapped = await citationAwareProvider(provider, [{ url: source.url as string, title: "Page" }]);
     const first = await wrapped.generateStructured(request);
-    await wrapped.generateStructured({ ...request, operation: "understanding_audit" });
+    await wrapped.generateStructured({ ...request, operation: "character_understanding" });
     await wrapped.generateStructured({ ...request, idempotencyKey: "completion" });
     expect(requests).toHaveLength(3);
     expect(JSON.stringify(requests[0].messages)).toContain("external:");
-    const audit = JSON.stringify(requests[1].messages);
-    expect(audit).toContain("https://example.com/attempt");
-    expect(audit).toContain("https://example.com/final");
-    expect(audit).not.toContain("https://invented.example");
+    const reconsideration = JSON.stringify(requests[1].messages);
+    expect(reconsideration).toContain("https://example.com/attempt");
+    expect(reconsideration).toContain("https://example.com/final");
+    expect(reconsideration).not.toContain("https://invented.example");
     expect(first.metadata.citations).toHaveLength(2);
     expect(first.attempts?.[0].metadata.effectiveSettings).toMatchObject({
       citationPolicyVersion: CITATION_POLICY_VERSION,

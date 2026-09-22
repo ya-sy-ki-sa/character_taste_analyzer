@@ -28,9 +28,19 @@ npm run dev:offline
 
 改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当と明示的な `effort`（モデル既定値はnull）が必要で、生成要求には `profileSnapshotId` が必須です。
 
+## Jevの意味判定
+
+通常実行では `JEV_PROVIDER=typesafe`、`JEV_MODEL=jev-1.13.0` と `TYPESAFE_API_KEY` を設定します。JevはTypeSafe APIへ直接接続し、OpenAI/Workers AIのGateway設定やLLMのメンバーシップ割当とは独立しています。APIキーはサーバーSecretのみで管理します。設定不足はreadinessの既存configurationチェックで検出します。
+
+`offline`は `JEV_PROVIDER=replay`、単体試験のEnvは `fake` を明示します。両方とも判断箇所から供給する固定fixtureを使用し、欠落fixtureを推定成功に変えません。Replay/Fakeの通過は意味理解の精度を示しません。
+
+Jevの障害時に旧方式・別モデルへ切り替えません。20秒の通信タイムアウト、通信障害/429/5xxの最大2回再試行後は既存ジョブの再試行・失敗へ接続します。`judgment_provider_error` のreasonと相関IDを確認してください。入力原文、秘密値、応答本文はログへ出しません。
+
+Jev設定はデプロイ設定であり、既存のLLM割当JSONには追加しません。モデル変更は実行中のジョブがない状態で行います。保存データだけからJevの全判断履歴を再現する機能はありません。
+
 ## AI Provider
 
-メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` にティア別の `{ provider, model }` と任意の `effort` を設定できます。初期値 `{}` は全ティアで共通モデルと推論量を継承します。共通の推論量は `LLM_REASONING_EFFORT`、fallback先は `LLM_FALLBACK_REASONING_EFFORT` で指定し、空欄ではモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定・Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ実装](../worker/features/account/membership.ts) と [LLMルーティング](../worker/llm/routing.ts)を参照してください。
+メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` にティア別の `{ provider, model }` と任意の `effort` を設定できます。初期値 `{}` は全ティアで共通モデルと推論量を継承します。共通の推論量は `LLM_REASONING_EFFORT`、fallback先は `LLM_FALLBACK_REASONING_EFFORT` で指定し、空欄ではモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定は独立したJev設定、Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ実装](../worker/features/account/membership.ts) と [LLMルーティング](../worker/llm/routing.ts)を参照してください。
 
 `LLM_PROVIDER`で次を明示選択します。
 

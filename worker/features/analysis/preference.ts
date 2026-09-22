@@ -9,30 +9,32 @@ import type { EntryDraft } from "../../../shared/contracts/entries";
 import {
   type AnyPreferenceCandidate,
   type PreferenceCandidate,
+  darkPreferenceCandidateSchema,
   preferenceCandidateSchema,
 } from "../../../shared/contracts/preference";
-import { type GroundedPreferenceAudit, groundedPreferenceAuditSchema } from "../../../shared/contracts/semantic-audit";
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
 import { entryInputSources, entryPreferenceContext, entryScopeText } from "../../../shared/entry-input";
 import { hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
+import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import { createJobLlmProvider } from "../../llm/execution";
+import { ANALYSIS_JUDGMENT_POLICY_VERSION } from "../../llm/prompts/judgment-analysis";
 import { PREFERENCE_PROMPT_VERSION, PREFERENCE_SCHEMA_VERSION, preferenceSystem } from "../../llm/prompts/preference";
-import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../../llm/prompts/semantic-audit";
 import type { LlmRunMetadata } from "../../llm/types";
 import { CITATION_POLICY_VERSION, CitationRegistry } from "../../platform/provenance/registry";
-import { loadInputProvenanceSources, provenanceForPrompt } from "../../platform/provenance/sources";
+import { loadInputProvenanceSources } from "../../platform/provenance/sources";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import { claimJob, type JobClaim } from "../jobs/execution";
 import { handleAnalysisAttemptFailure } from "./attempt-failure";
-import { citationAwareProvider, logCitationIssues, verifyAssertionEvidence } from "./citations";
+import { citationAwareProvider, logCitationIssues } from "./citations";
 import { loadConfirmedUnderstanding } from "./confirmed-understanding";
 import { loadEntry, loadOntology, ontologyPrompt } from "./context";
 import { fakePreferences, refinedFakePreferences } from "./deterministic";
 import { commitHypothesisPreview, generatePreferenceHypotheses } from "./hypotheses";
 import { refinementInstruction } from "./input";
-import { analyzeDarkPreferences, auditDarkPreferences } from "./llm-dark";
-import { completedLlmGroup, persistCompletedLlmGroupsOnFailure, persistModelRun } from "./model-runs";
+import { analysisIssueText, judgePreferenceCandidate, rankPreferenceQuestions } from "./judgment";
+import { analyzeDarkPreferences } from "./llm-dark";
+import { completedLlmGroup, persistModelRun } from "./model-runs";
 import { preferenceAssertionStatements } from "./preference-statements";
 import * as repository from "./repositories/preference";
 import {
@@ -41,7 +43,6 @@ import {
   mergeSelectedPreferenceHypotheses,
   retainPreferenceStatements,
 } from "./retention";
-import { fakeGroundedPreferences } from "./semantic-fake";
 import { verifySemanticAssertion } from "./semantic-integrity";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { CompletedLlmGroup } from "./types";
@@ -180,7 +181,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     if (!generation) throw new Error("ANALYSIS_GENERATION_UNAVAILABLE");
     const runGeneration = generation.next_generation;
     const messages = [
-      { role: "system" as const, content: preferenceSystem("standard", "extract") },
+      { role: "system" as const, content: preferenceSystem("standard") },
       {
         role: "user" as const,
         content: `理解: ${JSON.stringify(understanding)}\n嗜好入力: ${JSON.stringify(entry.payload.preference)}\n以前の好みの確認記録: ${JSON.stringify(entry.preferenceReviewHistory ?? [])}\n人物理解からの削除・差し替え: ${JSON.stringify(entry.reviewExclusions ?? [])}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n${refinementInstruction(entry)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(
@@ -196,7 +197,8 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       attempts?: Array<{ output: unknown; metadata: LlmRunMetadata }>;
     };
     let inputHash: string;
-    let preferenceOperation: "preference_analysis" | "preference_audit" | "dark_preference_audit";
+    let preferenceOperation: "preference_analysis" | "dark_preference_analysis";
+    let analysisUnderstanding: UnderstandingCandidate | DarkUnderstandingCandidate = understanding;
     if (params.analysisDomain === "dark") {
       const persistedDeltas = await all<{
         operation: DarkTransformationDelta["operation"];
@@ -240,13 +242,11 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         transformationDeltas,
         auditNotes: parsedSummary.auditNotes ?? [],
       };
+      analysisUnderstanding = darkUnderstanding;
       const initial = await analyzeDarkPreferences(env, entry, darkUnderstanding, ontology, runGeneration);
-      completedLlmGroups.push(completedLlmGroup("dark_preference_analysis", initial.inputHash, initial));
-      const audited = await auditDarkPreferences(env, entry, initial.value, ontology, runGeneration, darkUnderstanding);
-      completedLlmGroups.push(completedLlmGroup("dark_preference_audit", audited.inputHash, audited));
-      result = audited;
-      inputHash = audited.inputHash;
-      preferenceOperation = "dark_preference_audit";
+      result = initial;
+      inputHash = initial.inputHash;
+      preferenceOperation = "dark_preference_analysis";
     } else {
       inputHash = await sha256Hex(JSON.stringify(messages));
       const standardPayload = entry.payload as EntryDraft;
@@ -266,64 +266,93 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
         fakeFactory: () =>
           refinedFakePreferences(entry, fakePreferences(standardPayload, understanding), understanding),
       });
-      completedLlmGroups.push(completedLlmGroup("preference_analysis", inputHash, result));
-      const initial = result.value as PreferenceCandidate;
-      const auditMessages = [
-        { role: "system" as const, content: preferenceSystem("standard", "audit") },
-        {
-          role: "user" as const,
-          content: `${JSON.stringify({
-            candidate: initial,
-            confirmedUnderstanding: understanding,
-            reviewExclusions: entry.reviewExclusions,
-            input: entry.payload,
-            refinement: entry.refinement,
-            refinementInstruction: refinementInstruction(entry),
-            previousReviews,
-            sources: provenanceForPrompt(provenanceSources),
-            ontology,
-          })}`,
-        },
-      ];
-      inputHash = await sha256Hex(JSON.stringify(auditMessages));
-      result = await entry.llm.generateStructured({
-        operation: "preference_audit",
-        schemaName: "preference_grounded_audit",
-        schemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
-        schema: groundedPreferenceAuditSchema,
-        jsonSchema: z.toJSONSchema(groundedPreferenceAuditSchema, { target: "draft-7" }) as Record<string, unknown>,
-        messages: auditMessages,
-        maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-        temperature: 0,
-        idempotencyKey: `${entry.entryRevisionId}:preference-audit:${runGeneration}`,
-        safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-        fakeFactory: () => fakeGroundedPreferences(initial),
-      });
-      const annotateAudit = (metadata: LlmRunMetadata) => ({
-        ...metadata,
-        effectiveSettings: {
-          ...metadata.effectiveSettings,
-          semanticAuditPolicy: SEMANTIC_AUDIT_POLICY,
-          actualSchemaName: "preference_grounded_audit",
-          actualSchemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
-        },
-      });
-      result.metadata = annotateAudit(result.metadata);
-      if (result.attempts)
-        result.attempts = result.attempts.map((attempt) => ({ ...attempt, metadata: annotateAudit(attempt.metadata) }));
-      completedLlmGroups.push(completedLlmGroup("preference_audit", inputHash, result));
-      preferenceOperation = "preference_audit";
+      preferenceOperation = "preference_analysis";
     }
     const selected = entry.refinement?.context?.selectedHypotheses ?? [];
-    if (entry.refinement && selected.length)
-      mergeSelectedPreferenceHypotheses(
-        result.value,
-        selected,
-        entry.refinement.id,
-        entryPreferenceContext(entry.payload) ?? null,
-      );
-    if (entry.refinement?.context?.baseAnalysisRunId) mergeRetainedPreferences(result.value, retained);
-    await persistCompletedLlmGroupsOnFailure(env, params.ownerUserId, completedLlmGroups.slice(0, -1));
+    const preserveReviewedInputs = (candidate: AnyPreferenceCandidate) => {
+      // Provider output cannot grant review protection to itself. Only deterministic
+      // merges from an actual prior user selection may introduce user_confirmed.
+      for (const assertion of candidate.preferenceAssertions)
+        if (assertion.explicitness === "user_confirmed") assertion.explicitness = "user_explicit";
+      for (const assertion of candidate.valueStanceAssertions)
+        if (assertion.explicitness === "user_confirmed") assertion.explicitness = "user_explicit";
+      if (entry.refinement && selected.length)
+        mergeSelectedPreferenceHypotheses(
+          candidate,
+          selected,
+          entry.refinement.id,
+          entryPreferenceContext(entry.payload) ?? null,
+        );
+      if (entry.refinement?.context?.baseAnalysisRunId) mergeRetainedPreferences(candidate, retained);
+    };
+    const attempts = [...(result.attempts ?? [{ output: structuredClone(result.value), metadata: result.metadata }])];
+    result = { ...result, value: structuredClone(result.value) };
+    preserveReviewedInputs(result.value);
+    completedLlmGroups.push(completedLlmGroup(preferenceOperation, inputHash, { ...result, attempts }));
+    let judgment = await judgePreferenceCandidate(env, {
+      candidate: result.value,
+      payload: entry.payload,
+      ontology,
+      provenanceSources,
+      correlationId: entry.entryRevisionId,
+      domain: params.analysisDomain,
+    });
+    for (let round = 1; judgment.issues.length && round <= MAX_RECONSIDERATION_ROUNDS; round++) {
+      const correctionMessages = [
+        { role: "system" as const, content: preferenceSystem(params.analysisDomain) },
+        {
+          role: "user" as const,
+          content: `既存候補を再検討し、同じSchema全体を返す。新しい嗜好・事実・根拠は創作しない。\n再検討回数: ${round}/${MAX_RECONSIDERATION_ROUNDS}\n不足・矛盾・低確信: ${JSON.stringify(judgment.issues)}\n検証後候補: ${JSON.stringify(judgment.candidate)}\n確認済み理解: ${JSON.stringify(analysisUnderstanding)}\n登録情報: ${JSON.stringify(entry.payload)}\n追加入力: ${JSON.stringify(entry.refinement ?? null)}\n統制属性: ${JSON.stringify(ontology)}`,
+        },
+      ];
+      const generated =
+        params.analysisDomain === "dark"
+          ? await entry.llm.generateStructured({
+              operation: "dark_preference_analysis",
+              schemaName: "dark_preference_candidate",
+              schemaVersion: PREFERENCE_SCHEMA_VERSION,
+              schema: darkPreferenceCandidateSchema,
+              jsonSchema: z.toJSONSchema(darkPreferenceCandidateSchema, { target: "draft-7" }) as Record<
+                string,
+                unknown
+              >,
+              messages: correctionMessages,
+              maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+              temperature: 0,
+              idempotencyKey: `${entry.entryRevisionId}:dark-preference:${runGeneration}:complete:${round}`,
+              safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
+              fakeFactory: () => judgment.candidate as import("../../../shared/contracts/preference").DarkPreferenceCandidate,
+            })
+          : await entry.llm.generateStructured({
+              operation: "preference_analysis",
+              schemaName: "preference_analysis_candidate",
+              schemaVersion: PREFERENCE_SCHEMA_VERSION,
+              schema: preferenceCandidateSchema,
+              jsonSchema: z.toJSONSchema(preferenceCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
+              messages: correctionMessages,
+              maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+              temperature: 0,
+              idempotencyKey: `${entry.entryRevisionId}:preference:${runGeneration}:complete:${round}`,
+              safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
+              fakeFactory: () => judgment.candidate as PreferenceCandidate,
+            });
+      attempts.push(...(generated.attempts ?? [{ output: structuredClone(generated.value), metadata: generated.metadata }]));
+      result = { ...generated, value: structuredClone(generated.value) };
+      preserveReviewedInputs(result.value);
+      completedLlmGroups[completedLlmGroups.length - 1] = completedLlmGroup(preferenceOperation, inputHash, {
+        ...result,
+        attempts,
+      });
+      judgment = await judgePreferenceCandidate(env, {
+        candidate: result.value,
+        payload: entry.payload,
+        ontology,
+        provenanceSources,
+        correlationId: entry.entryRevisionId,
+        domain: params.analysisDomain,
+      });
+    }
+    result = { ...result, value: judgment.candidate, attempts };
     const attemptRuns = [];
     for (const attempt of result.attempts ?? [{ output: result.value, metadata: result.metadata }])
       attemptRuns.push(
@@ -342,41 +371,35 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     const modelRunId = modelRun.id;
     const citationIssues: CitationIssue[] = [];
     async function verifyCandidates(
-      items: Array<{ evidence: import("../../../shared/contracts/evidence").EvidenceReference[]; confidence: number }>,
+      items: Array<{
+        evidence: import("../../../shared/contracts/semantic-audit").AuditedEvidence[];
+        confidence: number;
+        explicitness: string;
+        scopeAssessment: import("../../../shared/contracts/semantic-audit").ScopedProposition;
+        evidenceSetAssessment?: import("../../../shared/contracts/semantic-audit").EvidenceSetAssessment | null;
+      }>,
       targetType: CitationIssue["targetType"],
     ) {
       return Promise.all(
         items.map(async (assertion) => {
           const id = crypto.randomUUID();
           const target = { targetType, targetId: id, modelRunId };
-          if (params.analysisDomain === "standard" && "scopeAssessment" in assertion) {
-            return {
-              id,
-              ...(await verifySemanticAssertion(
-                assertion as GroundedPreferenceAudit["preferenceAssertions"][number],
-                provenanceSources,
-                allowedUrls,
-                citationRegistry,
-                target,
-                citationIssues,
-              )),
-            };
-          }
-          // Explicitly selected refinement hypotheses and the unchanged dark pipeline use their own provenance policy.
-          const verified = await verifyAssertionEvidence(
-            assertion,
-            provenanceSources,
-            allowedUrls,
-            citationRegistry,
-            target,
-            citationIssues,
-          );
-          return { id, ...verified, keep: true, explicitness: null, audit: null };
+          return {
+            id,
+            ...(await verifySemanticAssertion(
+              assertion,
+              provenanceSources,
+              allowedUrls,
+              citationRegistry,
+              target,
+              citationIssues,
+            )),
+          };
         }),
       );
     }
-    let verifiedPreferences = await verifyCandidates(result.value.preferenceAssertions, "preference_assertion");
-    let verifiedStances = await verifyCandidates(result.value.valueStanceAssertions, "value_stance_assertion");
+    let verifiedPreferences = await verifyCandidates(judgment.audited.preferenceAssertions, "preference_assertion");
+    let verifiedStances = await verifyCandidates(judgment.audited.valueStanceAssertions, "value_stance_assertion");
     // Keep provider outputs unchanged for the run hash.
     result = { ...result, value: structuredClone(result.value) };
     const semanticAudit = [...verifiedPreferences, ...verifiedStances].flatMap((item) =>
@@ -418,47 +441,75 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     });
     verifiedPreferences = verifiedPreferences.filter((item) => item.keep);
     verifiedStances = verifiedStances.filter((item) => item.keep);
-    if (params.analysisDomain === "standard") {
-      // Strip internal audit fields from the public candidate contract after recording them above.
-      result.value = preferenceCandidateSchema.parse(result.value);
-      if (rejected.length) {
-        result.value.summary = {
-          userExplicitSummary: [
-            ...new Set([
-              ...retained.summary.userExplicitSummary,
-              entry.payload.preference.likedReasons?.slice(0, 1_000) ?? "",
-              ...(entry.payload.preference.dislikedReasons
-                ? [entry.payload.preference.dislikedReasons.slice(0, 1_000)]
-                : []),
-              ...result.value.preferenceAssertions
-                .filter((item) => ["user_explicit", "user_confirmed"].includes(item.explicitness))
-                .map((item) => item.rawLabel),
-            ]),
-          ]
-            .filter(Boolean)
-            .slice(0, 50),
-          inferredSummary: [
-            ...retained.summary.inferredSummary,
-            ...result.value.preferenceAssertions
-              .filter((item) => item.explicitness === "inferred")
-              .map((item) => item.rawLabel),
-          ].slice(0, 50),
-          limitations: [
-            ...retained.summary.limitations,
-            ...rejected.map((item) => `${item.label}：${item.reason}`),
-          ].slice(-50),
-        };
-        result.value.uncertainties = [
-          ...result.value.uncertainties,
-          ...rejected.map((item) => ({
-            topic: item.label.slice(0, 500),
-            reason: item.reason ?? "対象または意味的な根拠を確認できません。",
-            // A failed audit does not identify a missing user answer.
-            recommendedQuestion: null,
-          })),
-        ].slice(-50);
-      }
+    result.value =
+      params.analysisDomain === "standard"
+        ? preferenceCandidateSchema.parse(result.value)
+        : darkPreferenceCandidateSchema.parse(result.value);
+    if (rejected.length)
+      result.value.uncertainties = [
+        ...result.value.uncertainties,
+        ...rejected.map((item) => ({
+          topic: item.label.slice(0, 500),
+          reason: item.reason ?? "対象または意味的な根拠を確認できません。",
+          recommendedQuestion: null,
+        })),
+      ].slice(-50);
+    if (judgment.issues.length) {
+      result.value.summary.limitations = [
+        ...result.value.summary.limitations,
+        ...judgment.issues.map(analysisIssueText),
+      ].slice(-50);
+      result.value.uncertainties = [
+        ...result.value.uncertainties,
+        ...judgment.issues.map((reason, index) => ({
+          topic: `judgment:${index + 1}`,
+          reason: analysisIssueText(reason).slice(0, 2_000),
+          recommendedQuestion: null,
+        })),
+      ].slice(-50);
     }
+    result.value.summary = {
+      userExplicitSummary: [
+        ...new Set([
+          ...retained.summary.userExplicitSummary,
+          entry.payload.preference.likedReasons?.slice(0, 1_000) ?? "",
+          entry.payload.preference.dislikedReasons?.slice(0, 1_000) ?? "",
+          entry.payload.preference.valueStanceNote?.slice(0, 1_000) ?? "",
+          ...result.value.preferenceAssertions
+            .filter((item) => ["user_explicit", "user_confirmed"].includes(item.explicitness))
+            .map((item) => item.rawLabel),
+          ...result.value.valueStanceAssertions
+            .filter((item) => ["user_explicit", "user_confirmed"].includes(item.explicitness))
+            .map((item) => item.targetRef),
+        ]),
+      ]
+        .filter(Boolean)
+        .slice(0, 50),
+      inferredSummary: [
+        ...new Set([
+          ...retained.summary.inferredSummary,
+          ...result.value.preferenceAssertions
+            .filter((item) => !["user_explicit", "user_confirmed"].includes(item.explicitness))
+            .map((item) => item.rawLabel),
+          ...result.value.valueStanceAssertions
+            .filter((item) => item.explicitness === "inferred")
+            .map((item) => item.targetRef),
+        ]),
+      ].slice(0, 50),
+      limitations: [
+        ...new Set([
+          ...retained.summary.limitations,
+          ...rejected.map((item) => `${item.label}：${item.reason ?? "根拠を確認できません。"}`),
+          ...judgment.issues.map(analysisIssueText),
+        ]),
+      ].slice(-50),
+    };
+    result.value.uncertainties = await rankPreferenceQuestions(env, {
+      uncertainties: result.value.uncertainties,
+      payload: entry.payload,
+      correlationId: entry.entryRevisionId,
+      domain: params.analysisDomain,
+    });
     logCitationIssues(modelRun.id, citationIssues);
     const runId = crypto.randomUUID();
     const now = nowIso();
@@ -498,9 +549,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       repository.updateAnalysisRuns(env.DB, [
         JSON.stringify({
           schemaVersion: "2.3",
-          ...(params.analysisDomain === "standard"
-            ? { semanticAudit: { policyVersion: SEMANTIC_AUDIT_POLICY, assertions: semanticAudit } }
-            : {}),
+          semanticAudit: { policyVersion: ANALYSIS_JUDGMENT_POLICY_VERSION, assertions: semanticAudit },
           preferencePromptVersion: PREFERENCE_PROMPT_VERSION,
           preferenceAssertionCount: result.value.preferenceAssertions.length + retained.preferences.length,
           valueStanceAssertionCount: result.value.valueStanceAssertions.length + retained.stances.length,

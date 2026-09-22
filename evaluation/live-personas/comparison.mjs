@@ -51,6 +51,8 @@ export function compareRuns(baseline, current, baselineDataset, currentDataset, 
     throw new Error("COMPARISON_DATASET_MISMATCH");
   const settingKeys = [
     "LLM_PROVIDER",
+    "JEV_PROVIDER",
+    "JEV_MODEL",
     "LLM_MODEL",
     "LLM_REASONING_EFFORT",
     "LLM_TIER_ROUTES_JSON",

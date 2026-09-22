@@ -10,6 +10,8 @@ import { all } from "../../lib/db";
 import { hypothesisSystem } from "../../llm/prompts/hypotheses";
 import type { LlmProvider } from "../../llm/types";
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
+import { carryCompletedLlmGroups } from "./completed-on-error";
+import { rankPreferenceHypotheses } from "./judgment";
 import * as repository from "./repositories/hypotheses";
 import type { RetainedPreferences } from "./retention";
 
@@ -58,6 +60,7 @@ export async function generatePreferenceHypotheses(
       }),
     },
   ];
+  const inputHash = await sha256Hex(JSON.stringify(messages));
   const result = await llm.generateStructured({
     operation: "preference_hypotheses",
     schemaName: "preference_hypotheses",
@@ -112,7 +115,27 @@ export async function generatePreferenceHypotheses(
       id: await deriveUuid(env.AUTH_PEPPER, `hypothesis:${refinementId}:${candidates.length}`),
     });
   }
-  return { ...result, candidates, inputHash: await sha256Hex(JSON.stringify(messages)) };
+  let rankedCandidates: PreferenceHypothesis[];
+  try {
+    rankedCandidates = await rankPreferenceHypotheses(env, {
+      candidates,
+      payload,
+      understanding,
+      existingPreferences: { preferences: retained.preferences, stances: retained.stances, previousCandidates },
+      correlationId: revisionId,
+      domain,
+    });
+  } catch (error) {
+    carryCompletedLlmGroups(error, [
+      {
+        operation: "preference_hypotheses",
+        inputHash,
+        attempts: result.attempts ?? [{ output: result.value, metadata: result.metadata }],
+      },
+    ]);
+    throw error;
+  }
+  return { ...result, candidates: rankedCandidates, inputHash };
 }
 
 export async function commitHypothesisPreview(

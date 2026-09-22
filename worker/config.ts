@@ -1,10 +1,11 @@
+import { validateJudgmentConfig } from "./judgment/provider";
 import { parseCommonLlmRoutes, parseTierRoutes } from "./llm/routing";
 import type { Env } from "./types";
 
 export type ConfigValidation = { ready: boolean; errors: string[] };
 
 export function validateConfig(env: Env): ConfigValidation {
-  const errors: string[] = [];
+  const errors: string[] = [...validateJudgmentConfig(env)];
   if (!env.DB) errors.push("DB_BINDING_MISSING");
   if (!env.AUTH_PEPPER) errors.push("AUTH_PEPPER_MISSING");
   if (!env.LLM_PROVIDER || !env.LLM_MODEL) errors.push("LLM_PRIMARY_MISSING");

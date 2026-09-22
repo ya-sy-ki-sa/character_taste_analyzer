@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { groundedUnderstandingAuditSchema } from "../../../shared/contracts/semantic-audit";
 import { type UnderstandingCandidate, understandingCandidateSchema } from "../../../shared/contracts/understanding";
 import {
   entryBaseCharacterName,
@@ -8,17 +7,17 @@ import {
   entryReferenceMaterial,
 } from "../../../shared/entry-input";
 import { hmacHex, sha256Hex } from "../../lib/crypto";
-import { SEMANTIC_AUDIT_POLICY, SEMANTIC_AUDIT_SCHEMA_VERSION } from "../../llm/prompts/semantic-audit";
 import { UNDERSTANDING_COMPLETION_INSTRUCTION, understandingSystem } from "../../llm/prompts/understanding";
 import { LlmProviderError, type StructuredLlmResult } from "../../llm/types";
+import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import type { Env } from "../../types";
 import { isRetryableFailure } from "../jobs/policy";
-import { repairUnderstandingAssessments } from "./audit-repair";
+import { carryCompletedLlmGroups } from "./completed-on-error";
 import { ontologyPrompt } from "./context";
-import { fakeUnderstanding, fakeUnderstandingAudit } from "./deterministic";
+import { fakeUnderstanding } from "./deterministic";
 import { analysisErrorCode, safeAnalysisErrorDetail } from "./failures";
+import { analysisIssueText, judgeUnderstandingCandidate } from "./judgment";
 import type { CharacterResearch } from "./research";
-import { fakeGroundedUnderstanding } from "./semantic-fake";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { AttributeRow, EntryContext, NormalizeUnderstandingAudit } from "./types";
 import { UNDERSTANDING_INFORMATION_POLICY, understandingQualityIssues } from "./understanding-quality";
@@ -58,7 +57,7 @@ export async function understandOne(
     .filter((source) => sourcePayloadValues[source.pointer.slice(1)] !== undefined)
     .map((source) => source.pointer);
   const messages = [
-    { role: "system" as const, content: understandingSystem("extract") },
+    { role: "system" as const, content: understandingSystem() },
     {
       role: "user" as const,
       content: `対象stage: ${stage}\n分析対象名: ${analysisTargetName}\n登録情報: ${JSON.stringify(sourcePayload)}\n入力根拠に使用できるJSON Pointer: ${JSON.stringify(allowedInputPointers)}\nシステム収集済み公開情報: ${JSON.stringify(research)}\n${baseSummary ? `確認前の基本像: ${JSON.stringify(baseSummary.summary)}` : ""}\n利用可能な統制属性:\n${ontologyPrompt(ontology)}`,
@@ -75,7 +74,6 @@ export async function understandOne(
       effectiveSettings: {
         ...value.effectiveSettings,
         understandingInformationPolicy: UNDERSTANDING_INFORMATION_POLICY,
-        semanticAuditPolicy: SEMANTIC_AUDIT_POLICY,
         understandingSchemaVersion: request.schemaVersion,
       },
     });
@@ -116,30 +114,14 @@ export async function understandOne(
       (entry.payload.registrationType === "customized_existing" && stage === "base"),
     fakeFactory: () => fakeUnderstanding(entry.payload, includeCustomization),
   });
-  async function audit(candidate: UnderstandingCandidate, suffix: string) {
-    return recordCall({
-      operation: "understanding_audit",
-      schemaName: "character_understanding_grounded_audit",
-      schemaVersion: SEMANTIC_AUDIT_SCHEMA_VERSION,
-      schema: groundedUnderstandingAuditSchema,
-      repairStrategy: repairUnderstandingAssessments,
-      jsonSchema: z.toJSONSchema(groundedUnderstandingAuditSchema, { target: "draft-7" }) as Record<string, unknown>,
-      messages: [
-        {
-          role: "system",
-          content: understandingSystem("audit"),
-        },
-        {
-          role: "user",
-          content: `${JSON.stringify({ stage, sourcePayload, research, candidate, citations, ontology, allowedInputPointers })}`,
-        },
-      ],
-      maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-      temperature: 0,
-      idempotencyKey: `${entry.entryRevisionId}:${stage}:${suffix}`,
-      safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
-      fakeFactory: () => fakeGroundedUnderstanding(fakeUnderstandingAudit(candidate)),
-    });
+  const operation = includeCustomization ? "customization_delta" : "character_understanding";
+  async function afterCompletedLlm<T>(task: () => Promise<T>): Promise<T> {
+    try {
+      return await task();
+    } catch (error) {
+      carryCompletedLlmGroups(error, [{ operation, inputHash, attempts: [...attempts] }]);
+      throw error;
+    }
   }
   async function normalize(audit: Parameters<NormalizeUnderstandingAudit>[0], completionAttempted: boolean) {
     try {
@@ -152,51 +134,88 @@ export async function understandOne(
         isRetryableFailure(cause),
         safeAnalysisErrorDetail(cause),
       );
-      error.operation = "understanding_audit";
+      error.operation = includeCustomization ? "customization_delta" : "character_understanding";
       error.attempts = [...attempts];
       throw error;
     }
   }
-  let audited = await audit(result.value, "audit");
-  let issues = understandingQualityIssues(audited.value);
-  let normalized = await normalize(audited.value, false);
-  if (issues.length || normalized.informationQuality.status === "limited") {
-    const repaired = await recordCall({
+  let current = result;
+  let completionAttempted = false;
+  let judged = await afterCompletedLlm(() =>
+    judgeUnderstandingCandidate(env, {
+      candidate: current.value,
+      payload: entry.payload,
+      ontology,
+      research,
+      correlationId: entry.entryRevisionId,
+      stage,
+      domain: entry.analysisDomain,
+    }),
+  );
+  let normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
+  let issues = [
+    ...judged.issues,
+    ...understandingQualityIssues(normalized),
+    ...normalized.informationQuality.reasons,
+  ];
+  for (let round = 1; issues.length && round <= MAX_RECONSIDERATION_ROUNDS; round++) {
+    completionAttempted = true;
+    current = await recordCall({
       operation: includeCustomization ? "customization_delta" : "character_understanding",
       schemaName: "character_understanding_candidate",
-      schemaVersion: "2.0",
+      schemaVersion: "1.0",
       schema: understandingCandidateSchema,
       jsonSchema: z.toJSONSchema(understandingCandidateSchema, { target: "draft-7" }) as Record<string, unknown>,
       messages: [
         ...messages,
         {
           role: "user",
-          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n不足: ${JSON.stringify([...issues, ...normalized.informationQuality.reasons])}\n項目別の情報量判定: ${JSON.stringify(normalized.informationQuality.aspects)}\n根拠検証・正規化後の候補: ${JSON.stringify(normalized)}\n取得済み引用: ${JSON.stringify(citations)}`,
+          content: `${UNDERSTANDING_COMPLETION_INSTRUCTION}\n再検討回数: ${round}/${MAX_RECONSIDERATION_ROUNDS}\n不足・矛盾・低確信: ${JSON.stringify(issues)}\n項目別の情報量判定: ${JSON.stringify(normalized.informationQuality.aspects)}\n根拠検証・正規化後の候補: ${JSON.stringify(normalized)}\n取得済み引用: ${JSON.stringify(citations)}`,
         },
       ],
       maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
       temperature: 0,
-      idempotencyKey: `${entry.entryRevisionId}:${stage}:complete`,
+      idempotencyKey: `${entry.entryRevisionId}:${stage}:complete:${round}`,
       safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${entry.ownerUserId}`),
       enableWebSearch:
         entry.payload.registrationType === "existing" ||
         (entry.payload.registrationType === "customized_existing" && stage === "base"),
-      fakeFactory: () => result.value,
+      fakeFactory: () => current.value,
     });
-    audited = await audit(repaired.value, "complete:audit");
-    issues = understandingQualityIssues(audited.value);
-    normalized = await normalize(audited.value, true);
+    judged = await afterCompletedLlm(() =>
+      judgeUnderstandingCandidate(env, {
+        candidate: current.value,
+        payload: entry.payload,
+        ontology,
+        research,
+        correlationId: entry.entryRevisionId,
+        stage: `${stage}:reconsider:${round}`,
+        domain: entry.analysisDomain,
+      }),
+    );
+    normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
+    issues = [
+      ...judged.issues,
+      ...understandingQualityIssues(normalized),
+      ...normalized.informationQuality.reasons,
+    ];
   }
   if (issues.length) {
-    const error = new LlmProviderError(
-      "キャラクター像の情報が不足しています",
-      "LLM_SCHEMA_INVALID",
-      false,
-      `補完・再監査後もキャラクター像を構成できませんでした。参考情報や対象場面を追記して再分析してください。${issues.join("／")}`,
-    );
-    error.operation = "understanding_audit";
-    error.attempts = attempts;
-    throw error;
+    normalized = {
+      ...normalized,
+      uncertainties: [
+        ...normalized.uncertainties,
+        ...issues.map((reason, index) => ({
+          topic: `judgment:${index + 1}`,
+          reason: analysisIssueText(reason).slice(0, 2_000),
+        })),
+      ].slice(-50),
+      sourceAssessment: {
+        ...normalized.sourceAssessment,
+        coverage: normalized.sourceAssessment.coverage === "sufficient" ? "partial" : normalized.sourceAssessment.coverage,
+        limitations: [...normalized.sourceAssessment.limitations, ...issues.map(analysisIssueText)].slice(-50),
+      },
+    };
   }
   const value = {
     ...understandingCandidateSchema.parse(normalized),
@@ -217,15 +236,15 @@ export async function understandOne(
     },
   };
   return {
-    ...audited,
+    ...current,
     metadata: {
-      ...audited.metadata,
+      ...current.metadata,
       citations,
     },
     attempts,
     value,
     inputHash,
     representationId,
-    semanticAudit: audited.value,
+    semanticAudit: judged.audit,
   };
 }

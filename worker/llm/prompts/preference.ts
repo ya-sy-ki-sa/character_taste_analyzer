@@ -3,9 +3,8 @@ import { responseChannelPrompt } from "../../../shared/response-channels";
 import { DARK_SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION } from "./analysis";
 import { preferenceAttributeInstruction } from "./preference-attributes";
 import { REFERENCE_SCOPE_INSTRUCTION } from "./reference-scope";
-import { PREFERENCE_SEMANTIC_AUDIT_INSTRUCTION } from "./semantic-audit";
 
-export const PREFERENCE_PROMPT_VERSION = "v3.11.0";
+export const PREFERENCE_PROMPT_VERSION = "v4.0.0";
 export const PREFERENCE_SCHEMA_VERSION = "3.0";
 
 const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
@@ -136,28 +135,19 @@ export function preferenceInstruction(domain: AnalysisDomain): string {
   return `${preferenceAttributeInstruction(domain)}\n${PREFERENCE_COMMON_INSTRUCTION}\n${PREFERENCE_CONTEXT_INSTRUCTION}\n${PREFERENCE_STRUCTURE_INSTRUCTION}\n${PREFERENCE_SCORING_INSTRUCTION}\n${domainInstruction}`;
 }
 
-export function preferenceSystem(domain: AnalysisDomain, stage: "extract" | "audit"): string {
-  const task =
-    stage === "extract"
-      ? `[TASK:PREFERENCE_EXTRACT]
-- 確認済み人物理解とユーザー入力を分離し、嗜好候補を抽出する。
-- キャラクターが持つ全属性を自動で好きにしない。
-- 未選択の反応経路の推定にも、好きな理由の根拠を必要とする。
-- 根拠不足による候補0件は正常な結果とする。`
-      : `[TASK:PREFERENCE_AUDIT]
-- 嗜好候補を独立監査し、要約を含む完全な改訂結果を返す。
-- 人物理解の訂正は事実認定に適用する。原文の好み・仮定・願望は別に評価する。
-[PROCEDURE:PREFERENCE_AUDIT]
-1. 全候補の粒度を判定する。独立要素の分割、背景・条件・反応の移動、結びつき自体を評価する複合属性の保持を適用する。
-2. 根拠が十分でも複数要素を一括採用しない。短いラベルでも粗すぎる一般化は修正する。根拠集合の支持と粒度の適切さを独立に判定する。
-3. 候補間で評価対象・成立条件・名称を照合し、反応経路の違いと対象の違いを区別する。
-4. 根拠を原文と再照合する。根拠のない推定、条件・反応経路の拡大、反応の否定からの好悪生成、ユーザー経験の人物事実への転用を除去する。
-5. 固有名詞、辞書との意味的一致、対象領域、条件の混在を点検する。推測をuser_explicitへ格上げしない。`;
+export function preferenceSystem(domain: AnalysisDomain): string {
   return [
     domain === "dark" ? DARK_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION,
     preferenceInstruction(domain),
     ...(domain === "standard" ? [STANDARD_REACTION_INSTRUCTION] : []),
-    task,
-    domain === "standard" && stage === "audit" ? PREFERENCE_SEMANTIC_AUDIT_INSTRUCTION : REFERENCE_SCOPE_INSTRUCTION,
+    `[TASK:PREFERENCE_CANDIDATES]
+- 確認済み人物理解とユーザー入力を分離し、嗜好候補を発見・命名する。最終的な意味判定は後続処理が担当する。
+- キャラクターが持つ全属性を自動で好きにしない。
+- 未選択の反応経路の候補にも、好きな理由の根拠を必要とする。
+- 独立した要素と複合的な対象を区別し、対象・条件・極性が異なる候補を統合しない。
+- ユーザーの実際の確認はアプリが適用する。生成する候補にuser_confirmedを割り当てない。
+- 根拠不足による候補0件は正常な結果とする。
+- 再検討時も、原文と指摘された論点に基づく候補全体を返す。新たな嗜好・根拠を創作しない。`,
+    REFERENCE_SCOPE_INSTRUCTION,
   ].join("\n");
 }

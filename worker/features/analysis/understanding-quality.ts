@@ -15,7 +15,6 @@ export { understandingAspectLabels } from "../../../shared/understanding-aspects
 
 export {
   UNDERSTANDING_COMPLETENESS_INSTRUCTION,
-  UNDERSTANDING_INFORMATION_INSTRUCTION,
   UNDERSTANDING_INFORMATION_POLICY,
 } from "../../llm/prompts/understanding";
 

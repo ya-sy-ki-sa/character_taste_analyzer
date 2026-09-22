@@ -25,6 +25,8 @@ function environment(overrides: Partial<Env> = {}): Env {
     DB: {} as D1Database,
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test-only",
+    JEV_PROVIDER: "fake",
+    JEV_MODEL: "jev-1.13.0",
     LLM_PROVIDER: "openai",
     LLM_MODEL: "configured-model",
     OPENAI_API_KEY: "test-key",
@@ -158,6 +160,8 @@ describe("LLM reasoning effort transport", () => {
       for (const effort of [undefined, "low", "medium", "high"]) {
         const result = await createLlmProvider(
           environment({
+            JEV_PROVIDER: "fake",
+            JEV_MODEL: "jev-1.13.0",
             LLM_PROVIDER: "workers_ai",
             LLM_MODEL: model,
             LLM_REASONING_EFFORT: effort,
@@ -200,6 +204,8 @@ describe("LLM reasoning effort transport", () => {
   it("records Workers AI effort on failure and uses the saved OpenAI fallback effort", async () => {
     const { bodies } = mockOpenAi();
     const env = environment({
+      JEV_PROVIDER: "fake",
+      JEV_MODEL: "jev-1.13.0",
       LLM_PROVIDER: "workers_ai",
       LLM_MODEL: "@cf/openai/gpt-oss-20b",
       LLM_REASONING_EFFORT: "low",

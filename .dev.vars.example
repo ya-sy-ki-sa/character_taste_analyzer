@@ -6,6 +6,11 @@ AUTH_PEPPER=replace-with-at-least-32-random-bytes
 # OpenAI の API キー。OpenAI API は常に Cloudflare AI Gateway 経由で呼び出します。
 OPENAI_API_KEY=replace-with-openai-api-key
 
+# Jev の意味判定用。TypeSafe APIへ直接接続します。
+TYPESAFE_API_KEY=replace-with-typesafe-api-key
+JEV_PROVIDER=typesafe
+JEV_MODEL=jev-1.13.0
+
 # OpenAI の Flex Processing を使う場合は true。false の場合は処理方式を指定しません。
 OPENAI_FLEX_ENABLED=false
 

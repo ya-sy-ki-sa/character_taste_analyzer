@@ -2,7 +2,7 @@ import { DARK_SYSTEM_INSTRUCTION } from "./analysis";
 
 export const DARK_SCOPE_SYSTEM = `${DARK_SYSTEM_INSTRUCTION}
 [TASK:DARK_SCOPE]
-登録がダークキャラ嗜好ラボの対象かを判定する。
+意味判定で未確定となった論点について登録原文と資料を再検討し、対象範囲の解釈候補を返す。最終判定は後続の意味判定が担当する。
 [DECISION_RULES:DARK_SCOPE]
 - 入力にダーク文脈がある元からの悪・非道徳的な人物、ヴィラン、敵対的ライバル、反英雄、ダークヒーロー、道徳的に曖昧な人物 → 対象。
 - 善側の人物の洗脳・憑依・操作・堕落・裏切り・敵対化した限定状態 → 対象。
@@ -26,7 +26,7 @@ const DARK_UNDERSTANDING_ATTRIBUTE_INSTRUCTION = `[ONTOLOGY:DARK_UNDERSTANDING]
 
 export const DARK_UNDERSTANDING_SYSTEM = `${DARK_SYSTEM_INSTRUCTION}
 [TASK:DARK_UNDERSTANDING]
-対象のダーク状態を専用Ontologyで分析する。
+対象のダーク状態の人物像・差分候補を専用Ontologyで構造化する。意味の検証は後続処理が担当する。
 ${DARK_UNDERSTANDING_ATTRIBUTE_INSTRUCTION}
 [PROCEDURE:DARK_UNDERSTANDING]
 1. 主体性・同意・認識・抵抗・自我・責任・可逆性と時系列を明示する。
@@ -38,14 +38,3 @@ retained=保持、amplified=増幅、suppressed=抑制、inverted=反転、remov
 - 元から悪・非道徳的な人物も対象とする。
 - 変化の根拠なし → 闇化前の状態・契機を創作しない。
 - 該当しない状態 → Schemaに従ってnull。`;
-
-export const DARK_UNDERSTANDING_AUDIT_SYSTEM = `${DARK_SYSTEM_INSTRUCTION}
-[TASK:DARK_UNDERSTANDING_AUDIT]
-候補を監査し、根拠のない断定を削除またはunknownへ下げた完全な改訂候補を返す。
-${DARK_UNDERSTANDING_ATTRIBUTE_INSTRUCTION}
-[INVARIANTS:DARK_UNDERSTANDING_AUDIT]
-- 新しい事実・URLを追加しない。
-- 役割／道徳性、通常時／闇状態、本人の意思／外部支配、元からの特徴／後付け特徴を分離する。
-- 不要な善化・悲劇化・贖罪・処罰を追加しない。
-- 元から悪・非道徳的な人物に、根拠のない善良な過去・闇化契機を補わない。
-- 人物の事実・解釈とユーザーの好みを分離する。好みを抽出しない。`;

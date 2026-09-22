@@ -151,7 +151,7 @@ export function fakeDarkScopeAssessment(payload: DarkEntryDraft): DarkScopeAsses
             .map((item) => item[2])
             .join("、")}が確認できます。`
         : "注目範囲は指定されていますが、ダーク状態の根拠は確認が必要です。",
-    limitations: matches.length ? [] : ["決定論的解析では入力内の明示語だけを判定します"],
+    limitations: matches.length ? [] : ["登録情報だけでは対象となる状態を十分に確認できません。"],
     evidence: inputEvidence(
       "/darkContext/focusDescription",
       payload.darkContext.focusDescription.slice(0, 500),

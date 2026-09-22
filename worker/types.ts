@@ -60,6 +60,9 @@ export type Env = {
   LLM_FALLBACK_REASONING_EFFORT?: string;
   OPENAI_FLEX_ENABLED?: string;
   OPENAI_API_KEY?: string;
+  JEV_PROVIDER?: "typesafe" | "fake" | "replay";
+  JEV_MODEL?: string;
+  TYPESAFE_API_KEY?: string;
   MODERATION_PROVIDER?: "openai" | "fake";
   MODERATION_MODEL?: string;
   AI_GATEWAY_ACCOUNT_ID?: string;

@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnyGeneratedCharacterCandidate, GenerationValidationReport } from "../shared/contracts/generation";
+import type { GenerationBrief } from "../shared/contracts/generation-brief";
 import {
   expandSnapshotTreatments,
   groupGenerationSnapshotItems,
   snapshotConditionLabel,
 } from "../src/lib/generation-snapshot-items";
+import { judgeGeneration } from "../worker/features/generation/judgments";
 import { textOverlap } from "../worker/features/generation/similarity";
 import { compileGenerationSelections, selectionValuePolicy } from "../worker/features/generation/treatments";
 import {
@@ -13,6 +15,8 @@ import {
   isCharacterContentPointer,
   reconcileGenerationValidation,
 } from "../worker/features/generation/validation";
+import * as judgmentProviders from "../worker/judgment/provider";
+import type { Env } from "../worker/types";
 
 const brief: GenerationCoverageBrief = {
   preferenceSelections: [
@@ -42,6 +46,35 @@ const report = (): GenerationValidationReport => ({
     }),
   ),
   violations: [],
+});
+afterEach(() => vi.restoreAllMocks());
+describe("generation Jev projection", () => {
+  it("preserves unresolved mandatory checks and replaces unverified coverage claims", async () => {
+    const fixture = new judgmentProviders.FakeJudgmentProvider();
+    vi.spyOn(judgmentProviders, "createJudgmentProvider").mockReturnValue({
+      providerId: "fake",
+      async evaluate(request) {
+        const result = await fixture.evaluate(request);
+        const answer = result.answers.check_0;
+        if (answer.type === "choice") answer.confidence = 0.5;
+        return result;
+      },
+    });
+    const character = structuredClone(candidate);
+    character.briefCoverage[0].explanation = "根拠のない追加主張";
+    const result = await judgeGeneration(
+      { JEV_PROVIDER: "fake", JEV_MODEL: "jev-1.13.0" } as Env,
+      "generation-fixture",
+      { ...brief, analysisDomain: "standard" } as GenerationBrief,
+      character,
+      1,
+    );
+    expect(result.passed).toBe(false);
+    expect(result.checks[0].status).toBe("uncertain");
+    expect(character.briefCoverage[0].status).toBe("partially_satisfied");
+    expect(character.briefCoverage[0].explanation).not.toContain("根拠のない追加主張");
+    expect(character.briefCoverage[0].outputPointers).toEqual(["/personality/summary"]);
+  });
 });
 describe("generation acceptance is derived from complete semantic checks", () => {
   it("rejects a candidate tied to a different brief", () => {

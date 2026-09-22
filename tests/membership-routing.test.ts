@@ -28,6 +28,8 @@ function setup(overrides: Partial<Env> = {}) {
     DB: {} as D1Database,
     ENVIRONMENT: "local",
     AUTH_PEPPER: "test-only",
+    JEV_PROVIDER: "fake",
+    JEV_MODEL: "jev-1.13.0",
     LLM_PROVIDER: "workers_ai",
     LLM_MODEL: "common-model",
     LLM_TIER_ROUTES_JSON: JSON.stringify(

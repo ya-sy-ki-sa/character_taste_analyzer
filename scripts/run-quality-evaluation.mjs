@@ -20,6 +20,8 @@ const env = {
   ...vars,
   ...process.env,
   LLM_PROVIDER: provider,
+  JEV_PROVIDER: provider === "fake" ? "fake" : "typesafe",
+  JEV_MODEL: "jev-1.13.0",
   LLM_MODEL: provider === "fake" ? "fake-v1" : option("--model", vars.LLM_MODEL),
   AUTH_PEPPER: "quality-evaluation-synthetic-data",
   MODERATION_PROVIDER: "fake",

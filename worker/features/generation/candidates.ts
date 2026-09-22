@@ -6,31 +6,28 @@ import {
   type GeneratedCharacterCandidate,
   type GenerationValidationReport,
   generatedCharacterCandidateSchema,
-  generationValidationReportSchema,
 } from "../../../shared/contracts/generation";
 import type { GenerationBrief } from "../../../shared/contracts/generation-brief";
+import { MAX_RECONSIDERATION_ROUNDS } from "../../judgment/policy";
 import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import {
   DARK_GENERATION_SYSTEM,
-  GENERATION_COMPARISON_SYSTEM,
   GENERATION_DIRECTIONS,
   GENERATION_REPAIR_INSTRUCTION,
   GENERATION_SYSTEM,
   GENERATION_VARIANT_INSTRUCTION,
-  generationValidationSystem,
 } from "../../llm/prompts/generation";
 import type { LlmProvider } from "../../llm/types";
 import type { Env, GenerationWorkflowParams } from "../../types";
-import { fakeCharacter, fakeDarkCharacter, fakeValidationReport } from "./deterministic";
+import { fakeCharacter, fakeDarkCharacter } from "./deterministic";
+import { judgeGeneration, rankGenerationCandidates } from "./judgments";
 import { persistModelRun } from "./model-runs";
 import * as repository from "./repositories/candidates";
 import { inspectGenerationSimilarity, type SimilarityDocument } from "./similarity";
 import type { CandidateResult } from "./types";
-import { reconcileGenerationValidation, validateGenerationCoverage } from "./validation";
 
 export async function validateGeneratedCandidate(
   env: Env,
-  llm: LlmProvider,
   ownerUserId: string,
   generationRequestId: string,
   brief: GenerationBrief,
@@ -38,42 +35,7 @@ export async function validateGeneratedCandidate(
   stage: "initial" | "repaired",
   ordinal = 1,
 ): Promise<GenerationValidationReport> {
-  const deterministicViolations = validateGenerationCoverage(brief, candidate);
-  const messages = [
-    { role: "system" as const, content: generationValidationSystem(brief.analysisDomain) },
-    {
-      role: "user" as const,
-      content: JSON.stringify({ brief, candidate, deterministicViolations }),
-    },
-  ];
-  const inputHash = await sha256Hex(JSON.stringify(messages));
-  const result = await llm.generateStructured({
-    operation: "generation_validation",
-    schemaName: "generation_validation_report",
-    schemaVersion: "1.0",
-    schema: generationValidationReportSchema,
-    jsonSchema: z.toJSONSchema(generationValidationReportSchema, { target: "draft-7" }) as Record<string, unknown>,
-    messages,
-    maxOutputTokens: 30_000,
-    temperature: 0,
-    idempotencyKey: `${generationRequestId}:${brief.briefId}:candidate:${ordinal}:validation:${stage}`,
-    safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${ownerUserId}`),
-    fakeFactory: () => fakeValidationReport(brief, candidate),
-  });
-  const modelRunIds: string[] = [];
-  for (const attempt of result.attempts ?? [{ output: result.value, metadata: result.metadata }])
-    modelRunIds.push(
-      await persistModelRun(
-        env,
-        ownerUserId,
-        inputHash,
-        attempt.output,
-        attempt.metadata,
-        "generation_validation",
-        brief.analysisDomain,
-      ),
-    );
-  const report = reconcileGenerationValidation(brief, candidate, result.value);
+  const report = await judgeGeneration(env, generationRequestId, brief, candidate, ordinal);
   const candidateHash = await sha256Hex(JSON.stringify(candidate));
   if (ordinal === 1)
     await repository
@@ -85,7 +47,7 @@ export async function validateGeneratedCandidate(
         candidateHash,
         report.passed ? "passed" : "violated",
         JSON.stringify(report),
-        modelRunIds.at(-1) ?? null,
+        null,
         nowIso(),
       ])
       .run();
@@ -168,7 +130,6 @@ export async function generateCandidate(
   let candidate: AnyGeneratedCharacterCandidate = generated.value;
   let report = await validateGeneratedCandidate(
     env,
-    llm,
     params.ownerUserId,
     params.generationRequestId,
     brief,
@@ -177,7 +138,11 @@ export async function generateCandidate(
     ordinal,
   );
   let similarity = await inspectGenerationSimilarity(env, params.ownerUserId, brief, candidate, documents);
-  if (!report.passed || !similarity.passed) {
+  for (
+    let repairRound = 1;
+    repairRound <= MAX_RECONSIDERATION_ROUNDS && (!report.passed || !similarity.passed);
+    repairRound++
+  ) {
     await repository.updateJobs(env.DB, [nowIso(), params.jobId]).run();
     const repairMessages = [
       {
@@ -201,7 +166,7 @@ export async function generateCandidate(
             messages: repairMessages,
             maxOutputTokens: 10_000,
             temperature: 0,
-            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair`,
+            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair:${repairRound}`,
             safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
             fakeFactory: () => candidate as DarkGeneratedCharacterCandidate,
           })
@@ -214,7 +179,7 @@ export async function generateCandidate(
             messages: repairMessages,
             maxOutputTokens: 8_000,
             temperature: 0,
-            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair`,
+            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair:${repairRound}`,
             safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
             fakeFactory: () => candidate as GeneratedCharacterCandidate,
           });
@@ -235,7 +200,6 @@ export async function generateCandidate(
     candidate = repaired.value;
     report = await validateGeneratedCandidate(
       env,
-      llm,
       params.ownerUserId,
       params.generationRequestId,
       brief,
@@ -258,81 +222,9 @@ export async function generateCandidate(
 
 export async function compareCandidates(
   env: Env,
-  llm: LlmProvider,
   params: GenerationWorkflowParams,
   brief: GenerationBrief,
   candidates: CandidateResult[],
 ) {
-  const schema = z.object({
-    candidates: z
-      .array(
-        z.object({
-          candidateId: z.string(),
-          coherence: z.string().min(1).max(1000),
-          preferenceFit: z.string().min(1).max(1000),
-          difference: z.string().min(1).max(1000),
-          tradeoffs: z.array(z.string().max(1000)).max(5),
-        }),
-      )
-      .min(1)
-      .max(3),
-  });
-  const messages = [
-    {
-      role: "system" as const,
-      content: GENERATION_COMPARISON_SYSTEM,
-    },
-    {
-      role: "user" as const,
-      content: JSON.stringify({
-        brief,
-        candidates: candidates.map((item) => ({
-          candidateId: item.id,
-          character: item.candidate,
-          validation: item.report,
-        })),
-      }),
-    },
-  ];
-  const result = await llm.generateStructured({
-    operation: "generation_comparison",
-    schemaName: "generation_comparison",
-    schemaVersion: "2.0",
-    schema,
-    jsonSchema: z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>,
-    messages,
-    maxOutputTokens: 6000,
-    temperature: 0,
-    idempotencyKey: `${params.generationRequestId}:${brief.briefId}:comparison`,
-    safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
-    fakeFactory: () => ({
-      candidates: candidates.map((item) => ({
-        candidateId: item.id,
-        coherence: item.candidate.abilitiesAndLimits.summary,
-        preferenceFit: item.candidate.identity.oneLineConcept,
-        difference: item.candidate.identity.origin,
-        tradeoffs: ["設定を確認して採用する案を選んでください。"],
-      })),
-    }),
-  });
-  for (const attempt of result.attempts ?? [{ output: result.value, metadata: result.metadata }])
-    await persistModelRun(
-      env,
-      params.ownerUserId,
-      await sha256Hex(JSON.stringify(messages)),
-      attempt.output,
-      attempt.metadata,
-      "generation_comparison",
-      params.analysisDomain,
-    );
-  if (
-    result.value.candidates.length !== candidates.length ||
-    new Set(result.value.candidates.map((item) => item.candidateId)).size !== candidates.length ||
-    result.value.candidates.some((item) => !candidates.some((candidate) => candidate.id === item.candidateId))
-  )
-    throw new Error("GENERATION_COMPARISON_INCOMPLETE");
-  for (const candidate of candidates) {
-    const match = result.value.candidates.find((item) => item.candidateId === candidate.id);
-    if (match) candidate.comparison = match;
-  }
+  await rankGenerationCandidates(env, params, brief, candidates);
 }

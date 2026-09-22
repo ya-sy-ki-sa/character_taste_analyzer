@@ -19,12 +19,7 @@ export async function persistModelRun(
   analysisDomain: AnalysisDomain = "standard",
 ): Promise<{ id: string; statement: D1PreparedStatement }> {
   operation = metadata.operation ?? operation;
-  const isPreference = [
-    "preference_analysis",
-    "preference_audit",
-    "dark_preference_analysis",
-    "dark_preference_audit",
-  ].includes(operation);
+  const isPreference = ["preference_analysis", "dark_preference_analysis"].includes(operation);
   return prepareModelRun(env.DB, {
     ownerUserId,
     operation,

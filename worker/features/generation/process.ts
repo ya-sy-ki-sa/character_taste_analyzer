@@ -66,7 +66,7 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
       ),
     );
     if (!eligible.length) throw new Error("GENERATION_CONSTRAINT_VIOLATION");
-    await compareCandidates(env, llm, params, brief, eligible);
+    await compareCandidates(env, params, brief, eligible);
     const { candidate, modelRunId } = eligible[0];
     const characterId = crypto.randomUUID();
     const outputJson = JSON.stringify(candidate);
@@ -103,8 +103,14 @@ export async function processGeneration(env: Env, params: GenerationWorkflowPara
       ]),
       repository.updateJobAttempts(env.DB, [completed, claim.attemptId, params.jobId]),
     ];
+    // The previous comparison output included candidateId in the stored JSON (API strips it).
     for (const item of eligible)
-      statements.push(repository.updateGenerationCandidates(env.DB, [JSON.stringify(item.comparison), item.id]));
+      statements.push(
+        repository.updateGenerationCandidates(env.DB, [
+          JSON.stringify({ candidateId: item.id, ...item.comparison }),
+          item.id,
+        ]),
+      );
     for (const item of candidate.briefCoverage)
       for (const pointer of item.outputPointers)
         statements.push(

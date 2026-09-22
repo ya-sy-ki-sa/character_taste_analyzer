@@ -23,20 +23,25 @@ export async function ensureDarkScope(
   if (existing?.status === "proposed") return "waiting";
 
   const assessment = await assessDarkScope(env, entry, research);
-  const run = await persistModelRun(
-    env,
-    params.ownerUserId,
-    "dark_scope_assessment",
-    assessment.inputHash,
-    assessment.value,
-    assessment.metadata,
-    "dark",
-  );
+  const runs = [];
+  for (const attempt of assessment.attempts)
+    runs.push(
+      await persistModelRun(
+        env,
+        params.ownerUserId,
+        "dark_scope_assessment",
+        assessment.inputHash,
+        attempt.output,
+        attempt.metadata,
+        "dark",
+      ),
+    );
+  const run = runs.at(-1);
   const assessmentId = crypto.randomUUID();
   const now = nowIso();
   const needsReview = assessment.value.verdict === "out_of_scope";
   const statements: D1PreparedStatement[] = [
-    run.statement,
+    ...runs.map((item) => item.statement),
     repository.insertDarkScopeAssessments(env.DB, [
       assessmentId,
       params.ownerUserId,
@@ -44,7 +49,7 @@ export async function ensureDarkScope(
       assessment.value.verdict,
       needsReview ? "proposed" : "accepted",
       JSON.stringify(assessment.value),
-      run.id,
+      run?.id ?? null,
       now,
       needsReview ? null : now,
     ]),

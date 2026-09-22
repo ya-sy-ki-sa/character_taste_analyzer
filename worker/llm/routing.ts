@@ -48,21 +48,15 @@ export type LlmExecutionContext = { snapshot: LlmRoutingSnapshot; jobId?: string
 // A new operation must explicitly choose its routing policy.
 export const llmOperationRouting = {
   character_understanding: "tier",
-  understanding_audit: "tier",
   customization_delta: "tier",
   preference_analysis: "tier",
-  preference_audit: "tier",
   preference_hypotheses: "tier",
-  generation_comparison: "tier",
   dark_scope_assessment: "common",
   dark_baseline_understanding: "tier",
   dark_character_understanding: "tier",
-  dark_understanding_audit: "tier",
   dark_preference_analysis: "tier",
-  dark_preference_audit: "tier",
   dark_character_generation: "tier",
   character_generation: "tier",
-  generation_validation: "tier",
   generation_repair: "tier",
   schema_repair: "inherit",
 } as const satisfies Record<LlmOperation, "tier" | "common" | "inherit">;

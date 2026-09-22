@@ -4,6 +4,8 @@ import type { Env } from "../worker/types";
 
 function providerEnv(overrides: Partial<Env>): Env {
   return {
+    JEV_PROVIDER: "fake",
+    JEV_MODEL: "jev-1.13.0",
     LLM_PROVIDER: "fake",
     LLM_MODEL: "fake-v1",
     EMBEDDING_PROVIDER: "fake",

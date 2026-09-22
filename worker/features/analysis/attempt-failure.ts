@@ -1,6 +1,7 @@
 import type { CharacterAnalysisWorkflowParams, Env } from "../../types";
 import { finishJobAttempt, isRetryableFailure, type JobClaim } from "../jobs/execution";
 import { analysisFenceIsCurrent, supersedeAnalysisClaim } from "./claims";
+import { completedLlmGroupsFromError, mergeCompletedLlmGroups } from "./completed-on-error";
 import { analysisErrorCode, analysisFailureMetadata, safeAnalysisErrorDetail, updateFailure } from "./failures";
 import { persistCompletedLlmGroupsOnFailure, persistFailedModelRuns } from "./model-runs";
 import type { CompletedLlmGroup } from "./types";
@@ -16,9 +17,10 @@ export async function handleAnalysisAttemptFailure(
     await supersedeAnalysisClaim(env, params, claim.attemptId);
     return;
   }
-  await persistCompletedLlmGroupsOnFailure(env, params.ownerUserId, completedLlmGroups);
+  const persistedGroups = mergeCompletedLlmGroups(completedLlmGroups, completedLlmGroupsFromError(error));
+  await persistCompletedLlmGroupsOnFailure(env, params.ownerUserId, persistedGroups);
   await persistFailedModelRuns(env, params.ownerUserId, error);
-  const latestMetadata = analysisFailureMetadata(error, completedLlmGroups.at(-1)?.attempts.at(-1)?.metadata);
+  const latestMetadata = analysisFailureMetadata(error, persistedGroups.at(-1)?.attempts.at(-1)?.metadata);
   const willRetry = claim?.status === "claimed" && claim.stepAttemptNumber < 3 && isRetryableFailure(error);
   if (claim?.status === "claimed")
     await finishJobAttempt(

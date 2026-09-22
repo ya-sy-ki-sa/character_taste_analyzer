@@ -6,67 +6,36 @@ import {
 } from "../shared/contracts/generation";
 import { groundedUnderstandingAuditSchema } from "../shared/contracts/semantic-audit";
 import { responseChannelCatalog, responseChannelPrompt } from "../shared/response-channels";
-import {
-  DARK_BASELINE_SYSTEM,
-  DARK_UNDERSTANDING_AUDIT_SYSTEM,
-  DARK_UNDERSTANDING_SYSTEM,
-} from "../worker/llm/prompts/dark";
-import {
-  DARK_GENERATION_SYSTEM,
-  GENERATION_SYSTEM,
-  generationValidationSystem,
-} from "../worker/llm/prompts/generation";
+import { DARK_GENERATION_SYSTEM, GENERATION_SYSTEM } from "../worker/llm/prompts/generation";
 import { hypothesisSystem } from "../worker/llm/prompts/hypotheses";
-import { preferenceSystem } from "../worker/llm/prompts/preference";
-import { REFERENCE_SCOPE_INSTRUCTION } from "../worker/llm/prompts/reference-scope";
+import {
+  generationCheckQuestion,
+  generationRankingQuestion,
+  policyInstructions,
+} from "../worker/llm/prompts/judgment-generation";
 import { promptRegistry } from "../worker/llm/prompts/registry";
-import { understandingSystem } from "../worker/llm/prompts/understanding";
 
 describe("prompt composition boundaries", () => {
-  it("keeps extraction and audit within the pre-repair input budget", () => {
-    for (const [key, chars, bytes] of [
-      ["preference", 9990, 23260],
-      ["preferenceAudit", 12594, 28900],
-      ["darkPreference", 7425, 17941],
-      ["darkPreferenceAudit", 7706, 18678],
-      ["semanticIntegrity", 2322, 4902],
-      ["understandingSemanticIntegrity", 2025, 4177],
-      ["understandingInformation", 4934, 10192],
-    ] as const) {
-      const { text } = promptRegistry[key];
-      expect(text.length).toBeLessThanOrEqual(chars);
-      expect(new TextEncoder().encode(text).byteLength).toBeLessThanOrEqual(bytes);
-    }
+  it("registers generation judgments without the retired LLM validation/comparison prompts", () => {
+    expect(promptRegistry).toHaveProperty("generationJudgment");
+    expect(promptRegistry).not.toHaveProperty("generationValidation");
+    expect(promptRegistry).not.toHaveProperty("generationComparison");
   });
-  it("composes one shared reference policy in every applicable extraction and audit", () => {
-    for (const text of [
-      understandingSystem("audit"),
-      ...(["standard", "dark"] as const).flatMap((domain) =>
-        (["extract", "audit"] as const).map((stage) => preferenceSystem(domain, stage)),
-      ),
-    ]) {
-      expect(text.split(REFERENCE_SCOPE_INSTRUCTION)).toHaveLength(2);
-      expect(text).not.toContain("未指定の行為者・相手を補わず");
-    }
+  it("retains the standard response definitions in discovery without leaking them into dark", () => {
+    const text = promptRegistry.preference.text;
+    expect(text.split(responseChannelPrompt())).toHaveLength(2);
+    for (const channel of responseChannelCatalog)
+      expect(text).toContain(`${channel.value}: ${channel.label} — ${channel.description}`);
+    expect(promptRegistry.darkPreference.text).not.toContain(responseChannelPrompt());
   });
-  it("shares the complete response catalog between standard extraction and audit, with one copy per system", () => {
-    for (const stage of ["extract", "audit"] as const) {
-      const text = preferenceSystem("standard", stage);
-      expect(text.split(responseChannelPrompt())).toHaveLength(2);
-      for (const channel of responseChannelCatalog)
-        expect(text).toContain(`${channel.value}: ${channel.label} — ${channel.description}`);
-      expect(preferenceSystem("dark", stage)).not.toContain(responseChannelPrompt());
-    }
-  });
-  it("requires an evidence-set decision in generated audits while accepting historical omissions", () => {
+  it("keeps the persisted evidence-set contract and historical omissions compatible", () => {
     const assertion = groundedUnderstandingAuditSchema.shape.assertions.element;
     expect(z.toJSONSchema(assertion, { target: "draft-7" }).required).toContain("evidenceSetAssessment");
     expect(assertion.shape.evidenceSetAssessment.parse(undefined)).toBeNull();
   });
   it.each(["standard", "dark"] as const)("%s receives only its attribute and channel policy", (domain) => {
     for (const text of [
-      preferenceSystem(domain, "extract"),
-      preferenceSystem(domain, "audit"),
+      domain === "dark" ? promptRegistry.darkPreference.text : promptRegistry.preference.text,
       hypothesisSystem(domain),
     ]) {
       expect(text).toContain("作品固有の固有名詞");
@@ -79,50 +48,44 @@ describe("prompt composition boundaries", () => {
       }
     }
   });
-
-  it("hypotheses allow unconfirmed preferences without extraction or audit output fields", () => {
+  it("hypotheses remain unconfirmed suggestions", () => {
     for (const domain of ["standard", "dark"] as const) {
       const text = hypothesisSystem(domain);
       expect(text).toContain("ユーザーがまだ好みを明言していない特徴も");
       expect(text).toContain("最大6件");
-      expect(text).toContain("description・reason・scope");
       expect(text).not.toMatch(/\b(evidence|context|summary|uncertainties|confidence|supportAssessment)\b/u);
-      expect(text).not.toContain("attributeStableKey=null");
     }
   });
-
-  it("understanding audit and pre-change baseline exclude preference-only policies", () => {
-    expect(understandingSystem("audit")).toContain("aspectAssessments");
-    expect(understandingSystem("audit")).toContain("supportAssessment");
-    expect(understandingSystem("audit")).not.toMatch(/userExplicitSummary|responseChannel|preferenceAssertions/u);
-    expect(understandingSystem("extract")).not.toContain("aspectAssessments");
-    expect(DARK_BASELINE_SYSTEM).not.toMatch(/一般属性は単独で出力しない|一般的特徴を捨象/u);
-    expect(DARK_UNDERSTANDING_SYSTEM).toContain("一般属性は単独で出力しない");
-    expect(DARK_UNDERSTANDING_AUDIT_SYSTEM).toContain("一般属性は単独で出力しない");
-    expect(preferenceSystem("dark", "audit")).not.toMatch(/aspectAssessments|supportAssessment/u);
-  });
-
-  it("generation and validation pointer examples exist in the selected character schema", () => {
+  it("generation pointer examples exist in each domain schema", () => {
     for (const domain of ["standard", "dark"] as const) {
       const schema = z.toJSONSchema(
         domain === "dark" ? darkGeneratedCharacterCandidateSchema : generatedCharacterCandidateSchema,
       );
-      for (const text of [
-        domain === "dark" ? DARK_GENERATION_SYSTEM : GENERATION_SYSTEM,
-        generationValidationSystem(domain),
-      ]) {
-        const pointers = text.match(/\/[A-Za-z][A-Za-z0-9]*(?:\/[A-Za-z][A-Za-z0-9]*)+/gu) ?? [];
-        expect(pointers.length).toBeGreaterThan(0);
-        for (const pointer of pointers) {
-          let node: Record<string, unknown> | undefined = schema;
-          for (const token of pointer.slice(1).split("/")) {
-            node = (node?.properties as Record<string, Record<string, unknown>> | undefined)?.[token];
-          }
-          expect(node, `${domain}: ${pointer}`).toBeDefined();
-        }
-        if (domain === "standard") expect(text).not.toContain("/darkCore/");
-        else expect(text).toContain("辞書外属性（raw:など）");
+      const text = domain === "dark" ? DARK_GENERATION_SYSTEM : GENERATION_SYSTEM;
+      const pointers = text.match(/\/[A-Za-z][A-Za-z0-9]*(?:\/[A-Za-z][A-Za-z0-9]*)+/gu) ?? [];
+      expect(pointers.length).toBeGreaterThan(0);
+      for (const pointer of pointers) {
+        let node: Record<string, unknown> | undefined = schema;
+        for (const token of pointer.slice(1).split("/"))
+          node = (node?.properties as Record<string, Record<string, unknown>> | undefined)?.[token];
+        expect(node, `${domain}: ${pointer}`).toBeDefined();
       }
+      if (domain === "standard") expect(text).not.toContain("/darkCore/");
+      else expect(text).toContain("辞書外属性（raw:など）");
+    }
+  });
+  it("gives policy checks an uncertain result and ranks independent dimensions", () => {
+    for (const [policy, aspects] of Object.entries(policyInstructions)) {
+      for (const [index] of aspects.entries())
+        expect(generationCheckQuestion(0, policy as keyof typeof policyInstructions, index).criteria).toHaveProperty(
+          "uncertain",
+        );
+    }
+    for (const axis of ["preferenceFit", "coherence", "difference"] as const) {
+      const question = generationRankingQuestion(0, axis);
+      expect(question.instructions).toContain("candidates[0].character");
+      expect(question.criteria.length).toBeGreaterThanOrEqual(2);
+      expect(question.criteria.length).toBeLessThanOrEqual(10);
     }
   });
 });

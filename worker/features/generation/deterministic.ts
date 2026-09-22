@@ -11,7 +11,12 @@ export function fakeValidationReport(
   brief: GenerationBrief,
   candidate: AnyGeneratedCharacterCandidate,
 ): GenerationValidationReport {
-  const violations = validateGenerationCoverage(brief, candidate);
+  // Offline semantic answers are fixtures; do not feed a previous Jev verdict back into them.
+  // Structural Pointer / treatment checks still apply to the fixture character.
+  const violations = validateGenerationCoverage(brief, {
+    ...candidate,
+    briefCoverage: candidate.briefCoverage.map((item) => ({ ...item, status: "satisfied" as const })),
+  });
   return {
     passed: violations.length === 0,
     checks: [

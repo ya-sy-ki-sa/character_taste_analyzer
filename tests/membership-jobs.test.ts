@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { AnalysisDomain } from "../shared/analysis-domain";
 import { anyEntryDraftSchema } from "../shared/contracts/entries";
-import { type GenerationValidationReport, generationRequestInputSchema } from "../shared/contracts/generation";
+import { generationRequestInputSchema } from "../shared/contracts/generation";
 import { type MembershipTier, membershipTierSchema } from "../shared/membership";
 import { app } from "../worker/app";
 import { activateAnalysisAndRebuild } from "../worker/features/analysis/activation";
@@ -20,9 +20,8 @@ import { listGenerations } from "../worker/features/generation/history";
 import { processGeneration } from "../worker/features/generation/process";
 import { createGenerationRequest } from "../worker/features/generation/request";
 import { processProfileRebuild } from "../worker/features/profile/projection";
+import * as judgmentProviders from "../worker/judgment/provider";
 import { createJobLlmProvider } from "../worker/llm/execution";
-import * as llmProviders from "../worker/llm/providers";
-import type { StructuredLlmRequest } from "../worker/llm/types";
 import { dispatchOutboxEvent } from "../worker/runtime/outbox";
 import type { Env } from "../worker/types";
 import { testDatabase } from "./support/database";
@@ -48,6 +47,8 @@ function setup(tier: MembershipTier = "basic") {
     ENVIRONMENT: "local",
     APP_ORIGIN: "https://lab.example",
     AUTH_PEPPER: "membership-test-only",
+    JEV_PROVIDER: "fake",
+    JEV_MODEL: "jev-1.13.0",
     LLM_PROVIDER: "fake",
     LLM_MODEL: "common-original",
     LLM_TIER_ROUTES_JSON: JSON.stringify(
@@ -236,23 +237,17 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     expect(analysisRuns.map((run) => run.operation)).toEqual(
       expect.arrayContaining(
         domain === "dark"
-          ? [
-              "dark_scope_assessment",
-              "dark_character_understanding",
-              "dark_understanding_audit",
-              "dark_preference_analysis",
-              "dark_preference_audit",
-              "preference_hypotheses",
-            ]
-          : [
-              "customization_delta",
-              "understanding_audit",
-              "preference_analysis",
-              "preference_audit",
-              "preference_hypotheses",
-            ],
+          ? ["dark_character_understanding", "dark_preference_analysis", "preference_hypotheses"]
+          : ["customization_delta", "preference_analysis", "preference_hypotheses"],
       ),
     );
+    expect(
+      analysisRuns.some((run) =>
+        ["understanding_audit", "dark_understanding_audit", "preference_audit", "dark_preference_audit"].includes(
+          String(run.operation),
+        ),
+      ),
+    ).toBe(false);
     for (const run of analysisRuns) {
       expect(run.requested_model).toBe(
         run.operation === "dark_scope_assessment" ? "common-original" : `${tier}-original`,
@@ -297,28 +292,22 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     env.LLM_MODEL = "changed-again";
     env.LLM_REASONING_EFFORT = "none";
     env.LLM_TIER_ROUTES_JSON = '{"premium":{"provider":"openai","model":"must-not-call"}}';
-    // Return a semantic rejection on the first inspection, then a valid repaired
-    // inspection. Keep the actual router and metadata persistence in this test.
-    const createProvider = llmProviders.createLlmProvider;
-    vi.spyOn(llmProviders, "createLlmProvider").mockImplementation((bindings, context) => {
-      const llm = createProvider(bindings, context);
-      const generate = llm.generateStructured.bind(llm);
-      llm.generateStructured = <T>(request: StructuredLlmRequest<T>) =>
-        generate({
-          ...request,
-          fakeFactory: () => {
-            const value = request.fakeFactory();
-            if (request.operation !== "generation_validation" || !request.idempotencyKey.endsWith(":initial"))
-              return value;
-            const report = value as GenerationValidationReport;
-            return {
-              ...report,
-              passed: false,
-              checks: report.checks.map((check, index) => (index === 0 ? { ...check, status: "uncertain" } : check)),
-            } as T;
-          },
-        });
-      return llm;
+    // Jev requests reconsideration once; the LLM repair keeps its job-pinned route.
+    const createJudgment = judgmentProviders.createJudgmentProvider;
+    const seen = new Set<string>();
+    vi.spyOn(judgmentProviders, "createJudgmentProvider").mockImplementation((bindings) => {
+      const provider = createJudgment(bindings);
+      const evaluate = provider.evaluate.bind(provider);
+      provider.evaluate = async (request) => {
+        const result = await evaluate(request);
+        if (request.context.stage.startsWith("generation-validation-") && !seen.has(request.context.stage)) {
+          seen.add(request.context.stage);
+          const answer = result.answers.check_0;
+          if (answer?.type === "choice") answer.confidence = 0.5;
+        }
+        return result;
+      };
+      return provider;
     });
     await processGeneration(env, {
       jobId: generation.jobId as string,
@@ -336,11 +325,17 @@ describe.each(["standard", "dark"] as const)("%s job routing", (domain) => {
     expect(generationRuns.map((run) => run.operation)).toEqual(
       expect.arrayContaining([
         domain === "dark" ? "dark_character_generation" : "character_generation",
-        "generation_validation",
         "generation_repair",
-        "generation_comparison",
       ]),
     );
+    expect(
+      generationRuns.some((run) => ["generation_validation", "generation_comparison"].includes(String(run.operation))),
+    ).toBe(false);
+    expect(
+      db.database
+        .prepare("SELECT COUNT(*) AS count FROM generation_validation_runs WHERE model_run_metadata_id IS NOT NULL")
+        .get()?.count,
+    ).toBe(0);
     for (const run of generationRuns) {
       expect(run.requested_model).toBe("common-changed");
       expect(JSON.parse(run.effective_settings_json as string).llmRouting).toMatchObject({

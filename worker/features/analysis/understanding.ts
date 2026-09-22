@@ -98,12 +98,9 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         );
       }
       darkInitialResult = await understandDarkTarget(env, entry, ontology, research, baseline);
-      completedLlmGroups.push(
-        completedLlmGroup("dark_character_understanding", darkInitialResult.inputHash, darkInitialResult),
-      );
-      const audited = await auditDarkUnderstanding(env, entry, darkInitialResult.value, ontology, research);
+      const audited = await auditDarkUnderstanding(env, entry, darkInitialResult, ontology, research, baseline);
       calls.push(audited);
-      completedLlmGroups.push(completedLlmGroup("dark_understanding_audit", audited.inputHash, audited));
+      completedLlmGroups.push(completedLlmGroup("dark_character_understanding", audited.inputHash, audited));
     } else if (entry.registrationType === "customized_existing" && entry.baseRepresentationId) {
       const base = await understandOne(
         env,
@@ -177,22 +174,6 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       ]),
       ...provenance.statements,
     ];
-    if (darkInitialResult) {
-      for (const attempt of darkInitialResult.attempts ?? [
-        { output: darkInitialResult.value, metadata: darkInitialResult.metadata },
-      ]) {
-        const run = await persistModelRun(
-          env,
-          params.ownerUserId,
-          "dark_character_understanding",
-          darkInitialResult.inputHash,
-          attempt.output,
-          attempt.metadata,
-          "dark",
-        );
-        statements.push(run.statement);
-      }
-    }
     if (darkBaselineResult && entry.baseRepresentationId) {
       const baselineRuns = [];
       for (const attempt of darkBaselineResult.attempts ?? [
@@ -236,7 +217,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
             env,
             params.ownerUserId,
             params.analysisDomain === "dark"
-              ? "dark_understanding_audit"
+              ? "dark_character_understanding"
               : call.value.customizationDeltas.length
                 ? "customization_delta"
                 : "character_understanding",
@@ -293,20 +274,30 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
         const { informationQuality, ...normalized } = normalizeUnderstanding(
           call.semanticAudit,
           semanticResults,
-          quality?.completionAttempted ?? false,
+          quality?.completionAttempted ?? (call.attempts?.length ?? 1) > 1,
         );
+        const domainFields =
+          "darkState" in call.value
+            ? {
+                darkState: call.value.darkState,
+                transformationDeltas: call.value.transformationDeltas,
+                auditNotes: call.value.auditNotes,
+              }
+            : {};
+        const sourceAssessment = {
+          ...call.value.sourceAssessment,
+          modelKnowledgeUsed: normalized.assertions.some((item) => item.explicitness === "model_knowledge"),
+          informationQuality,
+          semanticAudit: { original: call.semanticAudit, assertions: semanticResults.map((item) => item.audit) },
+          limitations: [
+            ...call.value.sourceAssessment.limitations,
+            ...semanticResults.flatMap((item) => (item.audit.reason ? [item.audit.reason] : [])),
+          ].slice(-50),
+        };
         call.value = {
           ...normalized,
-          sourceAssessment: {
-            ...call.value.sourceAssessment,
-            modelKnowledgeUsed: normalized.assertions.some((item) => item.explicitness === "model_knowledge"),
-            informationQuality,
-            semanticAudit: { original: call.semanticAudit, assertions: semanticResults.map((item) => item.audit) },
-            limitations: [
-              ...call.value.sourceAssessment.limitations,
-              ...semanticResults.flatMap((item) => (item.audit.reason ? [item.audit.reason] : [])),
-            ].slice(-50),
-          },
+          ...domainFields,
+          sourceAssessment,
         } as typeof call.value;
       }
       call.value = {

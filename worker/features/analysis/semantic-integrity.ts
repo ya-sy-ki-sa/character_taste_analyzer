@@ -4,7 +4,7 @@ import type {
   EvidenceSetAssessment,
   ScopedProposition,
 } from "../../../shared/contracts/semantic-audit";
-import { SEMANTIC_AUDIT_POLICY } from "../../llm/prompts/semantic-audit";
+import { ANALYSIS_JUDGMENT_POLICY_VERSION } from "../../llm/prompts/judgment-analysis";
 import type { CitationRegistry } from "../../platform/provenance/registry";
 import { type ProvenanceSource, verifyEvidenceReference } from "../../platform/provenance/verifier";
 import { verifyAssertionEvidence } from "./citations";
@@ -139,7 +139,7 @@ export async function verifySemanticAssertion(
       return [{ ...proof, inferenceType: modelIndexes.includes(index) ? ("inferred" as const) : proof.inferenceType }];
     }),
     audit: {
-      policyVersion: SEMANTIC_AUDIT_POLICY,
+      policyVersion: ANALYSIS_JUDGMENT_POLICY_VERSION,
       targetId: target.targetId,
       scope: assertion.scopeAssessment,
       evidenceSetAssessment: evidenceSet ?? null,
