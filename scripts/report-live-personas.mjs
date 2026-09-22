@@ -276,12 +276,14 @@ if (
     !readJson(`${root}/report-findings.json`, null) ||
     (!selection && corrections.length !== 4) ||
     corrections.some((c) => !c.verification) ||
-    dataset.personas.some(
-      (p) =>
-        !readJson(`${root}/exports/${p.id}-baseline.json`, null) ||
-        !readJson(`${root}/exports/${p.id}-final.json`, null) ||
-        readJson(`${root}/final-${p.id}.json`, null)?.count !== personaCount(p.id),
-    ))
+    dataset.personas
+      .filter((p) => personaCount(p.id) > 0)
+      .some(
+        (p) =>
+          !readJson(`${root}/exports/${p.id}-baseline.json`, null) ||
+          !readJson(`${root}/exports/${p.id}-final.json`, null) ||
+          readJson(`${root}/final-${p.id}.json`, null)?.count !== personaCount(p.id),
+      ))
 )
   throw new Error("Final report requires all outcomes, Codex review, second pass and profile review");
 const result = {
@@ -567,7 +569,7 @@ const md = [
     (x) => `| ${x.character} | ${x.cases.join(" / ")} | ${x.observed} ${x.result} |`,
   ),
   "",
-  `固定シードの別パス再採点: ${secondPass?.cases.length ?? 0}件、${secondPass?.totalClaims ?? 0}主張。初回採点と別パス補助の不一致${secondPass?.disagreements ?? 0}件は、根拠付きの裁定とともに保存。追加の公式確認資料の有無による差も含む。`,
+  `固定シードの別パス再採点: ${secondPass?.cases.length ?? 0}件、${secondPass?.totalClaims ?? 0}主張。初回採点と別パス補助の不一致${secondPass?.disagreements ?? 0}件は、根拠付きの裁定または未確定の理由とともに保存。`,
   "",
   "## 閲覧資料",
   "",

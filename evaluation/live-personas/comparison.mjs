@@ -137,7 +137,7 @@ export function compareRuns(baseline, current, baselineDataset, currentDataset, 
     timing: { baseline: baseline.timingSummary, current: current.timingSummary },
     rows,
     limitations: [
-      "同一60件・単一実行同士の比較。モデルや外部検索の変動を含むため、差を改修の因果効果と断定しない。",
+      `同一${baseline.records.length}件・単一実行同士の比較。モデルや外部検索の変動を含むため、差を改修の因果効果と断定しない。`,
       "共通ケース群でも生成された主張数は異なる。支持率は各出力の主張を分母とし、同一主張同士の正誤比較ではない。",
       "期待要素抽出率には要約での保持を含む。構造化候補とプロフィールへの反映は追加評価で別に確認する。",
       "確認不能、欠損、未実施を成功として補わない。引用文字列の検証件数や情報量は、意味的正確率ではない。",
