@@ -1,5 +1,6 @@
 """Offline regressions for safe Jev response envelope handling."""
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -18,6 +19,18 @@ def native_result():
     for key in route_model.NOUL:
         answers[key] = {"type": "noul", "noul": 0.5}
     return {"answers": answers}
+
+
+def assessment(scores=None, confidence=0.9, noul=None):
+    values = {key: 1.0 for key in route_model.SCORES}
+    values.update(scores or {})
+    return {
+        "version": 1,
+        "status": "ok",
+        "scores": values,
+        "confidence": {key: confidence for key in route_model.SCORES},
+        "noul": {key: 0.5 for key in route_model.NOUL} | (noul or {}),
+    }
 
 
 class CompactJevTests(unittest.TestCase):
@@ -78,19 +91,26 @@ class RoutingTests(unittest.TestCase):
             "architectural_decision": True,
             "subsystems_involved": 2,
         }
-        assessment = {
-            "version": 1,
-            "status": "ok",
-            "scores": {"mechanical": 0.5, "ambiguity": 1, "reasoning_depth": 2.5, "architectural_scope": 2},
-            "confidence": {key: 0.9 for key in route_model.SCORES},
-            "noul": {"tight_coupling": 0.5, "bounded_worker_ready": 0.5},
-        }
+        assessment_result = assessment(
+            {
+                "mechanical": 0.5,
+                "ambiguity": 3.5,
+                "reasoning_depth": 3.5,
+                "architectural_scope": 3.5,
+                "constraint_density": 3.5,
+                "evidence_integration": 3.0,
+                "output_complexity": 3.0,
+                "language_nuance": 3.0,
+                "failure_impact": 3.0,
+            },
+            noul={"tight_coupling": 0.95},
+        )
 
-        result = route_model.decide(route_model.validate_state(state), assessment)
+        result = route_model.decide(route_model.validate_state(state), assessment_result)
 
         self.assertEqual(result["action"], "route")
         self.assertEqual(result["tier"], "astra")
-        self.assertEqual(result["reason"], "local_evidence_and_jev")
+        self.assertIn(result["candidate"], {"astra_low", "astra_medium", "astra_high", "astra_max"})
         self.assertTrue(result["astra_gate_passed"])
         self.assertNotIn("quota_status", result)
 
@@ -98,6 +118,35 @@ class RoutingTests(unittest.TestCase):
         result = route_model.decide({"task_summary": "test"}, route_model.fallback("network_error"))
         self.assertEqual(result["action"], "route")
         self.assertNotIn("hold", result["action"])
+
+    def test_low_demand_routes_to_luna_max(self):
+        result = route_model.decide(
+            route_model.validate_state({
+                "task_summary": "Exact mechanical change",
+                "cause_known": True,
+                "implementation_plan_exists": True,
+                "unresolved": False,
+            }),
+            assessment({"mechanical": 4.0, **{key: 0.0 for key in route_model.SCORES if key != "mechanical"}}, confidence=0.9),
+        )
+        self.assertEqual(result["candidate"], "luna_max")
+        self.assertEqual(result["model"], "gpt-5.6-luna")
+        self.assertEqual(result["reasoning_effort"], "max")
+
+    def test_low_confidence_never_routes_below_sol_max(self):
+        result = route_model.decide(
+            route_model.validate_state({"task_summary": "Uncertain task"}),
+            assessment({"mechanical": 4.0, **{key: 0.0 for key in route_model.SCORES if key != "mechanical"}}, confidence=0.5),
+        )
+        self.assertEqual(result["candidate"], "sol_max")
+
+    def test_route_candidates_are_effort_ordered_and_questions_do_not_select_models(self):
+        self.assertEqual(route_model.CANDIDATE_KEYS, (
+            "luna_max", "sol_low", "sol_medium", "sol_high", "sol_max",
+            "astra_low", "astra_medium", "astra_high", "astra_max",
+        ))
+        self.assertTrue(all(route_model.QUESTIONS[key]["type"] == "score" for key in route_model.SCORES))
+        self.assertNotIn("model", json.dumps({key: route_model.QUESTIONS[key] for key in route_model.SCORES}))
 
 
 if __name__ == "__main__":

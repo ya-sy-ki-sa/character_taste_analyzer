@@ -42,23 +42,27 @@ is resolved and a different, well-specified package is ready. Keep a local recor
 of package identity, attempts and verification results. A test failure due only
 to an unavailable dependency is not evidence of model inadequacy.
 
-Default Terra medium. Exact mechanical work with known cause, an implementation
-plan and no unresolved failures may use Luna low without contacting Jev.
-Otherwise Jev evaluates mechanicalness, ambiguity, reasoning depth, architecture,
-coupling and bounded readiness. Its output is a routing signal, never authority.
+The classifier profile remains Terra medium, but the selected work package route
+is one of Luna max, Sol low/medium/high/max, or Astra low/medium/high/max.
+Exact mechanical work with known cause, an implementation plan and no unresolved
+failures may use Luna max without contacting Jev. Otherwise Jev scores nine
+prompt/work-package dimensions: mechanicalness, ambiguity, reasoning depth,
+architecture, constraint density, evidence integration, output complexity,
+language nuance, and failure impact. Code combines those Scores and applies
+trusted local safety floors; Jev never chooses a model name directly.
 Low confidence, malformed output, authentication failure or timeout selects
-Terra medium; observed unresolved failures or cross-component architecture keep
-a Sol low floor. Never lower a difficult task merely because Jev is unavailable.
+Sol max; observed unresolved failures or cross-component architecture keep a
+Sol floor. Never lower a difficult task merely because Jev is unavailable.
 
-Astra low requires ALL of: an unresolved package; at least one documented,
+Astra candidates require ALL of: an unresolved package; at least one documented,
 reasonable failed Sol attempt; a nonempty local evidence summary; explicit local
 architecture/coupling evidence; minimum Score confidence 0.80; reasoning >= 2.5;
 architecture >= 2 or coupling Noul >= 0.90.
-The routing script enforces this conjunction. Jev alone cannot unlock Astra.
-No automatic Astra medium/high promotion. After Astra reasoning, reassess and
-return implementation to a cheaper model. These are conservative policy
-defaults to tune with observed outcomes, not empirically established optimal
-thresholds.
+The routing script enforces this conjunction, then lets the composite Score pick
+Astra low/medium/high/max. Jev alone cannot unlock Astra. After Astra reasoning,
+reassess and return implementation to a cheaper model. These are conservative
+policy defaults to tune with observed outcomes, not empirically established
+optimal thresholds.
 
 For action=route, use the returned model and reasoning_effort only when the host
 supports that dispatch.
