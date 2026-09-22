@@ -87,6 +87,51 @@ describe("LLM reasoning effort transport", () => {
     expect(bodies()[0]).not.toHaveProperty("reasoning");
   });
 
+  it("uses the JSON default route when no tier route matches", async () => {
+    const { bodies } = mockOpenAi();
+    const env = environment({
+      LLM_TIER_ROUTES_JSON: JSON.stringify({
+        default: { provider: "openai", model: "default-model", effort: "high" },
+      }),
+    });
+    const llm = createLlmProvider(env, { snapshot: resolveLlmRoutingSnapshot(env, "premium") });
+    await llm.generateStructured(request);
+    await llm.generateStructured({ ...request, operation: "dark_scope_assessment" });
+    expect(bodies().map((body) => ({ model: body.model, effort: body.reasoning?.effort }))).toEqual([
+      { model: "default-model", effort: "high" },
+      { model: "default-model", effort: "high" },
+    ]);
+  });
+
+  it("prefers an explicit tier route over the JSON default route", async () => {
+    const { bodies } = mockOpenAi();
+    const env = environment({
+      LLM_TIER_ROUTES_JSON: JSON.stringify({
+        default: { provider: "openai", model: "default-model", effort: "high" },
+        gold: { provider: "openai", model: "gold-model", effort: "low" },
+      }),
+    });
+    const llm = createLlmProvider(env, { snapshot: resolveLlmRoutingSnapshot(env, "gold") });
+    await llm.generateStructured(request);
+    expect(bodies()[0]).toMatchObject({ model: "gold-model", reasoning: { effort: "low" } });
+  });
+
+  it("keeps replay as the default when a JSON default route is present", async () => {
+    const env = environment({
+      LLM_PROVIDER: "replay",
+      LLM_MODEL: "replay-v1",
+      LLM_TIER_ROUTES_JSON: JSON.stringify({
+        default: { provider: "openai", model: "default-model", effort: "high" },
+      }),
+    });
+    const snapshot = resolveLlmRoutingSnapshot(env, "premium");
+    expect(snapshot.common.primary).toEqual({ provider: "replay", model: "replay-v1", effort: null });
+    expect(snapshot.tier.primary).toEqual(snapshot.common.primary);
+    const result = await createLlmProvider(env, { snapshot }).generateStructured(request);
+    expect(result.metadata.provider).toBe("replay");
+    expect(result.metadata.requestedModel).toBe("replay-v1");
+  });
+
   it("keeps the saved tier effort on schema repair after settings change", async () => {
     const { bodies } = mockOpenAi();
     const env = environment({ LLM_TIER_ROUTES_JSON: tierRoute("basic", "high") });
@@ -153,6 +198,14 @@ describe("tier route effort validation", () => {
     const env = environment({
       LLM_TIER_ROUTES_JSON: JSON.stringify({ premium: { provider: "openai", model: "tier", effort } }),
     });
+    expect(validateConfig(env).errors).toContain("LLM_TIER_ROUTES_INVALID");
+    expect(() => resolveLlmRoutingSnapshot(env, "premium")).toThrow(
+      expect.objectContaining({ code: "LLM_TIER_ROUTES_INVALID" }),
+    );
+  });
+
+  it("rejects an invalid JSON default route", () => {
+    const env = environment({ LLM_TIER_ROUTES_JSON: '{"default":{"provider":"openai"}}' });
     expect(validateConfig(env).errors).toContain("LLM_TIER_ROUTES_INVALID");
     expect(() => resolveLlmRoutingSnapshot(env, "premium")).toThrow(
       expect.objectContaining({ code: "LLM_TIER_ROUTES_INVALID" }),

@@ -30,6 +30,7 @@ const configuredRouteSchema = z
   .transform((route) => ({ ...route, effort: route.effort ?? null }))
   .pipe(routeSchema);
 const tierRoutesSchema = z.strictObject({
+  default: configuredRouteSchema.optional(),
   basic: configuredRouteSchema.optional(),
   silver: configuredRouteSchema.optional(),
   gold: configuredRouteSchema.optional(),
@@ -71,7 +72,7 @@ export function parseTierRoutes(value: string | undefined) {
   try {
     return tierRoutesSchema.parse(value === undefined ? {} : JSON.parse(value));
   } catch {
-    throw new LlmProviderError("ティア別モデル設定が不正です", "LLM_TIER_ROUTES_INVALID", false);
+    throw new LlmProviderError("LLMのdefault・ティア別設定が不正です", "LLM_TIER_ROUTES_INVALID", false);
   }
 }
 
@@ -96,13 +97,18 @@ export function parseCommonLlmRoutes(env: Env) {
 
 export function resolveLlmRoutingSnapshot(env: Env, membershipTier: MembershipTier): LlmRoutingSnapshot {
   const { primary, fallback } = parseCommonLlmRoutes(env);
+  const routes = parseTierRoutes(env.LLM_TIER_ROUTES_JSON);
+  // Replay/Fake are deterministic test routes. Keep them as the default when
+  // no tier-specific route is present, even if a deploy-wide default is set.
+  const defaultPrimary =
+    (primary.provider === "replay" || primary.provider === "fake" ? primary : routes.default) ?? primary;
   const distinctFallback = (route: LlmRoute) =>
     fallback && (fallback.provider !== route.provider || fallback.model !== route.model) ? fallback : null;
-  const tierPrimary = parseTierRoutes(env.LLM_TIER_ROUTES_JSON)[membershipTier] ?? primary;
+  const tierPrimary = routes[membershipTier] ?? defaultPrimary;
   return {
     policyVersion: "membership-v2",
     membershipTier,
-    common: { primary, fallback: distinctFallback(primary) },
+    common: { primary: defaultPrimary, fallback: distinctFallback(defaultPrimary) },
     tier: { primary: tierPrimary, fallback: membershipTier === "basic" ? distinctFallback(tierPrimary) : null },
   };
 }

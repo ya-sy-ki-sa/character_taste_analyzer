@@ -26,7 +26,7 @@ npm run dev:offline
 
 現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`database/migrations`です。
 
-改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当を保存し、`effort` はティア設定で指定した値または `null`（モデル既定値）になります。生成要求には `profileSnapshotId` が必須です。
+改修前との後方互換性は保証しません。DB定義は現行baselineと通常版／ダーク版のseedの3ファイルです。旧DB用の変換・コピー処理はありません。LLMジョブは `membership-v2` の割当を保存し、`effort` は `LLM_TIER_ROUTES_JSON` の選択されたルートで指定した値または `null`（モデル既定値）になります。生成要求には `profileSnapshotId` が必須です。
 
 ## Jevの意味判定
 
@@ -40,9 +40,9 @@ Jev設定はデプロイ設定であり、既存のLLM割当JSONには追加し�
 
 ## AI Provider
 
-メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` にティア別の `{ provider, model, effort }` を設定します。初期値 `{}` は全ティアで共通モデルを使い、推論量はモデルの既定値です。ティア設定の `effort` を省略した場合も、選択したモデルの既定値を使います。フォールバック先も個別の推論量は持たず、フォールバックモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定は独立したJev設定、Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ実装](../worker/features/account/membership.ts) と [LLMルーティング](../worker/llm/routing.ts)を参照してください。
+メンバーシップはベーシック／シルバー／ゴールド／プレミアムの4段階で、登録時と既存ユーザーはベーシックです。`LLM_TIER_ROUTES_JSON` に `default` とティア別の `{ provider, model, effort }` を設定します。該当ティアの設定があればそれを使い、なければ `default`、さらに `default` もなければ `LLM_PROVIDER`／`LLM_MODEL` の共通設定を使います。`LLM_PROVIDER` が `replay` または `fake` の場合は、テスト用の共通設定を優先します。`effort` を省略したルートは、選択したモデルの既定値を使います。フォールバック先も個別の推論量は持たず、フォールバックモデルの既定値を使います。分析・生成ジョブに作成時のモデル・推論量を保存し、続行・再試行でも維持します。上位ティアの対象処理は自動fallbackせず、対象判定は独立したJev設定、Embedding・モデレーションは共通です。設定と用途一覧は[メンバーシップ実装](../worker/features/account/membership.ts) と [LLMルーティング](../worker/llm/routing.ts)を参照してください。
 
-`LLM_PROVIDER`で次を明示選択します。
+`LLM_TIER_ROUTES_JSON` にルートを設定しない場合や、`replay`／`fake` をテスト用に優先する場合は、`LLM_PROVIDER`／`LLM_MODEL` の共通設定を使います。値は次のとおりです。
 
 | 値 | 用途 |
 |---|---|
@@ -51,7 +51,7 @@ Jev設定はデプロイ設定であり、既存のLLM割当JSONには追加し�
 | `replay` | ローカルE2E／CIの再現可能な応答 |
 | `fake` | 単体試験用の決定論的応答 |
 
-local/staging/productionの既定LLMはすべて`gpt-5.6-luna`、推論量はモデルの既定値です。ティア別の上書きは`LLM_TIER_ROUTES_JSON`で指定します。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`で、推論量はモデルの既定値です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
+local/staging/productionの`default`は`LLM_TIER_ROUTES_JSON`で`openai`／`gpt-5.6-luna`を設定し、推論量はモデルの既定値です。ティア別の上書きも同じJSONで指定します。offlineだけはReplayを優先して外部LLMを呼びません。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`で、推論量はモデルの既定値です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
 
 OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
 
@@ -66,6 +66,7 @@ OpenAI Responses APIのFlex Processingは`OPENAI_FLEX_ENABLED=true`の場合だ�
 ```dotenv
 OPENAI_API_KEY=...
 OPENAI_FLEX_ENABLED=false
+LLM_TIER_ROUTES_JSON={"default":{"provider":"openai","model":"gpt-5.6-luna"}}
 MODERATION_PROVIDER=openai
 MODERATION_MODEL=omni-moderation-latest
 AI_GATEWAY_ACCOUNT_ID=...
