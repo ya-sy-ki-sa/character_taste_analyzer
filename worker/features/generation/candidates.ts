@@ -2,11 +2,8 @@ import { z } from "zod";
 import {
   type AnyGeneratedCharacterCandidate,
   type DarkGeneratedCharacterCandidate,
-  darkGeneratedCharacterCandidateSchema,
   type GeneratedCharacterCandidate,
   type GenerationValidationReport,
-  generatedCharacterCandidateSchema,
-  generationValidationReportSchema,
 } from "../../../shared/contracts/generation";
 import type { GenerationBrief } from "../../../shared/contracts/generation-brief";
 import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
@@ -26,6 +23,7 @@ import { fakeCharacter, fakeDarkCharacter, fakeValidationReport } from "./determ
 import { tryJevGenerationValidation } from "./jev-validation";
 import { persistModelRun } from "./model-runs";
 import * as repository from "./repositories/candidates";
+import { candidateSchemasForBrief, validationSchemaForBrief } from "./schemas";
 import { inspectGenerationSimilarity, type SimilarityDocument } from "./similarity";
 import type { CandidateResult } from "./types";
 import { reconcileGenerationValidation, validateGenerationCoverage } from "./validation";
@@ -125,12 +123,13 @@ export async function validateGeneratedCandidate(
     },
   ];
   const inputHash = await sha256Hex(JSON.stringify(messages));
+  const schema = validationSchemaForBrief(brief.preferenceSelections.map((item) => item.profileSnapshotItemId));
   const result = await llm.generateStructured({
     operation: "generation_validation",
     schemaName: "generation_validation_report",
     schemaVersion: "1.0",
-    schema: generationValidationReportSchema,
-    jsonSchema: z.toJSONSchema(generationValidationReportSchema, { target: "draft-7" }) as Record<string, unknown>,
+    schema,
+    jsonSchema: z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>,
     messages,
     maxOutputTokens: 30_000,
     temperature: 0,
@@ -179,8 +178,10 @@ export async function generateCandidate(
   ordinal: number,
   documents: SimilarityDocument[],
 ): Promise<CandidateResult> {
-  const standardSchema = generatedCharacterCandidateSchema.extend({ briefId: z.literal(briefRowId) });
-  const darkSchema = darkGeneratedCharacterCandidateSchema.extend({ briefId: z.literal(briefRowId) });
+  const { standard: standardSchema, dark: darkSchema } = candidateSchemasForBrief(
+    briefRowId,
+    brief.preferenceSelections.map((item) => item.profileSnapshotItemId),
+  );
   const messages = [
     {
       role: "system" as const,
