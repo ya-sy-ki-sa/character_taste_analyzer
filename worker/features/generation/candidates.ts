@@ -30,6 +30,9 @@ import { inspectGenerationSimilarity, type SimilarityDocument } from "./similari
 import type { CandidateResult } from "./types";
 import { reconcileGenerationValidation, validateGenerationCoverage } from "./validation";
 
+// Responses API counts reasoning tokens toward this limit as well as the generated JSON.
+const GENERATION_MAX_OUTPUT_TOKENS = 25_000;
+
 export async function validateGeneratedCandidate(
   env: Env,
   llm: LlmProvider,
@@ -206,7 +209,7 @@ export async function generateCandidate(
           schema: darkSchema,
           jsonSchema: z.toJSONSchema(darkSchema, { target: "draft-7" }) as Record<string, unknown>,
           messages,
-          maxOutputTokens: 10_000,
+          maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
           temperature: brief.mode === "faithful" ? 0.2 : brief.mode === "exploratory" ? 0.8 : 0.5,
           idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}`,
           safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
@@ -219,7 +222,7 @@ export async function generateCandidate(
           schema: standardSchema,
           jsonSchema: z.toJSONSchema(standardSchema, { target: "draft-7" }) as Record<string, unknown>,
           messages,
-          maxOutputTokens: 8_000,
+          maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
           temperature: brief.mode === "faithful" ? 0.2 : brief.mode === "exploratory" ? 0.8 : 0.5,
           idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}`,
           safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
@@ -274,7 +277,7 @@ export async function generateCandidate(
             schema: darkSchema,
             jsonSchema: z.toJSONSchema(darkSchema, { target: "draft-7" }) as Record<string, unknown>,
             messages: repairMessages,
-            maxOutputTokens: 10_000,
+            maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
             temperature: 0,
             idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair`,
             safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
@@ -287,7 +290,7 @@ export async function generateCandidate(
             schema: standardSchema,
             jsonSchema: z.toJSONSchema(standardSchema, { target: "draft-7" }) as Record<string, unknown>,
             messages: repairMessages,
-            maxOutputTokens: 8_000,
+            maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
             temperature: 0,
             idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair`,
             safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
@@ -376,7 +379,7 @@ export async function compareCandidates(
     schema,
     jsonSchema: z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>,
     messages,
-    maxOutputTokens: 6000,
+    maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
     temperature: 0,
     idempotencyKey: `${params.generationRequestId}:${brief.briefId}:comparison`,
     safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
