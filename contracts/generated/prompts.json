@@ -4,7 +4,7 @@
     "sha256": "51f13e1c987e50d843db45a61fc2b53d23ecad6436629b25f4687c0ccb64ed02"
   },
   "understandingCompletion": {
-    "promptVersion": "understanding-information/v2.3.0",
+    "promptVersion": "understanding-information/v2.4.0",
     "sha256": "f68852d55e00cb3666570c11b07d0bff36a8017b46a1d3daeb62f90dbeacbe1d"
   },
   "generationJudgment": {
@@ -12,15 +12,15 @@
     "sha256": "59b950e4e81dc6864d8bd2911e4e6d5d1aaa4b90e232a39907a6641b754ed294"
   },
   "preference": {
-    "promptVersion": "preference/v4.4.0",
-    "sha256": "0827aae36b3e6291e41eb18868560f7d80dab4f5a1d8c44d5a9b71a3b8af772d"
+    "promptVersion": "preference/v4.5.0",
+    "sha256": "609aca519fdb28e3f313c003fd17c276aba9d850cda4aca4109e3b7db71df3f7"
   },
   "darkPreference": {
-    "promptVersion": "dark_preference/v4.4.0",
-    "sha256": "407cb7bac0d6c32e2c96c23c6aeec5acf9e13ee18888a18640fe1393f0f819e0"
+    "promptVersion": "dark_preference/v4.5.0",
+    "sha256": "f96a85520d4b934ca107bd6d2db68a9b9ba483c0edf8d6cdb9e032a1b2171ea9"
   },
   "preferenceRefinement": {
-    "promptVersion": "preference_refinement/v4.4.0",
+    "promptVersion": "preference_refinement/v4.5.0",
     "sha256": "c08910b5602245396a203734368b29ab2079c455e046b8728088fb73ec93deab"
   },
   "citationVerification": {
@@ -36,24 +36,24 @@
     "sha256": "5c64efe74762b825413873b2a94fda59fdbb8a5c6f3225fcc97aa0d02d8a01ba"
   },
   "darkAnalysis": {
-    "promptVersion": "dark_analysis/v3.3.0",
+    "promptVersion": "dark_analysis/v3.4.0",
     "sha256": "54ae020ecbbeb00886bd4b7f07691d30ca4ab85532eba2fa59db708ed8321c02"
   },
   "darkScope": {
-    "promptVersion": "dark_scope_assessment/v3.3.0",
+    "promptVersion": "dark_scope_assessment/v3.4.0",
     "sha256": "b94accc82a2de3a98eb6b87c588fe2668b713bf65779002729de9408740fa818"
   },
   "darkBaseline": {
-    "promptVersion": "dark_baseline_understanding/v3.3.0",
+    "promptVersion": "dark_baseline_understanding/v3.4.0",
     "sha256": "d53ba285cd2b434580dc16ca33ba4ee9f1b112ac1ee1496c43159c6c93402ca1"
   },
   "darkUnderstanding": {
-    "promptVersion": "dark_character_understanding/v3.3.0",
+    "promptVersion": "dark_character_understanding/v3.4.0",
     "sha256": "7436c4f8067c5466edd8c9b3d7ee0fa9ddb976c7eafd30baa382ecc78cb82360"
   },
   "analysis": {
-    "promptVersion": "character_understanding/v3.3.0",
-    "sha256": "ffb777778e4c55cd3c69d2f5e6e576e83254f89bee4842e4c75a4473ffb3516f"
+    "promptVersion": "character_understanding/v3.4.0",
+    "sha256": "de75a017eb188a150f2a74c67795a3df08fe6f12b02e4429dc282ecf6aaafd9b"
   },
   "generation": {
     "promptVersion": "character_generation/v3.0.0",

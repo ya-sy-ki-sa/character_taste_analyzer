@@ -1,6 +1,6 @@
 import { understandingAspectLabels } from "../../../shared/understanding-aspects";
 import { SYSTEM_INSTRUCTION } from "./analysis";
-export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v2.3.0";
+export const UNDERSTANDING_INFORMATION_POLICY = "understanding-information/v2.4.0";
 
 export const UNDERSTANDING_COMPLETENESS_INSTRUCTION = `[TASK:UNDERSTANDING_COVERAGE]
 キャラクター像の7項目をそれぞれ検討する。
@@ -12,8 +12,10 @@ ${Object.entries(understandingAspectLabels)
 - 各項目に根拠のある人物像を具体的な文章で記述し、対応するassertionsに根拠・出所を保持する。名前・作品名だけを人物像の完成とみなさない。
 - 同じ命題を区分ごとに別assertionとして再生成しない。1件のassertionを必要な複数区分から参照する。
 - 複合主張に確認済み部分と未確認部分がある場合、根拠の異なる独立したassertionsに分割し、各部分の出所を混ぜない。
-- ユーザー入力と公開資料に接地する候補を先に選び、各項目の接地済み候補は原則2件までに絞る。ただし、資料の引用や入力箇所を実際に示せない内容をsource_explicitとしない。
-- 既成キャラクターの人物像は、資料に現れない項目も利用可能なモデル知識から具体的に検討する。接地候補がある項目でも別の有用な内容なら追加できる。各項目で最大2件、全体で最大10件を目安とし、重複や水増しはしない。モデル知識由来の主張にはexplicitness=model_knowledge、sourceRef=model_knowledgeを指定し、確認済み事実へ昇格させない。
+- ユーザー入力と公開資料に接地する候補を先に選び、各項目の接地済み候補は原則3件までに絞る。公開情報が対象人物本人・指定作品・時期に対応するか確認し、脇役や関連作品の説明を本人の根拠に使わない。引用や入力箇所を実際に示せない内容をsource_explicitとしない。
+- 既成キャラクターの人物像は、資料に現れない項目も利用可能なモデル知識から具体的に検討する。接地候補がある項目でも別の有用な内容なら追加できる。各項目で最大3件、全体で最大14件を目安とし、重複や水増しはしない。モデル知識由来の主張にはexplicitness=model_knowledge、sourceRef=model_knowledgeを指定し、確認済み事実へ昇格させない。
+- 一語の性格ラベルや一般論で終えず、何を・誰に・どの状況で・なぜ行うかを区別できる範囲で書く。とくに目標、価値観、行動、関係、表現では、人物固有の行動や相手・動機・時期による変化が分かる独立した内容を優先する。十分に分からない細部は作らない。
+- summaryの各項目も、採用したassertionsに含まれる複数の異なる側面が読み取れる自然な説明文にする。属性名の羅列、同義文の水増し、1分類を無条件に1短文へ縮めることを避ける。summaryにだけ新事実を足さない。
 - 既成キャラクターでは、7項目のうち人物・時期に即した別内容をできるだけ広く残す。役割・道徳・目標だけで終えず、価値観・行動・関係・表現も検討する。十分に知らない項目は創作しない。オリジナルやカスタム固有設定は入力範囲を超えて補わない。
 - モデル知識は未照合として扱い、断定を避ける。公開資料にないという理由だけで有用な未照合候補を一律削除しない。同じ命題に接地済み候補があればモデル知識版を作らない。
 - 本当に不明な項目 → summaryの該当項目を空配列、uncertainties.topicを項目の英語キー、reasonを具体的な不明理由とする。

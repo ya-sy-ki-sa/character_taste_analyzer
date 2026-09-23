@@ -41,6 +41,54 @@ describe("system-side character research", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("re-searches a sequel's lead character instead of grounding him in his father's article", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.hostname === "ja.wikipedia.org") {
+        const direct = url.searchParams.get("titles") === "孫悟空 (ドラゴンボール)";
+        if (direct) {
+          expect(url.searchParams.has("generator")).toBe(false);
+          expect(url.searchParams.has("exintro")).toBe(false);
+        }
+        return Response.json({
+          query: {
+            pages: direct
+              ? [
+                  {
+                    title: "孫悟空 (ドラゴンボール)",
+                    fullurl: "https://ja.wikipedia.org/wiki/Goku",
+                    extract: "孫悟空はドラゴンボールに登場する人物。強い相手との戦いを好む。",
+                    pageprops: { wikibase_item: "Q1" },
+                  },
+                ]
+              : [
+                  {
+                    title: "バーダック",
+                    fullurl: "https://ja.wikipedia.org/wiki/Bardock",
+                    extract: "ドラゴンボールZの孫悟空の父バーダック。",
+                    pageprops: { wikibase_item: "Q2" },
+                  },
+                ],
+          },
+        });
+      }
+      if (url.searchParams.get("action") === "wbsearchentities") return Response.json({ search: [] });
+      if (url.searchParams.get("action") === "wbgetentities") return Response.json({ entities: {} });
+      return Response.json({ query: { pages: [] } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await collectCharacterResearch(
+      env("workers_ai"),
+      entryDraftSchema.parse({
+        ...existing,
+        workTitle: "ドラゴンボールZ",
+        characterName: "孫悟空",
+      }),
+    );
+    expect(result.sources.some((source) => source.title === "孫悟空 (ドラゴンボール)")).toBe(true);
+    expect(result.sources.some((source) => source.title === "バーダック")).toBe(false);
+  });
+
   it("adds only target-matched Wikidata items to the trusted source set", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -57,6 +105,11 @@ describe("system-side character research", () => {
             id: "Q999",
             label: "登場人物A",
             description: "別作品に登場する同名人物",
+          },
+          {
+            id: "Q998",
+            label: "登場人物Aの父",
+            description: "架空作品に登場する登場人物Aの親",
           },
         ],
       });

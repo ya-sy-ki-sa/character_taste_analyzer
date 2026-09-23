@@ -46,7 +46,12 @@ import type { ProvenanceSource } from "../../platform/provenance/verifier";
 import type { Env } from "../../types";
 import type { CharacterResearch } from "./research";
 import type { AttributeRow } from "./types";
-import { isSelfBackgroundPreference, withConciseComparison } from "./preference-canonical";
+import { isExplicitHeroPraise } from "./preference-admiration";
+import {
+  isSelfBackgroundPreference,
+  withConciseComparison,
+  withConcretePreferenceCondition,
+} from "./preference-canonical";
 import { understandingAssertionAspects } from "./understanding-aspects";
 
 const CONFIDENCE_CAPS = {
@@ -1032,7 +1037,7 @@ export async function judgePreferenceCandidate(
   }));
   const preferences = await Promise.all(
     input.candidate.preferenceAssertions.map(async (generated, index) => {
-      const original = withConciseComparison(generated);
+      const original = withConciseComparison(withConcretePreferenceCondition(generated));
       const prefix = `preference_${index}`;
       const result = await judgeAssertion(provider, {
         correlationId: input.correlationId,
@@ -1063,10 +1068,18 @@ export async function judgePreferenceCandidate(
       const classificationAnswer = result.answers[`${prefix}_classification`];
       const classification = selectedChoice(classificationAnswer, "no_match");
       const protectedByReview = original.explicitness === "user_confirmed";
-      if (!protectedByReview && (!isCertainChoice(classificationAnswer) || classification !== "preference")) {
+      const dualPraise =
+        input.domain === "standard" &&
+        classification === "value_attitude" &&
+        isExplicitHeroPraise(original, input.payload.preference.likedReasons);
+      if (
+        !protectedByReview &&
+        (!isCertainChoice(classificationAnswer) || (classification !== "preference" && !dualPraise))
+      ) {
         const issue = `${prefix}: 入力事実と嗜好反応を区別できません。`;
         issues.push(issue);
-        if (isCertainChoice(classificationAnswer) && classification !== "preference") blockingIssues.push(issue);
+        if (isCertainChoice(classificationAnswer) && classification !== "preference" && !dualPraise)
+          blockingIssues.push(issue);
       }
       const attributeAnswer = result.answers[`${prefix}_attribute`];
       const attributeChoice = answerChoice(attributeAnswer, "no_match");
@@ -1174,7 +1187,7 @@ export async function judgePreferenceCandidate(
         issues.push(`${prefix}: 自己経験を好み対象から除外しました。`);
       } else if (
         !protectedByReview &&
-        ((isCertainChoice(classificationAnswer) && classification !== "preference") || coreFieldRejected)
+        ((isCertainChoice(classificationAnswer) && classification !== "preference" && !dualPraise) || coreFieldRejected)
       ) {
         fields.scopeAssessment.verdict = "mismatch";
         fields.scopeAssessment.reason = coreFieldRejected

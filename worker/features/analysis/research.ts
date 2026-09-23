@@ -58,6 +58,7 @@ async function collectWikipedia(
   language: "ja" | "en" = "ja",
   linkedTitles: string[] = [],
   trustedIds: ReadonlySet<string> = new Set(),
+  exactCharacterTitle = false,
 ): Promise<ResearchAdapterResult> {
   const params = new URLSearchParams({
     action: "query",
@@ -78,6 +79,10 @@ async function collectWikipedia(
   if (linkedTitles.length) {
     for (const key of ["generator", "gsrsearch", "gsrnamespace", "gsrlimit"]) params.delete(key);
     params.set("titles", linkedTitles.join("|"));
+  }
+  if (exactCharacterTitle) {
+    params.delete("exintro");
+    params.set("exsentences", "12");
   }
   const label = language === "ja" ? "日本語Wikipedia" : "英語Wikipedia";
   try {
@@ -111,7 +116,10 @@ async function collectWikipedia(
       .filter((page) => page.title && page.url.startsWith(`https://${language}.wikipedia.org/wiki/`) && page.excerpt)
       .filter((page) =>
         linkedTitles.length
-          ? trustedIds.has(page.wikidataId)
+          ? exactCharacterTitle
+            ? linkedTitles.some((title) => normalizeIdentityPart(page.title) === normalizeIdentityPart(title)) &&
+              matchesTarget(`${page.title} ${page.excerpt}`, expectedCharacter, expectedWork)
+            : trustedIds.has(page.wikidataId)
           : matchesTarget(`${page.title} ${page.excerpt}`, expectedCharacter, expectedWork),
       )
       .slice(0, 4);
@@ -181,14 +189,17 @@ async function collectWikidata(
           url: /^Q\d+$/u.test(id) ? `https://www.wikidata.org/wiki/${id}` : "",
           excerpt: [label, description].filter(Boolean).join("。"),
           searchable: [label, description, ...aliases].join(" "),
+          namedTarget: [label, ...aliases].some((name) => normalizeIdentityPart(name) === expectedCharacter),
         };
       })
       .filter((item) => item.title && item.url && item.excerpt)
       .filter(
-        (item) => matchesTarget(item.searchable, expectedCharacter, expectedWork) || trustedLinkedIds.has(item.id),
+        (item) =>
+          trustedLinkedIds.has(item.id) ||
+          (item.namedTarget && matchesTarget(item.searchable, expectedCharacter, expectedWork)),
       )
       .slice(0, 4)
-      .map(({ searchable: _searchable, id, ...source }) => ({
+      .map(({ searchable: _searchable, namedTarget: _namedTarget, id, ...source }) => ({
         ...source,
         provider: "wikidata" as const,
         trustReason: trustedLinkedIds.has(id)
@@ -264,7 +275,34 @@ export async function collectCharacterResearch(env: Env, draft: AnyEntryDraft): 
   const wikipediaQuery = [`"${baseCharacterName}"`, draft.workTitle, draft.mediaType].filter(Boolean).join(" ");
   const expectedCharacter = normalizeIdentityPart(baseCharacterName);
   const expectedWork = normalizeIdentityPart(draft.workTitle);
-  const wikipediaPromise = collectWikipedia(wikipediaQuery, expectedCharacter, expectedWork);
+  const broaderWorkTitle = /^ドラゴンボール(?:Z|GT|超|改)$/u.test(draft.workTitle) ? "ドラゴンボール" : null;
+  const wikipediaPromise = collectWikipedia(wikipediaQuery, expectedCharacter, expectedWork).then(async (initial) => {
+    if (
+      !broaderWorkTitle ||
+      initial.sources.some((source) => normalizeIdentityPart(source.title).startsWith(expectedCharacter))
+    )
+      return initial;
+    // A sequel search can surface a related-person article. Request the
+    // character's exact franchise page rather than ranking more related pages.
+    const directTitle = `${baseCharacterName} (${broaderWorkTitle})`;
+    const direct = await collectWikipedia(
+      directTitle,
+      expectedCharacter,
+      normalizeIdentityPart(broaderWorkTitle),
+      "ja",
+      [directTitle],
+      new Set(),
+      true,
+    );
+    return {
+      available: initial.available || direct.available,
+      sources: direct.sources,
+      linkedWikidataIds: direct.linkedWikidataIds,
+      limitation: [initial.limitation, direct.limitation, "関連人物だけの記事は本人の根拠から除外"]
+        .filter(Boolean)
+        .join("／"),
+    };
+  });
   const wikidataPromise = collectWikidata(
     baseCharacterName,
     expectedCharacter,

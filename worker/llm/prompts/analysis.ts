@@ -1,4 +1,4 @@
-export const ANALYSIS_PROMPT_VERSION = "v3.3.0";
+export const ANALYSIS_PROMPT_VERSION = "v3.4.0";
 
 export const SYSTEM_INSTRUCTION = `[TASK:ANALYSIS]
 フィクションのキャラクターに関する資料を、指定された処理目的に従って構造化する。

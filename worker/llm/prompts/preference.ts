@@ -4,7 +4,7 @@ import { DARK_SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION } from "./analysis";
 import { preferenceAttributeInstruction } from "./preference-attributes";
 import { REFERENCE_SCOPE_INSTRUCTION } from "./reference-scope";
 
-export const PREFERENCE_PROMPT_VERSION = "v4.4.0";
+export const PREFERENCE_PROMPT_VERSION = "v4.5.0";
 export const PREFERENCE_SCHEMA_VERSION = "3.0";
 
 const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
@@ -67,6 +67,7 @@ ${responseChannelPrompt()}
 - 「怖くても助ける姿に憧れる」→ admiration。「自分も怖くても助けられるようになりたい」→ wishful_identification。
 - 「怖くても人を助けに行くところが好き。自分もあんなふうに勇気を出したい」→ 助けに行く姿へのadmirationと、勇気を身につけたいwishful_identificationを独立した根拠で保持する。
 - 「困っている子を置いていかない姿が好き。自分も困った人に声をかけられるようになりたい」→ 前者への好意と後者のwishful_identificationを分ける。願望の主体はユーザーだが、好みの対象は人物の援助行動である。
+- 「自分が不利になっても相手を安心させようとするのが本当のヒーローだと思う。自分も声をかけられるようになりたいし、こういう先輩を応援したい」→ 高い人物評価へのadmiration、ユーザー自身の願望へのwishful_identification、応援へのroot_forを、各々の対象と原文で裏付けて別候補に残す。「本当のヒーローだと思う」は外見評価ではない。単なる「好き」だけからadmirationを推測しない。
 - 「自分の失敗を人のせいにしないで何とかしようとする姿に憧れる」→ ここでの「自分」は人物自身を指すなら責任の取り方へのadmiration。ユーザー自身の過去の失敗と決めつけない。
 - 「自分から上手くなろうとするところが特にいい。仲間として応援したい」→ 主体的な成長を肯定する対象と、その成長を仲間として応援するroot_forの対象を結び付ける。root_for候補にも両方の原文引用と同じ人物subjectを残す。単に「仲間関係」だけを好み対象にして成長への応援を落とさない。別人物や離れた話題は結び付けない。
 - 「失敗しても再挑戦する姿が好き。自分も失敗が多いから励まされる」→ 失敗経験へのactual_similarityと再挑戦へのmotivation。ユーザーにも再挑戦する性質があるとは補わない。
@@ -125,6 +126,7 @@ const PREFERENCE_STRUCTURE_INSTRUCTION = `[OUTPUT_MAPPING:PREFERENCE]
 - 同一対象・極性・反応経路・根拠・成立条件の近接候補は1件に統合する。反応経路が異なる候補はそれぞれ根拠を検証して保持する。
 - 相互選択・特別さを競争だけへ置換しない。
 - 固有名詞・具体的な元表現はevidenceと必要なcontextに保持する。一般化した属性とcontextの組が引用に支持されれば、rawLabelと原文の文字列一致は不要。
+- rawLabelが「成長」「保護的」などの広い統制属性になる場合でも、原文が「修行してできることを増やす」「ぶっきらぼうでも行動で守る」と限定するなら、その具体的な経路・対比をcontext.conditionsに保持する。
 - 一般概念が確定不能 → 名前入りの属性を返さず、要約や不確実性に残す。
 - 最終候補の対象・極性・条件と要約を一致させる。
 

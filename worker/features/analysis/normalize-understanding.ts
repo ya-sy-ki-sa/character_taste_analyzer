@@ -2,7 +2,11 @@ import type { GroundedUnderstandingAudit } from "../../../shared/contracts/seman
 import { type UnderstandingAudit, understandingAuditSchema } from "../../../shared/contracts/understanding-quality";
 import { type UnderstandingAspect, understandingAspects } from "../../../shared/understanding-aspects";
 import type { verifySemanticAssertion } from "./semantic-integrity";
-import { isConcreteUnderstandingAssertion, understandingAssertionAspects } from "./understanding-aspects";
+import {
+  isConcreteUnderstandingAssertion,
+  stableKeyUnderstandingAspect,
+  understandingAssertionAspects,
+} from "./understanding-aspects";
 import { assessUnderstandingInformation } from "./understanding-quality";
 
 type Verified = Awaited<ReturnType<typeof verifySemanticAssertion>>;
@@ -19,9 +23,9 @@ type Row = {
 };
 
 export const UNDERSTANDING_PROVENANCE_BUDGET = {
-  groundedPerAspect: 2,
-  modelPerAspect: 2,
-  modelTotal: 10,
+  groundedPerAspect: 3,
+  modelPerAspect: 3,
+  modelTotal: 14,
   modelOnlyMissingAspect: false,
 } as const;
 
@@ -270,8 +274,10 @@ function distributeProjection(selected: Row[], aspectRows: Map<UnderstandingAspe
     if (understandingAspects.some((aspect) => projected.get(aspect)?.includes(row))) continue;
     const choices = eligible(row);
     if (!choices.length) continue;
+    const primaryAspect = stableKeyUnderstandingAspect(row.assertion.attributeStableKey);
     const primary = choices.sort(
       (a, b) =>
+        Number(b === primaryAspect) - Number(a === primaryAspect) ||
         (projected.get(a)?.length ?? 0) - (projected.get(b)?.length ?? 0) ||
         (aspectRows.get(a)?.length ?? 0) - (aspectRows.get(b)?.length ?? 0) ||
         understandingAspects.indexOf(a) - understandingAspects.indexOf(b),

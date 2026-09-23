@@ -35,7 +35,12 @@ import { refinementInstruction } from "./input";
 import { analysisIssueText, analysisIssueTopic, judgePreferenceCandidate, rankPreferenceQuestions } from "./judgment";
 import { analyzeDarkPreferences } from "./llm-dark";
 import { completedLlmGroup, persistModelRun } from "./model-runs";
-import { uniquePreferenceIndexes } from "./preference-canonical";
+import {
+  uniquePreferenceIndexes,
+  withConciseComparison,
+  withConcretePreferenceCondition,
+} from "./preference-canonical";
+import { retainExplicitAdmiration } from "./preference-admiration";
 import { linkGrowthToSupport } from "./preference-growth-link";
 import { preferenceAssertionStatements } from "./preference-statements";
 import * as repository from "./repositories/preference";
@@ -290,12 +295,17 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     const attempts = [...(result.attempts ?? [{ output: structuredClone(result.value), metadata: result.metadata }])];
     result = { ...result, value: structuredClone(result.value) };
     preserveReviewedInputs(result.value);
-    if (params.analysisDomain === "standard")
+    if (params.analysisDomain === "standard") {
       linkGrowthToSupport(
         result.value as PreferenceCandidate,
         entry.payload.preference.likedReasons,
         entry.payload.characterName,
       );
+      retainExplicitAdmiration(result.value as PreferenceCandidate, entry.payload.preference.likedReasons);
+      result.value.preferenceAssertions = result.value.preferenceAssertions.map((item) =>
+        withConciseComparison(withConcretePreferenceCondition(item)),
+      ) as typeof result.value.preferenceAssertions;
+    }
     completedLlmGroups.push(completedLlmGroup(preferenceOperation, inputHash, { ...result, attempts }));
     let judgment = await judgePreferenceCandidate(env, {
       candidate: result.value,
@@ -350,12 +360,17 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       );
       result = { ...generated, value: structuredClone(generated.value) };
       preserveReviewedInputs(result.value);
-      if (params.analysisDomain === "standard")
+      if (params.analysisDomain === "standard") {
         linkGrowthToSupport(
           result.value as PreferenceCandidate,
           entry.payload.preference.likedReasons,
           entry.payload.characterName,
         );
+        retainExplicitAdmiration(result.value as PreferenceCandidate, entry.payload.preference.likedReasons);
+        result.value.preferenceAssertions = result.value.preferenceAssertions.map((item) =>
+          withConciseComparison(withConcretePreferenceCondition(item)),
+        ) as typeof result.value.preferenceAssertions;
+      }
       completedLlmGroups[completedLlmGroups.length - 1] = completedLlmGroup(preferenceOperation, inputHash, {
         ...result,
         attempts,

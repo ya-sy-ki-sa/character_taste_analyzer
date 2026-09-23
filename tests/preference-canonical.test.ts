@@ -4,6 +4,7 @@ import {
   isSelfBackgroundPreference,
   uniquePreferenceIndexes,
   withConciseComparison,
+  withConcretePreferenceCondition,
 } from "../worker/features/analysis/preference-canonical";
 
 const assertion = (rawLabel: string, quote: string): PreferenceCandidate["preferenceAssertions"][number] => ({
@@ -97,6 +98,54 @@ describe("preference candidate boundaries", () => {
     cheering.context.conditions = ["ずっと乱暴な人物より、そのときに踏ん張る人物を応援する比較"];
     expect(withConciseComparison(cheering).context.conditions).toEqual([
       "ずっと乱暴な人よりそのときに踏ん張る人を応援したい",
+    ]);
+  });
+
+  it("keeps concrete routes when a broad ontology label replaces the source wording", () => {
+    const growth = assertion("成長", "修行してできることを増やしていくのも好き。");
+    expect(withConcretePreferenceCondition(growth).context.conditions).toEqual(["修行してできることを増やす"]);
+    expect(
+      withConcretePreferenceCondition(assertion("修行による能力向上", "修行してできることを増やしていくのも好き。"))
+        .context.conditions,
+    ).toEqual(["修行してできることを増やす"]);
+    const protective = assertion("保護的", "ぶっきらぼうでも行動で守ってくれるところに憧れる。");
+    protective.context.conditions = ["ぶっきらぼうな態度であっても"];
+    expect(withConcretePreferenceCondition(protective).context.conditions).toEqual([
+      "ぶっきらぼうな態度であっても",
+      "ぶっきらぼうでも行動で守る",
+    ]);
+    expect(withConcretePreferenceCondition(assertion("成長", "成長が好き。"))).toEqual(
+      assertion("成長", "成長が好き。"),
+    );
+  });
+
+  it("collapses the A14 purpose paraphrase without discarding another condition", () => {
+    const item = assertion(
+      "誰かを助けるための力の使用",
+      "力を手に入れることより、誰かを助けるために力を使うところが好き。",
+    );
+    item.context.conditions = [
+      "力を手に入れることより誰かを助けるために力を使うところを優先",
+      "力を手に入れることより、助けるために力を使うことを優先して評価",
+      "弟のために考える場面",
+    ];
+    expect(withConciseComparison(item).context.conditions).toEqual([
+      "力を手に入れることより誰かを助けるために力を使うところを優先",
+      "弟のために考える場面",
+    ]);
+  });
+
+  it("removes an A14 acquisition paraphrase and an unsupported absence-of-evaluation note", () => {
+    const item = assertion(
+      "誰かを助けるために力を使うこと",
+      "力を手に入れることより、誰かを助けるために力を使うところが好き。",
+    );
+    item.context.conditions = [
+      "力を手に入れることより誰かを助けるために力を使うところを優先",
+      "力を手に入れることより、力を誰かを助けるために使うことを好む。力を手に入れること自体への評価は示されていない。",
+    ];
+    expect(withConciseComparison(item).context.conditions).toEqual([
+      "力を手に入れることより誰かを助けるために力を使うところを優先",
     ]);
   });
 

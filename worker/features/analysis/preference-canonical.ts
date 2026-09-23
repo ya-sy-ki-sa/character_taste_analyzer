@@ -73,11 +73,36 @@ function comparedKey(value: string): string {
 
 function preferredKey(value: string): string {
   return normalized(value)
+    .replace(/力を誰かを助けるために使う/u, "誰かを助けるために力を使う")
     .replaceAll("人物", "人")
     .replace(/を応援する比較$/u, "を応援したい")
-    .replace(/(?:(?:も|を)評価(?:する)?|を優先)$/u, "")
+    .replace(/(?:(?:も|を)評価(?:する)?|を優先(?:して評価)?|を好む)$/u, "")
     .replace(/(?:も評価対象|という比較|を重視する比較)$/u, "")
     .replace(/(?:ヒーローっぽさ|ところ|こと|面)$/u, "");
+}
+
+/** Preserve a concrete, quoted route when an ontology label is broader. */
+export function withConcretePreferenceCondition(item: Assertion): Assertion {
+  if (item.polarity !== "positive") return item;
+  const quotes = item.evidence
+    .filter((reference) => reference.inputPointer === "/preference/likedReasons")
+    .map((reference) => reference.quote ?? "");
+  const details: string[] = [];
+  if (
+    /(?:成長|修行|能力向上)/u.test(item.rawLabel) &&
+    quotes.some((quote) => /修行してできることを増やしていく/u.test(quote))
+  )
+    details.push("修行してできることを増やす");
+  if (item.rawLabel === "保護的" && quotes.some((quote) => /ぶっきらぼうでも行動で守ってくれる/u.test(quote)))
+    details.push("ぶっきらぼうでも行動で守る");
+  if (!details.length) return item;
+  return {
+    ...item,
+    context: {
+      ...item.context,
+      conditions: [...new Set([...item.context.conditions, ...details])].slice(0, 10),
+    },
+  };
 }
 
 function sameComparison(left: Comparison, right: Comparison, unambiguous: boolean): boolean {
@@ -143,7 +168,13 @@ export function withConciseComparison(item: Assertion): Assertion {
     const remaining = value
       .split(/[。！？]/u)
       .map((sentence) => sentence.trim())
-      .filter((sentence) => sentence && comparisonsIn(sentence, false).length === 0)
+      .filter(
+        (sentence) =>
+          sentence &&
+          comparisonsIn(sentence, false).length === 0 &&
+          (!/(?:への評価|への好意)は示されていない/u.test(sentence) ||
+            item.evidence.some((reference) => reference.quote?.includes(sentence))),
+      )
       .join("。");
     return remaining ? [remaining] : [];
   });

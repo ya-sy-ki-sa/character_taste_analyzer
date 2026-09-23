@@ -1,10 +1,10 @@
 import type { UnderstandingCandidate } from "../../../shared/contracts/understanding";
-import type { UnderstandingAspect } from "../../../shared/understanding-aspects";
+import { understandingAspectLabels, type UnderstandingAspect } from "../../../shared/understanding-aspects";
 
 type Assertion = Pick<
   UnderstandingCandidate["assertions"][number],
   "attributeStableKey" | "rawLabel" | "valueText" | "scopeText"
->;
+> & { explicitness?: UnderstandingCandidate["assertions"][number]["explicitness"] };
 
 const stableKeyRules: ReadonlyArray<readonly [RegExp, UnderstandingAspect]> = [
   [/(?:^|\.)(?:role|archetype)\./u, "narrativeRole"],
@@ -36,6 +36,28 @@ export function stableKeyUnderstandingAspect(stableKey: string | null): Understa
 /** Stable ontology meaning is primary; narrow textual signals may add grounded secondary aspects. */
 export function understandingAssertionAspects(assertion: Assertion): UnderstandingAspect[] {
   const primary = stableKeyUnderstandingAspect(assertion.attributeStableKey);
+  // A model-only claim with an explicit aspect label must not fill unrelated
+  // categories merely because its sentence mentions an actor or a relationship.
+  // Those extra cards otherwise look complete without distinct information.
+  if (assertion.explicitness === "model_knowledge") {
+    const labelled = (Object.entries(understandingAspectLabels) as [UnderstandingAspect, string][]).find(
+      ([, label]) => assertion.rawLabel.trim() === label,
+    )?.[0];
+    if (labelled) return [labelled];
+    if (primary) return [primary];
+    const label = assertion.rawLabel.trim();
+    const specificLabels: ReadonlyArray<readonly [RegExp, UnderstandingAspect]> = [
+      [/(?:関係|師弟|幼なじみ|兄弟|友人)/u, "relationships"],
+      [/(?:表現|話し方|口調|声|表情|感情の表れ)/u, "expression"],
+      [/(?:価値|信念|大切|重んじ|理想像|ヒーロー像)/u, "values"],
+      [/(?:目的|目標|夢|野心)/u, "goals"],
+      [/(?:観察|分析|振る舞い|行動|対処|戦い方)/u, "behavior"],
+      [/(?:道徳|正義|善悪|英雄的)/u, "moralityOrientation"],
+      [/(?:役割|主人公|ヒーロー|敵役)/u, "narrativeRole"],
+    ];
+    const fromLabel = specificLabels.find(([pattern]) => pattern.test(label))?.[1];
+    if (fromLabel) return [fromLabel];
+  }
   const text = `${assertion.rawLabel} ${assertion.valueText} ${assertion.scopeText}`;
   return [
     ...new Set([

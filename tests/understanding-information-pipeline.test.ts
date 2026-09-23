@@ -106,10 +106,10 @@ describe("understanding information quality storage and continuation", () => {
       expect(quality).toMatchObject({
         completionAttempted: true,
         status: recovers ? "not_flagged" : "limited",
-        concreteAspectCount: recovers ? 5 : 0,
+        concreteAspectCount: recovers ? 4 : 0,
       });
       // D03's recovered fixture contains model-only evidence. The new global
-      // budget retains four assertions, which jointly cover five aspects.
+      // budget retains four assertions, each assigned to its own explicit aspect.
       expect(t.detail.understanding?.assertions).toHaveLength(recovers ? 4 : 0);
       expect(t.analysis.assertions.length).toBeGreaterThan(0);
       const rows = t.db.database
@@ -142,7 +142,7 @@ describe("understanding information quality storage and continuation", () => {
     expect(t.detail.understanding?.informationQuality).toMatchObject({
       status: "not_flagged",
       completionAttempted: false,
-      concreteAspectCount: 5,
+      concreteAspectCount: 4,
     });
     expect(t.detail.understanding?.assertions).toHaveLength(4);
   });

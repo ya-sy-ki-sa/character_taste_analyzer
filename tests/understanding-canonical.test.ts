@@ -221,7 +221,7 @@ describe("canonical understanding before persistence", () => {
       relationships: [8],
       expression: [9],
     });
-    expect(normalized.aspectAssessments.goals.assertionIndexes).toHaveLength(2);
+    expect(normalized.aspectAssessments.goals.assertionIndexes).toHaveLength(3);
     expect(normalized.assertions.filter((item) => item.explicitness === "model_knowledge")).toHaveLength(6);
     expect(
       normalized.assertions.some(
