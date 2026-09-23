@@ -100,6 +100,7 @@ describe("persistent live evaluation evidence", () => {
     const audit = (targetId: string, keep: boolean, reasonCode: string, diagnosticCodes: string[] = []) => ({
       policyVersion: "analysis-judgment/2.2",
       targetId,
+      questionPrefix: targetId === "wishful" ? "preference_2" : null,
       keep,
       reasonCode,
       diagnosticCodes,
@@ -118,6 +119,7 @@ describe("persistent live evaluation evidence", () => {
                 assertions: [
                   audit("accepted", true, "accepted"),
                   audit("degraded", true, "accepted_verified_subset", ["invalid_set_index", "low_confidence_support"]),
+                  audit("wishful", true, "accepted_wishful_scope_fallback", ["wishful_scope_fallback"]),
                   audit("rejected", false, "judgment_rejected", ["high_conflict", "high_semantic_rejection"]),
                 ],
               },
@@ -132,11 +134,14 @@ describe("persistent live evaluation evidence", () => {
     expect(result.A01.outcomes.map((item: { disposition: string }) => item.disposition)).toEqual([
       "accepted",
       "degraded",
+      "degraded",
       "rejected",
     ]);
     expect(result.A01.outcomes[1].diagnosticCodes).toContain("invalid_set_index");
     expect(result.A01.outcomes[1].diagnosticCodes).toContain("low_confidence_support");
-    expect(result.A01.outcomes[2].diagnosticCodes).toContain("high_conflict");
-    expect(result.A01.outcomes[2].diagnosticCodes).toContain("high_semantic_rejection");
+    expect(result.A01.outcomes[2].diagnosticCodes).toContain("wishful_scope_fallback");
+    expect(result.A01.outcomes[2].questionPrefix).toBe("preference_2");
+    expect(result.A01.outcomes[3].diagnosticCodes).toContain("high_conflict");
+    expect(result.A01.outcomes[3].diagnosticCodes).toContain("high_semantic_rejection");
   });
 });

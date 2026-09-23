@@ -12,15 +12,15 @@
     "sha256": "59b950e4e81dc6864d8bd2911e4e6d5d1aaa4b90e232a39907a6641b754ed294"
   },
   "preference": {
-    "promptVersion": "preference/v4.2.0",
-    "sha256": "76a07ade8e3a746d5a95ed11f73d60b501a9c89b433d06c6dad8974840e9e965"
+    "promptVersion": "preference/v4.3.0",
+    "sha256": "628129d78f1d7c202137ebf3f2734a5d372529a369b25e575cf7015285091a13"
   },
   "darkPreference": {
-    "promptVersion": "dark_preference/v4.2.0",
+    "promptVersion": "dark_preference/v4.3.0",
     "sha256": "407cb7bac0d6c32e2c96c23c6aeec5acf9e13ee18888a18640fe1393f0f819e0"
   },
   "preferenceRefinement": {
-    "promptVersion": "preference_refinement/v4.2.0",
+    "promptVersion": "preference_refinement/v4.3.0",
     "sha256": "c08910b5602245396a203734368b29ab2079c455e046b8728088fb73ec93deab"
   },
   "citationVerification": {

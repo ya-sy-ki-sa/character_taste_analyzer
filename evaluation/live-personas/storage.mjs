@@ -19,7 +19,11 @@ const SAFE_RUNTIME_SETTING_KEYS = [
   "APP_ORIGIN",
 ];
 const FINAL_DISPOSITIONS = new Set(["accepted", "degraded", "rejected"]);
-const DEGRADED_REASON_CODES = new Set(["accepted_explicit_fallback", "accepted_verified_subset"]);
+const DEGRADED_REASON_CODES = new Set([
+  "accepted_explicit_fallback",
+  "accepted_verified_subset",
+  "accepted_wishful_scope_fallback",
+]);
 const MAX_JUDGMENT_LOG_BYTES = 64 * 1024 * 1024;
 
 export function liveRunRoot(value = process.env.LIVE_RUN_DIR) {
@@ -139,7 +143,12 @@ export function sanitizeJudgmentLog(text) {
   return text.split(/\r?\n/u).map(parseLogObject).map(sanitizeJudgmentEvent).filter(Boolean);
 }
 
-export function readSanitizedJudgmentLog(path = process.env.LIVE_APP_LOG_FILE) {
+export function readSanitizedJudgmentLog(
+  path = process.env.LIVE_APP_LOG_FILE ??
+    (process.env.LIVE_RUN_DIR && existsSync(`${resolve(process.env.LIVE_RUN_DIR)}/app.log`)
+      ? `${resolve(process.env.LIVE_RUN_DIR)}/app.log`
+      : undefined),
+) {
   if (!path) return [];
   if (!existsSync(path)) throw new Error(`LIVE_APP_LOG_FILE not found: ${path}`);
   if (statSync(path).size > MAX_JUDGMENT_LOG_BYTES) throw new Error("LIVE_APP_LOG_FILE exceeds 64 MiB");
@@ -195,6 +204,11 @@ function sanitizeOutcome(assertion, stage, runId, entryRevisionId, policyVersion
     runId: boundedString(runId),
     entryRevisionId: boundedString(entryRevisionId),
     targetId,
+    questionPrefix:
+      typeof assertion.questionPrefix === "string" &&
+      /^(?:assertion|preference|stance)_\d{1,4}$/u.test(assertion.questionPrefix)
+        ? assertion.questionPrefix
+        : null,
     disposition: disposition.value,
     dispositionSource: disposition.source,
     confidence,

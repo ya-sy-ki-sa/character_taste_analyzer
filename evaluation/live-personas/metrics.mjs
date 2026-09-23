@@ -69,9 +69,19 @@ export function judgmentQuestionMetrics(audits) {
           questionFamily: family,
           answers: 0,
           lowConfidence: 0,
+          linkedFinalOutcomes: { accepted: 0, degraded: 0, rejected: 0 },
+          unlinkedAnswers: 0,
         };
         row.answers++;
         if (typeof answer.confidence === "number" && answer.confidence < 0.65) row.lowConfidence++;
+        const prefix = answer.id?.match(/^(?:assertion|preference|stance)_\d{1,4}(?=_)/u)?.[0];
+        const outcomeStage = prefix?.startsWith("assertion_") ? "understanding" : "preference";
+        const matching = (audit.outcomes ?? []).filter(
+          (item) => item.questionPrefix === prefix && item.stage === outcomeStage,
+        );
+        if (matching.length === 1 && Object.hasOwn(row.linkedFinalOutcomes, matching[0].disposition))
+          row.linkedFinalOutcomes[matching[0].disposition]++;
+        else row.unlinkedAnswers++;
         groups.set(key, row);
       }
     }

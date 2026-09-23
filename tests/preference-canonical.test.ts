@@ -43,6 +43,14 @@ describe("preference candidate boundaries", () => {
       false,
     );
     expect(isSelfBackgroundPreference(assertion("劣等感", "人物Aの劣等感が好き。自分にも似た経験がある"))).toBe(false);
+    expect(
+      isSelfBackgroundPreference(
+        assertion(
+          "自分の失敗を人のせいにせず対処しようとする姿勢",
+          "自分の失敗を人のせいにしないで何とかしようとする姿に憧れる。",
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("projects typed comparison meanings into short conditions", () => {
@@ -66,6 +74,30 @@ describe("preference candidate boundaries", () => {
         ),
       ).context.conditions,
     ).toEqual([]);
+    const repeated = assertion(
+      "誰かを助けるために力を使うこと",
+      "力を手に入れることより、誰かを助けるために力を使うところが好き。",
+    );
+    repeated.context.conditions = ["力を手に入れることよりも、助けるために使うことを評価"];
+    expect(withConciseComparison(repeated).context.conditions).toEqual([
+      "力を手に入れることより誰かを助けるために力を使うところを優先",
+    ]);
+    const inclusiveRepeated = assertion(
+      "食事を与えて人を助けること",
+      "料理で人を元気にするのがいい。戦う強さだけでなく食べさせて助けるヒーローっぽさが好き。",
+    );
+    inclusiveRepeated.context.conditions = ["戦う強さだけでなく、食べさせて助ける面も評価する"];
+    expect(withConciseComparison(inclusiveRepeated).context.conditions).toEqual([
+      "戦う強さだけでなく食べさせて助けるヒーローっぽさも評価",
+    ]);
+    const cheering = assertion(
+      "必要なときに踏ん張ること",
+      "普段は優しいのに、大事な人のために勇気を出すところが好き。ずっと乱暴な人より、そのときに踏ん張る人を応援したい。",
+    );
+    cheering.context.conditions = ["ずっと乱暴な人物より、そのときに踏ん張る人物を応援する比較"];
+    expect(withConciseComparison(cheering).context.conditions).toEqual([
+      "ずっと乱暴な人よりそのときに踏ん張る人を応援したいを優先",
+    ]);
   });
 
   it("merges only the same target, channel, polarity, scope and evidence", () => {

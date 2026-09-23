@@ -16,6 +16,7 @@ type Assertion = {
   evidenceSetAssessment?: EvidenceSetAssessment | null;
   confidence: number;
   explicitness: string;
+  responseChannel?: string | null;
   judgmentDisposition?: JudgmentDisposition;
 };
 const explicitnessLabel = (value: string) =>
@@ -35,6 +36,7 @@ export async function verifySemanticAssertion(
   registry: CitationRegistry,
   target: Pick<CitationIssue, "targetType" | "targetId" | "modelRunId">,
   issues: CitationIssue[],
+  questionPrefix?: string,
 ) {
   const verified = await verifyAssertionEvidence(assertion, sources, allowedUrls, registry, target, issues);
   const anchors = await Promise.all(
@@ -136,6 +138,20 @@ export async function verifySemanticAssertion(
     assertion.judgmentDisposition === "degraded" &&
     assertion.explicitness === "user_explicit" &&
     directUserIndexes.length > 0;
+  const inferredWishfulFallback =
+    target.targetType === "preference_assertion" &&
+    assertion.responseChannel === "wishful_identification" &&
+    assertion.explicitness === "inferred" &&
+    assertion.judgmentDisposition === "degraded" &&
+    assertion.scopeAssessment.verdict === "uncertain" &&
+    /^(?:ユーザー|自分|私|僕|俺|わたし)$/u.test(assertion.scopeAssessment.actor ?? "") &&
+    Boolean(assertion.scopeAssessment.target) &&
+    anchored &&
+    individuallySupportedIndexes.some((index) =>
+      /(?:自分も|私も|僕も|俺も).{0,60}(?:なりたい|したい|できるようになりたい)/u.test(
+        assertion.evidence[index].quote ?? "",
+      ),
+    );
   const degradedCharacterFallback =
     character &&
     assertion.judgmentDisposition === "degraded" &&
@@ -147,6 +163,7 @@ export async function verifySemanticAssertion(
     !rejectedByJudgment &&
       ((scopeConsistent && (supportedIndexes.length || modelIndexes.length)) ||
         explicitPreferenceFallback ||
+        inferredWishfulFallback ||
         degradedCharacterFallback),
   );
   const acceptedSupportedIndexes = [
@@ -158,7 +175,7 @@ export async function verifySemanticAssertion(
   ];
   let explicitness = assertion.explicitness;
   let confidence = keep
-    ? explicitPreferenceFallback || degradedCharacterFallback || verifiedSubsetFallback
+    ? explicitPreferenceFallback || inferredWishfulFallback || degradedCharacterFallback || verifiedSubsetFallback
       ? Math.min(assertion.confidence, DEGRADED_EXPLICIT_CONFIDENCE_CAP)
       : assertion.confidence
     : 0;
@@ -201,9 +218,11 @@ export async function verifySemanticAssertion(
   const reasonCode = keep
     ? explicitPreferenceFallback
       ? "accepted_explicit_fallback"
-      : degradedCharacterFallback || verifiedSubsetFallback
-        ? "accepted_verified_subset"
-        : "accepted"
+      : inferredWishfulFallback
+        ? "accepted_wishful_scope_fallback"
+        : degradedCharacterFallback || verifiedSubsetFallback
+          ? "accepted_verified_subset"
+          : "accepted"
     : rejectedByJudgment
       ? "judgment_rejected"
       : assertion.scopeAssessment.verdict !== "consistent"
@@ -216,21 +235,23 @@ export async function verifySemanticAssertion(
   const reason =
     reasonCode === "accepted_explicit_fallback"
       ? "Jevの判定が低確信だったため、照合済みのユーザー明示引用を低confidenceで保持しました。"
-      : reasonCode === "accepted_verified_subset"
-        ? "Jevの判定が低確信、または根拠集合に不備があったため、個別に照合できた根拠だけを低confidenceで保持しました。"
-        : reasonCode === "judgment_rejected"
-          ? "Jevが高確信で候補の矛盾または非支持を判定しました。"
-          : reasonCode === "anchor_unavailable"
-            ? "対象の照合に必要な原文を確認できません。"
-            : reasonCode === "evidence_unavailable"
-              ? "根拠の出典本文または引用を確認できません。"
-              : !scopeConsistent
-                ? `対象・否定範囲を確認できません：${assertion.scopeAssessment.reason}`
-                : !keep
-                  ? "主張全体を支持する有効な根拠を確認できません。"
-                  : explicitness !== assertion.explicitness
-                    ? `検証後の根拠に合わせて出所を「${explicitnessLabel(explicitness)}」へ変更しました。`
-                    : null;
+      : reasonCode === "accepted_wishful_scope_fallback"
+        ? "主体がユーザーの願望であるため対象判定は未確定ですが、人物への反応を示す照合済み引用を推測のまま低confidenceで保持しました。"
+        : reasonCode === "accepted_verified_subset"
+          ? "Jevの判定が低確信、または根拠集合に不備があったため、個別に照合できた根拠だけを低confidenceで保持しました。"
+          : reasonCode === "judgment_rejected"
+            ? "Jevが高確信で候補の矛盾または非支持を判定しました。"
+            : reasonCode === "anchor_unavailable"
+              ? "対象の照合に必要な原文を確認できません。"
+              : reasonCode === "evidence_unavailable"
+                ? "根拠の出典本文または引用を確認できません。"
+                : !scopeConsistent
+                  ? `対象・否定範囲を確認できません：${assertion.scopeAssessment.reason}`
+                  : !keep
+                    ? "主張全体を支持する有効な根拠を確認できません。"
+                    : explicitness !== assertion.explicitness
+                      ? `検証後の根拠に合わせて出所を「${explicitnessLabel(explicitness)}」へ変更しました。`
+                      : null;
   return {
     keep,
     explicitness,
@@ -243,6 +264,7 @@ export async function verifySemanticAssertion(
     audit: {
       policyVersion: ANALYSIS_JUDGMENT_POLICY_VERSION,
       targetId: target.targetId,
+      questionPrefix: questionPrefix ?? null,
       scope: assertion.scopeAssessment,
       evidenceSetAssessment: evidenceSet ?? null,
       anchors,
@@ -256,6 +278,7 @@ export async function verifySemanticAssertion(
       reasonCode,
       diagnosticCodes: [
         ...(invalidSetIndex ? ["invalid_set_index"] : []),
+        ...(inferredWishfulFallback ? ["wishful_scope_fallback"] : []),
         ...(degradedVerifiedIndexes.length ? ["low_confidence_support"] : []),
         ...(rejectedByJudgment ? ["high_conflict", "high_semantic_rejection"] : []),
       ],

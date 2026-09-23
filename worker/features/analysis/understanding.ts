@@ -233,7 +233,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
       const citationIssues: CitationIssue[] = [];
       const semanticResults = call.semanticAudit
         ? await Promise.all(
-            call.semanticAudit.assertions.map(async (assertion) => {
+            call.semanticAudit.assertions.map(async (assertion, index) => {
               const id = crypto.randomUUID();
               return {
                 id,
@@ -244,6 +244,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
                   citationRegistry,
                   { targetType: "character_assertion", targetId: id, modelRunId: modelRun.id },
                   citationIssues,
+                  `assertion_${index}`,
                 )),
               };
             }),

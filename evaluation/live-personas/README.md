@@ -55,6 +55,8 @@ npx wrangler d1 migrations apply character-taste-lab-current-local --local --per
 E2E_STATE_PATH="$LIVE_RUN_DIR/runtime-state" npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
+Jev質問別の監査を含む新規測定では、上の直接起動の代わりに `LIVE_RUN_DIR="$LIVE_RUN_DIR" npm run eval:personas:dev` で起動してください。run専用の `app.log` を所有者のみ読み書き可能な状態で作成し、`export`工程がそこから回答ID・confidenceのみを抽出します。生ログは原文・エラーを含む可能性があるため共有せず、run内のsanitized監査だけを報告へ使います。中断した同じrunを再開するときに限り `LIVE_RUN_DIR="$LIVE_RUN_DIR" npm run eval:personas:dev -- --resume` とし、既存ログへ追記します。通常起動は既存ログの上書きを拒否します。
+
 `E2E_STATE_PATH` はViteの永続保存先だけを指定します。`CLOUDFLARE_ENV=offline` は付けず、LLM・Embedding・Moderationを実プロバイダーのまま使用します。通常のoffline E2Eは従来の専用環境で実行します。
 
 開始前に `comparison-protocol.json` へ比較元・固定入力ハッシュ・追加評価基準を保存します。前回と同じ採点指示・12件の別パス対象を使用し、追加の候補保持・条件・人物理解評価は `supplementary-review.json` に前後の原出力を根拠として記録します。要約だけの保持をプロフィール反映の成功へ読み替えません。

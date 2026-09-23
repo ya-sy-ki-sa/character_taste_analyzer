@@ -79,6 +79,10 @@ const correctionSummary = (root) => {
   return audit?.records ? summarizeCorrections(audit.records) : null;
 };
 result.corrections = { baseline: correctionSummary(baselineRoot), current: correctionSummary(currentRoot) };
+const correctionComparisonNote =
+  result.corrections.baseline && result.corrections.current
+    ? "同じ訂正意図を現在の候補へ対応づけたため、追加・更新・不要となった操作の数は異なる。再生成による差は手動訂正の効果へ加算しない。"
+    : "両回の訂正結果が揃っていないため、手動訂正の効果は比較しない。";
 result.detailedUsage = readJson(`${currentRoot}/usage-comparison.json`, null);
 result.methodHashes = Object.fromEntries(
   [
@@ -228,7 +232,7 @@ const md = [
   "",
   `前回: ${correctionText(result.corrections.baseline)}。`,
   `今回: ${correctionText(result.corrections.current)}。`,
-  "同じ訂正意図を現在の候補へ対応づけたため、追加・更新・不要となった操作の数は異なる。再生成による差は手動訂正の効果へ加算しない。",
+  correctionComparisonNote,
   "",
   `## ${result.rows.length}件の対応表`,
   "",
@@ -261,7 +265,7 @@ const metricHtml = (group) =>
 const htmlLink = (root, path, label) =>
   existsSync(`${root}/${path}`) ? `<a href="${esc(url(root, path))}">${esc(label)}</a>` : `${esc(label)}: 未取得`;
 const structuredHtml = `<h2>構造化候補・プロフィールの保持</h2><p>上記の抽出率は要約を含む。以下は固定した追加基準による候補・条件の評価。理由不足の保留例は別行に含め、候補数だけでは成功を判定しない。</p><table><tr><th>ケース</th><th>前回</th><th>今回</th><th>今回の根拠・プロフィール反映</th></tr>${structuredRows.map(([id, x]) => `<tr><th>${esc(id)}</th><td>${esc(retention(x.baseline))}</td><td>${esc(retention(x.current))}</td><td>${esc(retentionDetail(x.current))}</td></tr>`).join("")}</table><p>${htmlLink(currentRoot, "comparison-protocol.json", "固定基準")} / ${htmlLink(currentRoot, "supplementary-review.json", "前後の根拠と追加評価")} / ${htmlLink(currentRoot, "profile-retention-evidence.json", "候補とプロフィールの照合")} / ${htmlLink(currentRoot, "correction-results.md", "訂正の結果")} / ${htmlLink(currentRoot, "usage-comparison.json", "採点補助・訂正の使用量")}</p>`;
-const additionalHtml = `<div class="scroll"><table><tr><th>工程</th><th>前回</th><th>今回</th></tr>${usageRows.map((row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("")}</table></div><h2>訂正機能</h2><p>前回: ${esc(correctionText(result.corrections.baseline))}。</p><p>今回: ${esc(correctionText(result.corrections.current))}。</p><p>同じ訂正意図を現在の候補へ対応づけたため、追加・更新・不要となった操作数は異なる。再生成による差を手動訂正の効果へ加算しない。${htmlLink(currentRoot, "correction-results.md", "操作別の結果と未実施理由")}</p>`;
+const additionalHtml = `<div class="scroll"><table><tr><th>工程</th><th>前回</th><th>今回</th></tr>${usageRows.map((row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("")}</table></div><h2>訂正機能</h2><p>前回: ${esc(correctionText(result.corrections.baseline))}。</p><p>今回: ${esc(correctionText(result.corrections.current))}。</p><p>${esc(correctionComparisonNote)}${htmlLink(currentRoot, "correction-results.md", "操作別の結果と未実施理由")}</p>`;
 const html = `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>LIVE EVALUATION 前回比較</title><style>body{margin:0;background:#f3f5f7;color:#16222e;font:16px/1.8 system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:32px 20px}h1{font-size:28px}h2{margin-top:36px}table{width:100%;border-collapse:collapse;background:white;font-size:14px}th,td{padding:10px;border-bottom:1px solid #dce3e8;text-align:left}th{background:#e8eef2}a{color:#096b85}.scroll{overflow:auto}.shots{display:grid;grid-template-columns:1fr 1fr;gap:16px}.shots img{width:100%;max-height:500px;object-fit:contain;object-position:top}figure{margin:0}input,select{padding:8px;font:inherit}@media(max-width:700px){.shots{grid-template-columns:1fr}main{padding:20px 12px}td,th{padding:6px}}</style><main><p>CHARACTER TASTE LAB · LIVE EVALUATION</p><h1>同じ${result.rows.length}件による再評価と前回比較</h1><p>${esc(result.baselineRun)} → ${esc(result.currentRun)} / ${esc(result.currentStatus)}</p>${summary.map((x) => `<p>${esc(x)}</p>`).join("")}<h2>対象${result.rows.length}件</h2>${metricHtml(result.all)}<h2>両方で意味評価できた共通${result.common.caseIds.length}件</h2>${metricHtml(result.common)}${structuredHtml}<h2>人物別</h2><div class="scroll"><table><tr><th>人物</th><th>完了 前→今</th><th>抽出 前→今</th><th>支持 前→今</th></tr>${Object.entries(
   result.byPersona,
 )

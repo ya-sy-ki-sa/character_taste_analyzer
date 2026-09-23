@@ -51,7 +51,7 @@ describe("live evaluation metrics", () => {
     });
   });
 
-  it("counts Jev questions while leaving unavailable causal contribution unmeasured", () => {
+  it("counts Jev questions without inferring causal contribution from unlinked legacy outcomes", () => {
     const rows = judgmentQuestionMetrics([
       {
         calls: [
@@ -72,7 +72,41 @@ describe("live evaluation metrics", () => {
         questionFamily: "attribute",
         answers: 2,
         lowConfidence: 1,
+        linkedFinalOutcomes: { accepted: 0, degraded: 0, rejected: 0 },
+        unlinkedAnswers: 2,
         lowConfidenceRate: 0.5,
+        finalOutcomeContribution: null,
+      },
+    ]);
+  });
+  it("links uniquely identified questions to final dispositions without guessing across retries", () => {
+    const rows = judgmentQuestionMetrics([
+      {
+        calls: [
+          {
+            stage: "preference:assertion",
+            answers: [
+              { id: "preference_0_evidence_0", type: "choice", confidence: 0.4 },
+              { id: "preference_1_evidence_0", type: "choice", confidence: 0.9 },
+              { id: "preference_2_evidence_0", type: "choice", confidence: 0.9 },
+            ],
+          },
+        ],
+        outcomes: [
+          { stage: "preference", questionPrefix: "preference_0", disposition: "degraded" },
+          { stage: "preference", questionPrefix: "preference_1", disposition: "rejected" },
+          { stage: "preference", questionPrefix: "preference_2", disposition: "accepted" },
+          { stage: "preference", questionPrefix: "preference_2", disposition: "rejected" },
+        ],
+      },
+    ]);
+    expect(rows).toMatchObject([
+      {
+        questionFamily: "evidence_0",
+        answers: 3,
+        lowConfidence: 1,
+        linkedFinalOutcomes: { accepted: 0, degraded: 1, rejected: 1 },
+        unlinkedAnswers: 1,
         finalOutcomeContribution: null,
       },
     ]);

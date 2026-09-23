@@ -385,7 +385,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       targetType: CitationIssue["targetType"],
     ) {
       return Promise.all(
-        items.map(async (assertion) => {
+        items.map(async (assertion, index) => {
           const id = crypto.randomUUID();
           const target = { targetType, targetId: id, modelRunId };
           return {
@@ -397,6 +397,7 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
               citationRegistry,
               target,
               citationIssues,
+              `${targetType === "preference_assertion" ? "preference" : "stance"}_${index}`,
             )),
           };
         }),

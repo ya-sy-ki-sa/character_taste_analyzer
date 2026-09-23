@@ -44,7 +44,7 @@ const assertion = (evidence = [input]): Parameters<typeof verifySemanticAssertio
   explicitness: "user_explicit",
   ...fakeSemanticFields({ evidence }),
 });
-const verify = (item = assertion(), character = false, provenance = sources) =>
+const verify = (item = assertion(), character = false, provenance = sources, questionPrefix?: string) =>
   verifySemanticAssertion(
     item,
     provenance,
@@ -52,11 +52,13 @@ const verify = (item = assertion(), character = false, provenance = sources) =>
     new CitationRegistry(),
     { targetType: character ? "character_assertion" : "preference_assertion", targetId: "test", modelRunId: "run" },
     [],
+    questionPrefix,
   );
 
 describe("semantic and physical evidence normalization", () => {
   it("retains explicit preferences without requiring a response channel", async () => {
     expect(await verify()).toMatchObject({ keep: true, confidence: 0.94, explicitness: "user_explicit" });
+    expect((await verify(assertion(), false, sources, "preference_0")).audit.questionPrefix).toBe("preference_0");
   });
   it("retains a directly quoted explicit preference when Jev is uncertain", async () => {
     const item = assertion();
@@ -70,6 +72,30 @@ describe("semantic and physical evidence normalization", () => {
       audit: { reasonCode: "accepted_explicit_fallback" },
     });
     expect((await verify(item)).audit.diagnosticCodes).toContain("low_confidence_support");
+  });
+  it("retains a verified but scope-uncertain wish to act like the character as inferred", async () => {
+    const quote = "自分も誰かが困っていたら声をかけられるようになりたい";
+    const item = assertion([{ ...input, quote, inferenceType: "inferred" }]);
+    item.responseChannel = "wishful_identification";
+    item.explicitness = "inferred";
+    item.judgmentDisposition = "degraded";
+    item.scopeAssessment = {
+      ...item.scopeAssessment,
+      verdict: "uncertain",
+      actor: "ユーザー",
+      target: "人物A",
+      anchors: [{ ...input, quote, inferenceType: "inferred" }],
+    };
+    const result = await verify(item, false, [{ ...sources[0], text: `人物Aは困った子を置いていかない。${quote}。` }]);
+    expect(result).toMatchObject({
+      keep: true,
+      confidence: 0.6,
+      explicitness: "inferred",
+      audit: { reasonCode: "accepted_wishful_scope_fallback" },
+    });
+    expect(result.audit.diagnosticCodes).toContain("wishful_scope_fallback");
+    item.scopeAssessment.verdict = "mismatch";
+    expect((await verify(item, false, [{ ...sources[0], text: quote }])).keep).toBe(false);
   });
   it.each(["partial", "unverifiable"] as const)(
     "retains a physically verified character assertion when low-confidence support is %s",

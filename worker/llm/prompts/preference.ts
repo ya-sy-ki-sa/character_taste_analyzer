@@ -4,7 +4,7 @@ import { DARK_SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION } from "./analysis";
 import { preferenceAttributeInstruction } from "./preference-attributes";
 import { REFERENCE_SCOPE_INSTRUCTION } from "./reference-scope";
 
-export const PREFERENCE_PROMPT_VERSION = "v4.2.0";
+export const PREFERENCE_PROMPT_VERSION = "v4.3.0";
 export const PREFERENCE_SCHEMA_VERSION = "3.0";
 
 const PREFERENCE_COMMON_INSTRUCTION = `[DEFINITIONS:PREFERENCE]
@@ -56,6 +56,7 @@ ${responseChannelPrompt()}
 - aesthetic_likingは外見・衣装・色・造形への評価。行動・生き方のかっこよさには割り当てない。
 - character_craft_appreciationは設定・脚本・描写の組み立てへの評価。主体性・努力・能力への好意だけには割り当てない。
 - admirationは能力・生き方・姿勢への高い評価。「憧れる」だけではwishful_identificationを追加しない。
+- 行動への高評価と「自分もそうなりたい」が同じ対象について別々に書かれていれば、前者のadmirationと後者のwishful_identificationを両方検討する。後者へ統合して前者を消さない。
 - 行動・能力・生き方・頼もしさを指す「かっこいい」は明示的な高評価でありadmirationにできる。外見・衣装・造形を指す「かっこいい」はaesthetic_likingとし、対象を文脈で分ける。
 - wishful_identification := 人物の姿勢・性質を自分も身につけたい願望。主体はユーザー。人物全体への同一化や同一行動の逐語的一致は不要。
 - actual_similarity := 主観的な自己照合。人物側とユーザー側の特徴・経験を特定 → 原文が結び付ける共通部分を抽出 → その範囲だけをrawLabel・contextに残す。「自分も…だから」という理由づけもinferredの根拠とし、「似ている」の明記を要求しない。
@@ -64,6 +65,10 @@ ${responseChannelPrompt()}
 
 [BOUNDARY_EXAMPLES:STANDARD_REACTION]
 - 「怖くても助ける姿に憧れる」→ admiration。「自分も怖くても助けられるようになりたい」→ wishful_identification。
+- 「怖くても人を助けに行くところが好き。自分もあんなふうに勇気を出したい」→ 助けに行く姿へのadmirationと、勇気を身につけたいwishful_identificationを独立した根拠で保持する。
+- 「困っている子を置いていかない姿が好き。自分も困った人に声をかけられるようになりたい」→ 前者への好意と後者のwishful_identificationを分ける。願望の主体はユーザーだが、好みの対象は人物の援助行動である。
+- 「自分の失敗を人のせいにしないで何とかしようとする姿に憧れる」→ ここでの「自分」は人物自身を指すなら責任の取り方へのadmiration。ユーザー自身の過去の失敗と決めつけない。
+- 「自分から上手くなろうとするところが特にいい。仲間として応援したい」→ 主体的な成長を肯定する対象と、その成長を仲間として応援するroot_forの対象を結び付ける。単に「仲間関係」だけを好み対象にして成長への応援を落とさない。
 - 「失敗しても再挑戦する姿が好き。自分も失敗が多いから励まされる」→ 失敗経験へのactual_similarityと再挑戦へのmotivation。ユーザーにも再挑戦する性質があるとは補わない。
 - 「最初はできなくても諦めないところが好き。自分も部活で失敗するから、また練習しようと思える」→ 諦めない姿への好意とmotivation。ユーザーの失敗経験そのものをpositive候補にしない。
 - 「再挑戦する姿が好き。自分も部活をしているが似ているとは思わない」→ 自己類似を追加しない。

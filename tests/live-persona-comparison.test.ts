@@ -192,6 +192,8 @@ describe("live persona comparison", () => {
       expect(html).toContain("未評価");
       expect(html).toContain("../cases/A03/failure-0.json");
       expect(html).toContain("未実施・未取得");
+      expect(readFileSync(join(output, "comparison.md"), "utf8")).toContain("両回の訂正結果が揃っていないため");
+      expect(html).toContain("両回の訂正結果が揃っていないため");
       expect(() => cli(output)).toThrow();
       expect(readFileSync(join(before, "evaluation.json"))).toEqual(original);
     } finally {
@@ -204,7 +206,10 @@ describe("explicit subset comparison", () => {
   it("renders subset counts and recomputes grades when observed outcomes change", () => {
     const root = mkdtempSync(join(tmpdir(), "live-subset-report-"));
     const selected = {
-      personas: [{ id: "A", label: "A", name: "Fixture" }],
+      personas: [
+        { id: "A", label: "A", name: "Fixture" },
+        { id: "B", label: "B", name: "Unselected fixture" },
+      ],
       cases: ["A01", "A02"].map((id) => ({
         id,
         personaId: "A",
@@ -233,6 +238,10 @@ describe("explicit subset comparison", () => {
       write("grading-v2/A01.json", grade("A01", true));
       generate();
       expect(readFileSync(join(root, "report.html"), "utf8")).toContain("<title>1人・2件 実API評価</title>");
+      expect(readFileSync(join(root, "report.md"), "utf8")).toContain("# 1人・2件 実API評価");
+      expect(readFileSync(join(root, "report.md"), "utf8")).toContain("採点補助の使用量: 未取得");
+      expect(readFileSync(join(root, "report.html"), "utf8")).toContain("確認手順: 未取得");
+      expect(readFileSync(join(root, "report.html"), "utf8")).not.toContain("profiles/B/subset-final.png");
       expect(JSON.parse(readFileSync(join(root, "evaluation.json"), "utf8")).overall).toMatchObject({
         planned: 2,
         complete: 1,

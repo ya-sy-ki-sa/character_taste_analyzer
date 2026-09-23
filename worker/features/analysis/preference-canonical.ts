@@ -22,6 +22,13 @@ export function isSelfBackgroundPreference(item: Assertion): boolean {
       ).test(evidence),
   );
   if (characterTargeted && /(?:好き|魅力|惹かれ)/u.test(evidence)) return false;
+  // 「自分の失敗」は人物についての引用でも使われる。人物の姿への評価が
+  // 明示され、候補のsubjectもユーザーでない場合は自己背景とみなさない。
+  if (
+    item.context.subjects.some((subject) => subject && !/^(?:ユーザー|自分|私|僕|俺|わたし)$/u.test(subject)) &&
+    /(?:姿|振る舞い|態度|行動)(?:に|が)(?:憧れ|惹かれ|好き|魅力)/u.test(evidence)
+  )
+    return false;
   return /(?:自分|私|僕|俺|わたし|本人自身)/u.test(evidence);
 }
 
@@ -42,6 +49,24 @@ function comparisonFromQuote(quote: string): Comparison | null {
   return null;
 }
 
+function sameComparison(left: Comparison, right: Comparison): boolean {
+  if (left.kind !== right.kind) return false;
+  const key = (value: string) => normalized(value).replaceAll("人物", "人");
+  const first = key(left.compared);
+  const second = key(right.compared);
+  if (first !== second && !first.includes(second) && !second.includes(first)) return false;
+  const preferred = key(left.preferred);
+  const other = key(right.preferred);
+  if (preferred.includes(other) || other.includes(preferred)) return true;
+  const pairs = new Set(
+    Array.from({ length: Math.max(0, preferred.length - 1) }, (_, index) => preferred.slice(index, index + 2)),
+  );
+  const overlap = Array.from({ length: Math.max(0, other.length - 1) }, (_, index) =>
+    other.slice(index, index + 2),
+  ).filter((pair) => pairs.has(pair)).length;
+  return overlap / Math.max(1, Math.min(preferred.length, other.length) - 1) >= 0.5;
+}
+
 export function withConciseComparison(item: Assertion): Assertion {
   // The comparative relationship may already be the preferred target itself.
   if (/(?:より|だけ(?:じゃ|では|で)?なく)/u.test(item.rawLabel)) return item;
@@ -54,9 +79,14 @@ export function withConciseComparison(item: Assertion): Assertion {
     comparison.kind === "preferred_over"
       ? `${comparison.compared}より${comparison.preferred}を優先`
       : `${comparison.compared}だけでなく${comparison.preferred}も評価`;
-  const conditions = item.context.conditions.filter(
-    (value) => !value.startsWith("比較条件：") && !value.includes(comparison.preferred),
-  );
+  const conditions = item.context.conditions.filter((value) => {
+    const existing = comparisonFromQuote(value);
+    return (
+      !value.startsWith("比較条件：") &&
+      !value.includes(comparison.preferred) &&
+      !(existing && sameComparison(existing, comparison))
+    );
+  });
   return {
     ...item,
     context: { ...item.context, conditions: [...conditions, condition.slice(0, 500)].slice(0, 10) },
