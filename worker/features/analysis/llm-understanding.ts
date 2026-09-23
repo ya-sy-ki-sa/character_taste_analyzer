@@ -18,7 +18,7 @@ import { ontologyPrompt } from "./context";
 import { fakeUnderstanding } from "./deterministic";
 import { analysisErrorCode, safeAnalysisErrorDetail } from "./failures";
 import { analysisIssueText, analysisIssueTopic, judgeUnderstandingCandidate } from "./judgment";
-import { UNDERSTANDING_PROVENANCE_BUDGET } from "./normalize-understanding";
+import { UNDERSTANDING_CONSTRAINED_BUDGET, UNDERSTANDING_PROVENANCE_BUDGET } from "./normalize-understanding";
 import type { CharacterResearch } from "./research";
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from "./settings";
 import type { AttributeRow, EntryContext, NormalizeUnderstandingAudit } from "./types";
@@ -36,6 +36,8 @@ export async function understandOne(
 ) {
   const includeCustomization = stage === "target";
   const isCustomizedBase = entry.payload.registrationType === "customized_existing" && stage === "base";
+  const provenanceBudget =
+    entry.payload.registrationType === "original" ? UNDERSTANDING_CONSTRAINED_BUDGET : UNDERSTANDING_PROVENANCE_BUDGET;
   const analysisTargetName = isCustomizedBase ? entryBaseCharacterName(entry.payload) : entry.payload.characterName;
   const sourcePayload = {
     registrationType: entry.payload.registrationType,
@@ -157,9 +159,30 @@ export async function understandOne(
   );
   let normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
   let issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
+  const logCoverage = (round: number) =>
+    console.log(
+      JSON.stringify({
+        event: "understanding_pipeline_stage",
+        correlationId: entry.entryRevisionId,
+        stage,
+        round,
+        registrationType: entry.payload.registrationType,
+        candidateAssertions: current.value.assertions.length,
+        auditedAssertions: judged.audit.assertions.length,
+        auditedModelKnowledge: judged.audit.assertions.filter((item) => item.explicitness === "model_knowledge").length,
+        retainedAssertions: normalized.assertions.length,
+        retainedModelKnowledge: normalized.assertions.filter((item) => item.explicitness === "model_knowledge").length,
+        concreteAspects: normalized.informationQuality.concreteAspectCount,
+        groundedConcreteItems: normalized.informationQuality.groundedConcreteItemCount,
+      }),
+    );
+  logCoverage(0);
+  const targetAspectCount =
+    entry.payload.registrationType === "existing" || isCustomizedBase ? understandingAspects.length : 2;
   for (
     let round = 1;
-    normalized.informationQuality.concreteAspectCount < 2 && round <= MAX_ANALYSIS_RECONSIDERATION_ROUNDS;
+    normalized.informationQuality.concreteAspectCount < targetAspectCount &&
+    round <= MAX_ANALYSIS_RECONSIDERATION_ROUNDS;
     round++
   ) {
     completionAttempted = true;
@@ -173,15 +196,15 @@ export async function understandOne(
           aspect,
           Math.max(
             0,
-            UNDERSTANDING_PROVENANCE_BUDGET.groundedPerAspect -
+            provenanceBudget.groundedPerAspect -
               normalized.informationQuality.aspects[aspect].assertionIndexes.filter(
                 (index) => normalized.assertions[index]?.explicitness !== "model_knowledge",
               ).length,
           ),
         ]),
       ),
-      modelPerMissingAspect: UNDERSTANDING_PROVENANCE_BUDGET.modelPerAspect,
-      modelTotalRemaining: Math.max(0, UNDERSTANDING_PROVENANCE_BUDGET.modelTotal - modelUsed),
+      modelPerMissingAspect: provenanceBudget.modelPerAspect,
+      modelTotalRemaining: Math.max(0, provenanceBudget.modelTotal - modelUsed),
     };
     const retainedCandidate = {
       summary: Object.fromEntries(
@@ -238,6 +261,7 @@ export async function understandOne(
     );
     normalized = await afterCompletedLlm(() => normalize(judged.audit, completionAttempted));
     issues = [...judged.issues, ...understandingQualityIssues(normalized), ...normalized.informationQuality.reasons];
+    logCoverage(round);
   }
   if (issues.length) {
     normalized = {

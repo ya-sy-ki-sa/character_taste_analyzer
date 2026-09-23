@@ -14,7 +14,11 @@ import { loadEntry, loadOntology } from "./context";
 import { auditDarkUnderstanding, understandDarkBaseline, understandDarkTarget } from "./llm-dark";
 import { understandOne } from "./llm-understanding";
 import { completedLlmGroup, persistModelRun } from "./model-runs";
-import { normalizeUnderstanding } from "./normalize-understanding";
+import {
+  normalizeUnderstanding,
+  UNDERSTANDING_CONSTRAINED_BUDGET,
+  UNDERSTANDING_PROVENANCE_BUDGET,
+} from "./normalize-understanding";
 import * as repository from "./repositories/understanding";
 import { collectCharacterResearch } from "./research";
 import { ensureDarkScope } from "./scope";
@@ -68,7 +72,12 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           ),
         ),
       );
-      const normalized = normalizeUnderstanding(audit, proofs, completionAttempted);
+      const normalized = normalizeUnderstanding(
+        audit,
+        proofs,
+        completionAttempted,
+        entry.registrationType === "original" ? UNDERSTANDING_CONSTRAINED_BUDGET : UNDERSTANDING_PROVENANCE_BUDGET,
+      );
       return {
         ...normalized,
         sourceAssessment: {
@@ -276,6 +285,7 @@ export async function processCharacterAnalysis(env: Env, params: CharacterAnalys
           call.semanticAudit,
           semanticResults,
           quality?.completionAttempted ?? (call.attempts?.length ?? 1) > 1,
+          entry.registrationType === "original" ? UNDERSTANDING_CONSTRAINED_BUDGET : UNDERSTANDING_PROVENANCE_BUDGET,
         );
         verifiedAssertions = canonicalProofs.map((proof, index) => ({
           id: semanticResults[canonicalSourceIndexes[index]].id,

@@ -116,6 +116,36 @@ function sanitizeJudgmentEvent(value) {
   };
 }
 
+function boundedCount(value) {
+  return Number.isInteger(value) && value >= 0 && value <= 10_000 ? value : null;
+}
+
+function sanitizeUnderstandingPipelineEvent(value) {
+  if (!value || typeof value !== "object" || value.event !== "understanding_pipeline_stage") return null;
+  const correlationId = boundedString(value.correlationId);
+  const stage = boundedString(value.stage);
+  const counts = Object.fromEntries(
+    [
+      "round",
+      "candidateAssertions",
+      "auditedAssertions",
+      "auditedModelKnowledge",
+      "retainedAssertions",
+      "retainedModelKnowledge",
+      "concreteAspects",
+      "groundedConcreteItems",
+    ].map((key) => [key, boundedCount(value[key])]),
+  );
+  if (!correlationId || !["base", "target"].includes(stage) || Object.values(counts).some((item) => item === null))
+    return null;
+  return {
+    correlationId,
+    stage,
+    registrationType: boundedString(value.registrationType),
+    ...counts,
+  };
+}
+
 function parseLogObject(line) {
   const candidates = [line.trim()];
   const start = line.indexOf("{");
@@ -143,6 +173,11 @@ export function sanitizeJudgmentLog(text) {
   return text.split(/\r?\n/u).map(parseLogObject).map(sanitizeJudgmentEvent).filter(Boolean);
 }
 
+export function sanitizeUnderstandingPipelineLog(text) {
+  if (typeof text !== "string") throw new Error("Understanding pipeline log must be text");
+  return text.split(/\r?\n/u).map(parseLogObject).map(sanitizeUnderstandingPipelineEvent).filter(Boolean);
+}
+
 export function readSanitizedJudgmentLog(
   path = process.env.LIVE_APP_LOG_FILE ??
     (process.env.LIVE_RUN_DIR && existsSync(`${resolve(process.env.LIVE_RUN_DIR)}/app.log`)
@@ -153,6 +188,18 @@ export function readSanitizedJudgmentLog(
   if (!existsSync(path)) throw new Error(`LIVE_APP_LOG_FILE not found: ${path}`);
   if (statSync(path).size > MAX_JUDGMENT_LOG_BYTES) throw new Error("LIVE_APP_LOG_FILE exceeds 64 MiB");
   return sanitizeJudgmentLog(readFileSync(path, "utf8"));
+}
+
+export function readSanitizedUnderstandingPipelineLog(
+  path = process.env.LIVE_APP_LOG_FILE ??
+    (process.env.LIVE_RUN_DIR && existsSync(`${resolve(process.env.LIVE_RUN_DIR)}/app.log`)
+      ? `${resolve(process.env.LIVE_RUN_DIR)}/app.log`
+      : undefined),
+) {
+  if (!path) return [];
+  if (!existsSync(path)) throw new Error(`LIVE_APP_LOG_FILE not found: ${path}`);
+  if (statSync(path).size > MAX_JUDGMENT_LOG_BYTES) throw new Error("LIVE_APP_LOG_FILE exceeds 64 MiB");
+  return sanitizeUnderstandingPipelineLog(readFileSync(path, "utf8"));
 }
 
 function parseEmbeddedJson(value) {
@@ -299,6 +346,25 @@ export function saveCaseJudgmentAudits(root, exported, caseStates, judgmentEvent
     saveJson(path, artifact);
   }
   return artifacts;
+}
+export function saveCaseUnderstandingPipelineAudits(root, exported, caseStates, pipelineEvents = []) {
+  const revisions = Array.isArray(exported?.entries?.revisions) ? exported.entries.revisions : [];
+  for (const [caseId, state] of Object.entries(caseStates ?? {})) {
+    if (!state?.entryId) continue;
+    const excluded = new Set(Array.isArray(state.excludedRevisions) ? state.excludedRevisions : []);
+    const revisionIds = new Set(
+      revisions
+        .filter((revision) => revision.entry_id === state.entryId && !excluded.has(revision.revision_number))
+        .map((revision) => revision.id),
+    );
+    const events = pipelineEvents.filter((event) => revisionIds.has(event.correlationId));
+    saveJson(`${root}/cases/${caseId}/understanding-pipeline-audit.json`, {
+      schemaVersion: "live-understanding-pipeline-audit/v1",
+      caseId,
+      coverage: events.length ? "available" : "log_unavailable",
+      events,
+    });
+  }
 }
 export function preserveJson(path, value) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });

@@ -150,6 +150,22 @@ describe("canonical understanding before persistence", () => {
     expect(normalized.informationQuality.groundedConcreteItemCount).toBe(1);
   });
 
+  it("projects two distinct shared claims once each while retaining both categories", async () => {
+    const normalized = await normalize(
+      [
+        { valueText: "物語を導きながら仲間を救うことを目指す。", stableKey: null, source: "user" },
+        { valueText: "危機に立ち向かう主人公として成長を目指す。", stableKey: null, source: "user" },
+      ],
+      { narrativeRole: [0, 1], goals: [0, 1] },
+    );
+    expect(normalized.assertions).toHaveLength(2);
+    expect(normalized.summary.narrativeRole).toHaveLength(1);
+    expect(normalized.summary.goals).toHaveLength(1);
+    expect(normalized.summary.narrativeRole[0]).not.toBe(normalized.summary.goals[0]);
+    expect(normalized.informationQuality.concreteAspectCount).toBeGreaterThanOrEqual(2);
+    expect(normalized.informationQuality.groundedConcreteItemCount).toBe(2);
+  });
+
   it("retains a verified quote even when the generated label was model knowledge", async () => {
     const normalized = await normalize(
       [
@@ -181,7 +197,7 @@ describe("canonical understanding before persistence", () => {
     }
   });
 
-  it("limits grounded descriptions and uses model knowledge only for uncovered aspects", async () => {
+  it("keeps distinct model knowledge without replacing grounded descriptions", async () => {
     const items: Item[] = [
       ...["目標Aを追う。", "目標Bを追う。", "目標Cを追う。"].map((valueText) => ({
         valueText,
@@ -191,7 +207,7 @@ describe("canonical understanding before persistence", () => {
       { valueText: "目標Aを追う。", stableKey: "motivation.ambition", source: "model" },
       { valueText: "物語を導く。", stableKey: "role.hero", source: "model" },
       { valueText: "公平に判断する。", stableKey: "morality.heroic", source: "model" },
-      { valueText: "信念を貫く。", stableKey: null, source: "model" },
+      { valueText: "自分の信念を貫くことを大切にする。", stableKey: null, source: "model" },
       { valueText: "困難に向き合う。", stableKey: "agency.proactive", source: "model" },
       { valueText: "仲間に寄り添う。", stableKey: "relationship.devoted", source: "model" },
       { valueText: "穏やかな声で語る。", stableKey: "speech.playful", source: "model" },
@@ -206,7 +222,7 @@ describe("canonical understanding before persistence", () => {
       expression: [9],
     });
     expect(normalized.aspectAssessments.goals.assertionIndexes).toHaveLength(2);
-    expect(normalized.assertions.filter((item) => item.explicitness === "model_knowledge")).toHaveLength(4);
+    expect(normalized.assertions.filter((item) => item.explicitness === "model_knowledge")).toHaveLength(6);
     expect(
       normalized.assertions.some(
         (item) => item.valueText === "目標Aを追う。" && item.explicitness === "model_knowledge",
@@ -218,6 +234,41 @@ describe("canonical understanding before persistence", () => {
       "未照合のモデル知識を含みます。人物の確認済み事実ではありません。",
     );
     expect(normalized.canonicalProofs.every((proof) => proof.evidence.length > 0)).toBe(true);
+  });
+
+  it("retains a broad existing-character portrait with clearly unverified knowledge", async () => {
+    const normalized = await normalize(
+      [
+        { valueText: "物語の中心で成長する人物。", stableKey: "role.hero", source: "user" },
+        { valueText: "人々を救うことを目標にしている。", stableKey: "motivation.ambition", source: "user" },
+        { valueText: "危機でも他人を見捨てない。", stableKey: "morality.heroic", source: "model" },
+        { valueText: "困っている人の安全を大切にする。", stableKey: null, source: "model" },
+        { valueText: "相手を観察してから行動する。", stableKey: "ability.strategic", source: "model" },
+        { valueText: "自分の弱さに向き合って努力する。", stableKey: "agency.proactive", source: "model" },
+        { valueText: "師匠との信頼関係を築く。", stableKey: "relationship.devoted", source: "model" },
+        {
+          valueText: "未照合のモデル知識では、緊張が表情に出やすい。",
+          stableKey: "expression.visible",
+          source: "model",
+        },
+      ],
+      {
+        narrativeRole: [0],
+        goals: [1],
+        moralityOrientation: [2],
+        values: [3],
+        behavior: [4, 5],
+        relationships: [6],
+        expression: [7],
+      },
+    );
+    expect(normalized.assertions).toHaveLength(8);
+    expect(normalized.informationQuality.concreteAspectCount).toBe(7);
+    expect(normalized.informationQuality.modelKnowledgeConcreteItemCount).toBe(6);
+    expect(normalized.summary.values[0]).toMatch(/^未照合（モデル知識）:/u);
+    expect(normalized.summary.expression).toEqual(["未照合（モデル知識）: 緊張が表情に出やすい。"]);
+    expect(normalized.assertions.filter((item) => item.explicitness === "model_knowledge")).toHaveLength(6);
+    expect(normalized.assertions.filter((item) => item.explicitness === "source_explicit")).toHaveLength(0);
   });
 
   it("splits a separately verified sentence from an unverified compound", async () => {

@@ -20,9 +20,24 @@ type Row = {
 
 export const UNDERSTANDING_PROVENANCE_BUDGET = {
   groundedPerAspect: 2,
+  modelPerAspect: 2,
+  modelTotal: 10,
+  modelOnlyMissingAspect: false,
+} as const;
+
+export const UNDERSTANDING_CONSTRAINED_BUDGET = {
+  groundedPerAspect: 2,
   modelPerAspect: 1,
   modelTotal: 4,
+  modelOnlyMissingAspect: true,
 } as const;
+
+type UnderstandingBudget = {
+  groundedPerAspect: number;
+  modelPerAspect: number;
+  modelTotal: number;
+  modelOnlyMissingAspect: boolean;
+};
 
 export type NormalizedUnderstanding = UnderstandingAudit & {
   informationQuality: ReturnType<typeof assessUnderstandingInformation>;
@@ -125,7 +140,7 @@ function rowFor(audit: GroundedUnderstandingAudit, assertion: Assertion, proof: 
   };
 }
 
-function splitSupportedSentences(rows: Row[]): void {
+function splitSupportedSentences(rows: Row[], reclassifyAfterSplit: boolean): void {
   const grounded = rows.filter((row) => row.grounded);
   for (const row of rows) {
     if (row.grounded) continue;
@@ -139,7 +154,12 @@ function splitSupportedSentences(rows: Row[]): void {
         ),
     );
     if (remaining.length === sentences.length) continue;
-    row.assertion = { ...row.assertion, valueText: remaining.join("").trim() };
+    // The original ontology key may have described the removed clause.
+    row.assertion = {
+      ...row.assertion,
+      attributeStableKey: reclassifyAfterSplit ? null : row.assertion.attributeStableKey,
+      valueText: remaining.join("").trim(),
+    };
     row.propositionKey = normalizedText(row.assertion.valueText);
     const aspects = understandingAssertionAspects(row.assertion);
     if (aspects.length) row.aspects = new Set(aspects);
@@ -186,64 +206,112 @@ function rank(row: Row): number {
   return provenance * 10 + quote + official + row.verified.confidence;
 }
 
-function selectByBudget(rows: Row[]) {
+function selectByBudget(rows: Row[], budget: UnderstandingBudget) {
   const selected = new Set<Row>();
   const aspectRows = new Map<UnderstandingAspect, Row[]>(understandingAspects.map((aspect) => [aspect, []]));
   const ordered = (items: Row[]) => [...items].sort((a, b) => rank(b) - rank(a) || a.sourceIndex - b.sourceIndex);
   const grounded = rows.filter((row) => row.grounded);
   for (const aspect of understandingAspects) {
-    const picked = ordered(grounded.filter((row) => row.aspects.has(aspect))).slice(
-      0,
-      UNDERSTANDING_PROVENANCE_BUDGET.groundedPerAspect,
-    );
+    const picked = ordered(grounded.filter((row) => row.aspects.has(aspect))).slice(0, budget.groundedPerAspect);
     aspectRows.set(aspect, picked);
     for (const row of picked) selected.add(row);
   }
   const groundedPropositions = new Set(grounded.map((row) => JSON.stringify([row.propositionKey, row.contextKey])));
   let modelCount = 0;
   for (const aspect of understandingAspects) {
-    if (aspectRows.get(aspect)?.length) continue;
-    const candidate = ordered(
+    if (budget.modelOnlyMissingAspect && aspectRows.get(aspect)?.length) continue;
+    const candidates = ordered(
       rows.filter(
         (row) =>
           !row.grounded &&
           row.aspects.has(aspect) &&
           !groundedPropositions.has(JSON.stringify([row.propositionKey, row.contextKey])),
       ),
-    )[0];
-    if (!candidate || (!selected.has(candidate) && modelCount >= UNDERSTANDING_PROVENANCE_BUDGET.modelTotal)) continue;
-    aspectRows.set(aspect, [candidate]);
-    if (!selected.has(candidate)) {
-      selected.add(candidate);
-      modelCount++;
+    );
+    const picked: Row[] = [];
+    for (const candidate of budget.modelOnlyMissingAspect ? candidates.slice(0, 1) : candidates) {
+      if (picked.length >= budget.modelPerAspect) break;
+      if (!selected.has(candidate) && modelCount >= budget.modelTotal) continue;
+      picked.push(candidate);
+      if (!selected.has(candidate)) {
+        selected.add(candidate);
+        modelCount++;
+      }
     }
+    aspectRows.set(aspect, [...(aspectRows.get(aspect) ?? []), ...picked]);
   }
   // Identification and attribution records do not consume an aspect slot.
   for (const row of rows) if (row.grounded && !row.aspects.size) selected.add(row);
   return { selected: rows.filter((row) => selected.has(row)), aspectRows };
 }
 
+function distributeProjection(selected: Row[], aspectRows: Map<UnderstandingAspect, Row[]>) {
+  const projected = new Map<UnderstandingAspect, Row[]>(understandingAspects.map((aspect) => [aspect, []]));
+  const eligible = (row: Row) => understandingAspects.filter((aspect) => aspectRows.get(aspect)?.includes(row));
+  for (const aspect of understandingAspects) {
+    const references = aspectRows.get(aspect) ?? [];
+    for (const row of references) {
+      // Equal wording with different actors, negation, or conditions is a meaningful
+      // contrast, not a duplicate that can be moved to another category.
+      if (
+        references.some(
+          (other) =>
+            other !== row && other.propositionKey === row.propositionKey && other.contextKey !== row.contextKey,
+        )
+      )
+        projected.get(aspect)?.push(row);
+    }
+  }
+  // Assign each retained claim to one category first. This keeps every claim visible while
+  // avoiding identical prose in several cards when another claim can cover those cards.
+  for (const row of [...selected].sort(
+    (a, b) => eligible(a).length - eligible(b).length || a.sourceIndex - b.sourceIndex,
+  )) {
+    if (understandingAspects.some((aspect) => projected.get(aspect)?.includes(row))) continue;
+    const choices = eligible(row);
+    if (!choices.length) continue;
+    const primary = choices.sort(
+      (a, b) =>
+        (projected.get(a)?.length ?? 0) - (projected.get(b)?.length ?? 0) ||
+        (aspectRows.get(a)?.length ?? 0) - (aspectRows.get(b)?.length ?? 0) ||
+        understandingAspects.indexOf(a) - understandingAspects.indexOf(b),
+    )[0];
+    projected.get(primary)?.push(row);
+  }
+  // A genuinely shared claim is still shown in another category if no distinct claim exists.
+  for (const aspect of understandingAspects) {
+    if (projected.get(aspect)?.length) continue;
+    const fallback = aspectRows.get(aspect)?.[0];
+    if (fallback) projected.set(aspect, [fallback]);
+  }
+  return projected;
+}
+
 export function normalizeUnderstanding(
   audit: GroundedUnderstandingAudit,
   verified: Verified[],
   completionAttempted: boolean,
+  budget: UnderstandingBudget = UNDERSTANDING_PROVENANCE_BUDGET,
 ): NormalizedUnderstanding {
   if (verified.length !== audit.assertions.length) throw new Error("UNDERSTANDING_PROOF_ALIGNMENT");
   const rows = audit.assertions.flatMap((assertion, index) => {
     const row = rowFor(audit, assertion, verified[index], index);
     return row ? [row] : [];
   });
-  splitSupportedSentences(rows);
-  const { selected, aspectRows } = selectByBudget(deduplicate(rows));
+  splitSupportedSentences(rows, !budget.modelOnlyMissingAspect);
+  const { selected, aspectRows } = selectByBudget(deduplicate(rows), budget);
+  const projectedRows = distributeProjection(selected, aspectRows);
   const next = structuredClone(audit);
   next.assertions = selected.map((row) => row.assertion);
   const canonicalIndexes = new Map(selected.map((row, index) => [row, index]));
   for (const aspect of understandingAspects) {
     const assessment = next.aspectAssessments[aspect];
-    const references = aspectRows.get(aspect) ?? [];
+    const references = projectedRows.get(aspect) ?? [];
     const max = aspect === "narrativeRole" || aspect === "moralityOrientation" ? 200 : 500;
     const summary = references.map((row) => {
-      const value = row.assertion.valueText.trim();
+      const value = row.grounded
+        ? row.assertion.valueText.trim()
+        : row.assertion.valueText.trim().replace(/^未照合(?:（モデル知識）[:：]|のモデル知識では[、,])\s*/u, "");
       return (row.grounded ? value : `未照合（モデル知識）: ${value}`).slice(0, max);
     });
     next.summary[aspect] = [...new Set(summary)];

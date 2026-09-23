@@ -36,6 +36,7 @@ import { analysisIssueText, analysisIssueTopic, judgePreferenceCandidate, rankPr
 import { analyzeDarkPreferences } from "./llm-dark";
 import { completedLlmGroup, persistModelRun } from "./model-runs";
 import { uniquePreferenceIndexes } from "./preference-canonical";
+import { linkGrowthToSupport } from "./preference-growth-link";
 import { preferenceAssertionStatements } from "./preference-statements";
 import * as repository from "./repositories/preference";
 import {
@@ -289,6 +290,12 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
     const attempts = [...(result.attempts ?? [{ output: structuredClone(result.value), metadata: result.metadata }])];
     result = { ...result, value: structuredClone(result.value) };
     preserveReviewedInputs(result.value);
+    if (params.analysisDomain === "standard")
+      linkGrowthToSupport(
+        result.value as PreferenceCandidate,
+        entry.payload.preference.likedReasons,
+        entry.payload.characterName,
+      );
     completedLlmGroups.push(completedLlmGroup(preferenceOperation, inputHash, { ...result, attempts }));
     let judgment = await judgePreferenceCandidate(env, {
       candidate: result.value,
@@ -343,6 +350,12 @@ export async function processPreferenceAnalysis(env: Env, params: CharacterAnaly
       );
       result = { ...generated, value: structuredClone(generated.value) };
       preserveReviewedInputs(result.value);
+      if (params.analysisDomain === "standard")
+        linkGrowthToSupport(
+          result.value as PreferenceCandidate,
+          entry.payload.preference.likedReasons,
+          entry.payload.characterName,
+        );
       completedLlmGroups[completedLlmGroups.length - 1] = completedLlmGroup(preferenceOperation, inputHash, {
         ...result,
         attempts,

@@ -13,6 +13,8 @@ const {
   readJson,
   sameInput,
   sanitizeJudgmentLog,
+  sanitizeUnderstandingPipelineLog,
+  saveCaseUnderstandingPipelineAudits,
   selectResumeEntry,
   selectSafeRuntimeSettings,
 } = liveStorage;
@@ -95,6 +97,42 @@ describe("persistent live evaluation evidence", () => {
       }),
     ]);
     expect(JSON.stringify(events)).not.toContain("must-not-survive");
+  });
+  it("keeps only bounded understanding pipeline counts and maps them to the selected case", () => {
+    const events = sanitizeUnderstandingPipelineLog(
+      `${JSON.stringify({
+        event: "understanding_pipeline_stage",
+        correlationId: "revision-1",
+        stage: "target",
+        round: 1,
+        registrationType: "existing",
+        candidateAssertions: 9,
+        auditedAssertions: 9,
+        auditedModelKnowledge: 6,
+        retainedAssertions: 8,
+        retainedModelKnowledge: 6,
+        concreteAspects: 7,
+        groundedConcreteItems: 2,
+        sourceText: "must-not-survive",
+      })}\n`,
+    );
+    expect(events).toHaveLength(1);
+    expect(JSON.stringify(events)).not.toContain("must-not-survive");
+    const dir = mkdtempSync(join(tmpdir(), "persona-understanding-audit-"));
+    try {
+      saveCaseUnderstandingPipelineAudits(
+        dir,
+        { entries: { revisions: [{ id: "revision-1", entry_id: "entry-1", revision_number: 1 }] } },
+        { A01: { entryId: "entry-1" } },
+        events,
+      );
+      expect(readJson(join(dir, "cases/A01/understanding-pipeline-audit.json"))).toMatchObject({
+        coverage: "available",
+        events: [expect.objectContaining({ retainedAssertions: 8, concreteAspects: 7 })],
+      });
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
   });
   it("aggregates final accepted, degraded and rejected semantic outcomes per case", () => {
     const audit = (targetId: string, keep: boolean, reasonCode: string, diagnosticCodes: string[] = []) => ({

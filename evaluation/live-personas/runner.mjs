@@ -8,8 +8,10 @@ import {
   preserveJson,
   readJson,
   readSanitizedJudgmentLog,
+  readSanitizedUnderstandingPipelineLog,
   sameInput,
   saveCaseJudgmentAudits,
+  saveCaseUnderstandingPipelineAudits,
   saveJson,
   selectResumeEntry,
 } from "./storage.mjs";
@@ -353,7 +355,7 @@ export async function run(browser, validateInput) {
     if (!download.ok()) throw new Error("EXPORT_DOWNLOAD_FAILED");
     const exportPath = `${root}/exports/${p.id}-${label}.json`;
     preserveJson(exportPath, await download.json());
-    if (label === "baseline")
+    if (label === "baseline") {
       saveCaseJudgmentAudits(
         root,
         readJson(exportPath),
@@ -361,6 +363,13 @@ export async function run(browser, validateInput) {
         readSanitizedJudgmentLog(),
         `exports/${p.id}-${label}.json`,
       );
+      saveCaseUnderstandingPipelineAudits(
+        root,
+        readJson(exportPath),
+        state.cases,
+        readSanitizedUnderstandingPipelineLog(),
+      );
+    }
     event("export_saved", { personaId: p.id, label });
   }
   for (const p of dataset.personas.filter((p) => dataset.cases.some((c) => c.personaId === p.id))) {

@@ -170,10 +170,11 @@ describe("character understanding completeness", () => {
     expect(candidate.summary.goals).toEqual([]);
   });
 
-  it("does not add calls when two aspects have concrete descriptions and other gaps are explained", async () => {
+  it("reconsiders an existing character with only two concrete aspects even when gaps are explained", async () => {
     const { run, requests } = setup([known(), known()]);
     const result = await run();
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].messages.at(-1)?.content).toContain("欠落項目:");
     expect(Object.values(result.value.summary).every((value) => value.length > 0)).toBe(true);
   });
 
@@ -273,18 +274,19 @@ describe("sparse character understanding", () => {
     });
   });
 
-  it("does not complete D03 when the summary labels reference concrete assertions", async () => {
+  it("reconsiders D03's remaining empty aspect without discarding concrete assertions", async () => {
     const fixture = sparseFixtures.find((item) => item.caseId === "D03");
     if (!fixture) throw new Error("D03 fixture missing");
     const candidate = frozenAudit(fixture);
     const { run, requests } = setup([candidate, candidate]);
     const result = await run();
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(2);
     expect(result.value.sourceAssessment.informationQuality).toMatchObject({
       status: "not_flagged",
       concreteAspectCount: 6,
-      completionAttempted: false,
+      completionAttempted: true,
     });
+    expect(result.value.assertions).toEqual(candidate.assertions);
   });
 
   it("clears the limited flag when completion supplies concrete descriptions", async () => {
@@ -379,13 +381,13 @@ describe("sparse character understanding", () => {
     },
   );
 
-  it("does not use the completion call for non-blocking unexplained gaps", async () => {
+  it("reconsiders non-blocking unexplained gaps for existing characters", async () => {
     const partial = known();
     partial.uncertainties = [];
     const { run, requests } = setup([partial, partial, partial]);
     const result = await run();
     expect(result.value.sourceAssessment.informationQuality.status).toBe("not_flagged");
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(2);
   });
 
   it("keeps completed records when the additional audit fails", async () => {
