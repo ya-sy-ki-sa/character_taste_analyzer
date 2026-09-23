@@ -28,7 +28,6 @@ export function validateJudgmentConfig(env: Env): string[] {
   const errors: string[] = [];
   if (!env.JEV_PROVIDER || !["typesafe", "fake", "replay"].includes(env.JEV_PROVIDER))
     errors.push("JEV_PROVIDER_CONFIGURATION_INVALID");
-  if (env.JEV_MODEL !== JEV_MODEL) errors.push("JEV_MODEL_INVALID");
   if (env.JEV_PROVIDER === "typesafe") {
     if (!env.AI_GATEWAY_GATEWAY_ID?.trim()) errors.push("AI_GATEWAY_GATEWAY_ID_REQUIRED_FOR_JEV");
     if (env.ENVIRONMENT === "local") {
@@ -97,7 +96,7 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
         MAX_PAYLOAD_BYTES
       )
         throw new JudgmentProviderError("context_too_large", false);
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; ; attempt++) {
         try {
           const raw = await withTimeout(
             this.env.AI
@@ -134,7 +133,6 @@ export class CloudflareJevJudgmentProvider implements JudgmentProvider {
           await new Promise<void>((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
         }
       }
-      throw new JudgmentProviderError("retry_exhausted", true);
     } catch (error) {
       if (error instanceof JudgmentProviderError)
         throw new JudgmentProviderError(error.reason, error.retryable, error.code, this.context);

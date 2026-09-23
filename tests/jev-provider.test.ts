@@ -37,7 +37,6 @@ function environment(run: (model: string, input: unknown, options: unknown) => P
   return {
     AI: { run },
     JEV_PROVIDER: "typesafe",
-    JEV_MODEL: "typesafe/jev",
     AI_GATEWAY_GATEWAY_ID: "default",
     ENVIRONMENT: "production",
   } as Env;
@@ -133,14 +132,14 @@ describe("Cloudflare Jev transport contract", () => {
 
   it("runs fake and replay without remote AI, while disabled configuration needs no Jev credentials", async () => {
     for (const id of ["fake", "replay"] as const) {
-      const provider = createJudgmentProvider({ JEV_PROVIDER: id, JEV_MODEL: "typesafe/jev" } as Env);
+      const provider = createJudgmentProvider({ JEV_PROVIDER: id } as Env);
       const result = await provider.evaluate(request);
       expect(result.model).toBe(`${id}:typesafe/jev`);
       expect(result.answers.condition.choice).toBe("satisfied");
     }
-    expect(
-      validateJudgmentConfig({ JEV_PROVIDER: "typesafe", JEV_MODEL: "typesafe/jev", ENVIRONMENT: "production" } as Env),
-    ).toContain("AI_BINDING_MISSING_FOR_JEV");
+    expect(validateJudgmentConfig({ JEV_PROVIDER: "typesafe", ENVIRONMENT: "production" } as Env)).toContain(
+      "AI_BINDING_MISSING_FOR_JEV",
+    );
     expect(() => unwrapJevResponse({ result: { success: false, errors: ["denied"] } })).toThrowError();
   });
 });

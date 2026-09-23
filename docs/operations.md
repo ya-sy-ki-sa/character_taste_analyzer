@@ -76,7 +76,7 @@ Workers AIは`AI` bindingを使用しますが、各`env.AI.run()`へ同じGatew
 
 `GENERATION_JEV_MODE`は通常版・dark版の生成キャラ条件検査だけに適用します。全環境の既定値は`off`で、このときJev設定も通信も不要です。`shadow`はJev判定・使用量・遅延・fallback理由を本文なしの構造化ログ（`generation_jev_validation`）へ記録し、採用結果は従来のLLM検査のままです。`guarded`は決定的検査に合格し、不確実性がなく、全条件の選択肢確率0.95以上かつconfidence 0.90以上、実在する人物設定Pointerが揃うときだけ検査LLMを省略します。それ以外、Jevの認証・通信・形式エラー時は従来のLLM検査へ戻します。生成・修復・案比較の回数とアプリのLLMルーティングは変更しません。
 
-offline/E2Eは`JEV_PROVIDER=replay`を使い、Remote `AI` bindingを追加しません。ローカルで実Jevを使うときだけ`JEV_PROVIDER=typesafe`、`JEV_MODEL=typesafe/jev`、Gateway IDとCloudflareアカウントID・トークンを設定します。staging/productionは既存の`AI` bindingとGateway IDを使用します。秘密値を正本に書かないでください。確率閾値は暫定値で、実APIによる意味精度・LLMトークン削減・総費用の比較は未実施です。校正まで本番で`guarded`を有効にしないでください。
+offline/E2Eは`JEV_PROVIDER=replay`を使い、Remote `AI` bindingを追加しません。ローカルで実Jevを使うときだけ`JEV_PROVIDER=typesafe`、Gateway IDとCloudflareアカウントID・トークンを設定します。JevのCloudflareモデルは実装内で`typesafe/jev`に固定しています。staging/productionは既存の`AI` bindingとGateway IDを使用します。秘密値を正本に書かないでください。確率閾値は暫定値で、実APIによる意味精度・LLMトークン削減・総費用の比較は未実施です。校正まで本番で`guarded`を有効にしないでください。
 
 EmbeddingはLLMと独立した`EmbeddingProvider` Portを使います。local/productionのOpenAI `text-embedding-3-small`は1536次元、stagingのWorkers AI BGE-M3は1024次元です。OpenAI、Workers AI、Fakeの各Adapterをfactoryで切り替え、返却vectorの件数・順序・有限値・次元数を共通契約で検証します。
 

@@ -53,7 +53,9 @@ export function selectGenerationFeedback(
 
 export function selectValueStanceAssertions(
   db: D1Database,
-  bindings: readonly [ownerUserId: string, ownerUserIdAgain: string],
+  bindings:
+    | readonly [ownerUserId: string, ownerUserIdAgain: string]
+    | readonly [ownerUserId: string, ownerUserIdAgain: string, analysisDomain: AnalysisDomain],
 ): D1PreparedStatement {
   return db
     .prepare(`
@@ -74,6 +76,7 @@ export function selectValueStanceAssertions(
     LEFT JOIN evidence_fragments ef ON ef.owner_type = 'value_stance_assertion' AND ef.owner_id = vs.id AND ef.verification_status!='invalid'
     WHERE vs.owner_user_id = ? AND vs.status IN ('confirmed', 'corrected') AND NOT (EXISTS (SELECT 1 FROM evidence_fragments invalid WHERE invalid.owner_type='value_stance_assertion' AND invalid.owner_id=vs.id AND invalid.verification_status='invalid') AND NOT EXISTS (SELECT 1 FROM evidence_fragments valid WHERE valid.owner_type='value_stance_assertion' AND valid.owner_id=vs.id AND valid.verification_status!='invalid'))
       AND e.owner_user_id = ? AND e.status = 'active'
+      ${bindings[2] ? "AND e.analysis_domain = ?" : ""}
       AND ar.id=(SELECT latest.id FROM analysis_runs latest WHERE latest.entry_revision_id=ar.entry_revision_id AND latest.owner_user_id=ar.owner_user_id AND latest.status='succeeded' ORDER BY latest.run_generation DESC LIMIT 1)
     GROUP BY vs.id ORDER BY vs.id
   `)

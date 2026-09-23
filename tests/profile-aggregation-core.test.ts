@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   type AssertionRow,
   aggregateContributions,
@@ -91,5 +91,50 @@ describe("profile contribution aggregation", () => {
         analysisDomain: domain,
       },
     ]);
+  });
+
+  it("hashes each canonical condition once within an aggregation", async () => {
+    const row: AssertionRow = {
+      id: "a",
+      entry_id: "entry",
+      entry_revision_id: "revision",
+      character_identity_id: "character",
+      work_id: null,
+      attribute_definition_id: null,
+      stable_key: null,
+      label: null,
+      category: null,
+      raw_label: "属性",
+      normalized_label: "属性",
+      polarity: "positive",
+      response_channel: null,
+      strength: 1,
+      explicitness: "user_explicit",
+      confidence: 1,
+      context_json: '{"schemaVersion":"2","entryScope":"場面"}',
+      status: "confirmed",
+      evidence_count: 0,
+      evidence_quality: 1,
+      evidence_fingerprint: "",
+      analysis_domain: "standard",
+    };
+    const digest = vi.spyOn(crypto.subtle, "digest");
+    try {
+      const weighted = await weightAssertions([
+        row,
+        { ...row, id: "b", context_json: '{"entryScope":"場面","schemaVersion":"2"}' },
+        { ...row, id: "c", context_json: "{}" },
+        { ...row, id: "d" },
+      ]);
+      expect(weighted.map((item) => item.conditionHash)).toEqual([
+        weighted[0].conditionHash,
+        weighted[0].conditionHash,
+        weighted[2].conditionHash,
+        weighted[0].conditionHash,
+      ]);
+      expect(digest).toHaveBeenCalledTimes(2);
+    } finally {
+      digest.mockRestore();
+    }
   });
 });

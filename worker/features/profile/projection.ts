@@ -25,8 +25,15 @@ async function loadPreferenceAssertions(env: Env, ownerUserId: string): Promise<
   return [...assertions, ...feedback];
 }
 
-async function loadValueStances(env: Env, ownerUserId: string): Promise<ValueStanceRow[]> {
-  return all<ValueStanceRow>(repository.selectValueStanceAssertions(env.DB, [ownerUserId, ownerUserId]));
+async function loadValueStances(
+  env: Env,
+  ownerUserId: string,
+  analysisDomain?: AnalysisDomain,
+): Promise<ValueStanceRow[]> {
+  const bindings: [string, string] | [string, string, AnalysisDomain] = analysisDomain
+    ? [ownerUserId, ownerUserId, analysisDomain]
+    : [ownerUserId, ownerUserId];
+  return all<ValueStanceRow>(repository.selectValueStanceAssertions(env.DB, bindings));
 }
 
 export async function rebuildProfile(
@@ -290,9 +297,7 @@ export async function loadCurrentProfile(
     classification: ProfileDimension["classification"];
     flags_json: string;
   }>(repository.selectProfileDimensions(env.DB, [projection.id, analysisDomain]));
-  const stanceRows = buildValueStances(
-    (await loadValueStances(env, ownerUserId)).filter((row) => row.analysis_domain === analysisDomain),
-  );
+  const stanceRows = buildValueStances(await loadValueStances(env, ownerUserId, analysisDomain));
   const attributeRows = await all<{ stable_key: string; label: string }>(
     repository.selectActiveAttributeLabels(env.DB, [analysisDomain]),
   );

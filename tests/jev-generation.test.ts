@@ -62,7 +62,6 @@ function scenario(domain: "standard" | "dark" = "standard") {
   const env = {
     GENERATION_JEV_MODE: "guarded",
     JEV_PROVIDER: "fake",
-    JEV_MODEL: "typesafe/jev",
     AUTH_PEPPER: "test-pepper",
   } as Env;
   const generateStructured = vi.fn(async () => ({
@@ -107,6 +106,20 @@ describe("generation-only Jev guard", () => {
     expect(report.passed).toBe(true);
     expect(report.checks).toHaveLength(4);
     expect(generateStructured).not.toHaveBeenCalled();
+  });
+
+  it("does not build offline fixtures for the remote Jev provider", async () => {
+    const { input, candidate, env } = scenario();
+    const delegate = providerWith(() => {});
+    const provider: JudgmentProvider = {
+      providerId: "typesafe",
+      evaluate(request) {
+        expect(request.fakeAnswers).toBeUndefined();
+        return delegate.evaluate(request);
+      },
+    };
+    const decision = await tryJevGenerationValidation(env, "request-id", input, candidate, "initial", 1, provider);
+    expect(decision.reason).toBe("pass");
   });
 
   it("keeps the legacy LLM result in shadow and sends no Jev request when off", async () => {

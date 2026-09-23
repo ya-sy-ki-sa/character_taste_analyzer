@@ -60,7 +60,6 @@ CANDIDATES = (
     {"key": "astra_high", "tier": "astra", "model": "gpt-6-astra", "reasoning_effort": "high"},
     {"key": "astra_max", "tier": "astra", "model": "gpt-6-astra", "reasoning_effort": "max"},
 )
-CANDIDATE_KEYS = tuple(candidate["key"] for candidate in CANDIDATES)
 CURRENT_TIERS = {"luna", "terra", "sol", "astra"}
 SCORES = (
     "mechanical",
@@ -197,10 +196,6 @@ def validate_state(s):
     return s
 
 
-def floor_tier(s):
-    return CANDIDATES[floor_index(s)]["tier"]
-
-
 def floor_index(s):
     failed = s.get("cheaper_failures", 0) > 0 or s.get("sol_failures", 0) > 0
     broad = s.get("architectural_decision", False) and s.get("subsystems_involved", 0) >= 2
@@ -283,6 +278,7 @@ def assess(s):
 
 
 def decide(s, a):
+    # Caller supplies an assessment that has already passed validate_assessment.
     base = {"version": 1, "assessment_status": a["status"],
             "assessment_reason": a.get("reason"), "astra_gate_passed": False}
     candidate_index, reason = 4, "safe_fallback"
@@ -297,9 +293,7 @@ def decide(s, a):
         base_index = min(len(CANDIDATES) - 1, int((demand_score / 4) * len(CANDIDATES)))
         candidate_index = max(base_index, floor_index(s))
         minimum_confidence = min(confidence.values())
-        if minimum_confidence < 0.55:
-            candidate_index = max(candidate_index, 4)
-        elif minimum_confidence < 0.75:
+        if minimum_confidence < 0.75:
             candidate_index += 1
         if score["failure_impact"] >= 3:
             candidate_index = max(candidate_index, 3)

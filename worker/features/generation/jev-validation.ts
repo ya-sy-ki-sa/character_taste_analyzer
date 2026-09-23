@@ -62,17 +62,11 @@ export async function tryJevGenerationValidation(
 ): Promise<JevValidationDecision> {
   const questions: JudgmentRequest["questions"] = {};
   const groups: CheckGroup[] = [];
-  const fixture = fakeValidationReport(brief, candidate);
-  const fakeAnswers: NonNullable<JudgmentRequest["fakeAnswers"]> = {};
   for (const [index, selection] of brief.preferenceSelections.entries()) {
     const key = `selection_${index}`;
     questions[key] = selectionQuestion(index);
-    const status =
-      fixture.checks.find((check) => check.constraintId === selection.profileSnapshotItemId)?.status ?? "uncertain";
-    fakeAnswers[key] = fakeChoice(status);
     const pointerKey = `${key}_pointer`;
     questions[pointerKey] = pointerQuestion(`selections[${index}]`);
-    fakeAnswers[pointerKey] = fakeChoice(status);
     const coverage = candidate.briefCoverage.find(
       (item) => item.profileSnapshotItemId === selection.profileSnapshotItemId,
     );
@@ -91,16 +85,22 @@ export async function tryJevGenerationValidation(
     const keys = policyAspects.map((instruction, index) => {
       const key = `${id}_${index}`;
       questions[key] = policyQuestion(instruction);
-      fakeAnswers[key] = fakeChoice(fixture.checks.find((check) => check.constraintId === id)?.status ?? "uncertain");
       return key;
     });
     const pointerKey = `${id}_pointer`;
     questions[pointerKey] = pointerQuestion(id);
-    fakeAnswers[pointerKey] = fakeChoice(
-      fixture.checks.find((check) => check.constraintId === id)?.status ?? "uncertain",
-    );
     keys.push(pointerKey);
     groups.push({ id, keys, pointers: policyPointers(brief.analysisDomain, id) });
+  }
+
+  let fakeAnswers: JudgmentRequest["fakeAnswers"];
+  if (provider.providerId !== "typesafe") {
+    const checks = new Map(
+      fakeValidationReport(brief, candidate).checks.map((check) => [check.constraintId, check.status]),
+    );
+    fakeAnswers = {};
+    for (const group of groups)
+      for (const key of group.keys) fakeAnswers[key] = fakeChoice(checks.get(group.id) ?? "uncertain");
   }
 
   const { briefCoverage: _coverage, ...character } = candidate;

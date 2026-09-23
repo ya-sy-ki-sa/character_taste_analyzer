@@ -68,7 +68,6 @@ MODERATION_MODEL=omni-moderation-latest
 # -----------------------------------------------------------------------------
 GENERATION_JEV_MODE=off
 JEV_PROVIDER=typesafe
-JEV_MODEL=typesafe/jev
 
 # -----------------------------------------------------------------------------
 # Offline実行

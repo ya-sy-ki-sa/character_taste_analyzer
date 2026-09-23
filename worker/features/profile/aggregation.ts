@@ -174,10 +174,21 @@ export function canonicalJson(input: string): string {
 }
 
 export async function weightAssertions(rows: AssertionRow[]): Promise<WeightedAssertion[]> {
+  const canonicalContexts = new Map<string, string>();
+  const conditionHashes = new Map<string, Promise<string>>();
   return Promise.all(
     rows.map(async (row) => {
-      const conditionJson = profileConditionJson(row.context_json);
-      const conditionHash = await sha256Hex(conditionJson);
+      let conditionJson = canonicalContexts.get(row.context_json);
+      if (conditionJson === undefined) {
+        conditionJson = profileConditionJson(row.context_json);
+        canonicalContexts.set(row.context_json, conditionJson);
+      }
+      let conditionHashPromise = conditionHashes.get(conditionJson);
+      if (!conditionHashPromise) {
+        conditionHashPromise = sha256Hex(conditionJson);
+        conditionHashes.set(conditionJson, conditionHashPromise);
+      }
+      const conditionHash = await conditionHashPromise;
       const stableKey = row.stable_key ?? `raw:${normalizeIdentityPart(row.normalized_label || row.raw_label)}`;
       const contribution = clamp01(
         row.strength * row.confidence * explicitnessWeight(row.explicitness) * row.evidence_quality,
