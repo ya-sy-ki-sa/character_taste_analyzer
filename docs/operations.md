@@ -14,7 +14,7 @@ npm run db:migrate:local
 npm run dev
 ```
 
-`http://localhost:5173`を開きます。リポジトリ内のローカル標準設定は`.dev.vars`のOpenAI／Cloudflare AI Gateway設定を使い、LLMは`gpt-5.6-luna`（effort未指定でモデルの既定値）、Embeddingは`text-embedding-3-small`です。秘密値はbuild成果物から除外されます。
+`http://localhost:5173`を開きます。リポジトリ内のローカル標準設定は`.dev.vars`のOpenAI／Cloudflare AI Gateway設定を使い、LLMは`gpt-6-luna`（effort未指定でモデルの既定値）、Embeddingは`text-embedding-3-small`です。秘密値はbuild成果物から除外されます。
 
 AI quotaを使わず全導線を確認する場合は次を使います。
 
@@ -22,7 +22,7 @@ AI quotaを使わず全導線を確認する場合は次を使います。
 npm run dev:offline
 ```
 
-`offline`環境はLLMをReplay、EmbeddingをFakeへ明示的に切り替えます。Playwrightは専用portと毎回新しい一時D1を使い、既存serverや開発D1を再利用しません。通常起動時に失敗をFake成功へ置き換える暗黙fallbackはありません。
+`offline`環境はLLMをReplay、EmbeddingをFakeへ明示的に切り替えます。通常の`.dev.vars`がある場合は、その外部Provider設定をofflineへ混ぜないよう、`AUTH_PEPPER`だけを入れた`.dev.vars.offline`を別途用意してください。Playwrightは専用portと毎回新しい一時D1を使い、専用の一時`.dev.vars.offline`を自動生成・削除します。既存serverや開発D1は再利用しません。通常起動時に失敗をFake成功へ置き換える暗黙fallbackはありません。
 
 現行ローカルD1は`character-taste-lab-current-local`と専用local database IDを使います。migrationの正本は`database/migrations`です。
 
@@ -41,7 +41,7 @@ npm run dev:offline
 | `replay` | ローカルE2E／CIの再現可能な応答 |
 | `fake` | 単体試験用の決定論的応答 |
 
-local/staging/productionの既定LLMはすべて`gpt-5.6-luna`、推論量は`LLM_REASONING_EFFORT`を空欄にしてモデルの既定値を使います。ティア別の上書きは既定で空のため、全ティアで共通モデルを使います。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
+local/staging/productionの既定LLMはすべて`gpt-6-luna`、推論量は`LLM_REASONING_EFFORT`を空欄にしてモデルの既定値を使います。ティア別の上書きは既定で空のため、全ティアで共通モデルを使います。staging/productionのフォールバックはWorkers AIの`@cf/openai/gpt-oss-120b`です。モデル設定はジョブ作成時に保存されるため、変更のデプロイ後に作成する新規ジョブから反映されます。モデレーションとEmbeddingのモデル設定はLLMとは独立しています。
 
 OpenAIとWorkers AIの外部呼出しは、すべてCloudflare AI Gatewayを経由します。OpenAIを使う場合は`.dev.vars`またはCloudflare Secretへ`OPENAI_API_KEY`、`AI_GATEWAY_ACCOUNT_ID`、`AI_GATEWAY_TOKEN`を設定します。Gateway IDは`AI_GATEWAY_GATEWAY_ID`で指定し、Wrangler構成の既定値は`default`です。`AI_GATEWAY_TOKEN`にはCloudflareの`AI Gateway Run`権限が必要です。
 
@@ -71,6 +71,12 @@ npx wrangler secret put AI_GATEWAY_TOKEN --env production
 ```
 
 Workers AIは`AI` bindingを使用しますが、各`env.AI.run()`へ同じGateway IDを渡すため、LLMとEmbeddingのログ・レート制限・利用量をAI Gatewayへ集約できます。Replay／Fakeは外部APIを呼ばないためGateway対象外です。
+
+### 生成条件検査のJev MVP
+
+`GENERATION_JEV_MODE`は通常版・dark版の生成キャラ条件検査だけに適用します。全環境の既定値は`off`で、このときJev設定も通信も不要です。`shadow`はJev判定・使用量・遅延・fallback理由を本文なしの構造化ログ（`generation_jev_validation`）へ記録し、採用結果は従来のLLM検査のままです。`guarded`は決定的検査に合格し、不確実性がなく、全条件の選択肢確率0.95以上かつconfidence 0.90以上、実在する人物設定Pointerが揃うときだけ検査LLMを省略します。それ以外、Jevの認証・通信・形式エラー時は従来のLLM検査へ戻します。生成・修復・案比較の回数とアプリのLLMルーティングは変更しません。
+
+offline/E2Eは`JEV_PROVIDER=replay`を使い、Remote `AI` bindingを追加しません。ローカルで実Jevを使うときだけ`JEV_PROVIDER=typesafe`、`JEV_MODEL=typesafe/jev`、Gateway IDとCloudflareアカウントID・トークンを設定します。staging/productionは既存の`AI` bindingとGateway IDを使用します。秘密値を正本に書かないでください。確率閾値は暫定値で、実APIによる意味精度・LLMトークン削減・総費用の比較は未実施です。校正まで本番で`guarded`を有効にしないでください。
 
 EmbeddingはLLMと独立した`EmbeddingProvider` Portを使います。local/productionのOpenAI `text-embedding-3-small`は1536次元、stagingのWorkers AI BGE-M3は1024次元です。OpenAI、Workers AI、Fakeの各Adapterをfactoryで切り替え、返却vectorの件数・順序・有限値・次元数を共通契約で検証します。
 

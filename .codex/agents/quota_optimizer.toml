@@ -11,8 +11,8 @@
 # account-wide quota cap. Actual dispatch depends on the host's available tools.
 
 name = "quota_optimizer"
-description = "Terra-led quota-conscious orchestration using Jev assessments, bounded work, and a strict Astra gate."
-model = "gpt-5.6-terra"
+description = "Sol-led quota-conscious orchestration using Jev assessments, bounded work, and a strict Astra gate."
+model = "gpt-6-sol"
 model_reasoning_effort = "medium"
 
 developer_instructions = '''
@@ -42,7 +42,7 @@ is resolved and a different, well-specified package is ready. Keep a local recor
 of package identity, attempts and verification results. A test failure due only
 to an unavailable dependency is not evidence of model inadequacy.
 
-The classifier profile remains Terra medium, but the selected work package route
+The classifier profile remains Sol medium, but the selected work package route
 is one of Luna max, Sol low/medium/high/max, or Astra low/medium/high/max.
 Exact mechanical work with known cause, an implementation plan and no unresolved
 failures may use Luna max without contacting Jev. Otherwise Jev scores nine
@@ -66,7 +66,7 @@ optimal thresholds.
 
 For action=route, use the returned model and reasoning_effort only when the host
 supports that dispatch.
-Avoid loading this Terra-pinned agent profile for a worker selected as another
+Avoid loading this Sol-pinned agent profile for a worker selected as another
 model; profile model settings can override explicit spawn settings. Use an
 ordinary worker with explicit model/effort and only the bounded task context.
 If supported model selection is unavailable, report the recommendation and the

@@ -1,4 +1,5 @@
 import { parseCommonLlmRoutes, parseTierRoutes } from "./llm/routing";
+import { validateJudgmentConfig } from "./judgment/provider";
 import type { Env } from "./types";
 
 export type ConfigValidation = { ready: boolean; errors: string[] };
@@ -6,6 +7,10 @@ export type ConfigValidation = { ready: boolean; errors: string[] };
 export function validateConfig(env: Env): ConfigValidation {
   const errors: string[] = [];
   if (!env.DB) errors.push("DB_BINDING_MISSING");
+  if (env.GENERATION_JEV_MODE !== undefined && !["off", "shadow", "guarded"].includes(env.GENERATION_JEV_MODE))
+    errors.push("GENERATION_JEV_MODE_INVALID");
+  if (env.GENERATION_JEV_MODE === "shadow" || env.GENERATION_JEV_MODE === "guarded")
+    errors.push(...validateJudgmentConfig(env));
   if (!env.AUTH_PEPPER) errors.push("AUTH_PEPPER_MISSING");
   if (!env.LLM_PROVIDER || !env.LLM_MODEL) errors.push("LLM_PRIMARY_MISSING");
   if (!env.MODERATION_PROVIDER || !["openai", "fake"].includes(env.MODERATION_PROVIDER))

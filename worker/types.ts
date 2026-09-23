@@ -65,6 +65,9 @@ export type Env = {
   AI_GATEWAY_ACCOUNT_ID?: string;
   AI_GATEWAY_GATEWAY_ID?: string;
   AI_GATEWAY_TOKEN?: string;
+  GENERATION_JEV_MODE?: "off" | "shadow" | "guarded";
+  JEV_PROVIDER?: "typesafe" | "fake" | "replay";
+  JEV_MODEL?: string;
   EMBEDDING_PROVIDER: "openai" | "workers_ai" | "fake";
   EMBEDDING_MODEL: string;
   EMBEDDING_DIMENSIONS?: string;

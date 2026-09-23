@@ -6,6 +6,7 @@ playwright-report/
 test-results/
 backups/
 .dev.vars
+.dev.vars.offline
 .env*
 !.dev.vars.example
 !.env.example

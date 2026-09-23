@@ -10,6 +10,7 @@ import {
 } from "../../../shared/contracts/generation";
 import type { GenerationBrief } from "../../../shared/contracts/generation-brief";
 import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
+import { JudgmentProviderError } from "../../judgment/types";
 import {
   DARK_GENERATION_SYSTEM,
   GENERATION_COMPARISON_SYSTEM,
@@ -22,6 +23,7 @@ import {
 import type { LlmProvider } from "../../llm/types";
 import type { Env, GenerationWorkflowParams } from "../../types";
 import { fakeCharacter, fakeDarkCharacter, fakeValidationReport } from "./deterministic";
+import { tryJevGenerationValidation } from "./jev-validation";
 import { persistModelRun } from "./model-runs";
 import * as repository from "./repositories/candidates";
 import { inspectGenerationSimilarity, type SimilarityDocument } from "./similarity";
@@ -39,6 +41,79 @@ export async function validateGeneratedCandidate(
   ordinal = 1,
 ): Promise<GenerationValidationReport> {
   const deterministicViolations = validateGenerationCoverage(brief, candidate);
+  const mode = env.GENERATION_JEV_MODE ?? "off";
+  if (mode !== "off") {
+    const started = Date.now();
+    let reason = "deterministic_violation";
+    if (!deterministicViolations.length && !candidate.uncertainties.length) {
+      try {
+        const decision = await tryJevGenerationValidation(env, generationRequestId, brief, candidate, stage, ordinal);
+        reason = decision.reason;
+        console.info(
+          JSON.stringify({
+            event: "generation_jev_validation",
+            generationRequestId,
+            stage,
+            ordinal,
+            domain: brief.analysisDomain,
+            mode,
+            provider: env.JEV_PROVIDER,
+            reason,
+            model: decision.model,
+            usage: decision.usage,
+            latencyMs: Date.now() - started,
+          }),
+        );
+        if (mode === "guarded" && decision.report) {
+          if (ordinal === 1)
+            await repository
+              .insertGenerationValidationRuns(env.DB, [
+                crypto.randomUUID(),
+                ownerUserId,
+                generationRequestId,
+                stage,
+                await sha256Hex(JSON.stringify(candidate)),
+                "passed",
+                JSON.stringify(decision.report),
+                null,
+                nowIso(),
+              ])
+              .run();
+          return decision.report;
+        }
+      } catch (error) {
+        reason = error instanceof JudgmentProviderError ? error.reason : "unexpected_error";
+        console.info(
+          JSON.stringify({
+            event: "generation_jev_validation",
+            generationRequestId,
+            stage,
+            ordinal,
+            domain: brief.analysisDomain,
+            mode,
+            reason,
+            provider:
+              error instanceof JudgmentProviderError
+                ? (error.context?.providerId ?? env.JEV_PROVIDER)
+                : env.JEV_PROVIDER,
+            latencyMs: Date.now() - started,
+          }),
+        );
+      }
+    } else if (candidate.uncertainties.length) reason = "candidate_uncertain";
+    if (reason === "deterministic_violation" || reason === "candidate_uncertain")
+      console.info(
+        JSON.stringify({
+          event: "generation_jev_validation",
+          generationRequestId,
+          stage,
+          ordinal,
+          domain: brief.analysisDomain,
+          mode,
+          reason,
+        }),
+      );
+  }
   const messages = [
     { role: "system" as const, content: generationValidationSystem(brief.analysisDomain) },
     {

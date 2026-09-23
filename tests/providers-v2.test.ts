@@ -300,7 +300,7 @@ describe("explicit LLM provider routing", () => {
       const headers = new Headers(init?.headers);
       expect(String(input)).toBe("https://gateway.ai.cloudflare.com/v1/test-account/test-gateway/openai/responses");
       expect(body).toMatchObject({
-        model: "gpt-5.6-sol",
+        model: "gpt-6-sol",
         store: false,
         safety_identifier: "privacy-safe-user-hash",
         max_output_tokens: 100,
@@ -317,7 +317,7 @@ describe("explicit LLM provider routing", () => {
     const result = await createLlmProvider(
       providerEnv({
         LLM_PROVIDER: "openai",
-        LLM_MODEL: "gpt-5.6-sol",
+        LLM_MODEL: "gpt-6-sol",
         OPENAI_API_KEY: "test-key",
       }),
     ).generateStructured({ ...request, safetyIdentifier: "privacy-safe-user-hash" });

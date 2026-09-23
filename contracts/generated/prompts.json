@@ -91,6 +91,10 @@
     "promptVersion": "generation_validation/v2.5.0",
     "sha256": "e8b822a3d05542dec454dc3e22f1bfe226a0871ce1b8299611ee2e9d3e27adea"
   },
+  "jevGenerationValidation": {
+    "promptVersion": "jev-generation-validation/v1.0.1",
+    "sha256": "25beeba26203d5b8ea50ceade075393fadc9a527202506a193aa78c28c36d40b"
+  },
   "generationVariants": {
     "promptVersion": "generation_variants/v2.5.0",
     "sha256": "e1ae260e86cec5245d7bca1af03590b97748ce77e9b09413b62f34953f218c39"

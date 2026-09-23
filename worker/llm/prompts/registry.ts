@@ -17,6 +17,7 @@ import {
   generationValidationSystem,
 } from "./generation";
 import { HYPOTHESIS_PROMPT_VERSION, hypothesisSystem } from "./hypotheses";
+import { JEV_GENERATION_PROMPT, JEV_GENERATION_PROMPT_VERSION } from "./jev-generation";
 import { PREFERENCE_PROMPT_VERSION, preferenceSystem } from "./preference";
 import { PREFERENCE_REFINEMENT_INSTRUCTION } from "./refinement";
 import { FORMAT_REPAIR_INSTRUCTION } from "./repair";
@@ -101,6 +102,7 @@ export const promptRegistry = {
     promptVersion: `generation_validation/${GENERATION_PROMPT_VERSION}`,
     text: generationValidationSystem("dark"),
   },
+  jevGenerationValidation: { promptVersion: JEV_GENERATION_PROMPT_VERSION, text: JEV_GENERATION_PROMPT },
   generationVariants: {
     promptVersion: `generation_variants/${GENERATION_PROMPT_VERSION}`,
     text: [GENERATION_VARIANT_INSTRUCTION, ...GENERATION_DIRECTIONS].join("\n"),

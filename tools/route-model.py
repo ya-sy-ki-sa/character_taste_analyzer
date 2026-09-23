@@ -50,11 +50,11 @@ import urllib.error
 import urllib.request
 
 CANDIDATES = (
-    {"key": "luna_max", "tier": "luna", "model": "gpt-5.6-luna", "reasoning_effort": "max"},
-    {"key": "sol_low", "tier": "sol", "model": "gpt-5.6-sol", "reasoning_effort": "low"},
-    {"key": "sol_medium", "tier": "sol", "model": "gpt-5.6-sol", "reasoning_effort": "medium"},
-    {"key": "sol_high", "tier": "sol", "model": "gpt-5.6-sol", "reasoning_effort": "high"},
-    {"key": "sol_max", "tier": "sol", "model": "gpt-5.6-sol", "reasoning_effort": "max"},
+    {"key": "luna_max", "tier": "luna", "model": "gpt-6-luna", "reasoning_effort": "max"},
+    {"key": "sol_low", "tier": "sol", "model": "gpt-6-sol", "reasoning_effort": "low"},
+    {"key": "sol_medium", "tier": "sol", "model": "gpt-6-sol", "reasoning_effort": "medium"},
+    {"key": "sol_high", "tier": "sol", "model": "gpt-6-sol", "reasoning_effort": "high"},
+    {"key": "sol_max", "tier": "sol", "model": "gpt-6-sol", "reasoning_effort": "max"},
     {"key": "astra_low", "tier": "astra", "model": "gpt-6-astra", "reasoning_effort": "low"},
     {"key": "astra_medium", "tier": "astra", "model": "gpt-6-astra", "reasoning_effort": "medium"},
     {"key": "astra_high", "tier": "astra", "model": "gpt-6-astra", "reasoning_effort": "high"},
