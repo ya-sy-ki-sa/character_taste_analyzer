@@ -93,6 +93,16 @@ export abstract class RemoteProvider implements LlmProvider {
           attempts.push({ output: { errorCode: error.code, safeDetail: error.safeDetail ?? error.message }, metadata });
           error.attempts = attempts;
           error.operation = request.operation;
+          const signal = metadata.providerResponseDiagnostics?.safetySignal;
+          if (
+            attempt === 0 &&
+            error.code === "LLM_SCHEMA_INVALID" &&
+            (!signal || signal === "none") &&
+            !["length", "content_filter"].includes(metadata.finishReason ?? "")
+          ) {
+            messages = repairMessages(messages, response.text, error.message);
+            continue;
+          }
         }
         throw error;
       }

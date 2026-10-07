@@ -265,7 +265,7 @@ describe("explicit LLM provider routing", () => {
     });
   });
 
-  it("retains a safe excerpt when the model response is not JSON", async () => {
+  it("retains both failure records after one unsuccessful JSON repair", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Response.json({ id: "resp_invalid", output_text: "JSONではない応答です", usage: {} })),
@@ -283,16 +283,56 @@ describe("explicit LLM provider routing", () => {
       code: "LLM_SCHEMA_INVALID",
       safeDetail: "JSONとして解釈できなかったモデル応答: JSONではない応答です",
       operation: "character_understanding",
-      attempts: [
-        {
-          output: {
-            errorCode: "LLM_SCHEMA_INVALID",
-            safeDetail: "JSONとして解釈できなかったモデル応答: JSONではない応答です",
-          },
+      attempts: [0, 1].map((attemptNumber) => ({
+        output: {
+          errorCode: "LLM_SCHEMA_INVALID",
+          safeDetail: "JSONとして解釈できなかったモデル応答: JSONではない応答です",
         },
-      ],
+        metadata: { attemptNumber, rootRequestId: request.idempotencyKey },
+      })),
     });
   });
+
+  it("repairs malformed JSON once and retains the original failure and repaired metadata", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ id: "broken", output_text: '{"value":"answer",}' }))
+      .mockResolvedValueOnce(Response.json({ id: "repaired", output_text: '{"value":"answer"}' }));
+    vi.stubGlobal("fetch", fetch);
+    const result = await createLlmProvider(
+      providerEnv({ LLM_PROVIDER: "openai", OPENAI_API_KEY: "test-key" }),
+    ).generateStructured(request);
+    expect(result.value).toEqual({ value: "answer" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(result.attempts).toHaveLength(2);
+    expect(result.attempts?.[0]).toMatchObject({
+      output: { errorCode: "LLM_SCHEMA_INVALID" },
+      metadata: { attemptNumber: 0, rootRequestId: request.idempotencyKey },
+    });
+    expect(result.metadata).toMatchObject({
+      attemptNumber: 1,
+      rootRequestId: request.idempotencyKey,
+      effectiveSettings: { repairKind: "full_json" },
+    });
+    const repairRequest = JSON.parse(fetch.mock.calls[1][1].body);
+    expect(repairRequest.input.at(-2)).toMatchObject({ role: "assistant", content: '{"value":"answer",}' });
+    expect(fetch.mock.calls[1][1].headers["Idempotency-Key"]).toBe(`${request.idempotencyKey}:repair-1`);
+  });
+
+  it.each(["length", "content_filter"])(
+    "does not JSON-repair a terminal Workers AI response (%s)",
+    async (finishReason) => {
+      const run = vi.fn(async () => ({
+        choices: [{ message: { content: '{"value":' }, finish_reason: finishReason }],
+      }));
+      const provider = createLlmProvider(providerEnv({ LLM_PROVIDER: "workers_ai", AI: { run } }));
+      await expect(provider.generateStructured(request)).rejects.toMatchObject({
+        code: "LLM_SCHEMA_INVALID",
+        retryable: false,
+      });
+      expect(run).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("sends the structured-output contract and execution limits to OpenAI Responses", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

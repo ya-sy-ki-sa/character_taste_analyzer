@@ -4,7 +4,7 @@
 
 ## 起動
 
-Node.js 24とnpmを使用します。
+Node.js 24.21.0以上の24系とnpmを使用します。nvmを使う場合は `nvm install`、`nvm use` で揃えてください。
 
 ```bash
 npm ci

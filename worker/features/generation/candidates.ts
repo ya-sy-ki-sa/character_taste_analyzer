@@ -1,13 +1,13 @@
 import { z } from "zod";
-import {
-  type AnyGeneratedCharacterCandidate,
-  type DarkGeneratedCharacterCandidate,
-  type GeneratedCharacterCandidate,
-  type GenerationValidationReport,
+import type {
+  AnyGeneratedCharacterCandidate,
+  DarkGeneratedCharacterCandidate,
+  GeneratedCharacterCandidate,
+  GenerationValidationReport,
 } from "../../../shared/contracts/generation";
 import type { GenerationBrief } from "../../../shared/contracts/generation-brief";
-import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import { JudgmentProviderError } from "../../judgment/types";
+import { deriveUuid, hmacHex, nowIso, sha256Hex } from "../../lib/crypto";
 import {
   DARK_GENERATION_SYSTEM,
   GENERATION_COMPARISON_SYSTEM,
@@ -25,7 +25,7 @@ import { persistModelRun } from "./model-runs";
 import * as repository from "./repositories/candidates";
 import { candidateSchemasForBrief, validationSchemaForBrief } from "./schemas";
 import { inspectGenerationSimilarity, type SimilarityDocument } from "./similarity";
-import type { CandidateResult } from "./types";
+import type { CandidateResult, GenerationFence } from "./types";
 import { reconcileGenerationValidation, validateGenerationCoverage } from "./validation";
 
 // Responses API counts reasoning tokens toward this limit as well as the generated JSON.
@@ -40,6 +40,7 @@ export async function validateGeneratedCandidate(
   candidate: AnyGeneratedCharacterCandidate,
   stage: "initial" | "repaired",
   ordinal = 1,
+  fence?: GenerationFence,
 ): Promise<GenerationValidationReport> {
   const deterministicViolations = validateGenerationCoverage(brief, candidate);
   const mode = env.GENERATION_JEV_MODE ?? "off";
@@ -68,17 +69,21 @@ export async function validateGeneratedCandidate(
         if (mode === "guarded" && decision.report) {
           if (ordinal === 1)
             await repository
-              .insertGenerationValidationRuns(env.DB, [
-                crypto.randomUUID(),
-                ownerUserId,
-                generationRequestId,
-                stage,
-                await sha256Hex(JSON.stringify(candidate)),
-                "passed",
-                JSON.stringify(decision.report),
-                null,
-                nowIso(),
-              ])
+              .insertGenerationValidationRuns(
+                env.DB,
+                [
+                  crypto.randomUUID(),
+                  ownerUserId,
+                  generationRequestId,
+                  stage,
+                  await sha256Hex(JSON.stringify(candidate)),
+                  "passed",
+                  JSON.stringify(decision.report),
+                  null,
+                  nowIso(),
+                ],
+                fence,
+              )
               .run();
           return decision.report;
         }
@@ -133,7 +138,7 @@ export async function validateGeneratedCandidate(
     messages,
     maxOutputTokens: 30_000,
     temperature: 0,
-    idempotencyKey: `${generationRequestId}:${brief.briefId}:candidate:${ordinal}:validation:${stage}`,
+    idempotencyKey: `${generationRequestId}:${brief.briefId}:candidate:${ordinal}:validation:${inputHash}:${stage}`,
     safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${ownerUserId}`),
     fakeFactory: () => fakeValidationReport(brief, candidate),
   });
@@ -154,17 +159,21 @@ export async function validateGeneratedCandidate(
   const candidateHash = await sha256Hex(JSON.stringify(candidate));
   if (ordinal === 1)
     await repository
-      .insertGenerationValidationRuns(env.DB, [
-        crypto.randomUUID(),
-        ownerUserId,
-        generationRequestId,
-        stage,
-        candidateHash,
-        report.passed ? "passed" : "violated",
-        JSON.stringify(report),
-        modelRunIds.at(-1) ?? null,
-        nowIso(),
-      ])
+      .insertGenerationValidationRuns(
+        env.DB,
+        [
+          crypto.randomUUID(),
+          ownerUserId,
+          generationRequestId,
+          stage,
+          candidateHash,
+          report.passed ? "passed" : "violated",
+          JSON.stringify(report),
+          modelRunIds.at(-1) ?? null,
+          nowIso(),
+        ],
+        fence,
+      )
       .run();
   return report;
 }
@@ -177,6 +186,7 @@ export async function generateCandidate(
   briefRowId: string,
   ordinal: number,
   documents: SimilarityDocument[],
+  fence?: GenerationFence,
 ): Promise<CandidateResult> {
   const { standard: standardSchema, dark: darkSchema } = candidateSchemasForBrief(
     briefRowId,
@@ -212,7 +222,7 @@ export async function generateCandidate(
           messages,
           maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
           temperature: brief.mode === "faithful" ? 0.2 : brief.mode === "exploratory" ? 0.8 : 0.5,
-          idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}`,
+          idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:${inputHash}`,
           safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
           fakeFactory: () => fakeDarkCharacter(brief, ordinal),
         })
@@ -225,7 +235,7 @@ export async function generateCandidate(
           messages,
           maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
           temperature: brief.mode === "faithful" ? 0.2 : brief.mode === "exploratory" ? 0.8 : 0.5,
-          idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}`,
+          idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:${inputHash}`,
           safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
           fakeFactory: () => fakeCharacter(brief, ordinal),
         });
@@ -254,10 +264,11 @@ export async function generateCandidate(
     candidate,
     "initial",
     ordinal,
+    fence,
   );
   let similarity = await inspectGenerationSimilarity(env, params.ownerUserId, brief, candidate, documents);
   if (!report.passed || !similarity.passed) {
-    await repository.updateJobs(env.DB, [nowIso(), params.jobId]).run();
+    await repository.updateJobs(env.DB, [nowIso(), params.jobId], fence).run();
     const repairMessages = [
       {
         role: "system" as const,
@@ -280,7 +291,7 @@ export async function generateCandidate(
             messages: repairMessages,
             maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
             temperature: 0,
-            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair`,
+            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair:${repairHash}`,
             safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
             fakeFactory: () => candidate as DarkGeneratedCharacterCandidate,
           })
@@ -293,7 +304,7 @@ export async function generateCandidate(
             messages: repairMessages,
             maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
             temperature: 0,
-            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair`,
+            idempotencyKey: `${params.generationRequestId}:${briefRowId}:candidate:${ordinal}:constraint-repair:${repairHash}`,
             safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
             fakeFactory: () => candidate as GeneratedCharacterCandidate,
           });
@@ -321,6 +332,7 @@ export async function generateCandidate(
       candidate,
       "repaired",
       ordinal,
+      fence,
     );
     similarity = await inspectGenerationSimilarity(env, params.ownerUserId, brief, candidate, documents);
   }
@@ -373,6 +385,7 @@ export async function compareCandidates(
       }),
     },
   ];
+  const inputHash = await sha256Hex(JSON.stringify(messages));
   const result = await llm.generateStructured({
     operation: "generation_comparison",
     schemaName: "generation_comparison",
@@ -382,7 +395,7 @@ export async function compareCandidates(
     messages,
     maxOutputTokens: GENERATION_MAX_OUTPUT_TOKENS,
     temperature: 0,
-    idempotencyKey: `${params.generationRequestId}:${brief.briefId}:comparison`,
+    idempotencyKey: `${params.generationRequestId}:${brief.briefId}:comparison:${inputHash}`,
     safetyIdentifier: await hmacHex(env.AUTH_PEPPER, `openai-safety:${params.ownerUserId}`),
     fakeFactory: () => ({
       candidates: candidates.map((item) => ({
@@ -398,7 +411,7 @@ export async function compareCandidates(
     await persistModelRun(
       env,
       params.ownerUserId,
-      await sha256Hex(JSON.stringify(messages)),
+      inputHash,
       attempt.output,
       attempt.metadata,
       "generation_comparison",

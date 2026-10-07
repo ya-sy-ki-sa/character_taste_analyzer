@@ -9,6 +9,96 @@ import { setup } from "./support/preference-pipeline";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("verification-only source documents", () => {
+  it("prepares at most three documents together and retains input order despite completion order", async () => {
+    const t = await setup("standard");
+    const urls = [1, 2, 3, 4, 5].map((i) => `https://example.com/concurrent-${i}`);
+    const started: string[] = [];
+    const release = new Map<string, () => void>();
+    let active = 0,
+      maximum = 0;
+    const pending = prepareExternalProvenanceSources(
+      t.env,
+      t.owner,
+      null,
+      urls.map((url) => ({ url, title: url })),
+      async (url) => {
+        started.push(url);
+        maximum = Math.max(maximum, ++active);
+        await new Promise<void>((resolve) => release.set(url, resolve));
+        active -= 1;
+        return { text: url, status: "fetched" };
+      },
+    );
+    await vi.waitFor(() => expect(started).toHaveLength(3));
+    release.get(urls[2])?.();
+    release.get(urls[1])?.();
+    expect(started).toHaveLength(3);
+    release.get(urls[0])?.();
+    await vi.waitFor(() => expect(started).toHaveLength(5));
+    release.get(urls[4])?.();
+    release.get(urls[3])?.();
+    const prepared = await pending;
+    expect(maximum).toBe(3);
+    expect(prepared.sources.map((source) => source.url)).toEqual(urls);
+    await t.env.DB.batch(prepared.statements);
+    expect(
+      t.db.database.prepare("SELECT COUNT(*) AS count FROM sources WHERE source_type='secondary'").get()?.count,
+    ).toBe(5);
+  });
+
+  it("drains started document tasks before rejecting and starts no later batch", async () => {
+    const t = await setup("standard");
+    const release: Array<() => void> = [];
+    const failure = new Error("injected document failure");
+    let started = 0,
+      settled = false;
+    const pending = prepareExternalProvenanceSources(
+      t.env,
+      t.owner,
+      null,
+      [1, 2, 3, 4].map((i) => ({ url: `https://example.com/drain-${i}`, title: "Document" })),
+      async () => {
+        const index = started++;
+        if (!index) throw failure;
+        await new Promise<void>((resolve) => release.push(resolve));
+        return { text: "text", status: "fetched" };
+      },
+    ).then(
+      () => {
+        settled = true;
+        return null;
+      },
+      (error) => {
+        settled = true;
+        return error;
+      },
+    );
+    await vi.waitFor(() => expect(started).toBe(3));
+    expect(settled).toBe(false);
+    for (const resolve of release) resolve();
+    expect(await pending).toBe(failure);
+    expect(started).toBe(3);
+    expect(
+      t.db.database.prepare("SELECT COUNT(*) AS count FROM sources WHERE source_type='secondary'").get()?.count,
+    ).toBe(0);
+  });
+
+  it("retains the 24-URL retrieval limit under concurrent preparation", async () => {
+    const t = await setup("standard");
+    const fetch = vi.fn(async () => new Response("document", { headers: { "Content-Type": "text/plain" } }));
+    vi.stubGlobal("fetch", fetch);
+    const result = await prepareExternalProvenanceSources(
+      t.env,
+      t.owner,
+      null,
+      Array.from({ length: 26 }, (_, i) => ({ url: `https://example.com/limit-${i}`, title: "Document" })),
+      createDocumentLoader(true),
+    );
+    expect(fetch).toHaveBeenCalledTimes(24);
+    expect(result.sources).toHaveLength(26);
+    expect(result.sources.filter((source) => source.text)).toHaveLength(24);
+  });
+
   it("extracts retained document text with the actual Worker HTML parser", async () => {
     const bundle = await build({
       configFile: false,
@@ -27,7 +117,6 @@ describe("verification-only source documents", () => {
         {
           config: {
             name: "document-parser-test",
-            type: "worker",
             compatibilityDate: "2026-09-01",
             manifest: {
               mainModule: "index.js",

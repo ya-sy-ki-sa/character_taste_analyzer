@@ -4,7 +4,7 @@
 
 ## ローカル起動
 
-Node.js 24とnpmを使用します。nvmを利用する場合は、リポジトリ直下で `nvm use` を実行してください。
+Node.js 24.21.0以上の24系とnpmを使用します。nvmを利用する場合は、リポジトリ直下で `nvm install`、`nvm use` を実行してください。24.21.0は修正版Undici 7.29.1を同梱します。[Node.jsのリリース情報](https://nodejs.org/en/blog/release/v24.21.0)を参照してください。
 
 ```bash
 npm ci

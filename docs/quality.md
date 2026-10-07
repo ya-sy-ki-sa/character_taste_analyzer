@@ -8,6 +8,10 @@ TypeScriptは `tsconfig.browser.json`（DOM）、`tsconfig.worker.json`（Worker
 
 重点検証は所有者・ドメイン分離、冪等性、重複配送、途中失敗、leaseと再試行、古い世代、一括更新のロールバック、レビュー根拠、生成の採用・評価です。HTTPの実レスポンスは共有スキーマで検証し、APIテストは通常版・dark版の両ルートを通します。
 
+[生成の再開・競合テスト](../tests/generation-resilience.test.ts)は両ドメインで、候補途中・比較失敗後の再開、プロンプト版変更、類似性の再検査、実行権移動後のモデル完了と保存直前の競合、試行上限、最終batchのロールバックを検証します。Fakeによる比較失敗後の再試行では、LLM呼出が従来の7回から比較の1回になります。実Providerの時間・料金削減率を実測した値ではありません。
+
+[文書取得テスト](../tests/provenance-document.test.ts)は最大3件の並列処理・入力順・失敗時の待ち合わせ・24 URL上限を検証します。[Providerテスト](../tests/providers-v2.test.ts)はJSON構文修復の成功・上限・実行記録と、未完了／安全性停止の修復除外を確認します。既存の[理解監査の部分修復](../tests/understanding-assessment-repair.test.ts)も維持します。
+
 固定LLM応答を使う結合テストは、処理分岐と保存・伝達する項目が異なる代表ケースに絞ります。例文だけが異なるケースをすべて登録・分析・集計・生成へ通しても、意味理解の精度は検証できません。抽象化などの意味的な期待例は評価資料に置き、定数や固定応答をそのまま期待値にするだけの独立テストは増やしません。
 
 Playwrightは毎回専用の一時D1と41737番ポートを使います。開発用D1と既存サーバーを再利用しません。Chromiumは主要導線、Firefox・mobileはsession smoke、WebKitはホスト依存ライブラリがある場合に実行します。CIでは3エンジンを `--with-deps` でインストールします。
@@ -25,6 +29,25 @@ Playwrightは毎回専用の一時D1と41737番ポートを使います。開発
 - `licenses:generate` / `licenses:check`: lockfileから配布対象ライセンスを生成・検査。
 
 OpenAPI・JSON Schema・プロンプト情報の出力先は [contracts/generated](../contracts/generated)。検査に更新フラグを渡す方式は使用しません。
+
+## 依存の脆弱性確認
+
+2026-10-07にnpmの監査と公開アドバイザリ、最新公開版を照合しました。更新前の `npm audit` は7件（高4・中3）、`npm audit --omit=dev` はHonoの1件で、更新後は両方0件です。件数は依存パッケージ単位で、同じ間接依存に由来する親パッケージの指摘も含みます。
+
+| 更新対象 | 更新前 | 更新後 |
+| --- | --- | --- |
+| Hono | 4.13.5 | 4.13.13 |
+| Cloudflare Vite plugin | 1.54.3 | 1.63.0 |
+| Wrangler | 4.128.0 | 4.148.0 |
+| Workers types（Wranglerのpeer要件） | 5.20260903.1 | 5.20261007.1 |
+| jsdom | 30.0.1 | 30.1.2 |
+| Node.js（同梱Undiciを含む） | 24.20.0 | 24.21.0 |
+
+Honoの[JSX境界でのエスケープ不備](https://github.com/honojs/hono/security/advisories/GHSA-hxh3-vqpv-xpqv)、Undiciの[TLS検証オプション欠落](https://github.com/advisories/GHSA-w293-vg96-wgc3)などを修正版へ更新しました。Hono JSXのSSRは本アプリでは使用していません。Node.jsの同梱依存はnpmの監査対象外のため、[24.21.0のUndici 7.29.1への更新](https://nodejs.org/en/blog/release/v24.21.0)も確認しました。
+
+最新Miniflare `5.20261006.0-alpha` もSharp `0.35.4` を固定しているため、`package.json` の `overrides.miniflare.sharp` だけを[修正版0.35.5](https://github.com/lovell/sharp/security/advisories/GHSA-wq5f-xc86-pv6w)へ指定しました。親パッケージが修正版を採用した時点で、この指定を除去して再監査してください。`source-map-js` は[修正版1.2.2](https://github.com/advisories/GHSA-68fv-2mgg-jv7q)へ、既存の親パッケージの許容範囲内でlockfileを更新しました。npmのインストールスクリプトは、確認済みのesbuild `0.28.1` とworkerd `1.20261006.1` の版だけを `allowScripts` へ記録しました。
+
+依存更新後は `npm ci` でlockfileからの再現、`npm audit` と `npm audit --omit=dev` で既知の指摘、ライセンス一覧と `npm run verify` で互換性を確認します。監査結果は確認時点の公開情報に限ります。
 
 ## 評価の実行と解釈
 

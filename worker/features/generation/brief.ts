@@ -1,17 +1,22 @@
 import type { AnalysisDomain } from "../../../shared/analysis-domain";
 import type { GenerationRequestInput } from "../../../shared/contracts/generation";
-import type { GenerationBrief, Treatment } from "../../../shared/contracts/generation-brief";
+import {
+  type GenerationBrief,
+  generationBriefSchema,
+  type Treatment,
+} from "../../../shared/contracts/generation-brief";
 import { nowIso, sha256Hex } from "../../lib/crypto";
 import { all, first } from "../../lib/db";
 import type { Env } from "../../types";
 import * as repository from "./repositories/brief";
 import { compileGenerationSelections, selectionValuePolicy } from "./treatments";
-import type { Snapshot, SnapshotItem } from "./types";
+import type { GenerationFence, Snapshot, SnapshotItem } from "./types";
 
 export async function compileBrief(
   env: Env,
   ownerUserId: string,
   requestId: string,
+  fence?: GenerationFence,
 ): Promise<{ brief: GenerationBrief; briefRowId: string }> {
   const request = await first<{
     profile_snapshot_id: string;
@@ -21,6 +26,23 @@ export async function compileBrief(
     analysis_domain: AnalysisDomain;
   }>(repository.selectGenerationRequests(env.DB, [requestId, ownerUserId]));
   if (!request) throw new Error("GENERATION_REQUEST_NOT_FOUND");
+  const existing = await first<{ id: string; brief_json: string; content_hash: string }>(
+    repository.selectCurrentBrief(env.DB, [requestId, ownerUserId]),
+  );
+  if (existing) {
+    const brief = generationBriefSchema.parse(JSON.parse(existing.brief_json));
+    if (
+      existing.content_hash !== (await sha256Hex(existing.brief_json)) ||
+      brief.briefId !== existing.id ||
+      brief.generationRequestId !== requestId ||
+      brief.analysisDomain !== request.analysis_domain ||
+      brief.mode !== request.mode ||
+      brief.profileSnapshot.id !== request.profile_snapshot_id ||
+      brief.provenance.userConstraintHash !== (await sha256Hex(request.user_constraints_json))
+    )
+      throw new Error("GENERATION_BRIEF_MISMATCH");
+    return { brief, briefRowId: existing.id };
+  }
   const snapshot = await first<Snapshot>(
     repository.selectProfileSnapshots(env.DB, [request.profile_snapshot_id, ownerUserId]),
   );
@@ -84,16 +106,14 @@ export async function compileBrief(
   const briefJson = JSON.stringify(brief);
   const now = nowIso();
   const results = await env.DB.batch([
-    repository.insertGenerationBriefs(env.DB, [
-      briefRowId,
-      requestId,
-      request.brief_revision + 1,
-      briefJson,
-      await sha256Hex(briefJson),
-      now,
-    ]),
-    repository.updateGenerationRequests(env.DB, [now, requestId, ownerUserId]),
+    repository.insertGenerationBriefs(
+      env.DB,
+      [briefRowId, requestId, request.brief_revision + 1, briefJson, await sha256Hex(briefJson), now],
+      fence,
+    ),
+    repository.updateGenerationRequests(env.DB, [now, requestId, ownerUserId], fence),
   ]);
   if (results.some((result) => !result.success)) throw new Error("D1_BRIEF_COMPILE_FAILED");
+  if (results.some((result) => !result.meta.changes)) throw new Error("GENERATION_ATTEMPT_SUPERSEDED");
   return { brief, briefRowId };
 }

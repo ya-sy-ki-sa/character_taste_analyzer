@@ -1,5 +1,8 @@
 import type { AnyGeneratedCharacterCandidate, GenerationValidationReport } from "../../../shared/contracts/generation";
+import type { GenerationWorkflowParams } from "../../types";
 import type { SimilarityReport } from "./similarity";
+
+export type GenerationFence = GenerationWorkflowParams & { attemptId: string | null };
 
 export type Snapshot = {
   id: string;

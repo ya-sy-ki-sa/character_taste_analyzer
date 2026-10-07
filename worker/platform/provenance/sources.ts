@@ -57,8 +57,6 @@ export async function prepareExternalProvenanceSources(
   }>,
   loadDocument?: DocumentLoader,
 ): Promise<{ sources: ProvenanceSource[]; statements: D1PreparedStatement[] }> {
-  const result: ProvenanceSource[] = [];
-  const prepared: D1PreparedStatement[] = [];
   const unique = new Map<string, (typeof sources)[number]>();
   for (const source of sources) {
     const key = canonicalSourceUrl(source.url);
@@ -67,7 +65,8 @@ export async function prepareExternalProvenanceSources(
     // Keep its collected text so exact quotes remain verifiable.
     if (!previous || (!previous.excerpt?.trim() && source.excerpt?.trim())) unique.set(key, source);
   }
-  for (const source of unique.values()) {
+  async function prepareSource(source: (typeof sources)[number]) {
+    const prepared: D1PreparedStatement[] = [];
     const now = nowIso();
     const existing = await first<{
       source_id: string;
@@ -117,8 +116,10 @@ export async function prepareExternalProvenanceSources(
         );
       }
       if (sourceSetId) prepared.push(repository.insertSourceSetItems(env.DB, [sourceSetId, existing.source_id]));
-      result.push({ sourceId: existing.source_id, text, inputPointer: null, url: source.url, origin: "source" });
-      continue;
+      return {
+        source: { sourceId: existing.source_id, text, inputPointer: null, url: source.url, origin: "source" as const },
+        statements: prepared,
+      };
     }
     const documentId = crypto.randomUUID();
     const hash = await sha256Hex(storedText);
@@ -138,15 +139,24 @@ export async function prepareExternalProvenanceSources(
       ]),
     );
     if (sourceSetId) prepared.push(repository.insertSourceSetItems(env.DB, [sourceSetId, documentId]));
-    result.push({
-      sourceId: documentId,
-      text,
-      inputPointer: null,
-      url: source.url,
-      origin: "source",
-    });
+    return {
+      source: { sourceId: documentId, text, inputPointer: null, url: source.url, origin: "source" as const },
+      statements: prepared,
+    };
   }
-  return { sources: result, statements: prepared };
+  const ordered = [...unique.values()];
+  const completed: Awaited<ReturnType<typeof prepareSource>>[] = [];
+  // Bound network/DB concurrency and retain citation order. Drain every started task on failure.
+  for (let offset = 0; offset < ordered.length; offset += 3) {
+    const batch = await Promise.allSettled(ordered.slice(offset, offset + 3).map(prepareSource));
+    const failure = batch.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
+    for (const result of batch) if (result.status === "fulfilled") completed.push(result.value);
+  }
+  return {
+    sources: completed.map((result) => result.source),
+    statements: completed.flatMap((result) => result.statements),
+  };
 }
 
 export async function persistExternalProvenanceSources(
