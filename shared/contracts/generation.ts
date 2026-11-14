@@ -39,7 +39,7 @@ export const generationValidationReportSchema = z.object({
       z.object({
         constraintId: z.string().min(1).max(200),
         status: z.enum(["satisfied", "violated", "uncertain"]),
-        outputPointers: z.array(z.string().startsWith("/").max(500)).max(20),
+        outputPointers: z.array(z.string().regex(/^\//).max(500)).max(20),
         explanation: z.string().min(1).max(1_000),
       }),
     )
@@ -116,7 +116,7 @@ export const generatedCharacterCandidateSchema = z.object({
         profileSnapshotItemId: z.string().uuid(),
         treatment: z.enum(["required", "include", "weak_include", "explore", "omit", "prohibit"]),
         status: z.enum(["satisfied", "partially_satisfied", "not_applicable", "violated"]),
-        outputPointers: z.array(z.string().startsWith("/")).max(30),
+        outputPointers: z.array(z.string().regex(/^\//)).max(30),
         explanation: z.string().min(1).max(1_000),
       }),
     )

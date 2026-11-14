@@ -4,7 +4,7 @@ export const evidenceReferenceSchema = z
   .object({
     sourceRef: z.string().min(1).max(200).nullable(),
     sourceUrl: z.string().url().max(1_000).nullable(),
-    inputPointer: z.string().startsWith("/").max(500).nullable(),
+    inputPointer: z.string().regex(/^\//).max(500).nullable(),
     quote: z.string().min(1).max(500).nullable(),
     inferenceType: z.enum(["direct", "paraphrase", "inferred"]),
   })

@@ -25,13 +25,12 @@ export async function prepareQuotaReservation(
   requestHash: string,
 ): Promise<QuotaReservation> {
   const usageDate = nowIso().slice(0, 10);
-  const existing = await first<{ id: string; request_hash: string }>(
+  const existing = await first<{ id: string }>(
     repository.selectQuotaReservations(env.DB, [ownerUserId, capability, idempotencyKey]),
   );
-  if (existing) {
-    if (existing.request_hash !== requestHash) throw new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
-    return { id: existing.id, statements: [] };
-  }
+  // Every caller resolves a successful replay before reserving quota. Reusing
+  // an existing reservation here would allow a different target to skip quota.
+  if (existing) throw new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
   const used = await first<{ count: number }>(
     repository.countDailyReservations(env.DB, [usageDate, ownerUserId, capability]),
   );

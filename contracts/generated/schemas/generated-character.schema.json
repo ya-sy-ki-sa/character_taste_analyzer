@@ -428,7 +428,7 @@
     },
     "__schema9": {
       "type": "string",
-      "pattern": "^\\/.*"
+      "pattern": "^\\/"
     },
     "__schema10": {
       "type": "string",

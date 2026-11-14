@@ -4,7 +4,7 @@ export function selectQuotaReservations(
   bindings: readonly [ownerUserId: unknown, capability: unknown, idempotencyKey: unknown],
 ): D1PreparedStatement {
   return db
-    .prepare(`SELECT id,request_hash FROM quota_reservations
+    .prepare(`SELECT id FROM quota_reservations
        WHERE owner_user_id=? AND capability=? AND idempotency_key=?`)
     .bind(...bindings);
 }

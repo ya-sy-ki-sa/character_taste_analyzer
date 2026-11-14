@@ -27,7 +27,10 @@ const graph = new Map();
 const errors = [];
 for (const file of ["src", "shared", "worker", "evaluation", "tests", "scripts"].flatMap(files)) {
   const source = readFileSync(file, "utf8");
-  const ast = parse(source, { sourceType: "module", plugins: ["typescript", "jsx"] });
+  const ast = parse(source, {
+    sourceType: "module",
+    plugins: /\.[jt]sx$/u.test(file) ? ["typescript", "jsx"] : ["typescript"],
+  });
   const edges = new Set();
   walk(ast, (node) => {
     let specifier;
@@ -40,7 +43,7 @@ for (const file of ["src", "shared", "worker", "evaluation", "tests", "scripts"]
         (node.specifiers?.length && node.specifiers.every((s) => s.importKind === "type" || s.exportKind === "type"));
     } else if (node.type === "ImportExpression") specifier = node.source.value;
     else if (node.type === "TSImportType") {
-      specifier = node.argument.value;
+      specifier = node.source?.value ?? node.argument?.value;
       typeOnly = true;
     } else if (node.type === "CallExpression" && node.callee.type === "Import") specifier = node.arguments[0]?.value;
     if (specifier?.startsWith(".")) {

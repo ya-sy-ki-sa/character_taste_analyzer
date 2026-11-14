@@ -14,16 +14,16 @@ TURNSTILE_SECRET=
 # -----------------------------------------------------------------------------
 # LLM: 生成・分析とティア別ルーティング
 #
-# LLM_MODEL: 共通OpenAIモデル。wrangler.jsoncの既定値はgpt-6-luna。
-# LLM_REASONING_EFFORT: 空欄ならモデルの既定値。none / low / medium / high / xhigh / maxを指定できます。
+# LLM_MODEL: 共通OpenAIモデル。wrangler.jsoncの既定値はgpt-6.1-sol。
+# LLM_REASONING_EFFORT: 既定値はlow。空欄ならモデルの既定値。none / low / medium / high / xhigh / maxを指定できます。
 # LLM_FALLBACK_REASONING_EFFORT: fallback先だけの推論量。空欄ならfallbackモデルの既定値。
 # LLM_TIER_ROUTES_JSON: basic / silver / gold / premiumだけをキーにした任意の上書き。
 #   未指定のティアは共通のLLM_MODELなどを継承します。defaultキーはこのブランチでは使用できません。
 #   例: {"premium":{"provider":"openai","model":"gpt-6-sol","effort":"high"}}
 # OPENAI_FLEX_ENABLED: trueのときだけOpenAIへservice_tier:flexを送ります。
 # -----------------------------------------------------------------------------
-LLM_MODEL=gpt-6-luna
-LLM_REASONING_EFFORT=
+LLM_MODEL=gpt-6.1-sol
+LLM_REASONING_EFFORT=low
 LLM_FALLBACK_REASONING_EFFORT=
 LLM_TIER_ROUTES_JSON={}
 OPENAI_FLEX_ENABLED=false

@@ -151,7 +151,7 @@
         {
           "type": "string",
           "maxLength": 500,
-          "pattern": "^\\/.*"
+          "pattern": "^\\/"
         },
         {
           "type": "null"

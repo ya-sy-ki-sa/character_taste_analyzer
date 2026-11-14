@@ -60,7 +60,7 @@ export const handleError: ErrorHandler<AppEnv> = (error, context) => {
     UNDERSTANDING_REVIEW_TARGET_NOT_FOUND: [404, "修正対象が見つかりません"],
     UNDERSTANDING_REVIEW_STATE_CHANGED: [409, "解析内容が更新されました。画面を再読み込みしてください"],
     UNDERSTANDING_DELTA_REMOVE_REQUIRES_BASE: [422, "削除する原典設定を特定できません"],
-    IDEMPOTENCY_PAYLOAD_MISMATCH: [409, "同じIdempotency-Keyを異なる内容には使用できません"],
+    IDEMPOTENCY_PAYLOAD_MISMATCH: [409, "同じIdempotency-Keyを別のリクエストには使用できません"],
     ANALYSIS_JOB_NOT_FOUND: [404, "解析ジョブが見つかりません"],
     JOB_NOT_FAILED: [409, "失敗状態の解析だけ再実行できます"],
     JOB_NOT_RETRYABLE: [409, "この解析エラーは再実行できません"],

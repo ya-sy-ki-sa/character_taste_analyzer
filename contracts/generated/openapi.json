@@ -5038,7 +5038,8 @@
                         "outputPointers": {
                           "type": "array",
                           "items": {
-                            "type": "string"
+                            "type": "string",
+                            "pattern": "^\\/"
                           },
                           "maxItems": 30
                         },
@@ -5588,7 +5589,8 @@
                         "outputPointers": {
                           "type": "array",
                           "items": {
-                            "type": "string"
+                            "type": "string",
+                            "pattern": "^\\/"
                           },
                           "maxItems": 30
                         },
@@ -6541,7 +6543,8 @@
                         "outputPointers": {
                           "type": "array",
                           "items": {
-                            "type": "string"
+                            "type": "string",
+                            "pattern": "^\\/"
                           },
                           "maxItems": 30
                         },
@@ -7091,7 +7094,8 @@
                         "outputPointers": {
                           "type": "array",
                           "items": {
-                            "type": "string"
+                            "type": "string",
+                            "pattern": "^\\/"
                           },
                           "maxItems": 30
                         },

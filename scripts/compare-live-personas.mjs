@@ -152,13 +152,13 @@ const usageRows = [
   ["一次採点補助", (r) => r?.gradingPrimary],
   ["別パス採点補助", (r) => r?.gradingSecond],
 ].map(([label, select]) => {
-  const describe = (side) => {
+  const describeUsage = (side) => {
     const x = select(result.detailedUsage?.runs?.[side]);
     return x
       ? `${x.calls}呼出 / input ${x.inputTokens.sum ?? "未取得"}・output ${x.outputTokens.sum ?? "未取得"} tokens / 中央値${x.latencyMs.median ?? "未取得"}・P90 ${x.latencyMs.p90 ?? "未取得"} ms / tokens欠損 ${x.inputTokens.missingRows}/${x.outputTokens.missingRows}行`
       : "未取得";
   };
-  return [label, describe("baseline"), describe("current")];
+  return [label, describeUsage("baseline"), describeUsage("current")];
 });
 const md = [
   "# CHARACTER TASTE LAB · LIVE EVALUATION 再評価比較",

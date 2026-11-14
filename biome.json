@@ -51,6 +51,11 @@
       "trailingCommas": "all"
     }
   },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
   "overrides": [
     {
       "includes": ["src/styles/**/*.css"],

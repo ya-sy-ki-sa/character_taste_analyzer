@@ -15,8 +15,8 @@
   "vars": {
     "ENVIRONMENT": "local",
     "LLM_PROVIDER": "openai",
-    "LLM_MODEL": "gpt-6-luna",
-    "LLM_REASONING_EFFORT": "",
+    "LLM_MODEL": "gpt-6.1-sol",
+    "LLM_REASONING_EFFORT": "low",
     "LLM_TIER_ROUTES_JSON": "{}",
     "LLM_FALLBACK_PROVIDER": "",
     "LLM_FALLBACK_MODEL": "",
@@ -156,8 +156,8 @@
       "vars": {
         "ENVIRONMENT": "preview",
         "LLM_PROVIDER": "openai",
-        "LLM_MODEL": "gpt-6-luna",
-        "LLM_REASONING_EFFORT": "",
+        "LLM_MODEL": "gpt-6.1-sol",
+        "LLM_REASONING_EFFORT": "low",
         "LLM_TIER_ROUTES_JSON": "{}",
         "LLM_FALLBACK_PROVIDER": "workers_ai",
         "LLM_FALLBACK_MODEL": "@cf/openai/gpt-oss-120b",
@@ -226,8 +226,8 @@
       "vars": {
         "ENVIRONMENT": "production",
         "LLM_PROVIDER": "openai",
-        "LLM_MODEL": "gpt-6-luna",
-        "LLM_REASONING_EFFORT": "",
+        "LLM_MODEL": "gpt-6.1-sol",
+        "LLM_REASONING_EFFORT": "low",
         "LLM_TIER_ROUTES_JSON": "{}",
         "LLM_FALLBACK_PROVIDER": "workers_ai",
         "LLM_FALLBACK_MODEL": "@cf/openai/gpt-oss-120b",
